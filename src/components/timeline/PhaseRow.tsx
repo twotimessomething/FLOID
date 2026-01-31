@@ -308,11 +308,11 @@ export default function PhaseRow({
       {/* Phase bar row - double-click bubbles up to create phases */}
       <div
         ref={phaseRowRef}
-        className="relative border-b border-[#e5e7eb]/50"
+        className="relative border-b border-[#e5e7eb]/50 overflow-visible"
         style={{ height: ROW_HEIGHT }}
       >
         <div
-          className={`absolute top-2 bottom-2 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group ${
+          className={`absolute top-2 bottom-2 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group overflow-visible ${
             isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
           }`}
           style={{
@@ -337,6 +337,7 @@ export default function PhaseRow({
             onDragEnd={() => handleDragEnd('start')}
             label={`Resize ${phase.name} start`}
             dragDate={startDragDate}
+            color={effectiveColor}
           />
 
           {/* Right drag handle */}
@@ -347,6 +348,7 @@ export default function PhaseRow({
             onDragEnd={() => handleDragEnd('end')}
             label={`Resize ${phase.name} end`}
             dragDate={endDragDate}
+            color={effectiveColor}
           />
 
           {/* Phase name on bar */}

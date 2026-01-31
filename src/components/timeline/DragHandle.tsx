@@ -7,6 +7,7 @@ interface DragHandleProps {
   readonly onDragEnd: () => void;
   readonly label?: string;
   readonly dragDate?: string;
+  readonly color?: string;
 }
 
 export default function DragHandle({
@@ -16,6 +17,7 @@ export default function DragHandle({
   onDragEnd,
   label,
   dragDate,
+  color,
 }: DragHandleProps): JSX.Element {
   const isDragging = useRef(false);
   const lastX = useRef(0);
@@ -66,8 +68,8 @@ export default function DragHandle({
 
   return (
     <div
-      className={`absolute top-0 bottom-0 w-2 cursor-ew-resize drag-handle focus-ring ${
-        edge === 'start' ? 'left-0' : 'right-0'
+      className={`absolute top-0 bottom-0 w-4 cursor-ew-resize drag-handle focus-ring z-20 pointer-events-auto ${
+        edge === 'start' ? '-left-[10px]' : '-right-[10px]'
       }`}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
@@ -94,9 +96,10 @@ export default function DragHandle({
         </div>
       )}
       <div
-        className={`absolute top-1/2 -translate-y-1/2 w-1 h-4 bg-white/50 rounded ${
+        className={`absolute top-1/2 -translate-y-1/2 w-1 h-4 rounded ${
           edge === 'start' ? 'left-0.5' : 'right-0.5'
         }`}
+        style={{ backgroundColor: color ?? 'rgba(255, 255, 255, 0.5)' }}
         aria-hidden="true"
       />
     </div>

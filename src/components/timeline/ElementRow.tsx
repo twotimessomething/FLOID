@@ -213,12 +213,12 @@ export default function ElementRow({
 
   return (
     <div
-      className="relative border-b border-[#e5e7eb]/30"
+      className="relative border-b border-[#e5e7eb]/30 overflow-visible"
       style={{ height: ELEMENT_ROW_HEIGHT }}
       role="listitem"
     >
       <div
-        className={`absolute top-1 bottom-1 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group ${
+        className={`absolute top-1 bottom-1 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group overflow-visible ${
           isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
         }`}
         style={{
@@ -243,6 +243,7 @@ export default function ElementRow({
           onDragEnd={() => handleDragEnd('start')}
           label={`Resize ${element.name} start`}
           dragDate={startDragDate}
+          color={elementColor}
         />
 
         {/* Right drag handle */}
@@ -253,6 +254,7 @@ export default function ElementRow({
           onDragEnd={() => handleDragEnd('end')}
           label={`Resize ${element.name} end`}
           dragDate={endDragDate}
+          color={elementColor}
         />
 
         {/* Element name on bar */}
