@@ -1,5 +1,21 @@
-import type { Phase } from '../types';
+import type { Phase, Milestone } from '../types';
 import { PHASE_COLORS } from './colors';
+
+// Default ID timeline milestones (phase-agnostic, positioned on full project timeline)
+export const DEFAULT_MILESTONES: Omit<Milestone, 'id'>[] = [
+  {
+    name: 'Design Freeze',
+    description: 'Lock final design specifications',
+    relativePosition: 0.6, // End of Design Development phase
+    order: 0,
+  },
+  {
+    name: 'Launch',
+    description: 'Product launch milestone',
+    relativePosition: 1, // End of project
+    order: 1,
+  },
+];
 
 // Default Industrial Design phases based on the standard product development process
 export const DEFAULT_PHASES: Omit<Phase, 'id'>[] = [
@@ -49,7 +65,6 @@ export const DEFAULT_PHASES: Omit<Phase, 'id'>[] = [
         order: 3,
       },
     ],
-    milestones: [],
   },
   {
     name: 'Concept Development',
@@ -97,7 +112,6 @@ export const DEFAULT_PHASES: Omit<Phase, 'id'>[] = [
         order: 3,
       },
     ],
-    milestones: [],
   },
   {
     name: 'Design Development',
@@ -143,17 +157,6 @@ export const DEFAULT_PHASES: Omit<Phase, 'id'>[] = [
         relativeStart: 0.6,
         relativeEnd: 1,
         order: 3,
-      },
-    ],
-    milestones: [
-      {
-        id: '',
-        parentId: '',
-        parentType: 'phase',
-        name: 'Design Freeze',
-        description: 'Lock final design specifications',
-        relativePosition: 1,
-        order: 0,
       },
     ],
   },
@@ -203,7 +206,6 @@ export const DEFAULT_PHASES: Omit<Phase, 'id'>[] = [
         order: 3,
       },
     ],
-    milestones: [],
   },
   {
     name: 'Production Preparation',
@@ -240,17 +242,6 @@ export const DEFAULT_PHASES: Omit<Phase, 'id'>[] = [
         relativeStart: 0.6,
         relativeEnd: 1,
         order: 2,
-      },
-    ],
-    milestones: [
-      {
-        id: '',
-        parentId: '',
-        parentType: 'phase',
-        name: 'Launch',
-        description: 'Product launch milestone',
-        relativePosition: 1,
-        order: 0,
       },
     ],
   },

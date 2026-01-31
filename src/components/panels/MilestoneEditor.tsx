@@ -11,130 +11,122 @@ interface MilestoneEditorProps {
 }
 
 export function MilestoneEditor({ milestoneId }: MilestoneEditorProps): JSX.Element {
-  const { phases, updateMilestone: updatePhaseMilestone, deleteMilestone: deletePhaseMilestone } = useTimelineStore();
-  const { teams } = useTeamStore();
+  const { milestones, updateMilestone: updateIDMilestone, deleteMilestone: deleteIDMilestone } = useTimelineStore();
+  const { teams, updateTeamMilestone, deleteTeamMilestone } = useTeamStore();
   const { project } = useProjectStore();
   const { closeModal } = useUIStore();
 
-  // Find milestone and its parent (could be phase or teamPhase)
-  const { milestone, parent, parentType } = useMemo(() => {
-    // Check ID phases first
-    for (const phase of phases) {
-      const m = phase.milestones.find((ms) => ms.id === milestoneId);
-      if (m) {
-        return { milestone: m, parent: phase, parentType: 'phase' as const };
-      }
+  // Find milestone - check ID timeline first, then teams
+  const { milestone, source, teamId } = useMemo(() => {
+    // Check ID timeline milestones first
+    const idMilestone = milestones.find((m) => m.id === milestoneId);
+    if (idMilestone) {
+      return { milestone: idMilestone, source: 'id' as const, teamId: null };
     }
+
     // Check teams
     for (const team of teams) {
-      for (const teamPhase of team.phases) {
-        const m = teamPhase.milestones.find((ms) => ms.id === milestoneId);
-        if (m) {
-          return { milestone: m, parent: teamPhase, parentType: 'teamPhase' as const };
-        }
+      const teamMilestone = team.milestones.find((m) => m.id === milestoneId);
+      if (teamMilestone) {
+        return { milestone: teamMilestone, source: 'team' as const, teamId: team.id };
       }
     }
-    return { milestone: null, parent: null, parentType: null };
-  }, [phases, teams, milestoneId]);
 
-  // Calculate milestone date
-  const { date, parentStartDate, parentEndDate } = useMemo(() => {
-    if (!milestone || !parent) {
-      return {
-        date: new Date(),
-        parentStartDate: new Date(),
-        parentEndDate: new Date(),
-      };
+    return { milestone: null, source: null, teamId: null };
+  }, [milestones, teams, milestoneId]);
+
+  // Calculate milestone date using project dates (since milestones are now project-relative)
+  const date = useMemo(() => {
+    if (!milestone) {
+      return new Date();
     }
 
-    // Get parent phase dates
-    const pStart = getDateFromRelativePosition(
+    return getDateFromRelativePosition(
       project.startDate,
       project.endDate,
-      parent.relativeStart
-    );
-    const pEnd = getDateFromRelativePosition(
-      project.startDate,
-      project.endDate,
-      parent.relativeEnd
-    );
-
-    // Get milestone date (relative to parent)
-    const mDate = getDateFromRelativePosition(
-      pStart.toISOString(),
-      pEnd.toISOString(),
       milestone.relativePosition
     );
+  }, [milestone, project.startDate, project.endDate]);
 
-    return {
-      date: mDate,
-      parentStartDate: pStart,
-      parentEndDate: pEnd,
-    };
-  }, [milestone, parent, project.startDate, project.endDate]);
+  const projectStartDate = useMemo(() => new Date(project.startDate), [project.startDate]);
+  const projectEndDate = useMemo(() => new Date(project.endDate), [project.endDate]);
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!parent || !parentType) return;
-      if (parentType === 'phase') {
-        updatePhaseMilestone(parent.id, milestoneId, { name: e.target.value });
+      if (!milestone || !source) return;
+      if (source === 'id') {
+        updateIDMilestone(milestoneId, { name: e.target.value });
+      } else if (teamId) {
+        updateTeamMilestone(teamId, milestoneId, { name: e.target.value });
       }
-      // TODO: Add team milestone update when teamStore supports it
     },
-    [parent, parentType, milestoneId, updatePhaseMilestone]
+    [milestone, source, milestoneId, teamId, updateIDMilestone, updateTeamMilestone]
   );
 
   const handleDescriptionChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      if (!parent || !parentType) return;
-      if (parentType === 'phase') {
-        updatePhaseMilestone(parent.id, milestoneId, { description: e.target.value });
+      if (!milestone || !source) return;
+      if (source === 'id') {
+        updateIDMilestone(milestoneId, { description: e.target.value });
+      } else if (teamId) {
+        updateTeamMilestone(teamId, milestoneId, { description: e.target.value });
       }
     },
-    [parent, parentType, milestoneId, updatePhaseMilestone]
+    [milestone, source, milestoneId, teamId, updateIDMilestone, updateTeamMilestone]
   );
 
   const handleDateChange = useCallback(
     (newDate: Date) => {
-      if (!parent || !parentType) return;
+      if (!milestone || !source) return;
       const newRelativePosition = getRelativePositionFromDate(
-        parentStartDate.toISOString(),
-        parentEndDate.toISOString(),
+        project.startDate,
+        project.endDate,
         newDate
       );
       // Clamp to 0-1
       const clampedPosition = Math.max(0, Math.min(1, newRelativePosition));
-      if (parentType === 'phase') {
-        updatePhaseMilestone(parent.id, milestoneId, { relativePosition: clampedPosition });
+      if (source === 'id') {
+        updateIDMilestone(milestoneId, { relativePosition: clampedPosition });
+      } else if (teamId) {
+        updateTeamMilestone(teamId, milestoneId, { relativePosition: clampedPosition });
       }
     },
-    [parent, parentType, milestoneId, parentStartDate, parentEndDate, updatePhaseMilestone]
+    [milestone, source, milestoneId, teamId, project.startDate, project.endDate, updateIDMilestone, updateTeamMilestone]
   );
 
   const handleDelete = useCallback(() => {
-    if (!parent || !parentType || !milestone) return;
+    if (!milestone || !source) return;
     if (confirm(`Delete milestone "${milestone.name}"?`)) {
-      if (parentType === 'phase') {
-        deletePhaseMilestone(parent.id, milestoneId);
+      if (source === 'id') {
+        deleteIDMilestone(milestoneId);
+      } else if (teamId) {
+        deleteTeamMilestone(teamId, milestoneId);
       }
       closeModal();
     }
-  }, [parent, parentType, milestone, milestoneId, deletePhaseMilestone, closeModal]);
+  }, [milestone, source, milestoneId, teamId, deleteIDMilestone, deleteTeamMilestone, closeModal]);
 
-  if (!milestone || !parent) {
+  if (!milestone) {
     return <div className="text-sm text-[#6b7280]">Milestone not found</div>;
   }
+
+  // Determine context label
+  const contextLabel = source === 'id'
+    ? 'Industrial Design'
+    : teams.find((t) => t.id === teamId)?.name || 'Team';
 
   return (
     <div className="flex flex-col gap-4">
       <div className="text-xs text-[#6b7280]">
-        Milestone in <span className="font-medium text-[#111827]">{parent.name}</span>
+        Milestone in <span className="font-medium text-[#111827]">{contextLabel}</span>
       </div>
 
       <Input
         label="Name"
         value={milestone.name}
         onChange={handleNameChange}
+        autoFocus
+        placeholder="Milestone name"
       />
 
       <TextArea
@@ -148,8 +140,8 @@ export function MilestoneEditor({ milestoneId }: MilestoneEditorProps): JSX.Elem
         label="Date"
         value={date}
         onChange={handleDateChange}
-        min={parentStartDate}
-        max={parentEndDate}
+        min={projectStartDate}
+        max={projectEndDate}
       />
 
       <div className="pt-4 border-t border-[#e5e7eb]">

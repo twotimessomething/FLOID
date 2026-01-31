@@ -1,9 +1,10 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useMemo } from 'react';
 import type { Team } from '../../types';
 import { useTeamStore } from '../../stores/teamStore';
 import { useUIStore } from '../../stores/uiStore';
-import { ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
+import { ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
 import TeamPhaseRow from './TeamPhaseRow';
+import TeamMilestoneMarker from './TeamMilestoneMarker';
 import { AddItemButton } from '../controls';
 
 interface DragHandleProps {
@@ -33,6 +34,19 @@ export default function TeamSection({
   const { toggleTeamCollapse, addTeamPhase, addTeamMilestone } = useTeamStore();
   const { selection, setSelection } = useUIStore();
   const headerRowRef = useRef<HTMLDivElement>(null);
+
+  // Calculate the height of content below header for milestone line
+  const milestoneLineHeight = useMemo(() => {
+    if (team.isCollapsed) return 0;
+    let height = 0;
+    team.phases.forEach((phase) => {
+      height += ROW_HEIGHT; // Phase row
+      if (!phase.isCollapsed) {
+        height += phase.elements.length * ELEMENT_ROW_HEIGHT;
+      }
+    });
+    return height;
+  }, [team.phases, team.isCollapsed]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(
@@ -85,68 +99,42 @@ export default function TeamSection({
 
   const handleAddPhase = (): void => {
     addTeamPhase(team.id, {
-      name: 'New Phase',
+      name: '',
       description: '',
       relativeStart: 0.1,
       relativeEnd: 0.4,
       order: team.phases.length,
       isCollapsed: false,
       elements: [],
-      milestones: [],
     });
   };
 
-  // Double-click on team header row creates a milestone
+  // Double-click on team header row creates a milestone at project-relative position
   const handleHeaderDoubleClick = useCallback(
     (e: React.MouseEvent): void => {
-      if (team.phases.length === 0) return;
-
       const rect = headerRowRef.current?.getBoundingClientRect();
       if (!rect) return;
 
       const clickX = e.clientX - rect.left;
       const relativePosition = getRelativeFromPosition(clickX, timelineWidth);
 
-      // Find the team phase at this position, or use the closest one
-      let targetPhase = team.phases.find(
-        (p) => relativePosition >= p.relativeStart && relativePosition <= p.relativeEnd
-      );
-
-      // If no phase contains this position, find the closest phase
-      if (!targetPhase) {
-        targetPhase = team.phases.reduce((closest, phase) => {
-          const phaseCenter = (phase.relativeStart + phase.relativeEnd) / 2;
-          const closestCenter = (closest.relativeStart + closest.relativeEnd) / 2;
-          return Math.abs(relativePosition - phaseCenter) < Math.abs(relativePosition - closestCenter)
-            ? phase
-            : closest;
-        });
-      }
-
-      // Calculate relative position within the phase
-      const phaseWidth = targetPhase.relativeEnd - targetPhase.relativeStart;
-      const milestoneRelativePosition = phaseWidth > 0
-        ? (relativePosition - targetPhase.relativeStart) / phaseWidth
-        : 0.5;
-
-      addTeamMilestone(team.id, targetPhase.id, {
-        name: 'New Milestone',
+      addTeamMilestone(team.id, {
+        name: '',
         description: '',
-        relativePosition: Math.max(0, Math.min(1, milestoneRelativePosition)),
-        order: targetPhase.milestones.length,
+        relativePosition: Math.max(0, Math.min(1, relativePosition)),
+        order: team.milestones.length,
       });
 
       // Get the new milestone
       const updatedTeams = useTeamStore.getState().teams;
       const updatedTeam = updatedTeams.find((t) => t.id === team.id);
-      const updatedPhase = updatedTeam?.phases.find((p) => p.id === targetPhase!.id);
-      const newMilestone = updatedPhase?.milestones[updatedPhase.milestones.length - 1];
+      const newMilestone = updatedTeam?.milestones[updatedTeam.milestones.length - 1];
 
       if (newMilestone) {
         setSelection({ type: 'milestone', id: newMilestone.id }, { x: e.clientX, y: e.clientY });
       }
     },
-    [team.id, team.phases, timelineWidth, addTeamMilestone, setSelection]
+    [team.id, team.milestones.length, timelineWidth, addTeamMilestone, setSelection]
   );
 
 
@@ -166,14 +154,13 @@ export default function TeamSection({
       const relativeEnd = Math.min(1, relativePosition + halfWidth);
 
       addTeamPhase(team.id, {
-        name: 'New Phase',
+        name: '',
         description: '',
         relativeStart,
         relativeEnd,
         order: team.phases.length,
         isCollapsed: false,
         elements: [],
-        milestones: [],
       });
 
       // Get the new phase and select it
@@ -275,7 +262,6 @@ export default function TeamSection({
                 team={team}
                 isLabel
                 timelineWidth={timelineWidth}
-                totalDays={totalDays}
               />
             ))}
           </div>
@@ -337,6 +323,17 @@ export default function TeamSection({
             })}
           </>
         )}
+
+        {/* Milestones rendered in team header row */}
+        {team.milestones.map((milestone) => (
+          <TeamMilestoneMarker
+            key={milestone.id}
+            milestone={milestone}
+            team={team}
+            timelineWidth={timelineWidth}
+            lineHeight={milestoneLineHeight}
+          />
+        ))}
       </div>
 
       {/* Team phase bars */}
@@ -353,7 +350,6 @@ export default function TeamSection({
               team={team}
               isLabel={false}
               timelineWidth={timelineWidth}
-              totalDays={totalDays}
             />
           ))}
         </div>

@@ -6,7 +6,7 @@ import { downloadJson, parseImportedJson } from '../../utils/exportUtils';
 
 export default function Header() {
   const { project, setProject, updateProject, saveCurrentProject, updateProjectIndex, activeProjectId } = useProjectStore();
-  const { phases, setPhases } = useTimelineStore();
+  const { phases, milestones, setPhases, setMilestones } = useTimelineStore();
   const { teams, setTeams } = useTeamStore();
 
   const [isEditingName, setIsEditingName] = useState(false);
@@ -50,7 +50,7 @@ export default function Header() {
   }, [handleNameSave, project.name]);
 
   const handleExport = () => {
-    downloadJson(project, phases, teams);
+    downloadJson(project, phases, milestones, teams);
   };
 
   const handleImport = () => {
@@ -68,12 +68,13 @@ export default function Header() {
         // Update the current project with imported data
         setProject(data.project);
         setPhases(data.phases);
+        setMilestones(data.milestones || []);
         if (data.teams) {
           setTeams(data.teams);
         }
         // Save and update the project index
         if (activeProjectId) {
-          saveCurrentProject(data.phases, data.teams || []);
+          saveCurrentProject(data.phases, data.milestones || [], data.teams || []);
           updateProjectIndex(activeProjectId, { name: data.project.name });
         }
       }

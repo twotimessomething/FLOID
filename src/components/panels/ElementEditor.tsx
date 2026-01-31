@@ -137,6 +137,8 @@ export function ElementEditor({ elementId }: ElementEditorProps): JSX.Element {
         label="Name"
         value={element.name}
         onChange={handleNameChange}
+        autoFocus
+        placeholder="Element name"
       />
 
       <TextArea

@@ -26,7 +26,7 @@ const getDefaultFormData = (): ProjectFormData => {
 export function ProjectSetupModal(): JSX.Element | null {
   const { isProjectSetupModalOpen, closeProjectSetupModal, closeModal } = useUIStore();
   const { addProject, selectProject, saveCurrentProject } = useProjectStore();
-  const { phases, loadPhasesForProject } = useTimelineStore();
+  const { phases, milestones, loadPhasesForProject } = useTimelineStore();
   const { teams, loadTeamsForProject } = useTeamStore();
 
   const [formData, setFormData] = useState<ProjectFormData>(getDefaultFormData);
@@ -86,7 +86,7 @@ export function ProjectSetupModal(): JSX.Element | null {
       const endDate = formData.endDate.toISOString();
 
       // Save current project before creating new one
-      saveCurrentProject(phases, teams);
+      saveCurrentProject(phases, milestones, teams);
 
       // Create the new project
       const newId = addProject({ name, startDate, endDate });
@@ -102,6 +102,7 @@ export function ProjectSetupModal(): JSX.Element | null {
     [
       formData,
       phases,
+      milestones,
       teams,
       saveCurrentProject,
       addProject,

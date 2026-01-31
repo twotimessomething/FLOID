@@ -1,4 +1,4 @@
-import { useRef, useMemo, useCallback } from 'react';
+import { useRef, useMemo, useCallback, useEffect, useState } from 'react';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useTeamStore } from '../../stores/teamStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -11,20 +11,76 @@ import IDTimelineSection from './IDTimelineSection';
 import TeamSection from './TeamSection';
 import Playhead from './Playhead';
 import { AddTeamButton, ZoomControls } from '../controls';
-import { LABEL_COLUMN_WIDTH, HEADER_HEIGHT, ROW_HEIGHT, ELEMENT_ROW_HEIGHT } from '../../utils/timelineUtils';
+import { HEADER_HEIGHT, ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getPositionFromRelative } from '../../utils/timelineUtils';
+import { getTodayPosition } from '../../utils/dateUtils';
 
 export default function Timeline() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const labelsScrollRef = useRef<HTMLDivElement>(null);
   const isScrollSyncing = useRef(false);
-  const { phases } = useTimelineStore();
+  const { phases, milestones } = useTimelineStore();
   const { teams, reorderTeams } = useTeamStore();
   const isIDTimelineCollapsed = useUIStore((state) => state.isIDTimelineCollapsed);
-  const { timelineWidth, totalDays } = useTimeline();
+  const labelColumnWidth = useUIStore((state) => state.labelColumnWidth);
+  const setLabelColumnWidth = useUIStore((state) => state.setLabelColumnWidth);
+  const scrollToTodayTrigger = useUIStore((state) => state.scrollToTodayTrigger);
+  const { timelineWidth, totalDays, project } = useTimeline();
   const { handleMouseDown: handlePlayheadMouseDown } = usePlayhead({
     timelineWidth,
     containerRef: scrollContainerRef,
   });
+
+  // Label column resize state
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(0);
+
+  // Handle label column resize
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    resizeStartX.current = e.clientX;
+    resizeStartWidth.current = labelColumnWidth;
+  }, [labelColumnWidth]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - resizeStartX.current;
+      setLabelColumnWidth(resizeStartWidth.current + deltaX);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, setLabelColumnWidth]);
+
+  // Scroll to today when triggered
+  useEffect(() => {
+    if (scrollToTodayTrigger === 0) return;
+    if (!scrollContainerRef.current) return;
+
+    const todayPosition = getTodayPosition(project.startDate, project.endDate);
+    if (todayPosition < 0 || todayPosition > 1) return;
+
+    const todayPixel = getPositionFromRelative(todayPosition, timelineWidth);
+    const containerWidth = scrollContainerRef.current.clientWidth;
+    const scrollTarget = todayPixel - containerWidth / 2;
+
+    scrollContainerRef.current.scrollTo({
+      left: Math.max(0, scrollTarget),
+      behavior: 'smooth',
+    });
+  }, [scrollToTodayTrigger, project.startDate, project.endDate, timelineWidth]);
 
   // Calculate individual team heights for proper drop indicator positioning
   const teamHeights = useMemo(() => {
@@ -105,7 +161,7 @@ export default function Timeline() {
     if (!isIDTimelineCollapsed) {
       phases.forEach((phase) => {
         height += ROW_HEIGHT;
-        if (!phase.isCollapsed) {
+        if (!phase.isCollapsed && phase.elements.length > 0) {
           height += phase.elements.length * ELEMENT_ROW_HEIGHT;
         }
       });
@@ -116,7 +172,7 @@ export default function Timeline() {
       if (!team.isCollapsed) {
         team.phases.forEach((teamPhase) => {
           height += ROW_HEIGHT;
-          if (!teamPhase.isCollapsed) {
+          if (!teamPhase.isCollapsed && teamPhase.elements.length > 0) {
             height += teamPhase.elements.length * ELEMENT_ROW_HEIGHT;
           }
         });
@@ -140,10 +196,19 @@ export default function Timeline() {
       <div className="flex-1 flex overflow-hidden">
         {/* Fixed Labels Column */}
         <nav
-          className="flex-shrink-0 border-r border-[#e5e7eb] bg-white flex flex-col"
-          style={{ width: LABEL_COLUMN_WIDTH }}
+          className="flex-shrink-0 border-r border-[#e5e7eb] bg-white flex flex-col relative"
+          style={{ width: labelColumnWidth }}
           aria-label="Timeline labels"
         >
+          {/* Resize handle */}
+          <div
+            className={`absolute top-0 -right-0.5 w-1 h-full cursor-col-resize z-10 transition-colors ${
+              isResizing ? 'bg-blue-500' : 'hover:bg-blue-400'
+            }`}
+            onMouseDown={handleResizeMouseDown}
+            aria-label="Resize labels column"
+            role="separator"
+          />
           {/* Header spacer */}
           <div
             className="flex-shrink-0 border-b border-[#e5e7eb]"
@@ -162,6 +227,7 @@ export default function Timeline() {
             {/* Industrial Design section */}
             <IDTimelineSection
               phases={phases}
+              milestones={milestones}
               isLabel
               timelineWidth={timelineWidth}
               totalDays={totalDays}
@@ -217,6 +283,7 @@ export default function Timeline() {
               {/* Industrial Design section bars */}
               <IDTimelineSection
                 phases={phases}
+                milestones={milestones}
                 isLabel={false}
                 timelineWidth={timelineWidth}
                 totalDays={totalDays}

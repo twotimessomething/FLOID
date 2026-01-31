@@ -1,6 +1,6 @@
 import { addMonths } from 'date-fns';
-import type { Project, Phase } from '../types';
-import { DEFAULT_PHASES } from '../constants/designProcess';
+import type { Project, Phase, Milestone } from '../types';
+import { DEFAULT_PHASES, DEFAULT_MILESTONES } from '../constants/designProcess';
 
 const generateId = (): string => {
   return Math.random().toString(36).substring(2, 11);
@@ -31,17 +31,17 @@ export const createDefaultPhases = (): Phase[] => {
       phaseId,
     }));
 
-    const milestones = phaseTemplate.milestones.map((milestone) => ({
-      ...milestone,
-      id: generateId(),
-      parentId: phaseId,
-    }));
-
     return {
       ...phaseTemplate,
       id: phaseId,
       elements,
-      milestones,
     };
   });
+};
+
+export const createDefaultMilestones = (): Milestone[] => {
+  return DEFAULT_MILESTONES.map((milestoneTemplate) => ({
+    ...milestoneTemplate,
+    id: generateId(),
+  }));
 };

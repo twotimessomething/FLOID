@@ -136,12 +136,12 @@ body {
 }
 
 .timeline-bar:hover {
-  transform: scale(1.01);
+  transform: scale(1.005);
   box-shadow: var(--shadow-md);
 }
 
 .timeline-bar:active {
-  transform: scale(1.005);
+  transform: scale(1.0025);
 }
 
 /* Drag handle visibility animation */

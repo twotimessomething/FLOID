@@ -7,19 +7,21 @@ import { useUIStore } from '../../stores/uiStore';
 export function LeftSidebar() {
   const { projects, activeProjectId, selectProject, deleteProject, saveCurrentProject, updateProjectIndex, updateProject } =
     useProjectStore();
-  const { phases, loadPhasesForProject } = useTimelineStore();
+  const { phases, milestones, loadPhasesForProject } = useTimelineStore();
   const { teams, loadTeamsForProject } = useTeamStore();
-  const { isLeftSidebarOpen, toggleLeftSidebar, closeModal, openProjectSetupModal } = useUIStore();
+  const { isLeftSidebarOpen, toggleLeftSidebar, closeModal, openProjectSetupModal, openProjectEditModal } = useUIStore();
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
+  const [menuOpenProjectId, setMenuOpenProjectId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSelectProject = useCallback(
     (projectId: string) => {
       if (projectId === activeProjectId) return;
 
       // Save current project before switching
-      saveCurrentProject(phases, teams);
+      saveCurrentProject(phases, milestones, teams);
 
       // Clear any selection
       closeModal();
@@ -32,6 +34,7 @@ export function LeftSidebar() {
     [
       activeProjectId,
       phases,
+      milestones,
       teams,
       saveCurrentProject,
       selectProject,
@@ -105,6 +108,42 @@ export function LeftSidebar() {
       setEditedName('');
     }
   }, [handleSaveEdit]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenProjectId(null);
+      }
+    };
+
+    if (menuOpenProjectId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [menuOpenProjectId]);
+
+  const handleToggleMenu = useCallback((projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpenProjectId((prev) => (prev === projectId ? null : projectId));
+  }, []);
+
+  const handleEditProject = useCallback((projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpenProjectId(null);
+
+    // If not the active project, switch to it first
+    if (projectId !== activeProjectId) {
+      saveCurrentProject(phases, milestones, teams);
+      closeModal();
+      selectProject(projectId);
+      loadPhasesForProject(projectId);
+      loadTeamsForProject(projectId);
+    }
+
+    // Open the edit modal
+    openProjectEditModal(projectId);
+  }, [activeProjectId, phases, milestones, teams, saveCurrentProject, closeModal, selectProject, loadPhasesForProject, loadTeamsForProject, openProjectEditModal]);
 
   // Sort projects by most recently updated
   const sortedProjects = [...projects].sort(
@@ -195,22 +234,44 @@ export function LeftSidebar() {
                   </span>
                 )}
               </div>
-              {projects.length > 1 && (
+              <div className="relative" ref={menuOpenProjectId === proj.id ? menuRef : undefined}>
                 <button
-                  onClick={(e) => handleDeleteProject(proj.id, e)}
-                  className="p-1 opacity-0 group-hover:opacity-100 text-[#9ca3af] hover:text-[#ef4444] rounded transition-all duration-150"
-                  aria-label="Delete project"
+                  onClick={(e) => handleToggleMenu(proj.id, e)}
+                  className={`p-1 text-[#9ca3af] hover:text-[#6b7280] rounded transition-all duration-150 ${
+                    menuOpenProjectId === proj.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                  aria-label="Project options"
+                  aria-haspopup="true"
+                  aria-expanded={menuOpenProjectId === proj.id}
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                   </svg>
                 </button>
-              )}
+
+                {/* Dropdown menu */}
+                {menuOpenProjectId === proj.id && (
+                  <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-[#e5e7eb] rounded-lg shadow-lg py-1 z-10">
+                    <button
+                      onClick={(e) => handleEditProject(proj.id, e)}
+                      className="w-full px-3 py-1.5 text-left text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors duration-150"
+                    >
+                      Edit project...
+                    </button>
+                    {projects.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          setMenuOpenProjectId(null);
+                          handleDeleteProject(proj.id, e);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-sm text-[#ef4444] hover:bg-[#fef2f2] transition-colors duration-150"
+                      >
+                        Delete project
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

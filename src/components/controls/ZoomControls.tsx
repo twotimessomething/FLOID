@@ -1,5 +1,4 @@
 import { useUIStore } from '../../stores/uiStore';
-import { useProjectStore } from '../../stores/projectStore';
 import type { ZoomLevel } from '../../types';
 
 const ZOOM_LEVELS: ZoomLevel[] = ['day', 'week', 'month', 'quarter'];
@@ -12,8 +11,7 @@ const ZOOM_LABELS: Record<ZoomLevel, string> = {
 };
 
 export default function ZoomControls() {
-  const { zoomLevel, setZoomLevel, setPlayheadPosition } = useUIStore();
-  const { project } = useProjectStore();
+  const { zoomLevel, setZoomLevel, triggerScrollToToday } = useUIStore();
 
   const currentIndex = ZOOM_LEVELS.indexOf(zoomLevel);
 
@@ -30,13 +28,7 @@ export default function ZoomControls() {
   };
 
   const handleToday = () => {
-    const today = new Date();
-    const start = new Date(project.startDate);
-    const end = new Date(project.endDate);
-    const totalMs = end.getTime() - start.getTime();
-    const todayMs = today.getTime() - start.getTime();
-    const relativePosition = Math.max(0, Math.min(1, todayMs / totalMs));
-    setPlayheadPosition(relativePosition);
+    triggerScrollToToday();
   };
 
   return (

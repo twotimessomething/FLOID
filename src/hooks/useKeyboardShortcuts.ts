@@ -18,7 +18,7 @@ interface NavigableItem {
  */
 export function useKeyboardShortcuts(): void {
   const { selection, setSelection, closeModal, isModalOpen } = useUIStore();
-  const { phases, togglePhaseCollapse, deletePhase, deleteElement, deleteMilestone } =
+  const { phases, milestones, togglePhaseCollapse, deletePhase, deleteElement, deleteMilestone } =
     useTimelineStore();
   const {
     teams,
@@ -27,6 +27,7 @@ export function useKeyboardShortcuts(): void {
     deleteTeam,
     deleteTeamPhase,
     deleteTeamElement,
+    deleteTeamMilestone,
   } = useTeamStore();
 
   // Build flat list of navigable items for arrow key navigation
@@ -51,16 +52,17 @@ export function useKeyboardShortcuts(): void {
             isCollapsed: false,
           });
         });
-
-        phase.milestones.forEach((milestone) => {
-          items.push({
-            id: milestone.id,
-            type: 'milestone',
-            canCollapse: false,
-            isCollapsed: false,
-          });
-        });
       }
+    });
+
+    // Add ID timeline milestones
+    milestones.forEach((milestone) => {
+      items.push({
+        id: milestone.id,
+        type: 'milestone',
+        canCollapse: false,
+        isCollapsed: false,
+      });
     });
 
     // Add teams and their children
@@ -92,11 +94,21 @@ export function useKeyboardShortcuts(): void {
             });
           }
         });
+
+        // Add team milestones
+        team.milestones.forEach((milestone) => {
+          items.push({
+            id: milestone.id,
+            type: 'milestone',
+            canCollapse: false,
+            isCollapsed: false,
+          });
+        });
       }
     });
 
     return items;
-  }, [phases, teams]);
+  }, [phases, milestones, teams]);
 
   // Find current selection index in navigable items
   const getCurrentIndex = useCallback((): number => {
@@ -182,12 +194,18 @@ export function useKeyboardShortcuts(): void {
         break;
       }
       case 'milestone': {
-        // Find the phase containing this milestone
-        const phaseWithMilestone = phases.find((p) =>
-          p.milestones.some((m) => m.id === selection.id)
-        );
-        if (phaseWithMilestone) {
-          deleteMilestone(phaseWithMilestone.id, selection.id);
+        // Check if it's an ID timeline milestone
+        const isIDMilestone = milestones.some((m) => m.id === selection.id);
+        if (isIDMilestone) {
+          deleteMilestone(selection.id);
+        } else {
+          // Check team milestones
+          const teamWithMilestone = teams.find((t) =>
+            t.milestones.some((m) => m.id === selection.id)
+          );
+          if (teamWithMilestone) {
+            deleteTeamMilestone(teamWithMilestone.id, selection.id);
+          }
         }
         break;
       }

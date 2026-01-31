@@ -1,16 +1,18 @@
-import type { Project, Phase, Team } from '../types';
+import type { Project, Phase, Milestone, Team } from '../types';
 
 export interface ExportData {
   version: number;
   exportedAt: string;
   project: Project;
   phases: Phase[];
+  milestones: Milestone[];
   teams: Team[];
 }
 
 export const exportToJson = (
   project: Project,
   phases: Phase[],
+  milestones: Milestone[],
   teams: Team[]
 ): string => {
   const data: ExportData = {
@@ -18,6 +20,7 @@ export const exportToJson = (
     exportedAt: new Date().toISOString(),
     project,
     phases,
+    milestones,
     teams,
   };
   return JSON.stringify(data, null, 2);
@@ -26,9 +29,10 @@ export const exportToJson = (
 export const downloadJson = (
   project: Project,
   phases: Phase[],
+  milestones: Milestone[],
   teams: Team[]
 ): void => {
-  const json = exportToJson(project, phases, teams);
+  const json = exportToJson(project, phases, milestones, teams);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 

@@ -4,6 +4,7 @@ import TimelineContainer from './components/layout/TimelineContainer';
 import { EditorModal } from './components/layout/EditorModal';
 import { LeftSidebar } from './components/layout/LeftSidebar';
 import { ProjectSetupModal } from './components/layout/ProjectSetupModal';
+import { ProjectEditModal } from './components/layout/ProjectEditModal';
 import { useAutoSave, useKeyboardShortcuts } from './hooks';
 import { useTimelineStore } from './stores/timelineStore';
 import { useTeamStore } from './stores/teamStore';
@@ -49,6 +50,7 @@ function App() {
       </main>
       <EditorModal />
       <ProjectSetupModal />
+      <ProjectEditModal />
     </div>
   );
 }

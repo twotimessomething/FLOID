@@ -4,9 +4,8 @@ import { useTeamStore } from '../../stores/teamStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { getBarDimensions, ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
-import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
+import { getDateFromRelativePosition, formatDate, getDaysBetween } from '../../utils/dateUtils';
 import TeamElementRow from './TeamElementRow';
-import TeamMilestoneMarker from './TeamMilestoneMarker';
 import DragHandle from './DragHandle';
 import { AddItemButton } from '../controls';
 
@@ -15,7 +14,6 @@ interface TeamPhaseRowProps {
   readonly team: Team;
   readonly isLabel: boolean;
   readonly timelineWidth: number;
-  readonly totalDays: number;
 }
 
 export default function TeamPhaseRow({
@@ -23,7 +21,6 @@ export default function TeamPhaseRow({
   team,
   isLabel,
   timelineWidth,
-  totalDays,
 }: TeamPhaseRowProps): JSX.Element {
   const { toggleTeamPhaseCollapse, updateTeamPhasePosition, addTeamElement } = useTeamStore();
   const { project } = useProjectStore();
@@ -33,7 +30,6 @@ export default function TeamPhaseRow({
   const isMoving = useRef(false);
   const moveLastX = useRef(0);
   const hasDragged = useRef(false);
-  const elementContainerRef = useRef<HTMLDivElement>(null);
 
   // Drag date bubble state
   const [startDragDate, setStartDragDate] = useState<string | undefined>(undefined);
@@ -74,7 +70,7 @@ export default function TeamPhaseRow({
 
   const handleAddElement = (): void => {
     addTeamElement(team.id, teamPhase.id, {
-      name: 'New Element',
+      name: '',
       description: '',
       relativeStart: 0,
       relativeEnd: 0.3,
@@ -82,35 +78,36 @@ export default function TeamPhaseRow({
     });
   };
 
-  // Double-click on element container creates a new element within this team phase
-  const handleElementContainerDoubleClick = useCallback(
+  // Prevent double-click from propagating on the phase bar
+  const handleBarDoubleClick = useCallback((e: React.MouseEvent): void => {
+    e.stopPropagation();
+  }, []);
+
+  // Double-click on elements container creates a new team element within this phase
+  const handleCreateTeamElement = useCallback(
     (e: React.MouseEvent): void => {
-      // Prevent event from bubbling to parent container
       e.stopPropagation();
 
-      const rect = elementContainerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
+      // Calculate position relative to the phase
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const absoluteRelative = getRelativeFromPosition(clickX, timelineWidth);
+      const absolutePosition = getRelativeFromPosition(clickX, timelineWidth);
 
-      // Convert absolute position to relative position within the phase
+      // Convert absolute position to phase-relative position
       const phaseWidth = teamPhase.relativeEnd - teamPhase.relativeStart;
-      if (phaseWidth <= 0) return;
+      const relativeInPhase = phaseWidth > 0
+        ? (absolutePosition - teamPhase.relativeStart) / phaseWidth
+        : 0.5;
 
-      const relativeWithinPhase = (absoluteRelative - teamPhase.relativeStart) / phaseWidth;
-
-      // Create an element with 30-day default width
-      const thirtyDaysRelative = totalDays > 0 ? 30 / totalDays : 0.1;
-      // Convert to relative within phase
-      const elementWidthInPhase = phaseWidth > 0 ? thirtyDaysRelative / phaseWidth : 0.2;
-      const halfWidth = elementWidthInPhase / 2;
-
-      const relativeStart = Math.max(0, relativeWithinPhase - halfWidth);
-      const relativeEnd = Math.min(1, relativeWithinPhase + halfWidth);
+      // Create an element centered at the click position with reasonable width
+      const totalDays = getDaysBetween(project.startDate, project.endDate);
+      const sevenDaysRelative = totalDays > 0 ? (7 / totalDays) / phaseWidth : 0.15;
+      const halfWidth = sevenDaysRelative / 2;
+      const relativeStart = Math.max(0, Math.min(1 - sevenDaysRelative, relativeInPhase - halfWidth));
+      const relativeEnd = Math.min(1, relativeStart + sevenDaysRelative);
 
       addTeamElement(team.id, teamPhase.id, {
-        name: 'New Element',
+        name: '',
         description: '',
         relativeStart,
         relativeEnd,
@@ -127,13 +124,8 @@ export default function TeamPhaseRow({
         setSelection({ type: 'teamElement', id: newElement.id }, { x: e.clientX, y: e.clientY });
       }
     },
-    [team.id, teamPhase.id, teamPhase.relativeStart, teamPhase.relativeEnd, teamPhase.elements.length, timelineWidth, totalDays, addTeamElement, setSelection]
+    [team.id, teamPhase.id, teamPhase.relativeStart, teamPhase.relativeEnd, teamPhase.elements.length, timelineWidth, project.startDate, project.endDate, addTeamElement, setSelection]
   );
-
-  // Prevent double-click from propagating on the phase bar
-  const handleBarDoubleClick = useCallback((e: React.MouseEvent): void => {
-    e.stopPropagation();
-  }, []);
 
   const handleDragStart = (edge: 'start' | 'end'): void => {
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
@@ -280,7 +272,7 @@ export default function TeamPhaseRow({
         </div>
 
         {/* Element labels */}
-        {!teamPhase.isCollapsed && (
+        {!teamPhase.isCollapsed && teamPhase.elements.length > 0 && (
           <div role="list" aria-label={`${teamPhase.name} elements`}>
             {teamPhase.elements.map((element) => (
               <TeamElementRow
@@ -351,27 +343,14 @@ export default function TeamPhaseRow({
             </span>
           </div>
         </div>
-
-        {/* Milestones */}
-        {teamPhase.milestones.map((milestone) => (
-          <TeamMilestoneMarker
-            key={milestone.id}
-            milestone={milestone}
-            teamPhase={teamPhase}
-            team={team}
-            timelineWidth={timelineWidth}
-          />
-        ))}
       </div>
 
-      {/* Element bars - double-click creates elements */}
+      {/* Element bars */}
       {!teamPhase.isCollapsed && (
         <div
-          ref={elementContainerRef}
           role="list"
           aria-label={`${teamPhase.name} element bars`}
-          onDoubleClick={handleElementContainerDoubleClick}
-          style={{ minHeight: teamPhase.elements.length === 0 ? 28 : undefined }}
+          onDoubleClick={handleCreateTeamElement}
         >
           {teamPhase.elements.map((element) => (
             <TeamElementRow

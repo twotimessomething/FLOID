@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import type { ZoomLevel, SelectionState, ModalPosition } from '../types';
 
+// Label column constraints
+const MIN_LABEL_WIDTH = 120;
+const MAX_LABEL_WIDTH = 400;
+const DEFAULT_LABEL_WIDTH = 200;
+
 interface UIState {
   // Zoom
   zoomLevel: ZoomLevel;
@@ -36,6 +41,19 @@ interface UIState {
   isProjectSetupModalOpen: boolean;
   openProjectSetupModal: () => void;
   closeProjectSetupModal: () => void;
+
+  // Project edit modal
+  editingProjectId: string | null;
+  openProjectEditModal: (projectId: string) => void;
+  closeProjectEditModal: () => void;
+
+  // Label column width
+  labelColumnWidth: number;
+  setLabelColumnWidth: (width: number) => void;
+
+  // Scroll to today trigger (incremented to trigger scroll)
+  scrollToTodayTrigger: number;
+  triggerScrollToToday: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -87,4 +105,19 @@ export const useUIStore = create<UIState>((set) => ({
   isProjectSetupModalOpen: false,
   openProjectSetupModal: () => set({ isProjectSetupModalOpen: true }),
   closeProjectSetupModal: () => set({ isProjectSetupModalOpen: false }),
+
+  // Project edit modal
+  editingProjectId: null,
+  openProjectEditModal: (projectId) => set({ editingProjectId: projectId }),
+  closeProjectEditModal: () => set({ editingProjectId: null }),
+
+  // Label column width
+  labelColumnWidth: DEFAULT_LABEL_WIDTH,
+  setLabelColumnWidth: (width) =>
+    set({ labelColumnWidth: Math.max(MIN_LABEL_WIDTH, Math.min(MAX_LABEL_WIDTH, width)) }),
+
+  // Scroll to today
+  scrollToTodayTrigger: 0,
+  triggerScrollToToday: () =>
+    set((state) => ({ scrollToTodayTrigger: state.scrollToTodayTrigger + 1 })),
 }));

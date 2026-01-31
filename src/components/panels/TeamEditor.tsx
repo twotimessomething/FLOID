@@ -47,6 +47,8 @@ export function TeamEditor({ teamId }: TeamEditorProps): JSX.Element {
         label="Team Name"
         value={team.name}
         onChange={handleNameChange}
+        autoFocus
+        placeholder="Team name"
       />
 
       <ColorPicker

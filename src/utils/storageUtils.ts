@@ -4,6 +4,7 @@ const PROJECTS_INDEX_KEY = 'floid-projects-index';
 export interface StoredData {
   project: unknown;
   phases: unknown[];
+  milestones: unknown[]; // ID timeline milestones
   teams: unknown[];
   version: number;
 }

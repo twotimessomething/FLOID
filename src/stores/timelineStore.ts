@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Phase, Element, Milestone } from '../types';
-import { createDefaultPhases } from '../data/defaultTemplate';
+import { createDefaultPhases, createDefaultMilestones } from '../data/defaultTemplate';
 import { useProjectStore } from './projectStore';
 import { useTeamStore } from './teamStore';
 
@@ -10,6 +10,7 @@ const generateId = (): string => {
 
 interface TimelineState {
   phases: Phase[];
+  milestones: Milestone[]; // ID timeline milestones (phase-agnostic)
   isInitialized: boolean;
 
   // Initialization
@@ -28,10 +29,11 @@ interface TimelineState {
   addElement: (phaseId: string, element: Omit<Element, 'id' | 'phaseId'>) => void;
   deleteElement: (phaseId: string, elementId: string) => void;
 
-  // Milestone operations
-  updateMilestone: (phaseId: string, milestoneId: string, updates: Partial<Milestone>) => void;
-  addMilestone: (phaseId: string, milestone: Omit<Milestone, 'id' | 'parentId' | 'parentType'>) => void;
-  deleteMilestone: (phaseId: string, milestoneId: string) => void;
+  // Milestone operations (now at timeline level, not phase level)
+  setMilestones: (milestones: Milestone[]) => void;
+  updateMilestone: (milestoneId: string, updates: Partial<Milestone>) => void;
+  addMilestone: (milestone: Omit<Milestone, 'id'>) => void;
+  deleteMilestone: (milestoneId: string) => void;
 
   // Relative position updates (for drag operations)
   updatePhasePosition: (phaseId: string, relativeStart: number, relativeEnd: number) => void;
@@ -48,6 +50,7 @@ interface TimelineState {
 
 export const useTimelineStore = create<TimelineState>((set, get) => ({
   phases: [],
+  milestones: [],
   isInitialized: false,
 
   initializeFromProject: () => {
@@ -60,6 +63,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       if (data && data.phases.length > 0) {
         set({
           phases: data.phases,
+          milestones: data.milestones || [],
           isInitialized: true,
         });
         return;
@@ -69,6 +73,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     // Fallback to default template
     set({
       phases: createDefaultPhases(),
+      milestones: createDefaultMilestones(),
       isInitialized: true,
     });
   },
@@ -78,9 +83,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const data = projectStore.loadProjectData(projectId);
 
     if (data) {
-      set({ phases: data.phases });
+      set({ phases: data.phases, milestones: data.milestones || [] });
     } else {
-      set({ phases: createDefaultPhases() });
+      set({ phases: createDefaultPhases(), milestones: createDefaultMilestones() });
     }
   },
 
@@ -151,45 +156,26 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       ),
     })),
 
-  updateMilestone: (phaseId, milestoneId, updates) =>
+  setMilestones: (milestones) => set({ milestones }),
+
+  updateMilestone: (milestoneId, updates) =>
     set((state) => ({
-      phases: state.phases.map((phase) =>
-        phase.id === phaseId
-          ? {
-              ...phase,
-              milestones: phase.milestones.map((m) =>
-                m.id === milestoneId ? { ...m, ...updates } : m
-              ),
-            }
-          : phase
+      milestones: state.milestones.map((m) =>
+        m.id === milestoneId ? { ...m, ...updates } : m
       ),
     })),
 
-  addMilestone: (phaseId, milestone) =>
+  addMilestone: (milestone) =>
     set((state) => ({
-      phases: state.phases.map((phase) =>
-        phase.id === phaseId
-          ? {
-              ...phase,
-              milestones: [
-                ...phase.milestones,
-                { ...milestone, id: generateId(), parentId: phaseId, parentType: 'phase' as const },
-              ],
-            }
-          : phase
-      ),
+      milestones: [
+        ...state.milestones,
+        { ...milestone, id: generateId() },
+      ],
     })),
 
-  deleteMilestone: (phaseId, milestoneId) =>
+  deleteMilestone: (milestoneId) =>
     set((state) => ({
-      phases: state.phases.map((phase) =>
-        phase.id === phaseId
-          ? {
-              ...phase,
-              milestones: phase.milestones.filter((m) => m.id !== milestoneId),
-            }
-          : phase
-      ),
+      milestones: state.milestones.filter((m) => m.id !== milestoneId),
     })),
 
   updatePhasePosition: (phaseId, relativeStart, relativeEnd) =>
@@ -218,8 +204,8 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     })),
 
   saveState: () => {
-    const { phases } = get();
+    const { phases, milestones } = get();
     const teams = useTeamStore.getState().teams;
-    useProjectStore.getState().saveCurrentProject(phases, teams);
+    useProjectStore.getState().saveCurrentProject(phases, milestones, teams);
   },
 }));

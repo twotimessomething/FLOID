@@ -1,13 +1,15 @@
-import { useCallback, useRef } from 'react';
-import type { Phase } from '../../types';
+import { useCallback, useRef, useMemo } from 'react';
+import type { Phase, Milestone } from '../../types';
 import { useUIStore } from '../../stores/uiStore';
 import { useTimelineStore } from '../../stores/timelineStore';
-import { ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
+import { ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
 import { PHASE_COLORS } from '../../constants/colors';
 import PhaseRow from './PhaseRow';
+import MilestoneMarker from './MilestoneMarker';
 
 interface IDTimelineSectionProps {
   readonly phases: readonly Phase[];
+  readonly milestones: readonly Milestone[];
   readonly isLabel: boolean;
   readonly timelineWidth: number;
   readonly totalDays: number;
@@ -15,6 +17,7 @@ interface IDTimelineSectionProps {
 
 export default function IDTimelineSection({
   phases,
+  milestones,
   isLabel,
   timelineWidth,
   totalDays,
@@ -22,6 +25,19 @@ export default function IDTimelineSection({
   const { isIDTimelineCollapsed, toggleIDTimelineCollapse, selection, setSelection } = useUIStore();
   const { addMilestone, addPhase } = useTimelineStore();
   const headerRowRef = useRef<HTMLDivElement>(null);
+
+  // Calculate the height of content below header for milestone line
+  const milestoneLineHeight = useMemo(() => {
+    if (isIDTimelineCollapsed) return 0;
+    let height = 0;
+    phases.forEach((phase) => {
+      height += ROW_HEIGHT; // Phase row
+      if (!phase.isCollapsed) {
+        height += phase.elements.length * ELEMENT_ROW_HEIGHT;
+      }
+    });
+    return height;
+  }, [phases, isIDTimelineCollapsed]);
 
   const handleToggleCollapse = useCallback(
     (e: React.MouseEvent): void => {
@@ -55,56 +71,31 @@ export default function IDTimelineSection({
     e.stopPropagation();
   }, []);
 
-  // Double-click on header row creates a milestone
+  // Double-click on header row creates a milestone at project-relative position
   const handleHeaderDoubleClick = useCallback(
     (e: React.MouseEvent): void => {
-      if (phases.length === 0) return;
-
       const rect = headerRowRef.current?.getBoundingClientRect();
       if (!rect) return;
 
       const clickX = e.clientX - rect.left;
       const relativePosition = getRelativeFromPosition(clickX, timelineWidth);
 
-      // Find the phase at this position, or use the closest one
-      let targetPhase = phases.find(
-        (p) => relativePosition >= p.relativeStart && relativePosition <= p.relativeEnd
-      );
-
-      // If no phase contains this position, find the closest phase
-      if (!targetPhase) {
-        targetPhase = phases.reduce((closest, phase) => {
-          const phaseCenter = (phase.relativeStart + phase.relativeEnd) / 2;
-          const closestCenter = (closest.relativeStart + closest.relativeEnd) / 2;
-          return Math.abs(relativePosition - phaseCenter) < Math.abs(relativePosition - closestCenter)
-            ? phase
-            : closest;
-        });
-      }
-
-      // Calculate relative position within the phase
-      const phaseWidth = targetPhase.relativeEnd - targetPhase.relativeStart;
-      const milestoneRelativePosition = phaseWidth > 0
-        ? (relativePosition - targetPhase.relativeStart) / phaseWidth
-        : 0.5;
-
-      addMilestone(targetPhase.id, {
-        name: 'New Milestone',
+      addMilestone({
+        name: '',
         description: '',
-        relativePosition: Math.max(0, Math.min(1, milestoneRelativePosition)),
-        order: targetPhase.milestones.length,
+        relativePosition: Math.max(0, Math.min(1, relativePosition)),
+        order: milestones.length,
       });
 
       // Get the new milestone (it was just added)
-      const updatedPhases = useTimelineStore.getState().phases;
-      const updatedPhase = updatedPhases.find((p) => p.id === targetPhase!.id);
-      const newMilestone = updatedPhase?.milestones[updatedPhase.milestones.length - 1];
+      const updatedMilestones = useTimelineStore.getState().milestones;
+      const newMilestone = updatedMilestones[updatedMilestones.length - 1];
 
       if (newMilestone) {
         setSelection({ type: 'milestone', id: newMilestone.id }, { x: e.clientX, y: e.clientY });
       }
     },
-    [phases, timelineWidth, addMilestone, setSelection]
+    [milestones.length, timelineWidth, addMilestone, setSelection]
   );
 
   // Double-click on phases container or phase row creates a new phase
@@ -128,13 +119,12 @@ export default function IDTimelineSection({
       const color = PHASE_COLORS[colorKeys[colorIndex]];
 
       addPhase({
-        name: 'New Phase',
+        name: '',
         description: '',
         color,
         order: phases.length,
         isCollapsed: false,
         elements: [],
-        milestones: [],
         relativeStart,
         relativeEnd,
       });
@@ -194,8 +184,7 @@ export default function IDTimelineSection({
                 phase={phase}
                 isLabel
                 timelineWidth={timelineWidth}
-                totalDays={totalDays}
-              />
+                              />
             ))}
           </div>
         )}
@@ -252,6 +241,16 @@ export default function IDTimelineSection({
             })}
           </>
         )}
+
+        {/* Milestones rendered in header row */}
+        {milestones.map((milestone) => (
+          <MilestoneMarker
+            key={milestone.id}
+            milestone={milestone}
+            timelineWidth={timelineWidth}
+            lineHeight={milestoneLineHeight}
+          />
+        ))}
       </div>
 
       {/* Phase bars (when expanded) */}
@@ -267,8 +266,7 @@ export default function IDTimelineSection({
               phase={phase}
               isLabel={false}
               timelineWidth={timelineWidth}
-              totalDays={totalDays}
-            />
+                          />
           ))}
         </div>
       )}

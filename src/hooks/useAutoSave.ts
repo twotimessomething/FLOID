@@ -7,6 +7,7 @@ const DEBOUNCE_MS = 1000;
 
 export function useAutoSave() {
   const phases = useTimelineStore((state) => state.phases);
+  const milestones = useTimelineStore((state) => state.milestones);
   const isInitialized = useTimelineStore((state) => state.isInitialized);
   const project = useProjectStore((state) => state.project);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
@@ -27,8 +28,9 @@ export function useAutoSave() {
 
     // Get latest state directly from stores to ensure we save current data
     const latestPhases = useTimelineStore.getState().phases;
+    const latestMilestones = useTimelineStore.getState().milestones;
     const latestTeams = useTeamStore.getState().teams;
-    useProjectStore.getState().saveCurrentProject(latestPhases, latestTeams);
+    useProjectStore.getState().saveCurrentProject(latestPhases, latestMilestones, latestTeams);
     pendingSaveRef.current = false;
   }, [isInitialized, activeProjectId]);
 
@@ -46,7 +48,7 @@ export function useAutoSave() {
 
     timeoutRef.current = setTimeout(() => {
       // Use the proper per-project save function
-      saveCurrentProject(phases, teams);
+      saveCurrentProject(phases, milestones, teams);
       pendingSaveRef.current = false;
     }, DEBOUNCE_MS);
 
@@ -55,7 +57,7 @@ export function useAutoSave() {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [phases, project, teams, isInitialized, activeProjectId, saveCurrentProject]);
+  }, [phases, milestones, project, teams, isInitialized, activeProjectId, saveCurrentProject]);
 
   // Save immediately when tab becomes hidden or page is about to unload
   useEffect(() => {

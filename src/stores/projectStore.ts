@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { Project, Phase } from '../types';
+import type { Project, Phase, Milestone } from '../types';
 import type { Team } from '../types';
-import { createDefaultProject, createDefaultPhases } from '../data/defaultTemplate';
+import { createDefaultProject, createDefaultPhases, createDefaultMilestones } from '../data/defaultTemplate';
 import {
   loadProjectsIndex,
   saveProjectsIndex,
@@ -33,10 +33,10 @@ interface ProjectState {
   updateProjectIndex: (projectId: string, updates: Partial<ProjectIndexEntry>) => void;
 
   // Save current project's data
-  saveCurrentProject: (phases: Phase[], teams: Team[]) => void;
+  saveCurrentProject: (phases: Phase[], milestones: Milestone[], teams: Team[]) => void;
 
   // Load project data
-  loadProjectData: (projectId: string) => { phases: Phase[]; teams: Team[] } | null;
+  loadProjectData: (projectId: string) => { phases: Phase[]; milestones: Milestone[]; teams: Team[] } | null;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -99,6 +99,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // Create default project
       const defaultProject = createDefaultProject();
       const defaultPhases = createDefaultPhases();
+      const defaultMilestones = createDefaultMilestones();
       const projectEntry: ProjectIndexEntry = {
         id: defaultProject.id,
         name: defaultProject.name,
@@ -109,6 +110,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       saveProjectToStorage(defaultProject.id, {
         project: defaultProject,
         phases: defaultPhases,
+        milestones: defaultMilestones,
         teams: [],
         version: 1,
       });
@@ -158,6 +160,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
 
     const newPhases = createDefaultPhases();
+    const newMilestones = createDefaultMilestones();
     const projectEntry: ProjectIndexEntry = {
       id: newProject.id,
       name: newProject.name,
@@ -168,6 +171,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     saveProjectToStorage(newProject.id, {
       project: newProject,
       phases: newPhases,
+      milestones: newMilestones,
       teams: [],
       version: 1,
     });
@@ -232,7 +236,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     });
   },
 
-  saveCurrentProject: (phases, teams) => {
+  saveCurrentProject: (phases, milestones, teams) => {
     const { project, activeProjectId } = get();
     if (!activeProjectId) return;
 
@@ -242,6 +246,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     saveProjectToStorage(activeProjectId, {
       project: updatedProject,
       phases,
+      milestones,
       teams,
       version: 1,
     });
@@ -262,6 +267,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     return {
       phases: (data.phases || []) as Phase[],
+      milestones: (data.milestones || []) as Milestone[],
       teams: (data.teams || []) as Team[],
     };
   },

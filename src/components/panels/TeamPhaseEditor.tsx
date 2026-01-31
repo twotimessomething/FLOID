@@ -113,6 +113,8 @@ export function TeamPhaseEditor({ teamPhaseId }: TeamPhaseEditorProps): JSX.Elem
         label="Name"
         value={teamPhase.name}
         onChange={handleNameChange}
+        autoFocus
+        placeholder="Phase name"
       />
 
       <TextArea

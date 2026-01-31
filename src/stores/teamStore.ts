@@ -30,10 +30,10 @@ interface TeamState {
   updateTeamElement: (teamId: string, phaseId: string, elementId: string, updates: Partial<TeamElement>) => void;
   deleteTeamElement: (teamId: string, phaseId: string, elementId: string) => void;
 
-  // Team Milestone operations
-  addTeamMilestone: (teamId: string, phaseId: string, milestone: Omit<Milestone, 'id' | 'parentId' | 'parentType'>) => void;
-  updateTeamMilestone: (teamId: string, phaseId: string, milestoneId: string, updates: Partial<Milestone>) => void;
-  deleteTeamMilestone: (teamId: string, phaseId: string, milestoneId: string) => void;
+  // Team Milestone operations (now at team level, not phase level)
+  addTeamMilestone: (teamId: string, milestone: Omit<Milestone, 'id'>) => void;
+  updateTeamMilestone: (teamId: string, milestoneId: string, updates: Partial<Milestone>) => void;
+  deleteTeamMilestone: (teamId: string, milestoneId: string) => void;
 
   // Position updates
   updateTeamPhasePosition: (teamId: string, phaseId: string, relativeStart: number, relativeEnd: number) => void;
@@ -67,6 +67,7 @@ export const useTeamStore = create<TeamState>((set) => ({
           order: state.teams.length,
           isCollapsed: false,
           phases: [],
+          milestones: [],
         },
       ],
     })),
@@ -219,63 +220,42 @@ export const useTeamStore = create<TeamState>((set) => ({
       ),
     })),
 
-  addTeamMilestone: (teamId, phaseId, milestone) =>
+  addTeamMilestone: (teamId, milestone) =>
     set((state) => ({
       teams: state.teams.map((team) =>
         team.id === teamId
           ? {
               ...team,
-              phases: team.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      milestones: [
-                        ...phase.milestones,
-                        { ...milestone, id: generateId(), parentId: phaseId, parentType: 'teamPhase' as const },
-                      ],
-                    }
-                  : phase
+              milestones: [
+                ...team.milestones,
+                { ...milestone, id: generateId() },
+              ],
+            }
+          : team
+      ),
+    })),
+
+  updateTeamMilestone: (teamId, milestoneId, updates) =>
+    set((state) => ({
+      teams: state.teams.map((team) =>
+        team.id === teamId
+          ? {
+              ...team,
+              milestones: team.milestones.map((m) =>
+                m.id === milestoneId ? { ...m, ...updates } : m
               ),
             }
           : team
       ),
     })),
 
-  updateTeamMilestone: (teamId, phaseId, milestoneId, updates) =>
+  deleteTeamMilestone: (teamId, milestoneId) =>
     set((state) => ({
       teams: state.teams.map((team) =>
         team.id === teamId
           ? {
               ...team,
-              phases: team.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      milestones: phase.milestones.map((m) =>
-                        m.id === milestoneId ? { ...m, ...updates } : m
-                      ),
-                    }
-                  : phase
-              ),
-            }
-          : team
-      ),
-    })),
-
-  deleteTeamMilestone: (teamId, phaseId, milestoneId) =>
-    set((state) => ({
-      teams: state.teams.map((team) =>
-        team.id === teamId
-          ? {
-              ...team,
-              phases: team.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      milestones: phase.milestones.filter((m) => m.id !== milestoneId),
-                    }
-                  : phase
-              ),
+              milestones: team.milestones.filter((m) => m.id !== milestoneId),
             }
           : team
       ),

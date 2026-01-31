@@ -4,24 +4,21 @@ import { useTimelineStore } from '../../stores/timelineStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { getBarDimensions, ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
-import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
+import { getDateFromRelativePosition, formatDate, getDaysBetween } from '../../utils/dateUtils';
 import ElementRow from './ElementRow';
 import DragHandle from './DragHandle';
-import MilestoneMarker from './MilestoneMarker';
 
 interface PhaseRowProps {
   readonly phase: Phase;
   readonly isLabel: boolean;
   readonly timelineWidth: number;
-  readonly totalDays: number;
 }
 
-export default function PhaseRow({ phase, isLabel, timelineWidth, totalDays }: PhaseRowProps): JSX.Element {
+export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProps): JSX.Element {
   const { togglePhaseCollapse, updatePhasePosition, addElement } = useTimelineStore();
   const { project } = useProjectStore();
   const { selection, setSelection, setDragging } = useUIStore();
   const phaseRowRef = useRef<HTMLDivElement>(null);
-  const elementContainerRef = useRef<HTMLDivElement>(null);
 
   const isSelected = selection.type === 'phase' && selection.id === phase.id;
   const { left, width } = getBarDimensions(
@@ -52,6 +49,49 @@ export default function PhaseRow({ phase, isLabel, timelineWidth, totalDays }: P
   const handleBarDoubleClick = useCallback((e: React.MouseEvent): void => {
     e.stopPropagation();
   }, []);
+
+  // Double-click on elements container creates a new element within this phase
+  const handleCreateElement = useCallback(
+    (e: React.MouseEvent): void => {
+      e.stopPropagation();
+
+      // Calculate position relative to the phase
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const absolutePosition = getRelativeFromPosition(clickX, timelineWidth);
+
+      // Convert absolute position to phase-relative position
+      const phaseWidth = phase.relativeEnd - phase.relativeStart;
+      const relativeInPhase = phaseWidth > 0
+        ? (absolutePosition - phase.relativeStart) / phaseWidth
+        : 0.5;
+
+      // Create an element centered at the click position with reasonable width
+      const totalDays = getDaysBetween(project.startDate, project.endDate);
+      const sevenDaysRelative = totalDays > 0 ? (7 / totalDays) / phaseWidth : 0.15;
+      const halfWidth = sevenDaysRelative / 2;
+      const relativeStart = Math.max(0, Math.min(1 - sevenDaysRelative, relativeInPhase - halfWidth));
+      const relativeEnd = Math.min(1, relativeStart + sevenDaysRelative);
+
+      addElement(phase.id, {
+        name: '',
+        description: '',
+        relativeStart,
+        relativeEnd,
+        order: phase.elements.length,
+      });
+
+      // Get the new element and select it
+      const updatedPhases = useTimelineStore.getState().phases;
+      const updatedPhase = updatedPhases.find((p) => p.id === phase.id);
+      const newElement = updatedPhase?.elements[updatedPhase.elements.length - 1];
+
+      if (newElement) {
+        setSelection({ type: 'element', id: newElement.id }, { x: e.clientX, y: e.clientY });
+      }
+    },
+    [phase.id, phase.relativeStart, phase.relativeEnd, phase.elements.length, timelineWidth, project.startDate, project.endDate, addElement, setSelection]
+  );
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
     e.stopPropagation();
@@ -171,53 +211,6 @@ export default function PhaseRow({ phase, isLabel, timelineWidth, totalDays }: P
     [setSelection, phase.id]
   );
 
-  // Double-click on element container creates a new element within this phase
-  const handleElementContainerDoubleClick = useCallback(
-    (e: React.MouseEvent): void => {
-      // Prevent event from bubbling to parent container
-      e.stopPropagation();
-
-      const rect = elementContainerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const clickX = e.clientX - rect.left;
-      const absoluteRelative = getRelativeFromPosition(clickX, timelineWidth);
-
-      // Convert absolute position to relative position within the phase
-      const phaseWidth = phase.relativeEnd - phase.relativeStart;
-      if (phaseWidth <= 0) return;
-
-      const relativeWithinPhase = (absoluteRelative - phase.relativeStart) / phaseWidth;
-
-      // Create an element with 30-day default width
-      const thirtyDaysRelative = totalDays > 0 ? 30 / totalDays : 0.1;
-      // Convert to relative within phase
-      const elementWidthInPhase = phaseWidth > 0 ? thirtyDaysRelative / phaseWidth : 0.2;
-      const halfWidth = elementWidthInPhase / 2;
-
-      const relativeStart = Math.max(0, relativeWithinPhase - halfWidth);
-      const relativeEnd = Math.min(1, relativeWithinPhase + halfWidth);
-
-      addElement(phase.id, {
-        name: 'New Element',
-        description: '',
-        relativeStart,
-        relativeEnd,
-        order: phase.elements.length,
-      });
-
-      // Get the new element and select it
-      const updatedPhases = useTimelineStore.getState().phases;
-      const updatedPhase = updatedPhases.find((p) => p.id === phase.id);
-      const newElement = updatedPhase?.elements[updatedPhase.elements.length - 1];
-
-      if (newElement) {
-        setSelection({ type: 'element', id: newElement.id }, { x: e.clientX, y: e.clientY });
-      }
-    },
-    [phase.id, phase.relativeStart, phase.relativeEnd, phase.elements.length, timelineWidth, totalDays, addElement, setSelection]
-  );
-
   if (isLabel) {
     // Render label column content
     return (
@@ -267,7 +260,7 @@ export default function PhaseRow({ phase, isLabel, timelineWidth, totalDays }: P
         </div>
 
         {/* Element labels */}
-        {!phase.isCollapsed && (
+        {!phase.isCollapsed && phase.elements.length > 0 && (
           <div role="list" aria-label={`${phase.name} elements`}>
             {phase.elements.map((element) => (
               <ElementRow
@@ -338,26 +331,14 @@ export default function PhaseRow({ phase, isLabel, timelineWidth, totalDays }: P
             </span>
           </div>
         </div>
-
-        {/* Milestones */}
-        {phase.milestones.map((milestone) => (
-          <MilestoneMarker
-            key={milestone.id}
-            milestone={milestone}
-            phase={phase}
-            timelineWidth={timelineWidth}
-          />
-        ))}
       </div>
 
-      {/* Element bars - double-click creates elements */}
+      {/* Element bars */}
       {!phase.isCollapsed && (
         <div
-          ref={elementContainerRef}
           role="list"
           aria-label={`${phase.name} element bars`}
-          onDoubleClick={handleElementContainerDoubleClick}
-          style={{ minHeight: phase.elements.length === 0 ? 28 : undefined }}
+          onDoubleClick={handleCreateElement}
         >
           {phase.elements.map((element) => (
             <ElementRow

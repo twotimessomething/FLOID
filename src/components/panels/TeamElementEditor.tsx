@@ -141,6 +141,8 @@ export function TeamElementEditor({ teamElementId }: TeamElementEditorProps): JS
         label="Name"
         value={element.name}
         onChange={handleNameChange}
+        autoFocus
+        placeholder="Element name"
       />
 
       <TextArea

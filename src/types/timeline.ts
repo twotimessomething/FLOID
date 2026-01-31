@@ -6,7 +6,6 @@ export interface Phase {
   order: number;
   isCollapsed: boolean;
   elements: Element[];
-  milestones: Milestone[];
   // Relative positioning (0-1 scale within project)
   relativeStart: number;
   relativeEnd: number;
@@ -25,11 +24,9 @@ export interface Element {
 
 export interface Milestone {
   id: string;
-  parentId: string; // phaseId or teamPhaseId
-  parentType: 'phase' | 'teamPhase';
   name: string;
   description: string;
-  relativePosition: number; // 0-1 within parent
+  relativePosition: number; // 0-1 within full project timeline
   order: number;
 }
 

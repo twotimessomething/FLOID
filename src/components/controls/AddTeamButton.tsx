@@ -4,7 +4,7 @@ export default function AddTeamButton(): JSX.Element {
   const addTeam = useTeamStore((state) => state.addTeam);
 
   const handleAddTeam = (): void => {
-    addTeam('New Team');
+    addTeam('');
   };
 
   return (

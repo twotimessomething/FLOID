@@ -107,6 +107,8 @@ export function PhaseEditor({ phaseId }: PhaseEditorProps): JSX.Element {
         label="Name"
         value={phase.name}
         onChange={handleNameChange}
+        autoFocus
+        placeholder="Phase name"
       />
 
       <TextArea

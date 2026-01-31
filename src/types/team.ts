@@ -7,6 +7,7 @@ export interface Team {
   order: number;
   isCollapsed: boolean;
   phases: TeamPhase[];
+  milestones: Milestone[]; // Team-level milestones (phase-agnostic)
 }
 
 export interface TeamPhase {
@@ -19,7 +20,6 @@ export interface TeamPhase {
   order: number;
   isCollapsed: boolean;
   elements: TeamElement[];
-  milestones: Milestone[];
 }
 
 export interface TeamElement {
