@@ -6,6 +6,11 @@ const MIN_LABEL_WIDTH = 120;
 const MAX_LABEL_WIDTH = 400;
 const DEFAULT_LABEL_WIDTH = 200;
 
+// Info sidebar constraints
+const MIN_INFO_SIDEBAR_WIDTH = 180;
+const MAX_INFO_SIDEBAR_WIDTH = 400;
+const DEFAULT_INFO_SIDEBAR_WIDTH = 224; // w-56 = 14rem = 224px
+
 interface UIState {
   // Zoom
   zoomLevel: ZoomLevel;
@@ -38,6 +43,12 @@ interface UIState {
   // Left sidebar (project/teams panel)
   isLeftSidebarOpen: boolean;
   toggleLeftSidebar: () => void;
+
+  // Info sidebar (right)
+  isInfoSidebarOpen: boolean;
+  toggleInfoSidebar: () => void;
+  infoSidebarWidth: number;
+  setInfoSidebarWidth: (width: number) => void;
 
   // Project setup modal
   isProjectSetupModalOpen: boolean;
@@ -102,6 +113,14 @@ export const useUIStore = create<UIState>((set) => ({
   isLeftSidebarOpen: true,
   toggleLeftSidebar: () =>
     set((state) => ({ isLeftSidebarOpen: !state.isLeftSidebarOpen })),
+
+  // Info sidebar (right)
+  isInfoSidebarOpen: true,
+  toggleInfoSidebar: () =>
+    set((state) => ({ isInfoSidebarOpen: !state.isInfoSidebarOpen })),
+  infoSidebarWidth: DEFAULT_INFO_SIDEBAR_WIDTH,
+  setInfoSidebarWidth: (width) =>
+    set({ infoSidebarWidth: Math.max(MIN_INFO_SIDEBAR_WIDTH, Math.min(MAX_INFO_SIDEBAR_WIDTH, width)) }),
 
   // Project setup modal
   isProjectSetupModalOpen: false,

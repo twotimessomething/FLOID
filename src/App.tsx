@@ -3,6 +3,7 @@ import Header from './components/layout/Header';
 import TimelineContainer from './components/layout/TimelineContainer';
 import { EditorModal } from './components/layout/EditorModal';
 import { LeftSidebar } from './components/layout/LeftSidebar';
+import { InfoSidebar } from './components/layout/InfoSidebar';
 import { ProjectSetupModal } from './components/layout/ProjectSetupModal';
 import { ProjectEditModal } from './components/layout/ProjectEditModal';
 import { AddTeamModal } from './components/layout/AddTeamModal';
@@ -46,6 +47,7 @@ function App() {
       >
         <LeftSidebar />
         <TimelineContainer />
+        <InfoSidebar />
       </main>
       <EditorModal />
       <ProjectSetupModal />
