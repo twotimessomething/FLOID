@@ -1,10 +1,12 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import type { Team, TeamPhase } from '../../types';
 import { useTeamStore } from '../../stores/teamStore';
+import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { getBarDimensions, ROW_HEIGHT } from '../../utils/timelineUtils';
-import { EditableText } from '../common';
+import { getBarDimensions, ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
+import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
 import TeamElementRow from './TeamElementRow';
+import TeamMilestoneMarker from './TeamMilestoneMarker';
 import DragHandle from './DragHandle';
 import { AddItemButton } from '../controls';
 
@@ -13,6 +15,7 @@ interface TeamPhaseRowProps {
   readonly team: Team;
   readonly isLabel: boolean;
   readonly timelineWidth: number;
+  readonly totalDays: number;
 }
 
 export default function TeamPhaseRow({
@@ -20,20 +23,29 @@ export default function TeamPhaseRow({
   team,
   isLabel,
   timelineWidth,
+  totalDays,
 }: TeamPhaseRowProps): JSX.Element {
-  const { toggleTeamPhaseCollapse, updateTeamPhasePosition, addTeamElement, updateTeamPhase } = useTeamStore();
+  const { toggleTeamPhaseCollapse, updateTeamPhasePosition, addTeamElement } = useTeamStore();
+  const { project } = useProjectStore();
   const { selection, setSelection, setDragging } = useUIStore();
 
   // Move drag state
   const isMoving = useRef(false);
   const moveLastX = useRef(0);
+  const hasDragged = useRef(false);
+  const elementContainerRef = useRef<HTMLDivElement>(null);
+
+  // Drag date bubble state
+  const [startDragDate, setStartDragDate] = useState<string | undefined>(undefined);
+  const [endDragDate, setEndDragDate] = useState<string | undefined>(undefined);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        setSelection({ type: 'teamPhase', id: teamPhase.id });
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        setSelection({ type: 'teamPhase', id: teamPhase.id }, { x: rect.right, y: rect.top });
       }
     },
     [setSelection, teamPhase.id]
@@ -46,8 +58,13 @@ export default function TeamPhaseRow({
     timelineWidth
   );
 
-  const handleClick = (): void => {
-    setSelection({ type: 'teamPhase', id: teamPhase.id });
+  const handleClick = (e: React.MouseEvent): void => {
+    // Don't trigger selection if we just finished dragging
+    if (hasDragged.current) {
+      hasDragged.current = false;
+      return;
+    }
+    setSelection({ type: 'teamPhase', id: teamPhase.id }, { x: e.clientX, y: e.clientY });
   };
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
@@ -65,8 +82,70 @@ export default function TeamPhaseRow({
     });
   };
 
+  // Double-click on element container creates a new element within this team phase
+  const handleElementContainerDoubleClick = useCallback(
+    (e: React.MouseEvent): void => {
+      // Prevent event from bubbling to parent container
+      e.stopPropagation();
+
+      const rect = elementContainerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const clickX = e.clientX - rect.left;
+      const absoluteRelative = getRelativeFromPosition(clickX, timelineWidth);
+
+      // Convert absolute position to relative position within the phase
+      const phaseWidth = teamPhase.relativeEnd - teamPhase.relativeStart;
+      if (phaseWidth <= 0) return;
+
+      const relativeWithinPhase = (absoluteRelative - teamPhase.relativeStart) / phaseWidth;
+
+      // Create an element with 30-day default width
+      const thirtyDaysRelative = totalDays > 0 ? 30 / totalDays : 0.1;
+      // Convert to relative within phase
+      const elementWidthInPhase = phaseWidth > 0 ? thirtyDaysRelative / phaseWidth : 0.2;
+      const halfWidth = elementWidthInPhase / 2;
+
+      const relativeStart = Math.max(0, relativeWithinPhase - halfWidth);
+      const relativeEnd = Math.min(1, relativeWithinPhase + halfWidth);
+
+      addTeamElement(team.id, teamPhase.id, {
+        name: 'New Element',
+        description: '',
+        relativeStart,
+        relativeEnd,
+        order: teamPhase.elements.length,
+      });
+
+      // Get the new element and select it
+      const updatedTeams = useTeamStore.getState().teams;
+      const updatedTeam = updatedTeams.find((t) => t.id === team.id);
+      const updatedPhase = updatedTeam?.phases.find((p) => p.id === teamPhase.id);
+      const newElement = updatedPhase?.elements[updatedPhase.elements.length - 1];
+
+      if (newElement) {
+        setSelection({ type: 'teamElement', id: newElement.id }, { x: e.clientX, y: e.clientY });
+      }
+    },
+    [team.id, teamPhase.id, teamPhase.relativeStart, teamPhase.relativeEnd, teamPhase.elements.length, timelineWidth, totalDays, addTeamElement, setSelection]
+  );
+
+  // Prevent double-click from propagating on the phase bar
+  const handleBarDoubleClick = useCallback((e: React.MouseEvent): void => {
+    e.stopPropagation();
+  }, []);
+
   const handleDragStart = (edge: 'start' | 'end'): void => {
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
+    // Initialize the drag date
+    const position = edge === 'start' ? teamPhase.relativeStart : teamPhase.relativeEnd;
+    const date = getDateFromRelativePosition(project.startDate, project.endDate, position);
+    const dateStr = formatDate(date, 'MMM d');
+    if (edge === 'start') {
+      setStartDragDate(dateStr);
+    } else {
+      setEndDragDate(dateStr);
+    }
   };
 
   const handleDrag = (edge: 'start' | 'end', deltaX: number): void => {
@@ -74,14 +153,28 @@ export default function TeamPhaseRow({
     if (edge === 'start') {
       const newStart = Math.max(0, Math.min(teamPhase.relativeEnd - 0.01, teamPhase.relativeStart + deltaRelative));
       updateTeamPhasePosition(team.id, teamPhase.id, newStart, teamPhase.relativeEnd);
+      // Update drag date
+      const date = getDateFromRelativePosition(project.startDate, project.endDate, newStart);
+      setStartDragDate(formatDate(date, 'MMM d'));
     } else {
       const newEnd = Math.max(teamPhase.relativeStart + 0.01, Math.min(1, teamPhase.relativeEnd + deltaRelative));
       updateTeamPhasePosition(team.id, teamPhase.id, teamPhase.relativeStart, newEnd);
+      // Update drag date
+      const date = getDateFromRelativePosition(project.startDate, project.endDate, newEnd);
+      setEndDragDate(formatDate(date, 'MMM d'));
     }
   };
 
-  const handleDragEnd = (): void => {
+  const handleDragEnd = (edge: 'start' | 'end'): void => {
     setDragging(false);
+    // Mark that a drag occurred to prevent click from triggering
+    hasDragged.current = true;
+    // Clear the drag date
+    if (edge === 'start') {
+      setStartDragDate(undefined);
+    } else {
+      setEndDragDate(undefined);
+    }
   };
 
   // Move handlers for dragging the entire bar
@@ -101,6 +194,11 @@ export default function TeamPhaseRow({
       if (!isMoving.current) return;
       const deltaX = e.clientX - moveLastX.current;
       moveLastX.current = e.clientX;
+
+      // Mark that a drag occurred (to prevent click from triggering)
+      if (Math.abs(deltaX) > 0) {
+        hasDragged.current = true;
+      }
 
       const deltaRelative = deltaX / timelineWidth;
       const barWidth = teamPhase.relativeEnd - teamPhase.relativeStart;
@@ -137,20 +235,13 @@ export default function TeamPhaseRow({
     };
   }, [team.id, teamPhase.id, teamPhase.relativeStart, teamPhase.relativeEnd, timelineWidth, updateTeamPhasePosition, setDragging]);
 
-  const handleNameSave = useCallback(
-    (newName: string) => {
-      updateTeamPhase(team.id, teamPhase.id, { name: newName });
-    },
-    [updateTeamPhase, team.id, teamPhase.id]
-  );
-
   if (isLabel) {
     // Render label column content
     return (
       <div role="group" aria-label={`${teamPhase.name} phase`}>
         {/* Team Phase label */}
         <div
-          className={`flex items-center gap-2 pl-6 pr-3 border-b border-gray-100 cursor-pointer row-selectable focus-ring ${
+          className={`flex items-center gap-2 pl-6 pr-3 border-b border-[#e5e7eb]/50 cursor-pointer row-selectable focus-ring ${
             isSelected ? 'selected bg-blue-50' : ''
           }`}
           style={{ height: ROW_HEIGHT }}
@@ -163,7 +254,7 @@ export default function TeamPhaseRow({
         >
           <button
             onClick={handleToggleCollapse}
-            className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-600 focus-ring rounded"
+            className="w-4 h-4 flex items-center justify-center text-[#9ca3af] hover:text-[#6b7280] focus-ring rounded-md transition-colors duration-150"
             aria-expanded={!teamPhase.isCollapsed}
             aria-label={`${teamPhase.isCollapsed ? 'Expand' : 'Collapse'} ${teamPhase.name}`}
           >
@@ -182,7 +273,7 @@ export default function TeamPhaseRow({
               />
             </svg>
           </button>
-          <span className="text-sm text-gray-700 truncate flex-1">
+          <span className="text-sm text-[#111827] truncate flex-1">
             {teamPhase.name}
           </span>
           <AddItemButton onClick={handleAddElement} label="Add element" />
@@ -210,13 +301,13 @@ export default function TeamPhaseRow({
   // Render timeline content
   return (
     <div role="group" aria-label={`${teamPhase.name} timeline`}>
-      {/* Team Phase bar */}
+      {/* Team Phase bar row - no double-click handler here, let it bubble up */}
       <div
-        className="relative border-b border-gray-100"
+        className="relative border-b border-[#e5e7eb]/50"
         style={{ height: ROW_HEIGHT }}
       >
         <div
-          className={`absolute top-2 bottom-2 rounded-md cursor-grab active:cursor-grabbing timeline-bar group ${
+          className={`absolute top-2 bottom-2 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group ${
             isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
           }`}
           style={{
@@ -225,6 +316,7 @@ export default function TeamPhaseRow({
             backgroundColor: team.color,
           }}
           onClick={handleClick}
+          onDoubleClick={handleBarDoubleClick}
           onMouseDown={handleMoveStart}
           onKeyDown={handleKeyDown}
           role="button"
@@ -237,8 +329,9 @@ export default function TeamPhaseRow({
             edge="start"
             onDragStart={() => handleDragStart('start')}
             onDrag={(deltaX) => handleDrag('start', deltaX)}
-            onDragEnd={handleDragEnd}
+            onDragEnd={() => handleDragEnd('start')}
             label={`Resize ${teamPhase.name} start`}
+            dragDate={startDragDate}
           />
 
           {/* Right drag handle */}
@@ -246,25 +339,40 @@ export default function TeamPhaseRow({
             edge="end"
             onDragStart={() => handleDragStart('end')}
             onDrag={(deltaX) => handleDrag('end', deltaX)}
-            onDragEnd={handleDragEnd}
+            onDragEnd={() => handleDragEnd('end')}
             label={`Resize ${teamPhase.name} end`}
+            dragDate={endDragDate}
           />
 
           {/* Phase name on bar */}
-          <div className="absolute inset-0 flex items-center px-2 overflow-hidden">
-            <EditableText
-              value={teamPhase.name}
-              onSave={handleNameSave}
-              className="text-xs font-medium text-white truncate drop-shadow-sm"
-              inputClassName="text-gray-800"
-            />
+          <div className="absolute inset-0 flex items-center px-2 overflow-hidden pointer-events-none">
+            <span className="text-xs font-medium text-white truncate drop-shadow-sm">
+              {teamPhase.name}
+            </span>
           </div>
         </div>
+
+        {/* Milestones */}
+        {teamPhase.milestones.map((milestone) => (
+          <TeamMilestoneMarker
+            key={milestone.id}
+            milestone={milestone}
+            teamPhase={teamPhase}
+            team={team}
+            timelineWidth={timelineWidth}
+          />
+        ))}
       </div>
 
-      {/* Element bars */}
+      {/* Element bars - double-click creates elements */}
       {!teamPhase.isCollapsed && (
-        <div role="list" aria-label={`${teamPhase.name} element bars`}>
+        <div
+          ref={elementContainerRef}
+          role="list"
+          aria-label={`${teamPhase.name} element bars`}
+          onDoubleClick={handleElementContainerDoubleClick}
+          style={{ minHeight: teamPhase.elements.length === 0 ? 28 : undefined }}
+        >
           {teamPhase.elements.map((element) => (
             <TeamElementRow
               key={element.id}

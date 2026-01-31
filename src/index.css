@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================
+   Brand Tokens
+   ========================================= */
+:root {
+  --color-background: #fafafa;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -19,6 +39,31 @@ body {
     Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+/* =========================================
+   Glass Surface Utilities
+   ========================================= */
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-bordered {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: var(--shadow-md);
+}
+
+.glass-overlay {
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 /* Prevent text selection during drag operations */
@@ -34,16 +79,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--color-background);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: var(--color-text-muted);
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
+  background: var(--color-text-secondary);
 }
 
 /* =========================================
@@ -63,7 +108,7 @@ body {
 /* Collapse/expand animation for content */
 .collapse-content {
   overflow: hidden;
-  transition: max-height 0.2s ease-out, opacity 0.15s ease-out;
+  transition: max-height 200ms ease-out, opacity 150ms ease-out;
 }
 
 .collapse-content.collapsed {
@@ -77,7 +122,7 @@ body {
 
 /* Smooth chevron rotation */
 .collapse-chevron {
-  transition: transform 0.15s ease-out;
+  transition: transform 150ms ease-out;
 }
 
 .collapse-chevron.expanded {
@@ -86,12 +131,13 @@ body {
 
 /* Bar hover and selection animations */
 .timeline-bar {
-  transition: box-shadow 0.15s ease-out, transform 0.15s ease-out;
+  transition: box-shadow 150ms ease-out, transform 150ms ease-out;
+  border-radius: var(--radius-md);
 }
 
 .timeline-bar:hover {
   transform: scale(1.01);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .timeline-bar:active {
@@ -101,7 +147,7 @@ body {
 /* Drag handle visibility animation */
 .drag-handle {
   opacity: 0;
-  transition: opacity 0.15s ease-out;
+  transition: opacity 150ms ease-out;
 }
 
 .timeline-bar:hover .drag-handle,
@@ -111,7 +157,7 @@ body {
 
 /* Sidebar slide-in animation */
 .sidebar-enter {
-  animation: slideInRight 0.2s ease-out;
+  animation: slideInRight 200ms ease-out;
 }
 
 @keyframes slideInRight {
@@ -125,13 +171,29 @@ body {
   }
 }
 
+/* Modal pop-in animation */
+.modal-enter {
+  animation: modalPopIn 150ms ease-out;
+}
+
+@keyframes modalPopIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 /* Row highlight animation for selection */
 .row-selectable {
-  transition: background-color 0.1s ease-out;
+  transition: background-color 150ms ease-out;
 }
 
 .row-selectable:hover {
-  background-color: #f9fafb;
+  background-color: var(--color-background);
 }
 
 .row-selectable.selected {
@@ -146,7 +208,7 @@ body {
 
 /* Button press animation */
 .btn-press {
-  transition: transform 0.1s ease-out, background-color 0.15s ease-out;
+  transition: transform 150ms ease-out, background-color 150ms ease-out;
 }
 
 .btn-press:active {
@@ -155,7 +217,7 @@ body {
 
 /* Add item button pulse on hover */
 .add-btn {
-  transition: background-color 0.15s ease-out, transform 0.1s ease-out;
+  transition: background-color 150ms ease-out, transform 150ms ease-out;
 }
 
 .add-btn:hover {
@@ -184,15 +246,17 @@ body {
   position: absolute;
   top: -100%;
   left: 0;
-  background: #1f2937;
-  color: white;
+  background: var(--color-text-primary);
+  color: var(--color-surface);
   padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
   z-index: 100;
-  transition: top 0.2s ease-out;
+  transition: top 200ms ease-out;
 }
 
 .skip-link:focus {
-  top: 0;
+  top: 0.5rem;
+  left: 0.5rem;
 }
 
 /* Reduced motion preference support */

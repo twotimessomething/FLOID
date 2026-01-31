@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import type { Team, TeamPhase, TeamElement } from '../types';
+import type { Team, TeamPhase, TeamElement, Milestone } from '../types';
 import { getTeamColor } from '../constants/colors';
+import { useProjectStore } from './projectStore';
 
 const generateId = (): string => {
   return Math.random().toString(36).substring(2, 11);
@@ -11,6 +12,7 @@ interface TeamState {
 
   // Team operations
   setTeams: (teams: Team[]) => void;
+  loadTeamsForProject: (projectId: string) => void;
   addTeam: (name: string) => void;
   updateTeam: (teamId: string, updates: Partial<Team>) => void;
   deleteTeam: (teamId: string) => void;
@@ -28,6 +30,11 @@ interface TeamState {
   updateTeamElement: (teamId: string, phaseId: string, elementId: string, updates: Partial<TeamElement>) => void;
   deleteTeamElement: (teamId: string, phaseId: string, elementId: string) => void;
 
+  // Team Milestone operations
+  addTeamMilestone: (teamId: string, phaseId: string, milestone: Omit<Milestone, 'id' | 'parentId' | 'parentType'>) => void;
+  updateTeamMilestone: (teamId: string, phaseId: string, milestoneId: string, updates: Partial<Milestone>) => void;
+  deleteTeamMilestone: (teamId: string, phaseId: string, milestoneId: string) => void;
+
   // Position updates
   updateTeamPhasePosition: (teamId: string, phaseId: string, relativeStart: number, relativeEnd: number) => void;
   updateTeamElementPosition: (teamId: string, phaseId: string, elementId: string, relativeStart: number, relativeEnd: number) => void;
@@ -37,6 +44,17 @@ export const useTeamStore = create<TeamState>((set) => ({
   teams: [],
 
   setTeams: (teams) => set({ teams }),
+
+  loadTeamsForProject: (projectId: string) => {
+    const projectStore = useProjectStore.getState();
+    const data = projectStore.loadProjectData(projectId);
+
+    if (data) {
+      set({ teams: data.teams });
+    } else {
+      set({ teams: [] });
+    }
+  },
 
   addTeam: (name) =>
     set((state) => ({
@@ -193,6 +211,68 @@ export const useTeamStore = create<TeamState>((set) => ({
                   ? {
                       ...phase,
                       elements: phase.elements.filter((el) => el.id !== elementId),
+                    }
+                  : phase
+              ),
+            }
+          : team
+      ),
+    })),
+
+  addTeamMilestone: (teamId, phaseId, milestone) =>
+    set((state) => ({
+      teams: state.teams.map((team) =>
+        team.id === teamId
+          ? {
+              ...team,
+              phases: team.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      milestones: [
+                        ...phase.milestones,
+                        { ...milestone, id: generateId(), parentId: phaseId, parentType: 'teamPhase' as const },
+                      ],
+                    }
+                  : phase
+              ),
+            }
+          : team
+      ),
+    })),
+
+  updateTeamMilestone: (teamId, phaseId, milestoneId, updates) =>
+    set((state) => ({
+      teams: state.teams.map((team) =>
+        team.id === teamId
+          ? {
+              ...team,
+              phases: team.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      milestones: phase.milestones.map((m) =>
+                        m.id === milestoneId ? { ...m, ...updates } : m
+                      ),
+                    }
+                  : phase
+              ),
+            }
+          : team
+      ),
+    })),
+
+  deleteTeamMilestone: (teamId, phaseId, milestoneId) =>
+    set((state) => ({
+      teams: state.teams.map((team) =>
+        team.id === teamId
+          ? {
+              ...team,
+              phases: team.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      milestones: phase.milestones.filter((m) => m.id !== milestoneId),
                     }
                   : phase
               ),

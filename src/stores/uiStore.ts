@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ZoomLevel, SelectionState } from '../types';
+import type { ZoomLevel, SelectionState, ModalPosition } from '../types';
 
 interface UIState {
   // Zoom
@@ -8,7 +8,7 @@ interface UIState {
 
   // Selection
   selection: SelectionState;
-  setSelection: (selection: SelectionState) => void;
+  setSelection: (selection: SelectionState, position?: ModalPosition) => void;
   clearSelection: () => void;
 
   // Drag state
@@ -20,10 +20,9 @@ interface UIState {
   playheadPosition: number | null;
   setPlayheadPosition: (position: number | null) => void;
 
-  // Sidebar
-  isSidebarOpen: boolean;
-  openSidebar: () => void;
-  closeSidebar: () => void;
+  // Editor modal
+  isModalOpen: boolean;
+  closeModal: () => void;
 
   // Industrial Design timeline collapse
   isIDTimelineCollapsed: boolean;
@@ -32,6 +31,11 @@ interface UIState {
   // Left sidebar (project/teams panel)
   isLeftSidebarOpen: boolean;
   toggleLeftSidebar: () => void;
+
+  // Project setup modal
+  isProjectSetupModalOpen: boolean;
+  openProjectSetupModal: () => void;
+  closeProjectSetupModal: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -41,10 +45,10 @@ export const useUIStore = create<UIState>((set) => ({
 
   // Selection
   selection: { type: null, id: null },
-  setSelection: (selection) =>
+  setSelection: (selection, position) =>
     set({
-      selection,
-      isSidebarOpen: selection.type !== null,
+      selection: { ...selection, position },
+      isModalOpen: selection.type !== null,
     }),
   clearSelection: () =>
     set({
@@ -61,12 +65,11 @@ export const useUIStore = create<UIState>((set) => ({
   playheadPosition: null,
   setPlayheadPosition: (position) => set({ playheadPosition: position }),
 
-  // Sidebar
-  isSidebarOpen: false,
-  openSidebar: () => set({ isSidebarOpen: true }),
-  closeSidebar: () =>
+  // Editor modal
+  isModalOpen: false,
+  closeModal: () =>
     set({
-      isSidebarOpen: false,
+      isModalOpen: false,
       selection: { type: null, id: null },
     }),
 
@@ -79,4 +82,9 @@ export const useUIStore = create<UIState>((set) => ({
   isLeftSidebarOpen: true,
   toggleLeftSidebar: () =>
     set((state) => ({ isLeftSidebarOpen: !state.isLeftSidebarOpen })),
+
+  // Project setup modal
+  isProjectSetupModalOpen: false,
+  openProjectSetupModal: () => set({ isProjectSetupModalOpen: true }),
+  closeProjectSetupModal: () => set({ isProjectSetupModalOpen: false }),
 }));

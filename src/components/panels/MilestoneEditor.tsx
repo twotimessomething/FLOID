@@ -14,7 +14,7 @@ export function MilestoneEditor({ milestoneId }: MilestoneEditorProps): JSX.Elem
   const { phases, updateMilestone: updatePhaseMilestone, deleteMilestone: deletePhaseMilestone } = useTimelineStore();
   const { teams } = useTeamStore();
   const { project } = useProjectStore();
-  const { closeSidebar } = useUIStore();
+  const { closeModal } = useUIStore();
 
   // Find milestone and its parent (could be phase or teamPhase)
   const { milestone, parent, parentType } = useMemo(() => {
@@ -117,18 +117,18 @@ export function MilestoneEditor({ milestoneId }: MilestoneEditorProps): JSX.Elem
       if (parentType === 'phase') {
         deletePhaseMilestone(parent.id, milestoneId);
       }
-      closeSidebar();
+      closeModal();
     }
-  }, [parent, parentType, milestone, milestoneId, deletePhaseMilestone, closeSidebar]);
+  }, [parent, parentType, milestone, milestoneId, deletePhaseMilestone, closeModal]);
 
   if (!milestone || !parent) {
-    return <div className="text-sm text-gray-500">Milestone not found</div>;
+    return <div className="text-sm text-[#6b7280]">Milestone not found</div>;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-xs text-gray-500">
-        Milestone in <span className="font-medium text-gray-700">{parent.name}</span>
+      <div className="text-xs text-[#6b7280]">
+        Milestone in <span className="font-medium text-[#111827]">{parent.name}</span>
       </div>
 
       <Input
@@ -152,7 +152,7 @@ export function MilestoneEditor({ milestoneId }: MilestoneEditorProps): JSX.Elem
         max={parentEndDate}
       />
 
-      <div className="pt-4 border-t border-gray-200">
+      <div className="pt-4 border-t border-[#e5e7eb]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Milestone
         </Button>

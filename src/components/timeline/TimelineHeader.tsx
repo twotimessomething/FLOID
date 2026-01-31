@@ -17,7 +17,7 @@ export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderPr
 
   return (
     <div
-      className="sticky top-0 bg-white border-b border-gray-200 z-10 cursor-crosshair select-none"
+      className="sticky top-0 bg-white border-b border-[#e5e7eb] z-10 cursor-crosshair select-none"
       style={{ height: HEADER_HEIGHT }}
       onMouseDown={onPlayheadMouseDown}
     >
@@ -33,7 +33,7 @@ export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderPr
               return (
                 <div
                   key={index}
-                  className="absolute text-xs font-medium text-gray-700"
+                  className="absolute text-xs font-medium text-[#111827]"
                   style={{ left }}
                 >
                   {marker.label}
@@ -44,7 +44,7 @@ export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderPr
         )}
 
         {/* Day/Week markers on bottom row */}
-        <div className="absolute bottom-0 left-0 right-0 h-1/2 flex items-center border-t border-gray-100">
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 flex items-center border-t border-[#e5e7eb]/50">
           {markers.map((marker, index) => {
             const daysSinceStart = getDaysBetween(projectStart, marker.date);
             const relativePos = totalDays > 0 ? daysSinceStart / totalDays : 0;
@@ -54,7 +54,7 @@ export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderPr
               <div
                 key={index}
                 className={`absolute text-xs ${
-                  marker.isMinor ? 'text-gray-400' : 'text-gray-600'
+                  marker.isMinor ? 'text-[#9ca3af]' : 'text-[#6b7280]'
                 }`}
                 style={{ left }}
               >

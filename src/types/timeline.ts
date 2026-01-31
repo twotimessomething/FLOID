@@ -35,7 +35,13 @@ export interface Milestone {
 
 export type ZoomLevel = 'day' | 'week' | 'month' | 'quarter';
 
+export interface ModalPosition {
+  x: number;
+  y: number;
+}
+
 export interface SelectionState {
   type: 'phase' | 'element' | 'milestone' | 'team' | 'teamPhase' | 'teamElement' | null;
   id: string | null;
+  position?: ModalPosition;
 }

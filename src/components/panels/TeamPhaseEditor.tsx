@@ -12,7 +12,7 @@ interface TeamPhaseEditorProps {
 export function TeamPhaseEditor({ teamPhaseId }: TeamPhaseEditorProps): JSX.Element {
   const { teams, updateTeamPhase, updateTeamPhasePosition, deleteTeamPhase } = useTeamStore();
   const { project } = useProjectStore();
-  const { closeSidebar } = useUIStore();
+  const { closeModal } = useUIStore();
 
   // Find team phase and its parent team
   const { teamPhase, team } = useMemo(() => {
@@ -95,18 +95,18 @@ export function TeamPhaseEditor({ teamPhaseId }: TeamPhaseEditorProps): JSX.Elem
     if (!team || !teamPhase) return;
     if (confirm(`Delete phase "${teamPhase.name}"? This will also delete all elements within it.`)) {
       deleteTeamPhase(team.id, teamPhaseId);
-      closeSidebar();
+      closeModal();
     }
-  }, [team, teamPhase, teamPhaseId, deleteTeamPhase, closeSidebar]);
+  }, [team, teamPhase, teamPhaseId, deleteTeamPhase, closeModal]);
 
   if (!teamPhase || !team) {
-    return <div className="text-sm text-gray-500">Team phase not found</div>;
+    return <div className="text-sm text-[#6b7280]">Team phase not found</div>;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-xs text-gray-500">
-        Part of <span className="font-medium text-gray-700">{team.name}</span>
+      <div className="text-xs text-[#6b7280]">
+        Part of <span className="font-medium text-[#111827]">{team.name}</span>
       </div>
 
       <Input
@@ -139,7 +139,7 @@ export function TeamPhaseEditor({ teamPhaseId }: TeamPhaseEditorProps): JSX.Elem
         />
       </div>
 
-      <div className="pt-4 border-t border-gray-200">
+      <div className="pt-4 border-t border-[#e5e7eb]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Phase
         </Button>

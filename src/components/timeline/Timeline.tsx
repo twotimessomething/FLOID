@@ -1,9 +1,10 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useCallback } from 'react';
 import { useTimelineStore } from '../../stores/timelineStore';
 import { useTeamStore } from '../../stores/teamStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useTimeline } from '../../hooks/useTimeline';
 import { usePlayhead } from '../../hooks/usePlayhead';
+import { useDragReorder } from '../../hooks/useDragReorder';
 import TimelineHeader from './TimelineHeader';
 import TimelineGrid from './TimelineGrid';
 import IDTimelineSection from './IDTimelineSection';
@@ -15,13 +16,67 @@ import { LABEL_COLUMN_WIDTH, HEADER_HEIGHT, ROW_HEIGHT, ELEMENT_ROW_HEIGHT } fro
 export default function Timeline() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { phases } = useTimelineStore();
-  const { teams } = useTeamStore();
+  const { teams, reorderTeams } = useTeamStore();
   const isIDTimelineCollapsed = useUIStore((state) => state.isIDTimelineCollapsed);
-  const { timelineWidth } = useTimeline();
+  const { timelineWidth, totalDays } = useTimeline();
   const { handleMouseDown: handlePlayheadMouseDown } = usePlayhead({
     timelineWidth,
     containerRef: scrollContainerRef,
   });
+
+  // Calculate individual team heights for proper drop indicator positioning
+  const teamHeights = useMemo(() => {
+    return teams.map((team) => {
+      let height = ROW_HEIGHT; // Team header row
+      if (!team.isCollapsed) {
+        team.phases.forEach((phase) => {
+          height += ROW_HEIGHT; // Phase row
+          if (!phase.isCollapsed) {
+            height += phase.elements.length * ELEMENT_ROW_HEIGHT;
+          }
+        });
+      }
+      return height;
+    });
+  }, [teams]);
+
+  // Use drag reorder for teams
+  const {
+    state: dragState,
+    getDragHandleProps,
+  } = useDragReorder({
+    onReorder: reorderTeams,
+    itemCount: teams.length,
+    rowHeight: ROW_HEIGHT, // Movement threshold
+  });
+
+  // Custom drop indicator style using actual cumulative heights
+  const getTeamDropIndicatorStyle = useCallback((): React.CSSProperties | null => {
+    if (!dragState.isDragging || dragState.dropIndex === null || dragState.dropIndex === dragState.dragIndex) {
+      return null;
+    }
+
+    // Calculate position based on cumulative team heights
+    const targetIndex = dragState.dropIndex > (dragState.dragIndex ?? 0)
+      ? dragState.dropIndex + 1
+      : dragState.dropIndex;
+
+    let top = 0;
+    for (let i = 0; i < targetIndex && i < teamHeights.length; i++) {
+      top += teamHeights[i];
+    }
+
+    return {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: `${top}px`,
+      height: '2px',
+      backgroundColor: '#3b82f6',
+      zIndex: 50,
+      pointerEvents: 'none',
+    };
+  }, [dragState.isDragging, dragState.dropIndex, dragState.dragIndex, teamHeights]);
 
   // Calculate content height for playhead (includes phases and teams)
   const contentHeight = useMemo(() => {
@@ -66,13 +121,13 @@ export default function Timeline() {
       <div className="flex-1 flex overflow-hidden">
         {/* Fixed Labels Column */}
         <nav
-          className="flex-shrink-0 border-r border-gray-200 bg-white"
+          className="flex-shrink-0 border-r border-[#e5e7eb] bg-white"
           style={{ width: LABEL_COLUMN_WIDTH }}
           aria-label="Timeline labels"
         >
           {/* Header spacer */}
           <div
-            className="border-b border-gray-200"
+            className="border-b border-[#e5e7eb]"
             style={{ height: HEADER_HEIGHT }}
             aria-hidden="true"
           />
@@ -84,20 +139,31 @@ export default function Timeline() {
               phases={phases}
               isLabel
               timelineWidth={timelineWidth}
+              totalDays={totalDays}
             />
 
             {/* Teams */}
-            {teams.map((team) => (
-              <TeamSection
-                key={team.id}
-                team={team}
-                isLabel
-                timelineWidth={timelineWidth}
-              />
-            ))}
+            <div className="relative" data-drag-container>
+              {teams.map((team, index) => (
+                <TeamSection
+                  key={team.id}
+                  team={team}
+                  isLabel
+                  timelineWidth={timelineWidth}
+                  totalDays={totalDays}
+                  teamIndex={index}
+                  dragHandleProps={getDragHandleProps(index)}
+                  isDragging={dragState.isDragging && dragState.dragIndex === index}
+                />
+              ))}
+              {/* Drop indicator for team reordering */}
+              {getTeamDropIndicatorStyle() && (
+                <div style={getTeamDropIndicatorStyle()!} />
+              )}
+            </div>
 
             {/* Add Team button */}
-            <div className="px-2 py-1 border-t border-gray-200">
+            <div className="px-2 py-1 border-t border-[#e5e7eb]">
               <AddTeamButton />
             </div>
           </div>
@@ -127,15 +193,19 @@ export default function Timeline() {
                 phases={phases}
                 isLabel={false}
                 timelineWidth={timelineWidth}
+                totalDays={totalDays}
               />
 
               {/* Team bars */}
-              {teams.map((team) => (
+              {teams.map((team, index) => (
                 <TeamSection
                   key={team.id}
                   team={team}
                   isLabel={false}
                   timelineWidth={timelineWidth}
+                  totalDays={totalDays}
+                  teamIndex={index}
+                  isDragging={dragState.isDragging && dragState.dragIndex === index}
                 />
               ))}
             </div>

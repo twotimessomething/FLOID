@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { Phase, Element, Milestone } from '../types';
 import { createDefaultPhases } from '../data/defaultTemplate';
-import { loadFromStorage, saveToStorage } from '../utils/storageUtils';
 import { useProjectStore } from './projectStore';
+import { useTeamStore } from './teamStore';
 
 const generateId = (): string => {
   return Math.random().toString(36).substring(2, 11);
@@ -13,8 +13,8 @@ interface TimelineState {
   isInitialized: boolean;
 
   // Initialization
-  initializeFromTemplate: () => void;
-  initializeFromStorage: () => boolean;
+  initializeFromProject: () => void;
+  loadPhasesForProject: (projectId: string) => void;
 
   // Phase operations
   setPhases: (phases: Phase[]) => void;
@@ -50,37 +50,38 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   phases: [],
   isInitialized: false,
 
-  initializeFromTemplate: () => {
-    // Try to load from storage first
-    const stored = loadFromStorage();
-    if (stored && stored.phases && stored.phases.length > 0) {
-      set({
-        phases: stored.phases as Phase[],
-        isInitialized: true,
-      });
-      if (stored.project) {
-        useProjectStore.getState().setProject(stored.project as ReturnType<typeof useProjectStore.getState>['project']);
+  initializeFromProject: () => {
+    const projectStore = useProjectStore.getState();
+    projectStore.initializeProjects();
+
+    const activeProjectId = projectStore.activeProjectId;
+    if (activeProjectId) {
+      const data = projectStore.loadProjectData(activeProjectId);
+      if (data && data.phases.length > 0) {
+        set({
+          phases: data.phases,
+          isInitialized: true,
+        });
+        return;
       }
-      return;
     }
 
-    // Otherwise use default template
+    // Fallback to default template
     set({
       phases: createDefaultPhases(),
       isInitialized: true,
     });
   },
 
-  initializeFromStorage: () => {
-    const stored = loadFromStorage();
-    if (stored && stored.phases) {
-      set({
-        phases: stored.phases as Phase[],
-        isInitialized: true,
-      });
-      return true;
+  loadPhasesForProject: (projectId: string) => {
+    const projectStore = useProjectStore.getState();
+    const data = projectStore.loadProjectData(projectId);
+
+    if (data) {
+      set({ phases: data.phases });
+    } else {
+      set({ phases: createDefaultPhases() });
     }
-    return false;
   },
 
   setPhases: (phases) => set({ phases }),
@@ -218,12 +219,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   saveState: () => {
     const { phases } = get();
-    const project = useProjectStore.getState().project;
-    saveToStorage({
-      project,
-      phases,
-      teams: [],
-      version: 1,
-    });
+    const teams = useTeamStore.getState().teams;
+    useProjectStore.getState().saveCurrentProject(phases, teams);
   },
 }));

@@ -9,7 +9,7 @@ interface TeamEditorProps {
 
 export function TeamEditor({ teamId }: TeamEditorProps): JSX.Element {
   const { teams, updateTeam, deleteTeam } = useTeamStore();
-  const { closeSidebar } = useUIStore();
+  const { closeModal } = useUIStore();
 
   const team = useMemo(
     () => teams.find((t) => t.id === teamId),
@@ -33,12 +33,12 @@ export function TeamEditor({ teamId }: TeamEditorProps): JSX.Element {
   const handleDelete = useCallback(() => {
     if (confirm(`Delete team "${team?.name}"? This will also delete all phases and elements within it.`)) {
       deleteTeam(teamId);
-      closeSidebar();
+      closeModal();
     }
-  }, [team?.name, teamId, deleteTeam, closeSidebar]);
+  }, [team?.name, teamId, deleteTeam, closeModal]);
 
   if (!team) {
-    return <div className="text-sm text-gray-500">Team not found</div>;
+    return <div className="text-sm text-[#6b7280]">Team not found</div>;
   }
 
   return (
@@ -55,7 +55,7 @@ export function TeamEditor({ teamId }: TeamEditorProps): JSX.Element {
         onChange={handleColorChange}
       />
 
-      <div className="pt-4 border-t border-gray-200">
+      <div className="pt-4 border-t border-[#e5e7eb]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Team
         </Button>

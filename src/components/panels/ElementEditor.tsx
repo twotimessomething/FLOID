@@ -12,7 +12,7 @@ interface ElementEditorProps {
 export function ElementEditor({ elementId }: ElementEditorProps): JSX.Element {
   const { phases, updateElement, updateElementPosition, deleteElement } = useTimelineStore();
   const { project } = useProjectStore();
-  const { closeSidebar } = useUIStore();
+  const { closeModal } = useUIStore();
 
   // Find element and its parent phase
   const { element, phase } = useMemo(() => {
@@ -119,18 +119,18 @@ export function ElementEditor({ elementId }: ElementEditorProps): JSX.Element {
     if (!phase || !element) return;
     if (confirm(`Delete element "${element.name}"?`)) {
       deleteElement(phase.id, elementId);
-      closeSidebar();
+      closeModal();
     }
-  }, [phase, element, elementId, deleteElement, closeSidebar]);
+  }, [phase, element, elementId, deleteElement, closeModal]);
 
   if (!element || !phase) {
-    return <div className="text-sm text-gray-500">Element not found</div>;
+    return <div className="text-sm text-[#6b7280]">Element not found</div>;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-xs text-gray-500">
-        Part of <span className="font-medium text-gray-700">{phase.name}</span>
+      <div className="text-xs text-[#6b7280]">
+        Part of <span className="font-medium text-[#111827]">{phase.name}</span>
       </div>
 
       <Input
@@ -163,7 +163,7 @@ export function ElementEditor({ elementId }: ElementEditorProps): JSX.Element {
         />
       </div>
 
-      <div className="pt-4 border-t border-gray-200">
+      <div className="pt-4 border-t border-[#e5e7eb]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Element
         </Button>

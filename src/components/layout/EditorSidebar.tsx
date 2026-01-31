@@ -11,9 +11,9 @@ import {
 const SIDEBAR_WIDTH = 280;
 
 export function EditorSidebar(): JSX.Element | null {
-  const { isSidebarOpen, selection, closeSidebar } = useUIStore();
+  const { isModalOpen, selection, closeModal } = useUIStore();
 
-  if (!isSidebarOpen || !selection.type || !selection.id) {
+  if (!isModalOpen || !selection.type || !selection.id) {
     return null;
   }
 
@@ -41,19 +41,19 @@ export function EditorSidebar(): JSX.Element | null {
 
   return (
     <aside
-      className="flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto sidebar-enter"
+      className="flex-shrink-0 glass-bordered overflow-y-auto sidebar-enter rounded-l-2xl"
       style={{ width: SIDEBAR_WIDTH }}
       role="complementary"
       aria-label="Edit panel"
       aria-live="polite"
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-        <h2 className="text-sm font-semibold text-gray-900" id="sidebar-title">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/20">
+        <h2 className="text-sm font-semibold text-[#111827]" id="sidebar-title">
           Edit
         </h2>
         <button
-          onClick={closeSidebar}
-          className="p-1 text-gray-400 hover:text-gray-600 transition-colors rounded hover:bg-gray-100 focus-ring btn-press"
+          onClick={closeModal}
+          className="p-1 text-[#9ca3af] hover:text-[#6b7280] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
           aria-label="Close sidebar (Escape)"
         >
           <svg

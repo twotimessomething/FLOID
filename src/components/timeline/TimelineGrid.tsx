@@ -46,7 +46,7 @@ export default function TimelineGrid() {
           <div
             key={index}
             className={`absolute top-0 bottom-0 border-l ${
-              marker.isMinor ? 'border-gray-100' : 'border-gray-200'
+              marker.isMinor ? 'border-[#e5e7eb]/50' : 'border-[#e5e7eb]'
             }`}
             style={{ left }}
           />

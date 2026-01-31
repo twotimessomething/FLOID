@@ -1,13 +1,18 @@
 import { useEffect } from 'react';
 import Header from './components/layout/Header';
 import TimelineContainer from './components/layout/TimelineContainer';
-import { EditorSidebar } from './components/layout/EditorSidebar';
+import { EditorModal } from './components/layout/EditorModal';
 import { LeftSidebar } from './components/layout/LeftSidebar';
+import { ProjectSetupModal } from './components/layout/ProjectSetupModal';
 import { useAutoSave, useKeyboardShortcuts } from './hooks';
 import { useTimelineStore } from './stores/timelineStore';
+import { useTeamStore } from './stores/teamStore';
+import { useProjectStore } from './stores/projectStore';
 
 function App() {
-  const { initializeFromTemplate } = useTimelineStore();
+  const { initializeFromProject } = useTimelineStore();
+  const { loadTeamsForProject } = useTeamStore();
+  const activeProjectId = useProjectStore((state) => state.activeProjectId);
 
   // Initialize auto-save functionality
   useAutoSave();
@@ -16,11 +21,18 @@ function App() {
   useKeyboardShortcuts();
 
   useEffect(() => {
-    initializeFromTemplate();
-  }, [initializeFromTemplate]);
+    initializeFromProject();
+  }, [initializeFromProject]);
+
+  // Load teams when project is initialized
+  useEffect(() => {
+    if (activeProjectId) {
+      loadTeamsForProject(activeProjectId);
+    }
+  }, [activeProjectId, loadTeamsForProject]);
 
   return (
-    <div className="h-full flex flex-col bg-gray-100">
+    <div className="h-full flex flex-col bg-[#fafafa]">
       {/* Skip link for keyboard navigation */}
       <a href="#main-timeline" className="skip-link">
         Skip to timeline
@@ -34,8 +46,9 @@ function App() {
       >
         <LeftSidebar />
         <TimelineContainer />
-        <EditorSidebar />
       </main>
+      <EditorModal />
+      <ProjectSetupModal />
     </div>
   );
 }

@@ -12,7 +12,7 @@ interface PhaseEditorProps {
 export function PhaseEditor({ phaseId }: PhaseEditorProps): JSX.Element {
   const { phases, updatePhase, updatePhasePosition, deletePhase } = useTimelineStore();
   const { project } = useProjectStore();
-  const { closeSidebar } = useUIStore();
+  const { closeModal } = useUIStore();
 
   const phase = useMemo(
     () => phases.find((p) => p.id === phaseId),
@@ -93,12 +93,12 @@ export function PhaseEditor({ phaseId }: PhaseEditorProps): JSX.Element {
   const handleDelete = useCallback(() => {
     if (confirm(`Delete phase "${phase?.name}"? This will also delete all elements and milestones within it.`)) {
       deletePhase(phaseId);
-      closeSidebar();
+      closeModal();
     }
-  }, [phase?.name, phaseId, deletePhase, closeSidebar]);
+  }, [phase?.name, phaseId, deletePhase, closeModal]);
 
   if (!phase) {
-    return <div className="text-sm text-gray-500">Phase not found</div>;
+    return <div className="text-sm text-[#6b7280]">Phase not found</div>;
   }
 
   return (
@@ -139,7 +139,7 @@ export function PhaseEditor({ phaseId }: PhaseEditorProps): JSX.Element {
         />
       </div>
 
-      <div className="pt-4 border-t border-gray-200">
+      <div className="pt-4 border-t border-[#e5e7eb]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Phase
         </Button>

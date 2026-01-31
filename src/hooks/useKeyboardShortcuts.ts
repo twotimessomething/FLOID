@@ -17,7 +17,7 @@ interface NavigableItem {
  * Supports navigation, collapse/expand, deletion, and sidebar interactions.
  */
 export function useKeyboardShortcuts(): void {
-  const { selection, setSelection, closeSidebar, isSidebarOpen } = useUIStore();
+  const { selection, setSelection, closeModal, isModalOpen } = useUIStore();
   const { phases, togglePhaseCollapse, deletePhase, deleteElement, deleteMilestone } =
     useTimelineStore();
   const {
@@ -128,7 +128,12 @@ export function useKeyboardShortcuts(): void {
 
       const item = items[newIndex];
       if (item) {
-        setSelection({ type: item.type, id: item.id });
+        // Use center of screen for keyboard navigation
+        const centerPosition = {
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2,
+        };
+        setSelection({ type: item.type, id: item.id }, centerPosition);
       }
     },
     [getNavigableItems, getCurrentIndex, setSelection]
@@ -212,8 +217,8 @@ export function useKeyboardShortcuts(): void {
       }
     }
 
-    // Close sidebar after deletion
-    closeSidebar();
+    // Close modal after deletion
+    closeModal();
   }, [
     selection,
     phases,
@@ -224,7 +229,7 @@ export function useKeyboardShortcuts(): void {
     deleteTeam,
     deleteTeamPhase,
     deleteTeamElement,
-    closeSidebar,
+    closeModal,
   ]);
 
   // Main keyboard event handler
@@ -237,9 +242,9 @@ export function useKeyboardShortcuts(): void {
         target.tagName === 'TEXTAREA' ||
         target.isContentEditable
       ) {
-        // Only allow Escape to close sidebar when in input
-        if (event.key === SHORTCUTS.ESCAPE && isSidebarOpen) {
-          closeSidebar();
+        // Only allow Escape to close modal when in input
+        if (event.key === SHORTCUTS.ESCAPE && isModalOpen) {
+          closeModal();
           event.preventDefault();
         }
         return;
@@ -247,8 +252,8 @@ export function useKeyboardShortcuts(): void {
 
       switch (event.key) {
         case SHORTCUTS.ESCAPE:
-          if (isSidebarOpen) {
-            closeSidebar();
+          if (isModalOpen) {
+            closeModal();
           }
           event.preventDefault();
           break;
@@ -281,9 +286,9 @@ export function useKeyboardShortcuts(): void {
       }
     },
     [
-      isSidebarOpen,
+      isModalOpen,
       selection,
-      closeSidebar,
+      closeModal,
       handleNavigation,
       handleToggleCollapse,
       handleDelete,

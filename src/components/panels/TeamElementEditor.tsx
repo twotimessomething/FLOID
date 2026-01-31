@@ -12,7 +12,7 @@ interface TeamElementEditorProps {
 export function TeamElementEditor({ teamElementId }: TeamElementEditorProps): JSX.Element {
   const { teams, updateTeamElement, updateTeamElementPosition, deleteTeamElement } = useTeamStore();
   const { project } = useProjectStore();
-  const { closeSidebar } = useUIStore();
+  const { closeModal } = useUIStore();
 
   // Find element, its parent phase, and team
   const { element, teamPhase, team } = useMemo(() => {
@@ -120,21 +120,21 @@ export function TeamElementEditor({ teamElementId }: TeamElementEditorProps): JS
     if (!team || !teamPhase || !element) return;
     if (confirm(`Delete element "${element.name}"?`)) {
       deleteTeamElement(team.id, teamPhase.id, teamElementId);
-      closeSidebar();
+      closeModal();
     }
-  }, [team, teamPhase, element, teamElementId, deleteTeamElement, closeSidebar]);
+  }, [team, teamPhase, element, teamElementId, deleteTeamElement, closeModal]);
 
   if (!element || !teamPhase || !team) {
-    return <div className="text-sm text-gray-500">Element not found</div>;
+    return <div className="text-sm text-[#6b7280]">Element not found</div>;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-xs text-gray-500">
+      <div className="text-xs text-[#6b7280]">
         Part of{' '}
-        <span className="font-medium text-gray-700">{teamPhase.name}</span>
+        <span className="font-medium text-[#111827]">{teamPhase.name}</span>
         {' in '}
-        <span className="font-medium text-gray-700">{team.name}</span>
+        <span className="font-medium text-[#111827]">{team.name}</span>
       </div>
 
       <Input
@@ -167,7 +167,7 @@ export function TeamElementEditor({ teamElementId }: TeamElementEditorProps): JS
         />
       </div>
 
-      <div className="pt-4 border-t border-gray-200">
+      <div className="pt-4 border-t border-[#e5e7eb]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Element
         </Button>

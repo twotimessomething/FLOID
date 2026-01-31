@@ -8,10 +8,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
-  primary: 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800',
-  secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
+  primary: 'bg-[#111827] text-white hover:bg-[#1f2937] active:bg-[#374151]',
+  secondary: 'bg-[#fafafa] text-[#111827] border border-[#e5e7eb] hover:bg-[#f3f4f6] active:bg-[#e5e7eb]',
   danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800',
-  ghost: 'text-gray-600 hover:text-gray-900 hover:bg-gray-100',
+  ghost: 'text-[#6b7280] hover:text-[#111827] hover:bg-[#fafafa]',
 };
 
 const SIZE_STYLES = {
@@ -27,7 +27,7 @@ export function Button({
   children,
   ...props
 }: ButtonProps): JSX.Element {
-  const baseStyles = 'rounded font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1';
+  const baseStyles = 'rounded-md font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1';
   const disabledStyles = disabled ? 'opacity-50 cursor-not-allowed' : '';
 
   return (

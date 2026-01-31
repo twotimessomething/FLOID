@@ -27,7 +27,7 @@ export function ColorPicker({
   return (
     <div className="flex flex-col gap-2">
       {label && (
-        <span className="text-xs font-medium text-gray-600">{label}</span>
+        <span className="text-xs font-medium text-[#6b7280]">{label}</span>
       )}
       <div className="flex flex-wrap gap-1.5">
         {colors.map((color) => (
@@ -35,8 +35,8 @@ export function ColorPicker({
             key={color}
             type="button"
             onClick={() => onChange(color)}
-            className={`w-6 h-6 rounded-full transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${
-              value === color ? 'ring-2 ring-offset-1 ring-gray-900' : ''
+            className={`w-6 h-6 rounded-full transition-transform duration-150 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${
+              value === color ? 'ring-2 ring-offset-1 ring-[#111827]' : ''
             }`}
             style={{ backgroundColor: color }}
             aria-label={`Select color ${color}`}

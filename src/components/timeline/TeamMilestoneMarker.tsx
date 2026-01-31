@@ -1,21 +1,23 @@
 import { useRef, useCallback, useEffect } from 'react';
-import type { Milestone, Phase } from '../../types';
-import { useTimelineStore } from '../../stores/timelineStore';
+import type { Milestone, Team, TeamPhase } from '../../types';
+import { useTeamStore } from '../../stores/teamStore';
 import { useUIStore } from '../../stores/uiStore';
 import { ROW_HEIGHT } from '../../utils/timelineUtils';
 
-interface MilestoneMarkerProps {
+interface TeamMilestoneMarkerProps {
   readonly milestone: Milestone;
-  readonly phase: Phase;
+  readonly teamPhase: TeamPhase;
+  readonly team: Team;
   readonly timelineWidth: number;
 }
 
-export default function MilestoneMarker({
+export default function TeamMilestoneMarker({
   milestone,
-  phase,
+  teamPhase,
+  team,
   timelineWidth,
-}: MilestoneMarkerProps) {
-  const { updateMilestone } = useTimelineStore();
+}: TeamMilestoneMarkerProps): JSX.Element {
+  const { updateTeamMilestone } = useTeamStore();
   const { selection, setSelection, setDragging } = useUIStore();
 
   const isSelected = selection.type === 'milestone' && selection.id === milestone.id;
@@ -23,17 +25,17 @@ export default function MilestoneMarker({
   const lastXRef = useRef(0);
 
   // Calculate absolute position within the phase
-  const phaseWidth = (phase.relativeEnd - phase.relativeStart) * timelineWidth;
-  const phaseLeft = phase.relativeStart * timelineWidth;
+  const phaseWidth = (teamPhase.relativeEnd - teamPhase.relativeStart) * timelineWidth;
+  const phaseLeft = teamPhase.relativeStart * timelineWidth;
   const milestoneLeft = phaseLeft + milestone.relativePosition * phaseWidth;
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = (e: React.MouseEvent): void => {
     e.stopPropagation();
     setSelection({ type: 'milestone', id: milestone.id }, { x: e.clientX, y: e.clientY });
   };
 
   // Prevent double-click from propagating to parent
-  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+  const handleDoubleClick = useCallback((e: React.MouseEvent): void => {
     e.stopPropagation();
   }, []);
 
@@ -60,7 +62,7 @@ export default function MilestoneMarker({
       const deltaRelative = deltaX / phaseWidth;
       const newPosition = Math.max(0, Math.min(1, milestone.relativePosition + deltaRelative));
 
-      updateMilestone(phase.id, milestone.id, { relativePosition: newPosition });
+      updateTeamMilestone(team.id, teamPhase.id, milestone.id, { relativePosition: newPosition });
     };
 
     const handleMouseUp = () => {
@@ -77,7 +79,7 @@ export default function MilestoneMarker({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [milestone.relativePosition, phase.id, milestone.id, phaseWidth, updateMilestone, setDragging]);
+  }, [milestone.relativePosition, team.id, teamPhase.id, milestone.id, phaseWidth, updateTeamMilestone, setDragging]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(
@@ -105,7 +107,7 @@ export default function MilestoneMarker({
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
-      aria-label={`${milestone.name} milestone at ${Math.round(milestone.relativePosition * 100)}% of ${phase.name}`}
+      aria-label={`${milestone.name} milestone at ${Math.round(milestone.relativePosition * 100)}% of ${teamPhase.name}`}
       aria-selected={isSelected}
     >
       {/* Diamond marker */}
