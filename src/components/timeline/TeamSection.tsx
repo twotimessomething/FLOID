@@ -48,6 +48,32 @@ export default function TeamSection({
 
   const isSelected = selection.type === 'team' && selection.id === team.id;
 
+  // Handle click on collapsed team phase bar
+  const handleCollapsedPhaseClick = useCallback(
+    (phaseId: string) => (e: React.MouseEvent): void => {
+      e.stopPropagation();
+      setSelection({ type: 'teamPhase', id: phaseId }, { x: e.clientX, y: e.clientY });
+    },
+    [setSelection]
+  );
+
+  // Handle keyboard on collapsed team phase bar
+  const handleCollapsedPhaseKeyDown = useCallback(
+    (phaseId: string) => (e: React.KeyboardEvent): void => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        setSelection({ type: 'teamPhase', id: phaseId }, { x: rect.right, y: rect.top });
+      }
+    },
+    [setSelection]
+  );
+
+  // Prevent double-click from propagating on collapsed phase bars
+  const handleCollapsedPhaseDoubleClick = useCallback((e: React.MouseEvent): void => {
+    e.stopPropagation();
+  }, []);
+
   const handleClick = (e: React.MouseEvent): void => {
     setSelection({ type: 'team', id: team.id }, { x: e.clientX, y: e.clientY });
   };
@@ -123,10 +149,6 @@ export default function TeamSection({
     [team.id, team.phases, timelineWidth, addTeamMilestone, setSelection]
   );
 
-  // Prevent double-click on collapsed summary bar from creating milestone
-  const handleSummaryBarDoubleClick = useCallback((e: React.MouseEvent): void => {
-    e.stopPropagation();
-  }, []);
 
   // Double-click on team phases container creates a new team phase
   const handleCreateTeamPhase = useCallback(
@@ -166,15 +188,6 @@ export default function TeamSection({
     [team.id, team.phases.length, timelineWidth, totalDays, addTeamPhase, setSelection]
   );
 
-  // Calculate team summary bar (spans from earliest phase start to latest phase end)
-  const teamStart = team.phases.length > 0
-    ? Math.min(...team.phases.map((p) => p.relativeStart))
-    : 0.1;
-  const teamEnd = team.phases.length > 0
-    ? Math.max(...team.phases.map((p) => p.relativeEnd))
-    : 0.4;
-
-  const { left, width } = getBarDimensions(teamStart, teamEnd, timelineWidth);
 
   if (isLabel) {
     // Render label column content
@@ -278,37 +291,51 @@ export default function TeamSection({
       role="group"
       aria-label={`${team.name} team timeline`}
     >
-      {/* Team summary bar (when collapsed) or header row */}
+      {/* Team header row with individual phase bars when collapsed */}
       <div
         ref={headerRowRef}
         className="relative border-b border-[#e5e7eb]/50"
         style={{ height: ROW_HEIGHT }}
         onDoubleClick={handleHeaderDoubleClick}
       >
-        {team.isCollapsed && team.phases.length > 0 && (
-          <div
-            className={`absolute top-1 bottom-1 rounded-[10px] cursor-pointer timeline-bar ${
-              isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
-            }`}
-            style={{
-              left,
-              width,
-              backgroundColor: team.color + '60', // 38% opacity for summary
-            }}
-            onClick={handleClick}
-            onDoubleClick={handleSummaryBarDoubleClick}
-            onKeyDown={handleKeyDown}
-            role="button"
-            tabIndex={0}
-            aria-label={`${team.name} team summary bar (collapsed)`}
-            aria-selected={isSelected}
-          >
-            <div className="absolute inset-0 flex items-center px-2 overflow-hidden pointer-events-none">
-              <span className="text-xs font-medium text-[#111827] truncate">
-                {team.name}
-              </span>
-            </div>
-          </div>
+        {team.isCollapsed && (
+          <>
+            {team.phases.map((phase) => {
+              const { left, width } = getBarDimensions(
+                phase.relativeStart,
+                phase.relativeEnd,
+                timelineWidth
+              );
+              const isPhaseSelected = selection.type === 'teamPhase' && selection.id === phase.id;
+
+              return (
+                <div
+                  key={phase.id}
+                  className={`absolute top-1 bottom-1 rounded-[10px] cursor-pointer timeline-bar ${
+                    isPhaseSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+                  }`}
+                  style={{
+                    left,
+                    width,
+                    backgroundColor: team.color,
+                  }}
+                  onClick={handleCollapsedPhaseClick(phase.id)}
+                  onDoubleClick={handleCollapsedPhaseDoubleClick}
+                  onKeyDown={handleCollapsedPhaseKeyDown(phase.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${phase.name} phase bar (collapsed view)`}
+                  aria-selected={isPhaseSelected}
+                >
+                  <div className="absolute inset-0 flex items-center px-2 overflow-hidden pointer-events-none">
+                    <span className="text-xs font-medium text-white truncate drop-shadow-sm">
+                      {phase.name}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </>
         )}
       </div>
 

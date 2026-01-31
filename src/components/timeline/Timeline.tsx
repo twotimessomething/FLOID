@@ -15,6 +15,8 @@ import { LABEL_COLUMN_WIDTH, HEADER_HEIGHT, ROW_HEIGHT, ELEMENT_ROW_HEIGHT } fro
 
 export default function Timeline() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const labelsScrollRef = useRef<HTMLDivElement>(null);
+  const isScrollSyncing = useRef(false);
   const { phases } = useTimelineStore();
   const { teams, reorderTeams } = useTeamStore();
   const isIDTimelineCollapsed = useUIStore((state) => state.isIDTimelineCollapsed);
@@ -78,6 +80,23 @@ export default function Timeline() {
     };
   }, [dragState.isDragging, dragState.dropIndex, dragState.dragIndex, teamHeights]);
 
+  // Sync vertical scroll between labels column and timeline content
+  const handleLabelsScroll = useCallback(() => {
+    if (isScrollSyncing.current) return;
+    if (!labelsScrollRef.current || !scrollContainerRef.current) return;
+    isScrollSyncing.current = true;
+    scrollContainerRef.current.scrollTop = labelsScrollRef.current.scrollTop;
+    isScrollSyncing.current = false;
+  }, []);
+
+  const handleTimelineScroll = useCallback(() => {
+    if (isScrollSyncing.current) return;
+    if (!labelsScrollRef.current || !scrollContainerRef.current) return;
+    isScrollSyncing.current = true;
+    labelsScrollRef.current.scrollTop = scrollContainerRef.current.scrollTop;
+    isScrollSyncing.current = false;
+  }, []);
+
   // Calculate content height for playhead (includes phases and teams)
   const contentHeight = useMemo(() => {
     let height = 0;
@@ -121,19 +140,25 @@ export default function Timeline() {
       <div className="flex-1 flex overflow-hidden">
         {/* Fixed Labels Column */}
         <nav
-          className="flex-shrink-0 border-r border-[#e5e7eb] bg-white"
+          className="flex-shrink-0 border-r border-[#e5e7eb] bg-white flex flex-col"
           style={{ width: LABEL_COLUMN_WIDTH }}
           aria-label="Timeline labels"
         >
           {/* Header spacer */}
           <div
-            className="border-b border-[#e5e7eb]"
+            className="flex-shrink-0 border-b border-[#e5e7eb]"
             style={{ height: HEADER_HEIGHT }}
             aria-hidden="true"
           />
 
           {/* Phase and Team labels */}
-          <div className="overflow-y-auto" role="list" aria-label="Phases and teams">
+          <div
+            ref={labelsScrollRef}
+            className="flex-1 min-h-0 overflow-y-auto"
+            onScroll={handleLabelsScroll}
+            role="list"
+            aria-label="Phases and teams"
+          >
             {/* Industrial Design section */}
             <IDTimelineSection
               phases={phases}
@@ -173,6 +198,7 @@ export default function Timeline() {
         <div
           ref={scrollContainerRef}
           className="flex-1 overflow-auto"
+          onScroll={handleTimelineScroll}
           role="region"
           aria-label="Timeline content"
         >

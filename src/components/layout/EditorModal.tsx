@@ -17,10 +17,15 @@ export function EditorModal(): JSX.Element | null {
   const { isModalOpen, selection, closeModal } = useUIStore();
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // Close on escape key
+  // Close on escape key or enter key (save and close)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        closeModal();
+      }
+      // Enter closes modal unless user is in a textarea
+      if (e.key === 'Enter' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
         closeModal();
       }
     };
