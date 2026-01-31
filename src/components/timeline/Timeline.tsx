@@ -1,14 +1,12 @@
 import { useRef, useMemo, useCallback, useEffect, useState } from 'react';
-import { useTimelineStore } from '../../stores/timelineStore';
-import { useTeamStore } from '../../stores/teamStore';
+import { useSectionStore, selectIDTimeline, selectTeams } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useTimeline } from '../../hooks/useTimeline';
 import { usePlayhead } from '../../hooks/usePlayhead';
 import { useDragReorder } from '../../hooks/useDragReorder';
 import TimelineHeader from './TimelineHeader';
 import TimelineGrid from './TimelineGrid';
-import IDTimelineSection from './IDTimelineSection';
-import TeamSection from './TeamSection';
+import SectionRow from './SectionRow';
 import Playhead from './Playhead';
 import { AddTeamButton, ZoomControls } from '../controls';
 import { HEADER_HEIGHT, ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getPositionFromRelative } from '../../utils/timelineUtils';
@@ -18,9 +16,11 @@ export default function Timeline() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const labelsScrollRef = useRef<HTMLDivElement>(null);
   const isScrollSyncing = useRef(false);
-  const { phases, milestones } = useTimelineStore();
-  const { teams, reorderTeams } = useTeamStore();
-  const isIDTimelineCollapsed = useUIStore((state) => state.isIDTimelineCollapsed);
+
+  const idTimeline = useSectionStore(selectIDTimeline);
+  const teams = useSectionStore(selectTeams);
+  const { reorderSections } = useSectionStore();
+
   const labelColumnWidth = useUIStore((state) => state.labelColumnWidth);
   const setLabelColumnWidth = useUIStore((state) => state.setLabelColumnWidth);
   const scrollToTodayTrigger = useUIStore((state) => state.scrollToTodayTrigger);
@@ -103,7 +103,7 @@ export default function Timeline() {
     state: dragState,
     getDragHandleProps,
   } = useDragReorder({
-    onReorder: reorderTeams,
+    onReorder: reorderSections,
     itemCount: teams.length,
     rowHeight: ROW_HEIGHT, // Movement threshold
   });
@@ -153,37 +153,42 @@ export default function Timeline() {
     isScrollSyncing.current = false;
   }, []);
 
-  // Calculate content height for playhead (includes phases and teams)
+  // Calculate content height for playhead (includes all sections)
   const contentHeight = useMemo(() => {
     let height = 0;
-    // Industrial Design section
-    height += ROW_HEIGHT; // Section header row
-    if (!isIDTimelineCollapsed) {
-      phases.forEach((phase) => {
-        height += ROW_HEIGHT;
-        if (!phase.isCollapsed && phase.elements.length > 0) {
-          height += phase.elements.length * ELEMENT_ROW_HEIGHT;
-        }
-      });
+
+    // ID Timeline section
+    if (idTimeline) {
+      height += ROW_HEIGHT; // Section header row
+      if (!idTimeline.isCollapsed) {
+        idTimeline.phases.forEach((phase) => {
+          height += ROW_HEIGHT;
+          if (!phase.isCollapsed && phase.elements.length > 0) {
+            height += phase.elements.length * ELEMENT_ROW_HEIGHT;
+          }
+        });
+      }
     }
+
     // Teams
     teams.forEach((team) => {
       height += ROW_HEIGHT; // Team header row
       if (!team.isCollapsed) {
-        team.phases.forEach((teamPhase) => {
+        team.phases.forEach((phase) => {
           height += ROW_HEIGHT;
-          if (!teamPhase.isCollapsed && teamPhase.elements.length > 0) {
-            height += teamPhase.elements.length * ELEMENT_ROW_HEIGHT;
+          if (!phase.isCollapsed && phase.elements.length > 0) {
+            height += phase.elements.length * ELEMENT_ROW_HEIGHT;
           }
         });
       }
     });
+
     // Add button row
-    if (teams.length > 0 || phases.length > 0) {
+    if (teams.length > 0 || idTimeline) {
       height += ROW_HEIGHT;
     }
     return Math.max(height, 200);
-  }, [phases, teams, isIDTimelineCollapsed]);
+  }, [idTimeline, teams]);
 
   return (
     <div className="h-full flex flex-col relative" role="application" aria-label="Timeline editor">
@@ -216,33 +221,34 @@ export default function Timeline() {
             aria-hidden="true"
           />
 
-          {/* Phase and Team labels */}
+          {/* Section and Phase labels */}
           <div
             ref={labelsScrollRef}
             className="flex-1 min-h-0 overflow-y-auto"
             onScroll={handleLabelsScroll}
             role="list"
-            aria-label="Phases and teams"
+            aria-label="Sections and phases"
           >
-            {/* Industrial Design section */}
-            <IDTimelineSection
-              phases={phases}
-              milestones={milestones}
-              isLabel
-              timelineWidth={timelineWidth}
-              totalDays={totalDays}
-            />
+            {/* ID Timeline section */}
+            {idTimeline && (
+              <SectionRow
+                section={idTimeline}
+                isLabel
+                timelineWidth={timelineWidth}
+                totalDays={totalDays}
+              />
+            )}
 
             {/* Teams */}
             <div className="relative" data-drag-container>
               {teams.map((team, index) => (
-                <TeamSection
+                <SectionRow
                   key={team.id}
-                  team={team}
+                  section={team}
                   isLabel
                   timelineWidth={timelineWidth}
                   totalDays={totalDays}
-                  teamIndex={index}
+                  sectionIndex={index}
                   dragHandleProps={getDragHandleProps(index)}
                   isDragging={dragState.isDragging && dragState.dragIndex === index}
                 />
@@ -280,24 +286,25 @@ export default function Timeline() {
               {/* Playhead (scrubber) */}
               <Playhead height={contentHeight} />
 
-              {/* Industrial Design section bars */}
-              <IDTimelineSection
-                phases={phases}
-                milestones={milestones}
-                isLabel={false}
-                timelineWidth={timelineWidth}
-                totalDays={totalDays}
-              />
-
-              {/* Team bars */}
-              {teams.map((team, index) => (
-                <TeamSection
-                  key={team.id}
-                  team={team}
+              {/* ID Timeline section bars */}
+              {idTimeline && (
+                <SectionRow
+                  section={idTimeline}
                   isLabel={false}
                   timelineWidth={timelineWidth}
                   totalDays={totalDays}
-                  teamIndex={index}
+                />
+              )}
+
+              {/* Team bars */}
+              {teams.map((team, index) => (
+                <SectionRow
+                  key={team.id}
+                  section={team}
+                  isLabel={false}
+                  timelineWidth={timelineWidth}
+                  totalDays={totalDays}
+                  sectionIndex={index}
                   isDragging={dragState.isDragging && dragState.dragIndex === index}
                 />
               ))}

@@ -1,5 +1,6 @@
 import { addMonths } from 'date-fns';
-import type { Project, Phase, Milestone } from '../types';
+import type { Project, Section, Phase, Milestone } from '../types';
+import { ID_TIMELINE_SECTION_ID } from '../types';
 import { DEFAULT_PHASES, DEFAULT_MILESTONES } from '../constants/designProcess';
 
 const generateId = (): string => {
@@ -21,8 +22,10 @@ export const createDefaultProject = (): Project => {
   };
 };
 
-export const createDefaultPhases = (): Phase[] => {
-  return DEFAULT_PHASES.map((phaseTemplate) => {
+export const createDefaultIDTimelineSection = (): Section => {
+  const sectionId = ID_TIMELINE_SECTION_ID;
+
+  const phases: Phase[] = DEFAULT_PHASES.map((phaseTemplate) => {
     const phaseId = generateId();
 
     const elements = phaseTemplate.elements.map((element) => ({
@@ -32,16 +35,33 @@ export const createDefaultPhases = (): Phase[] => {
     }));
 
     return {
-      ...phaseTemplate,
       id: phaseId,
+      sectionId,
+      name: phaseTemplate.name,
+      description: phaseTemplate.description,
+      color: phaseTemplate.color, // ID timeline phases have individual colors
+      order: phaseTemplate.order,
+      isCollapsed: phaseTemplate.isCollapsed,
       elements,
+      relativeStart: phaseTemplate.relativeStart,
+      relativeEnd: phaseTemplate.relativeEnd,
     };
   });
-};
 
-export const createDefaultMilestones = (): Milestone[] => {
-  return DEFAULT_MILESTONES.map((milestoneTemplate) => ({
+  const milestones: Milestone[] = DEFAULT_MILESTONES.map((milestoneTemplate) => ({
     ...milestoneTemplate,
     id: generateId(),
+    sectionId,
   }));
+
+  return {
+    id: sectionId,
+    type: 'id-timeline',
+    name: 'Industrial Design',
+    color: '#6366F1', // Indigo (default, though ID timeline uses per-phase colors)
+    order: 0,
+    isCollapsed: false,
+    phases,
+    milestones,
+  };
 };

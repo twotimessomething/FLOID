@@ -1,41 +1,22 @@
 import { useCallback, useMemo } from 'react';
-import { useTimelineStore } from '../../stores/timelineStore';
-import { useTeamStore } from '../../stores/teamStore';
+import { useSectionStore, selectSection, selectMilestone } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, Button } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../utils/dateUtils';
 
-interface MilestoneEditorProps {
-  readonly milestoneId: string;
-}
-
-export function MilestoneEditor({ milestoneId }: MilestoneEditorProps): JSX.Element {
-  const { milestones, updateMilestone: updateIDMilestone, deleteMilestone: deleteIDMilestone } = useTimelineStore();
-  const { teams, updateTeamMilestone, deleteTeamMilestone } = useTeamStore();
+export function MilestoneEditor(): JSX.Element {
+  const { selection, closeModal } = useUIStore();
+  const { updateMilestone, deleteMilestone } = useSectionStore();
   const { project } = useProjectStore();
-  const { closeModal } = useUIStore();
 
-  // Find milestone - check ID timeline first, then teams
-  const { milestone, source, teamId } = useMemo(() => {
-    // Check ID timeline milestones first
-    const idMilestone = milestones.find((m) => m.id === milestoneId);
-    if (idMilestone) {
-      return { milestone: idMilestone, source: 'id' as const, teamId: null };
-    }
+  const sectionId = selection.sectionId;
+  const milestoneId = selection.id;
 
-    // Check teams
-    for (const team of teams) {
-      const teamMilestone = team.milestones.find((m) => m.id === milestoneId);
-      if (teamMilestone) {
-        return { milestone: teamMilestone, source: 'team' as const, teamId: team.id };
-      }
-    }
+  const section = useSectionStore(selectSection(sectionId || ''));
+  const milestone = useSectionStore(selectMilestone(sectionId || '', milestoneId || ''));
 
-    return { milestone: null, source: null, teamId: null };
-  }, [milestones, teams, milestoneId]);
-
-  // Calculate milestone date using project dates (since milestones are now project-relative)
+  // Calculate milestone date using project dates (since milestones are project-relative)
   const date = useMemo(() => {
     if (!milestone) {
       return new Date();
@@ -53,31 +34,23 @@ export function MilestoneEditor({ milestoneId }: MilestoneEditorProps): JSX.Elem
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!milestone || !source) return;
-      if (source === 'id') {
-        updateIDMilestone(milestoneId, { name: e.target.value });
-      } else if (teamId) {
-        updateTeamMilestone(teamId, milestoneId, { name: e.target.value });
-      }
+      if (!sectionId || !milestoneId) return;
+      updateMilestone(sectionId, milestoneId, { name: e.target.value });
     },
-    [milestone, source, milestoneId, teamId, updateIDMilestone, updateTeamMilestone]
+    [sectionId, milestoneId, updateMilestone]
   );
 
   const handleDescriptionChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      if (!milestone || !source) return;
-      if (source === 'id') {
-        updateIDMilestone(milestoneId, { description: e.target.value });
-      } else if (teamId) {
-        updateTeamMilestone(teamId, milestoneId, { description: e.target.value });
-      }
+      if (!sectionId || !milestoneId) return;
+      updateMilestone(sectionId, milestoneId, { description: e.target.value });
     },
-    [milestone, source, milestoneId, teamId, updateIDMilestone, updateTeamMilestone]
+    [sectionId, milestoneId, updateMilestone]
   );
 
   const handleDateChange = useCallback(
     (newDate: Date) => {
-      if (!milestone || !source) return;
+      if (!sectionId || !milestoneId) return;
       const newRelativePosition = getRelativePositionFromDate(
         project.startDate,
         project.endDate,
@@ -85,35 +58,27 @@ export function MilestoneEditor({ milestoneId }: MilestoneEditorProps): JSX.Elem
       );
       // Clamp to 0-1
       const clampedPosition = Math.max(0, Math.min(1, newRelativePosition));
-      if (source === 'id') {
-        updateIDMilestone(milestoneId, { relativePosition: clampedPosition });
-      } else if (teamId) {
-        updateTeamMilestone(teamId, milestoneId, { relativePosition: clampedPosition });
-      }
+      updateMilestone(sectionId, milestoneId, { relativePosition: clampedPosition });
     },
-    [milestone, source, milestoneId, teamId, project.startDate, project.endDate, updateIDMilestone, updateTeamMilestone]
+    [sectionId, milestoneId, project.startDate, project.endDate, updateMilestone]
   );
 
   const handleDelete = useCallback(() => {
-    if (!milestone || !source) return;
+    if (!sectionId || !milestoneId || !milestone) return;
     if (confirm(`Delete milestone "${milestone.name}"?`)) {
-      if (source === 'id') {
-        deleteIDMilestone(milestoneId);
-      } else if (teamId) {
-        deleteTeamMilestone(teamId, milestoneId);
-      }
+      deleteMilestone(sectionId, milestoneId);
       closeModal();
     }
-  }, [milestone, source, milestoneId, teamId, deleteIDMilestone, deleteTeamMilestone, closeModal]);
+  }, [sectionId, milestoneId, milestone, deleteMilestone, closeModal]);
 
-  if (!milestone) {
+  if (!milestone || !section) {
     return <div className="text-sm text-[#6b7280]">Milestone not found</div>;
   }
 
   // Determine context label
-  const contextLabel = source === 'id'
+  const contextLabel = section.type === 'id-timeline'
     ? 'Industrial Design'
-    : teams.find((t) => t.id === teamId)?.name || 'Team';
+    : section.name;
 
   return (
     <div className="flex flex-col gap-4">

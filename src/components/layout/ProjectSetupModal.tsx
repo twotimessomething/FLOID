@@ -2,8 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { addMonths } from 'date-fns';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
-import { useTimelineStore } from '../../stores/timelineStore';
-import { useTeamStore } from '../../stores/teamStore';
+import { useSectionStore } from '../../stores/sectionStore';
 import { Button, Input, DateInput } from '../common';
 
 interface ProjectFormData {
@@ -26,8 +25,7 @@ const getDefaultFormData = (): ProjectFormData => {
 export function ProjectSetupModal(): JSX.Element | null {
   const { isProjectSetupModalOpen, closeProjectSetupModal, closeModal } = useUIStore();
   const { addProject, selectProject, saveCurrentProject } = useProjectStore();
-  const { phases, milestones, loadPhasesForProject } = useTimelineStore();
-  const { teams, loadTeamsForProject } = useTeamStore();
+  const { sections, loadSectionsForProject } = useSectionStore();
 
   const [formData, setFormData] = useState<ProjectFormData>(getDefaultFormData);
 
@@ -86,7 +84,7 @@ export function ProjectSetupModal(): JSX.Element | null {
       const endDate = formData.endDate.toISOString();
 
       // Save current project before creating new one
-      saveCurrentProject(phases, milestones, teams);
+      saveCurrentProject(sections);
 
       // Create the new project
       const newId = addProject({ name, startDate, endDate });
@@ -94,21 +92,17 @@ export function ProjectSetupModal(): JSX.Element | null {
       // Clear selection and switch to new project
       closeModal();
       selectProject(newId);
-      loadPhasesForProject(newId);
-      loadTeamsForProject(newId);
+      loadSectionsForProject(newId);
 
       closeProjectSetupModal();
     },
     [
       formData,
-      phases,
-      milestones,
-      teams,
+      sections,
       saveCurrentProject,
       addProject,
       selectProject,
-      loadPhasesForProject,
-      loadTeamsForProject,
+      loadSectionsForProject,
       closeModal,
       closeProjectSetupModal,
     ]

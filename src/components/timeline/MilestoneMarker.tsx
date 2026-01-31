@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
-import type { Milestone } from '../../types';
-import { useTimelineStore } from '../../stores/timelineStore';
+import type { Milestone, Section } from '../../types';
+import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { ROW_HEIGHT } from '../../utils/timelineUtils';
@@ -8,18 +8,20 @@ import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
 
 interface MilestoneMarkerProps {
   readonly milestone: Milestone;
+  readonly section: Section;
   readonly timelineWidth: number;
   readonly lineHeight?: number; // Height of the vertical line extending down
 }
 
 export default function MilestoneMarker({
   milestone,
+  section,
   timelineWidth,
   lineHeight = 0,
 }: MilestoneMarkerProps) {
-  const { updateMilestone } = useTimelineStore();
+  const { updateMilestone } = useSectionStore();
   const { project } = useProjectStore();
-  const { selection, setSelection, setDragging } = useUIStore();
+  const { selection, selectItem, setDragging } = useUIStore();
 
   const isSelected = selection.type === 'milestone' && selection.id === milestone.id;
   const isDraggingRef = useRef(false);
@@ -37,7 +39,7 @@ export default function MilestoneMarker({
       hasDragged.current = false;
       return;
     }
-    setSelection({ type: 'milestone', id: milestone.id }, { x: e.clientX, y: e.clientY });
+    selectItem('milestone', milestone.id, section.id, null, { x: e.clientX, y: e.clientY });
   };
 
   // Prevent double-click from propagating to parent
@@ -77,7 +79,7 @@ export default function MilestoneMarker({
       const deltaRelative = deltaX / timelineWidth;
       const newPosition = Math.max(0, Math.min(1, milestone.relativePosition + deltaRelative));
 
-      updateMilestone(milestone.id, { relativePosition: newPosition });
+      updateMilestone(section.id, milestone.id, { relativePosition: newPosition });
 
       // Update drag date
       const date = getDateFromRelativePosition(project.startDate, project.endDate, newPosition);
@@ -99,7 +101,7 @@ export default function MilestoneMarker({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [milestone.relativePosition, milestone.id, timelineWidth, project.startDate, project.endDate, updateMilestone, setDragging]);
+  }, [section.id, milestone.relativePosition, milestone.id, timelineWidth, project.startDate, project.endDate, updateMilestone, setDragging]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(
@@ -107,10 +109,10 @@ export default function MilestoneMarker({
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         const rect = (e.target as HTMLElement).getBoundingClientRect();
-        setSelection({ type: 'milestone', id: milestone.id }, { x: rect.right, y: rect.top });
+        selectItem('milestone', milestone.id, section.id, null, { x: rect.right, y: rect.top });
       }
     },
-    [setSelection, milestone.id]
+    [selectItem, milestone.id, section.id]
   );
 
   return (

@@ -1,25 +1,35 @@
 import { useCallback, useRef, useEffect, useState } from 'react';
-import type { Phase } from '../../types';
-import { useTimelineStore } from '../../stores/timelineStore';
+import type { Phase, Section } from '../../types';
+import { getPhaseColor } from '../../types';
+import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { getBarDimensions, ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
 import { getDateFromRelativePosition, formatDate, getDaysBetween } from '../../utils/dateUtils';
 import ElementRow from './ElementRow';
 import DragHandle from './DragHandle';
+import { AddItemButton } from '../controls';
 
 interface PhaseRowProps {
   readonly phase: Phase;
+  readonly section: Section;
   readonly isLabel: boolean;
   readonly timelineWidth: number;
 }
 
-export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProps): JSX.Element {
-  const { togglePhaseCollapse, updatePhasePosition, addElement } = useTimelineStore();
+export default function PhaseRow({
+  phase,
+  section,
+  isLabel,
+  timelineWidth,
+}: PhaseRowProps): JSX.Element {
+  const { togglePhaseCollapse, updatePhasePosition, addElement } = useSectionStore();
   const { project } = useProjectStore();
-  const { selection, setSelection, setDragging } = useUIStore();
+  const { selection, selectItem, setDragging } = useUIStore();
   const phaseRowRef = useRef<HTMLDivElement>(null);
 
+  const isIDTimeline = section.type === 'id-timeline';
+  const effectiveColor = getPhaseColor(phase, section);
   const isSelected = selection.type === 'phase' && selection.id === phase.id;
   const { left, width } = getBarDimensions(
     phase.relativeStart,
@@ -42,8 +52,8 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
       hasDragged.current = false;
       return;
     }
-    setSelection({ type: 'phase', id: phase.id }, { x: e.clientX, y: e.clientY });
-  }, [setSelection, phase.id]);
+    selectItem('phase', phase.id, section.id, null, { x: e.clientX, y: e.clientY });
+  }, [selectItem, phase.id, section.id]);
 
   // Prevent double-click from propagating to parent (which would create a new element)
   const handleBarDoubleClick = useCallback((e: React.MouseEvent): void => {
@@ -73,7 +83,7 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
       const relativeStart = Math.max(0, Math.min(1 - sevenDaysRelative, relativeInPhase - halfWidth));
       const relativeEnd = Math.min(1, relativeStart + sevenDaysRelative);
 
-      addElement(phase.id, {
+      addElement(section.id, phase.id, {
         name: '',
         description: '',
         relativeStart,
@@ -82,20 +92,31 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
       });
 
       // Get the new element and select it
-      const updatedPhases = useTimelineStore.getState().phases;
-      const updatedPhase = updatedPhases.find((p) => p.id === phase.id);
+      const updatedSections = useSectionStore.getState().sections;
+      const updatedSection = updatedSections.find((s) => s.id === section.id);
+      const updatedPhase = updatedSection?.phases.find((p) => p.id === phase.id);
       const newElement = updatedPhase?.elements[updatedPhase.elements.length - 1];
 
       if (newElement) {
-        setSelection({ type: 'element', id: newElement.id }, { x: e.clientX, y: e.clientY });
+        selectItem('element', newElement.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
       }
     },
-    [phase.id, phase.relativeStart, phase.relativeEnd, phase.elements.length, timelineWidth, project.startDate, project.endDate, addElement, setSelection]
+    [section.id, phase.id, phase.relativeStart, phase.relativeEnd, phase.elements.length, timelineWidth, project.startDate, project.endDate, addElement, selectItem]
   );
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
     e.stopPropagation();
-    togglePhaseCollapse(phase.id);
+    togglePhaseCollapse(section.id, phase.id);
+  };
+
+  const handleAddElement = (): void => {
+    addElement(section.id, phase.id, {
+      name: '',
+      description: '',
+      relativeStart: 0,
+      relativeEnd: 0.3,
+      order: phase.elements.length,
+    });
   };
 
   const handleDragStart = (edge: 'start' | 'end'): void => {
@@ -115,13 +136,13 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
     const deltaRelative = deltaX / timelineWidth;
     if (edge === 'start') {
       const newStart = Math.max(0, Math.min(phase.relativeEnd - 0.01, phase.relativeStart + deltaRelative));
-      updatePhasePosition(phase.id, newStart, phase.relativeEnd);
+      updatePhasePosition(section.id, phase.id, newStart, phase.relativeEnd);
       // Update drag date
       const date = getDateFromRelativePosition(project.startDate, project.endDate, newStart);
       setStartDragDate(formatDate(date, 'MMM d'));
     } else {
       const newEnd = Math.max(phase.relativeStart + 0.01, Math.min(1, phase.relativeEnd + deltaRelative));
-      updatePhasePosition(phase.id, phase.relativeStart, newEnd);
+      updatePhasePosition(section.id, phase.id, phase.relativeStart, newEnd);
       // Update drag date
       const date = getDateFromRelativePosition(project.startDate, project.endDate, newEnd);
       setEndDragDate(formatDate(date, 'MMM d'));
@@ -180,7 +201,7 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
         newStart = 1 - barWidth;
       }
 
-      updatePhasePosition(phase.id, newStart, newEnd);
+      updatePhasePosition(section.id, phase.id, newStart, newEnd);
     };
 
     const handleMouseUp = () => {
@@ -197,7 +218,7 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [phase.id, phase.relativeStart, phase.relativeEnd, timelineWidth, updatePhasePosition, setDragging]);
+  }, [section.id, phase.id, phase.relativeStart, phase.relativeEnd, timelineWidth, updatePhasePosition, setDragging]);
 
   // Handle keyboard interaction on the label row
   const handleKeyDown = useCallback(
@@ -205,10 +226,10 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         const rect = (e.target as HTMLElement).getBoundingClientRect();
-        setSelection({ type: 'phase', id: phase.id }, { x: rect.right, y: rect.top });
+        selectItem('phase', phase.id, section.id, null, { x: rect.right, y: rect.top });
       }
     },
-    [setSelection, phase.id]
+    [selectItem, phase.id, section.id]
   );
 
   if (isLabel) {
@@ -217,7 +238,7 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
       <div role="group" aria-label={`${phase.name} phase`}>
         {/* Phase label */}
         <div
-          className={`flex items-center gap-2 px-3 border-b border-[#e5e7eb]/50 cursor-pointer row-selectable focus-ring ${
+          className={`flex items-center gap-2 ${isIDTimeline ? 'px-3' : 'pl-6 pr-3'} border-b border-[#e5e7eb]/50 cursor-pointer row-selectable focus-ring ${
             isSelected ? 'selected bg-blue-50' : ''
           }`}
           style={{ height: ROW_HEIGHT }}
@@ -249,14 +270,17 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
               />
             </svg>
           </button>
-          <span
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: phase.color }}
-            aria-hidden="true"
-          />
-          <span className="text-sm font-medium text-[#111827] truncate">
+          {isIDTimeline && (
+            <span
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: effectiveColor }}
+              aria-hidden="true"
+            />
+          )}
+          <span className={`text-sm ${isIDTimeline ? 'font-medium' : ''} text-[#111827] truncate flex-1`}>
             {phase.name}
           </span>
+          {!isIDTimeline && <AddItemButton onClick={handleAddElement} label="Add element" />}
         </div>
 
         {/* Element labels */}
@@ -267,6 +291,7 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
                 key={element.id}
                 element={element}
                 phase={phase}
+                section={section}
                 isLabel
                 timelineWidth={timelineWidth}
               />
@@ -293,7 +318,7 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
           style={{
             left,
             width,
-            backgroundColor: phase.color,
+            backgroundColor: effectiveColor,
           }}
           onClick={handleClick}
           onDoubleClick={handleBarDoubleClick}
@@ -345,6 +370,7 @@ export default function PhaseRow({ phase, isLabel, timelineWidth }: PhaseRowProp
               key={element.id}
               element={element}
               phase={phase}
+              section={section}
               isLabel={false}
               timelineWidth={timelineWidth}
             />

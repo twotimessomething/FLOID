@@ -1,4 +1,11 @@
 export { useProjectStore } from './projectStore';
-export { useTimelineStore } from './timelineStore';
-export { useTeamStore } from './teamStore';
+export {
+  useSectionStore,
+  selectSection,
+  selectPhase,
+  selectElement,
+  selectMilestone,
+  selectIDTimeline,
+  selectTeams,
+} from './sectionStore';
 export { useUIStore } from './uiStore';

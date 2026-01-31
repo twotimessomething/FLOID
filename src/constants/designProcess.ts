@@ -2,7 +2,7 @@ import type { Phase, Milestone } from '../types';
 import { PHASE_COLORS } from './colors';
 
 // Default ID timeline milestones (phase-agnostic, positioned on full project timeline)
-export const DEFAULT_MILESTONES: Omit<Milestone, 'id'>[] = [
+export const DEFAULT_MILESTONES: Omit<Milestone, 'id' | 'sectionId'>[] = [
   {
     name: 'Design Freeze',
     description: 'Lock final design specifications',
@@ -18,7 +18,7 @@ export const DEFAULT_MILESTONES: Omit<Milestone, 'id'>[] = [
 ];
 
 // Default Industrial Design phases based on the standard product development process
-export const DEFAULT_PHASES: Omit<Phase, 'id'>[] = [
+export const DEFAULT_PHASES: Omit<Phase, 'id' | 'sectionId'>[] = [
   {
     name: 'Discovery & Research',
     description: 'Market research, user research, competitive analysis, requirements definition',

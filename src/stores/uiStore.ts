@@ -11,9 +11,15 @@ interface UIState {
   zoomLevel: ZoomLevel;
   setZoomLevel: (level: ZoomLevel) => void;
 
-  // Selection
+  // Selection (with parent context for O(1) lookups)
   selection: SelectionState;
-  setSelection: (selection: SelectionState, position?: ModalPosition) => void;
+  selectItem: (
+    type: SelectionState['type'],
+    id: string | null,
+    sectionId: string | null,
+    phaseId?: string | null,
+    position?: ModalPosition
+  ) => void;
   clearSelection: () => void;
 
   // Drag state
@@ -28,10 +34,6 @@ interface UIState {
   // Editor modal
   isModalOpen: boolean;
   closeModal: () => void;
-
-  // Industrial Design timeline collapse
-  isIDTimelineCollapsed: boolean;
-  toggleIDTimelineCollapse: () => void;
 
   // Left sidebar (project/teams panel)
   isLeftSidebarOpen: boolean;
@@ -62,15 +64,15 @@ export const useUIStore = create<UIState>((set) => ({
   setZoomLevel: (level) => set({ zoomLevel: level }),
 
   // Selection
-  selection: { type: null, id: null },
-  setSelection: (selection, position) =>
+  selection: { type: null, id: null, sectionId: null, phaseId: null },
+  selectItem: (type, id, sectionId, phaseId = null, position) =>
     set({
-      selection: { ...selection, position },
-      isModalOpen: selection.type !== null,
+      selection: { type, id, sectionId, phaseId, position },
+      isModalOpen: type !== null,
     }),
   clearSelection: () =>
     set({
-      selection: { type: null, id: null },
+      selection: { type: null, id: null, sectionId: null, phaseId: null },
     }),
 
   // Drag state
@@ -88,13 +90,8 @@ export const useUIStore = create<UIState>((set) => ({
   closeModal: () =>
     set({
       isModalOpen: false,
-      selection: { type: null, id: null },
+      selection: { type: null, id: null, sectionId: null, phaseId: null },
     }),
-
-  // Industrial Design timeline collapse
-  isIDTimelineCollapsed: false,
-  toggleIDTimelineCollapse: () =>
-    set((state) => ({ isIDTimelineCollapsed: !state.isIDTimelineCollapsed })),
 
   // Left sidebar
   isLeftSidebarOpen: true,

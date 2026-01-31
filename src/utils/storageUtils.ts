@@ -1,12 +1,12 @@
+import type { Section } from '../types';
+import type { Project } from '../types/project';
+
 const STORAGE_KEY = 'floid-project';
 const PROJECTS_INDEX_KEY = 'floid-projects-index';
 
 export interface StoredData {
-  project: unknown;
-  phases: unknown[];
-  milestones: unknown[]; // ID timeline milestones
-  teams: unknown[];
-  version: number;
+  project: Project;
+  sections: Section[];
 }
 
 export interface ProjectIndexEntry {
@@ -66,34 +66,5 @@ export const loadProjectsIndex = (): ProjectIndexEntry[] => {
   } catch (error) {
     console.error('Failed to load projects index:', error);
     return [];
-  }
-};
-
-// Legacy support - save to old format
-export const saveToStorage = (data: StoredData): void => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (error) {
-    console.error('Failed to save to localStorage:', error);
-  }
-};
-
-// Legacy support - load from old format
-export const loadFromStorage = (): StoredData | null => {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return null;
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Failed to load from localStorage:', error);
-    return null;
-  }
-};
-
-export const clearStorage = (): void => {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch (error) {
-    console.error('Failed to clear localStorage:', error);
   }
 };

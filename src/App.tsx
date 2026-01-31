@@ -6,13 +6,11 @@ import { LeftSidebar } from './components/layout/LeftSidebar';
 import { ProjectSetupModal } from './components/layout/ProjectSetupModal';
 import { ProjectEditModal } from './components/layout/ProjectEditModal';
 import { useAutoSave, useKeyboardShortcuts } from './hooks';
-import { useTimelineStore } from './stores/timelineStore';
-import { useTeamStore } from './stores/teamStore';
+import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
 
 function App() {
-  const { initializeFromProject } = useTimelineStore();
-  const { loadTeamsForProject } = useTeamStore();
+  const { initializeFromProject, loadSectionsForProject } = useSectionStore();
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
 
   // Initialize auto-save functionality
@@ -25,12 +23,12 @@ function App() {
     initializeFromProject();
   }, [initializeFromProject]);
 
-  // Load teams when project is initialized
+  // Load sections when project changes
   useEffect(() => {
     if (activeProjectId) {
-      loadTeamsForProject(activeProjectId);
+      loadSectionsForProject(activeProjectId);
     }
-  }, [activeProjectId, loadTeamsForProject]);
+  }, [activeProjectId, loadSectionsForProject]);
 
   return (
     <div className="h-full flex flex-col bg-[#fafafa]">

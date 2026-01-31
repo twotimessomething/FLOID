@@ -1,38 +1,24 @@
-import type { Project, Phase, Milestone, Team } from '../types';
+import type { Project, Section } from '../types';
 
 export interface ExportData {
   version: number;
   exportedAt: string;
   project: Project;
-  phases: Phase[];
-  milestones: Milestone[];
-  teams: Team[];
+  sections: Section[];
 }
 
-export const exportToJson = (
-  project: Project,
-  phases: Phase[],
-  milestones: Milestone[],
-  teams: Team[]
-): string => {
+export const exportToJson = (project: Project, sections: Section[]): string => {
   const data: ExportData = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     project,
-    phases,
-    milestones,
-    teams,
+    sections,
   };
   return JSON.stringify(data, null, 2);
 };
 
-export const downloadJson = (
-  project: Project,
-  phases: Phase[],
-  milestones: Milestone[],
-  teams: Team[]
-): void => {
-  const json = exportToJson(project, phases, milestones, teams);
+export const downloadJson = (project: Project, sections: Section[]): void => {
+  const json = exportToJson(project, sections);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
@@ -48,7 +34,7 @@ export const downloadJson = (
 export const parseImportedJson = (json: string): ExportData | null => {
   try {
     const data = JSON.parse(json);
-    if (!data.project || !data.phases) {
+    if (!data.project || !data.sections) {
       throw new Error('Invalid format');
     }
     return data;

@@ -1,12 +1,9 @@
 export { default as Timeline } from './Timeline';
 export { default as TimelineHeader } from './TimelineHeader';
 export { default as TimelineGrid } from './TimelineGrid';
+export { default as SectionRow } from './SectionRow';
 export { default as PhaseRow } from './PhaseRow';
-export { default as IDTimelineSection } from './IDTimelineSection';
 export { default as ElementRow } from './ElementRow';
 export { default as MilestoneMarker } from './MilestoneMarker';
-export { default as TeamSection } from './TeamSection';
-export { default as TeamPhaseRow } from './TeamPhaseRow';
-export { default as TeamElementRow } from './TeamElementRow';
 export { default as DragHandle } from './DragHandle';
 export { default as Playhead } from './Playhead';

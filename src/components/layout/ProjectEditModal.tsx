@@ -2,11 +2,9 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { addMonths } from 'date-fns';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
-import { useTimelineStore } from '../../stores/timelineStore';
-import { useTeamStore } from '../../stores/teamStore';
+import { useSectionStore } from '../../stores/sectionStore';
 import { Button, Input, DateInput } from '../common';
-import type { Phase, Milestone } from '../../types';
-import type { Team } from '../../types/team';
+import type { Section } from '../../types';
 
 interface ProjectFormData {
   name: string;
@@ -38,55 +36,16 @@ function recalculateRelativePosition(
 }
 
 // Recalculate all timeline positions to preserve absolute dates
-function recalculateTimelinePositions(
-  phases: Phase[],
-  milestones: Milestone[],
-  teams: Team[],
+function recalculateSectionPositions(
+  sections: Section[],
   oldStart: number,
   oldEnd: number,
   newStart: number,
   newEnd: number
-): { phases: Phase[]; milestones: Milestone[]; teams: Team[] } {
-  // Recalculate ID timeline phases
-  const updatedPhases = phases.map((phase) => {
-    const newRelativeStart = recalculateRelativePosition(
-      phase.relativeStart,
-      oldStart,
-      oldEnd,
-      newStart,
-      newEnd
-    );
-    const newRelativeEnd = recalculateRelativePosition(
-      phase.relativeEnd,
-      oldStart,
-      oldEnd,
-      newStart,
-      newEnd
-    );
-    // Elements are relative to their phase, so they don't need recalculation
-    return {
-      ...phase,
-      relativeStart: newRelativeStart,
-      relativeEnd: newRelativeEnd,
-    };
-  });
-
-  // Recalculate ID timeline milestones
-  const updatedMilestones = milestones.map((milestone) => ({
-    ...milestone,
-    relativePosition: recalculateRelativePosition(
-      milestone.relativePosition,
-      oldStart,
-      oldEnd,
-      newStart,
-      newEnd
-    ),
-  }));
-
-  // Recalculate team phases and milestones
-  const updatedTeams = teams.map((team) => ({
-    ...team,
-    phases: team.phases.map((phase) => ({
+): Section[] {
+  return sections.map((section) => ({
+    ...section,
+    phases: section.phases.map((phase) => ({
       ...phase,
       relativeStart: recalculateRelativePosition(
         phase.relativeStart,
@@ -104,7 +63,7 @@ function recalculateTimelinePositions(
       ),
       // Elements are relative to their phase, so they don't need recalculation
     })),
-    milestones: team.milestones.map((milestone) => ({
+    milestones: section.milestones.map((milestone) => ({
       ...milestone,
       relativePosition: recalculateRelativePosition(
         milestone.relativePosition,
@@ -115,16 +74,12 @@ function recalculateTimelinePositions(
       ),
     })),
   }));
-
-  return { phases: updatedPhases, milestones: updatedMilestones, teams: updatedTeams };
 }
 
 export function ProjectEditModal(): JSX.Element | null {
   const { editingProjectId, closeProjectEditModal } = useUIStore();
   const updateProject = useProjectStore((state) => state.updateProject);
-  const setPhases = useTimelineStore((state) => state.setPhases);
-  const setMilestones = useTimelineStore((state) => state.setMilestones);
-  const setTeams = useTeamStore((state) => state.setTeams);
+  const setSections = useSectionStore((state) => state.setSections);
 
   const [formData, setFormData] = useState<ProjectFormData>({
     name: '',
@@ -214,25 +169,18 @@ export function ProjectEditModal(): JSX.Element | null {
 
       // If dates changed and user wants to keep existing dates (not scale)
       if (datesChanged && !scaleTimeline && originalDates) {
-        const phases = useTimelineStore.getState().phases;
-        const milestones = useTimelineStore.getState().milestones;
-        const teams = useTeamStore.getState().teams;
+        const sections = useSectionStore.getState().sections;
 
-        const { phases: updatedPhases, milestones: updatedMilestones, teams: updatedTeams } =
-          recalculateTimelinePositions(
-            phases,
-            milestones,
-            teams,
-            originalDates.startDate.getTime(),
-            originalDates.endDate.getTime(),
-            formData.startDate.getTime(),
-            formData.endDate.getTime()
-          );
+        const updatedSections = recalculateSectionPositions(
+          sections,
+          originalDates.startDate.getTime(),
+          originalDates.endDate.getTime(),
+          formData.startDate.getTime(),
+          formData.endDate.getTime()
+        );
 
-        // Update stores with recalculated positions
-        setPhases(updatedPhases);
-        setMilestones(updatedMilestones);
-        setTeams(updatedTeams);
+        // Update store with recalculated positions
+        setSections(updatedSections);
       }
 
       // Update the project
@@ -240,7 +188,7 @@ export function ProjectEditModal(): JSX.Element | null {
 
       closeProjectEditModal();
     },
-    [formData, datesChanged, scaleTimeline, originalDates, updateProject, setPhases, setMilestones, setTeams, closeProjectEditModal]
+    [formData, datesChanged, scaleTimeline, originalDates, updateProject, setSections, closeProjectEditModal]
   );
 
   if (!editingProjectId) {

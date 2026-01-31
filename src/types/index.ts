@@ -1,5 +1,6 @@
 export type { Project } from './project';
 export type {
+  Section,
   Phase,
   Element,
   Milestone,
@@ -7,4 +8,4 @@ export type {
   SelectionState,
   ModalPosition,
 } from './timeline';
-export type { Team, TeamPhase, TeamElement } from './team';
+export { ID_TIMELINE_SECTION_ID, getPhaseColor } from './timeline';

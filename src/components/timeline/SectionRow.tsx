@@ -1,10 +1,12 @@
 import { useCallback, useRef, useMemo } from 'react';
-import type { Team } from '../../types';
-import { useTeamStore } from '../../stores/teamStore';
+import type { Section } from '../../types';
+import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
-import TeamPhaseRow from './TeamPhaseRow';
-import TeamMilestoneMarker from './TeamMilestoneMarker';
+import { PHASE_COLORS } from '../../constants/colors';
+import { getPhaseColor } from '../../types';
+import PhaseRow from './PhaseRow';
+import MilestoneMarker from './MilestoneMarker';
 import { AddItemButton } from '../controls';
 
 interface DragHandleProps {
@@ -12,75 +14,77 @@ interface DragHandleProps {
   readonly style: React.CSSProperties;
 }
 
-interface TeamSectionProps {
-  readonly team: Team;
+interface SectionRowProps {
+  readonly section: Section;
   readonly isLabel: boolean;
   readonly timelineWidth: number;
   readonly totalDays: number;
-  readonly teamIndex?: number;
+  readonly sectionIndex?: number;
   readonly dragHandleProps?: DragHandleProps;
   readonly isDragging?: boolean;
 }
 
-export default function TeamSection({
-  team,
+export default function SectionRow({
+  section,
   isLabel,
   timelineWidth,
   totalDays,
-  teamIndex,
+  sectionIndex,
   dragHandleProps,
   isDragging,
-}: TeamSectionProps): JSX.Element {
-  const { toggleTeamCollapse, addTeamPhase, addTeamMilestone } = useTeamStore();
-  const { selection, setSelection } = useUIStore();
+}: SectionRowProps): JSX.Element {
+  const { toggleSectionCollapse, addPhase, addMilestone } = useSectionStore();
+  const { selection, selectItem } = useUIStore();
   const headerRowRef = useRef<HTMLDivElement>(null);
+
+  const isIDTimeline = section.type === 'id-timeline';
 
   // Calculate the height of content below header for milestone line
   const milestoneLineHeight = useMemo(() => {
-    if (team.isCollapsed) return 0;
+    if (section.isCollapsed) return 0;
     let height = 0;
-    team.phases.forEach((phase) => {
+    section.phases.forEach((phase) => {
       height += ROW_HEIGHT; // Phase row
       if (!phase.isCollapsed) {
         height += phase.elements.length * ELEMENT_ROW_HEIGHT;
       }
     });
     return height;
-  }, [team.phases, team.isCollapsed]);
+  }, [section.phases, section.isCollapsed]);
 
-  // Handle keyboard interaction
+  // Handle keyboard interaction for team selection
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         const rect = (e.target as HTMLElement).getBoundingClientRect();
-        setSelection({ type: 'team', id: team.id }, { x: rect.right, y: rect.top });
+        selectItem('section', section.id, section.id, null, { x: rect.right, y: rect.top });
       }
     },
-    [setSelection, team.id]
+    [selectItem, section.id]
   );
 
-  const isSelected = selection.type === 'team' && selection.id === team.id;
+  const isSelected = selection.type === 'section' && selection.id === section.id;
 
-  // Handle click on collapsed team phase bar
+  // Handle click on collapsed phase bar
   const handleCollapsedPhaseClick = useCallback(
     (phaseId: string) => (e: React.MouseEvent): void => {
       e.stopPropagation();
-      setSelection({ type: 'teamPhase', id: phaseId }, { x: e.clientX, y: e.clientY });
+      selectItem('phase', phaseId, section.id, null, { x: e.clientX, y: e.clientY });
     },
-    [setSelection]
+    [selectItem, section.id]
   );
 
-  // Handle keyboard on collapsed team phase bar
+  // Handle keyboard on collapsed phase bar
   const handleCollapsedPhaseKeyDown = useCallback(
     (phaseId: string) => (e: React.KeyboardEvent): void => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         const rect = (e.target as HTMLElement).getBoundingClientRect();
-        setSelection({ type: 'teamPhase', id: phaseId }, { x: rect.right, y: rect.top });
+        selectItem('phase', phaseId, section.id, null, { x: rect.right, y: rect.top });
       }
     },
-    [setSelection]
+    [selectItem, section.id]
   );
 
   // Prevent double-click from propagating on collapsed phase bars
@@ -89,27 +93,31 @@ export default function TeamSection({
   }, []);
 
   const handleClick = (e: React.MouseEvent): void => {
-    setSelection({ type: 'team', id: team.id }, { x: e.clientX, y: e.clientY });
+    // Only teams are clickable as sections
+    if (!isIDTimeline) {
+      selectItem('section', section.id, section.id, null, { x: e.clientX, y: e.clientY });
+    }
   };
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
     e.stopPropagation();
-    toggleTeamCollapse(team.id);
+    toggleSectionCollapse(section.id);
   };
 
   const handleAddPhase = (): void => {
-    addTeamPhase(team.id, {
+    addPhase(section.id, {
       name: '',
       description: '',
+      color: isIDTimeline ? getNextPhaseColor(section.phases.length) : null,
       relativeStart: 0.1,
       relativeEnd: 0.4,
-      order: team.phases.length,
+      order: section.phases.length,
       isCollapsed: false,
       elements: [],
     });
   };
 
-  // Double-click on team header row creates a milestone at project-relative position
+  // Double-click on header row creates a milestone
   const handleHeaderDoubleClick = useCallback(
     (e: React.MouseEvent): void => {
       const rect = headerRowRef.current?.getBoundingClientRect();
@@ -118,28 +126,27 @@ export default function TeamSection({
       const clickX = e.clientX - rect.left;
       const relativePosition = getRelativeFromPosition(clickX, timelineWidth);
 
-      addTeamMilestone(team.id, {
+      addMilestone(section.id, {
         name: '',
         description: '',
         relativePosition: Math.max(0, Math.min(1, relativePosition)),
-        order: team.milestones.length,
+        order: section.milestones.length,
       });
 
       // Get the new milestone
-      const updatedTeams = useTeamStore.getState().teams;
-      const updatedTeam = updatedTeams.find((t) => t.id === team.id);
-      const newMilestone = updatedTeam?.milestones[updatedTeam.milestones.length - 1];
+      const updatedSections = useSectionStore.getState().sections;
+      const updatedSection = updatedSections.find((s) => s.id === section.id);
+      const newMilestone = updatedSection?.milestones[updatedSection.milestones.length - 1];
 
       if (newMilestone) {
-        setSelection({ type: 'milestone', id: newMilestone.id }, { x: e.clientX, y: e.clientY });
+        selectItem('milestone', newMilestone.id, section.id, null, { x: e.clientX, y: e.clientY });
       }
     },
-    [team.id, team.milestones.length, timelineWidth, addTeamMilestone, setSelection]
+    [section.id, section.milestones.length, timelineWidth, addMilestone, selectItem]
   );
 
-
-  // Double-click on team phases container creates a new team phase
-  const handleCreateTeamPhase = useCallback(
+  // Double-click on phases container creates a new phase
+  const handleCreatePhase = useCallback(
     (e: React.MouseEvent): void => {
       e.stopPropagation();
 
@@ -153,57 +160,57 @@ export default function TeamSection({
       const relativeStart = Math.max(0, relativePosition - halfWidth);
       const relativeEnd = Math.min(1, relativePosition + halfWidth);
 
-      addTeamPhase(team.id, {
+      addPhase(section.id, {
         name: '',
         description: '',
-        relativeStart,
-        relativeEnd,
-        order: team.phases.length,
+        color: isIDTimeline ? getNextPhaseColor(section.phases.length) : null,
+        order: section.phases.length,
         isCollapsed: false,
         elements: [],
+        relativeStart,
+        relativeEnd,
       });
 
       // Get the new phase and select it
-      const updatedTeams = useTeamStore.getState().teams;
-      const updatedTeam = updatedTeams.find((t) => t.id === team.id);
-      const newPhase = updatedTeam?.phases[updatedTeam.phases.length - 1];
+      const updatedSections = useSectionStore.getState().sections;
+      const updatedSection = updatedSections.find((s) => s.id === section.id);
+      const newPhase = updatedSection?.phases[updatedSection.phases.length - 1];
 
       if (newPhase) {
-        setSelection({ type: 'teamPhase', id: newPhase.id }, { x: e.clientX, y: e.clientY });
+        selectItem('phase', newPhase.id, section.id, null, { x: e.clientX, y: e.clientY });
       }
     },
-    [team.id, team.phases.length, timelineWidth, totalDays, addTeamPhase, setSelection]
+    [section.id, section.phases.length, isIDTimeline, timelineWidth, totalDays, addPhase, selectItem]
   );
-
 
   if (isLabel) {
     // Render label column content
     return (
       <div
-        className={`border-t-2 border-[#e5e7eb] ${isDragging ? 'opacity-50' : ''}`}
+        className={`${!isIDTimeline ? 'border-t-2 border-[#e5e7eb]' : ''} ${isDragging ? 'opacity-50' : ''}`}
         role="group"
-        aria-label={`${team.name} team`}
+        aria-label={`${section.name} ${isIDTimeline ? 'timeline' : 'team'}`}
       >
-        {/* Team header label */}
+        {/* Section header label */}
         <div
-          className={`flex items-center gap-2 px-3 border-b border-[#e5e7eb]/50 cursor-pointer row-selectable focus-ring ${
-            isSelected ? 'selected bg-blue-50' : ''
-          }`}
+          className={`flex items-center gap-2 px-3 border-b ${isIDTimeline ? 'border-[#e5e7eb] bg-[#fafafa]' : 'border-[#e5e7eb]/50'} ${
+            !isIDTimeline ? 'cursor-pointer row-selectable focus-ring' : ''
+          } ${isSelected ? 'selected bg-blue-50' : ''}`}
           style={{ height: ROW_HEIGHT }}
-          onClick={handleClick}
-          onKeyDown={handleKeyDown}
-          role="button"
-          tabIndex={0}
-          aria-selected={isSelected}
-          aria-label={`${team.name} team${isSelected ? ', selected' : ''}`}
+          onClick={!isIDTimeline ? handleClick : undefined}
+          onKeyDown={!isIDTimeline ? handleKeyDown : undefined}
+          role={!isIDTimeline ? 'button' : undefined}
+          tabIndex={!isIDTimeline ? 0 : undefined}
+          aria-selected={!isIDTimeline ? isSelected : undefined}
+          aria-label={!isIDTimeline ? `${section.name} team${isSelected ? ', selected' : ''}` : undefined}
         >
-          {/* Drag handle for reordering */}
-          {dragHandleProps && teamIndex !== undefined && (
+          {/* Drag handle for reordering (teams only) */}
+          {!isIDTimeline && dragHandleProps && sectionIndex !== undefined && (
             <div
               {...dragHandleProps}
               className="flex items-center justify-center w-4 h-4 text-[#9ca3af] hover:text-[#6b7280] rounded transition-colors duration-150"
               title="Drag to reorder"
-              aria-label={`Drag to reorder ${team.name}`}
+              aria-label={`Drag to reorder ${section.name}`}
             >
               <svg
                 className="w-3 h-3"
@@ -223,12 +230,12 @@ export default function TeamSection({
           <button
             onClick={handleToggleCollapse}
             className="w-4 h-4 flex items-center justify-center text-[#9ca3af] hover:text-[#6b7280] focus-ring rounded-md transition-colors duration-150"
-            aria-expanded={!team.isCollapsed}
-            aria-label={`${team.isCollapsed ? 'Expand' : 'Collapse'} ${team.name}`}
+            aria-expanded={!section.isCollapsed}
+            aria-label={`${section.isCollapsed ? 'Expand' : 'Collapse'} ${section.name}`}
           >
             <svg
               className={`w-3 h-3 collapse-chevron ${
-                team.isCollapsed ? '' : 'expanded'
+                section.isCollapsed ? '' : 'expanded'
               }`}
               fill="currentColor"
               viewBox="0 0 20 20"
@@ -241,25 +248,27 @@ export default function TeamSection({
               />
             </svg>
           </button>
-          <span
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: team.color }}
-            aria-hidden="true"
-          />
-          <span className="text-sm font-medium text-[#111827] truncate flex-1">
-            {team.name}
+          {!isIDTimeline && (
+            <span
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: section.color }}
+              aria-hidden="true"
+            />
+          )}
+          <span className={`text-sm ${isIDTimeline ? 'font-semibold' : 'font-medium'} text-[#111827] truncate flex-1`}>
+            {section.name || (isIDTimeline ? 'Industrial Design' : 'Untitled Team')}
           </span>
-          <AddItemButton onClick={handleAddPhase} label="Add phase" />
+          {!isIDTimeline && <AddItemButton onClick={handleAddPhase} label="Add phase" />}
         </div>
 
-        {/* Team phase labels */}
-        {!team.isCollapsed && (
-          <div role="list" aria-label={`${team.name} phases`}>
-            {team.phases.map((teamPhase) => (
-              <TeamPhaseRow
-                key={teamPhase.id}
-                teamPhase={teamPhase}
-                team={team}
+        {/* Phase labels (when expanded) */}
+        {!section.isCollapsed && (
+          <div role="list" aria-label={`${section.name} phases`}>
+            {section.phases.map((phase) => (
+              <PhaseRow
+                key={phase.id}
+                phase={phase}
+                section={section}
                 isLabel
                 timelineWidth={timelineWidth}
               />
@@ -273,26 +282,27 @@ export default function TeamSection({
   // Render timeline content
   return (
     <div
-      className={`border-t-2 border-[#e5e7eb] ${isDragging ? 'opacity-50' : ''}`}
+      className={`${!isIDTimeline ? 'border-t-2 border-[#e5e7eb]' : ''} ${isDragging ? 'opacity-50' : ''}`}
       role="group"
-      aria-label={`${team.name} team timeline`}
+      aria-label={`${section.name} ${isIDTimeline ? 'timeline bars' : 'team timeline'}`}
     >
-      {/* Team header row with individual phase bars when collapsed */}
+      {/* Section header row with collapsed phase bars when collapsed */}
       <div
         ref={headerRowRef}
-        className="relative border-b border-[#e5e7eb]/50"
+        className={`relative border-b ${isIDTimeline ? 'border-[#e5e7eb]' : 'border-[#e5e7eb]/50'}`}
         style={{ height: ROW_HEIGHT }}
         onDoubleClick={handleHeaderDoubleClick}
       >
-        {team.isCollapsed && (
+        {section.isCollapsed && (
           <>
-            {team.phases.map((phase) => {
+            {section.phases.map((phase) => {
               const { left, width } = getBarDimensions(
                 phase.relativeStart,
                 phase.relativeEnd,
                 timelineWidth
               );
-              const isPhaseSelected = selection.type === 'teamPhase' && selection.id === phase.id;
+              const isPhaseSelected = selection.type === 'phase' && selection.id === phase.id;
+              const effectiveColor = getPhaseColor(phase, section);
 
               return (
                 <div
@@ -303,7 +313,7 @@ export default function TeamSection({
                   style={{
                     left,
                     width,
-                    backgroundColor: team.color,
+                    backgroundColor: effectiveColor,
                   }}
                   onClick={handleCollapsedPhaseClick(phase.id)}
                   onDoubleClick={handleCollapsedPhaseDoubleClick}
@@ -324,30 +334,30 @@ export default function TeamSection({
           </>
         )}
 
-        {/* Milestones rendered in team header row */}
-        {team.milestones.map((milestone) => (
-          <TeamMilestoneMarker
+        {/* Milestones rendered in header row */}
+        {section.milestones.map((milestone) => (
+          <MilestoneMarker
             key={milestone.id}
             milestone={milestone}
-            team={team}
+            section={section}
             timelineWidth={timelineWidth}
             lineHeight={milestoneLineHeight}
           />
         ))}
       </div>
 
-      {/* Team phase bars */}
-      {!team.isCollapsed && (
+      {/* Phase bars (when expanded) */}
+      {!section.isCollapsed && (
         <div
           role="list"
-          aria-label={`${team.name} phase bars`}
-          onDoubleClick={handleCreateTeamPhase}
+          aria-label={`${section.name} phase bars`}
+          onDoubleClick={handleCreatePhase}
         >
-          {team.phases.map((teamPhase) => (
-            <TeamPhaseRow
-              key={teamPhase.id}
-              teamPhase={teamPhase}
-              team={team}
+          {section.phases.map((phase) => (
+            <PhaseRow
+              key={phase.id}
+              phase={phase}
+              section={section}
               isLabel={false}
               timelineWidth={timelineWidth}
             />
@@ -356,4 +366,11 @@ export default function TeamSection({
       )}
     </div>
   );
+}
+
+// Helper to get next phase color for ID timeline
+function getNextPhaseColor(existingCount: number): string {
+  const colorKeys = Object.keys(PHASE_COLORS) as (keyof typeof PHASE_COLORS)[];
+  const colorIndex = existingCount % colorKeys.length;
+  return PHASE_COLORS[colorKeys[colorIndex]];
 }

@@ -4,9 +4,7 @@ import {
   PhaseEditor,
   ElementEditor,
   MilestoneEditor,
-  TeamEditor,
-  TeamPhaseEditor,
-  TeamElementEditor,
+  SectionEditor,
 } from '../panels';
 
 const MODAL_WIDTH = 280;
@@ -50,7 +48,6 @@ export function EditorModal(): JSX.Element | null {
     return null;
   }
 
-  const selectedId = selection.id;
   const position = selection.position;
 
   // Calculate modal position
@@ -92,18 +89,14 @@ export function EditorModal(): JSX.Element | null {
 
   const renderEditor = (): JSX.Element | null => {
     switch (selection.type) {
+      case 'section':
+        return <SectionEditor />;
       case 'phase':
-        return <PhaseEditor phaseId={selectedId} />;
+        return <PhaseEditor />;
       case 'element':
-        return <ElementEditor elementId={selectedId} />;
+        return <ElementEditor />;
       case 'milestone':
-        return <MilestoneEditor milestoneId={selectedId} />;
-      case 'team':
-        return <TeamEditor teamId={selectedId} />;
-      case 'teamPhase':
-        return <TeamPhaseEditor teamPhaseId={selectedId} />;
-      case 'teamElement':
-        return <TeamElementEditor teamElementId={selectedId} />;
+        return <MilestoneEditor />;
       default:
         return null;
     }

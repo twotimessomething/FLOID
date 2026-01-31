@@ -1,29 +1,24 @@
 import { useCallback, useMemo } from 'react';
-import { useTimelineStore } from '../../stores/timelineStore';
+import { useSectionStore, selectSection, selectPhase, selectElement } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, Button } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../utils/dateUtils';
 
-interface ElementEditorProps {
-  readonly elementId: string;
-}
-
-export function ElementEditor({ elementId }: ElementEditorProps): JSX.Element {
-  const { phases, updateElement, updateElementPosition, deleteElement } = useTimelineStore();
+export function ElementEditor(): JSX.Element {
+  const { selection, closeModal } = useUIStore();
+  const { updateElement, updateElementPosition, deleteElement } = useSectionStore();
   const { project } = useProjectStore();
-  const { closeModal } = useUIStore();
 
-  // Find element and its parent phase
-  const { element, phase } = useMemo(() => {
-    for (const p of phases) {
-      const el = p.elements.find((e) => e.id === elementId);
-      if (el) {
-        return { element: el, phase: p };
-      }
-    }
-    return { element: null, phase: null };
-  }, [phases, elementId]);
+  const sectionId = selection.sectionId;
+  const phaseId = selection.phaseId;
+  const elementId = selection.id;
+
+  const section = useSectionStore(selectSection(sectionId || ''));
+  const phase = useSectionStore(selectPhase(sectionId || '', phaseId || ''));
+  const element = useSectionStore(selectElement(sectionId || '', phaseId || '', elementId || ''));
+
+  const isIDTimeline = section?.type === 'id-timeline';
 
   // Calculate absolute dates for the element
   // Elements are positioned relative to their parent phase
@@ -71,23 +66,23 @@ export function ElementEditor({ elementId }: ElementEditorProps): JSX.Element {
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!phase) return;
-      updateElement(phase.id, elementId, { name: e.target.value });
+      if (!sectionId || !phaseId || !elementId) return;
+      updateElement(sectionId, phaseId, elementId, { name: e.target.value });
     },
-    [phase, elementId, updateElement]
+    [sectionId, phaseId, elementId, updateElement]
   );
 
   const handleDescriptionChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      if (!phase) return;
-      updateElement(phase.id, elementId, { description: e.target.value });
+      if (!sectionId || !phaseId || !elementId) return;
+      updateElement(sectionId, phaseId, elementId, { description: e.target.value });
     },
-    [phase, elementId, updateElement]
+    [sectionId, phaseId, elementId, updateElement]
   );
 
   const handleStartDateChange = useCallback(
     (date: Date) => {
-      if (!phase || !element) return;
+      if (!sectionId || !phaseId || !elementId || !element) return;
       const newRelativeStart = getRelativePositionFromDate(
         phaseStartDate.toISOString(),
         phaseEndDate.toISOString(),
@@ -95,14 +90,14 @@ export function ElementEditor({ elementId }: ElementEditorProps): JSX.Element {
       );
       // Clamp to valid range
       const clampedStart = Math.max(0, Math.min(newRelativeStart, element.relativeEnd - 0.01));
-      updateElementPosition(phase.id, elementId, clampedStart, element.relativeEnd);
+      updateElementPosition(sectionId, phaseId, elementId, clampedStart, element.relativeEnd);
     },
-    [phase, element, elementId, phaseStartDate, phaseEndDate, updateElementPosition]
+    [sectionId, phaseId, elementId, element, phaseStartDate, phaseEndDate, updateElementPosition]
   );
 
   const handleEndDateChange = useCallback(
     (date: Date) => {
-      if (!phase || !element) return;
+      if (!sectionId || !phaseId || !elementId || !element) return;
       const newRelativeEnd = getRelativePositionFromDate(
         phaseStartDate.toISOString(),
         phaseEndDate.toISOString(),
@@ -110,20 +105,20 @@ export function ElementEditor({ elementId }: ElementEditorProps): JSX.Element {
       );
       // Clamp to valid range
       const clampedEnd = Math.min(1, Math.max(newRelativeEnd, element.relativeStart + 0.01));
-      updateElementPosition(phase.id, elementId, element.relativeStart, clampedEnd);
+      updateElementPosition(sectionId, phaseId, elementId, element.relativeStart, clampedEnd);
     },
-    [phase, element, elementId, phaseStartDate, phaseEndDate, updateElementPosition]
+    [sectionId, phaseId, elementId, element, phaseStartDate, phaseEndDate, updateElementPosition]
   );
 
   const handleDelete = useCallback(() => {
-    if (!phase || !element) return;
+    if (!sectionId || !phaseId || !elementId || !element) return;
     if (confirm(`Delete element "${element.name}"?`)) {
-      deleteElement(phase.id, elementId);
+      deleteElement(sectionId, phaseId, elementId);
       closeModal();
     }
-  }, [phase, element, elementId, deleteElement, closeModal]);
+  }, [sectionId, phaseId, elementId, element, deleteElement, closeModal]);
 
-  if (!element || !phase) {
+  if (!element || !phase || !section) {
     return <div className="text-sm text-[#6b7280]">Element not found</div>;
   }
 
@@ -131,6 +126,12 @@ export function ElementEditor({ elementId }: ElementEditorProps): JSX.Element {
     <div className="flex flex-col gap-4">
       <div className="text-xs text-[#6b7280]">
         Part of <span className="font-medium text-[#111827]">{phase.name}</span>
+        {!isIDTimeline && (
+          <>
+            {' in '}
+            <span className="font-medium text-[#111827]">{section.name}</span>
+          </>
+        )}
       </div>
 
       <Input

@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import { useTimeline } from '../../hooks/useTimeline';
 import { useUIStore } from '../../stores/uiStore';
-import { useTimelineStore } from '../../stores/timelineStore';
-import { useTeamStore } from '../../stores/teamStore';
+import { useSectionStore, selectIDTimeline, selectTeams } from '../../stores/sectionStore';
 import { getTimeMarkers, getDaysBetween, getTodayPosition } from '../../utils/dateUtils';
 import { getPositionFromRelative, ROW_HEIGHT, ELEMENT_ROW_HEIGHT } from '../../utils/timelineUtils';
 
@@ -14,9 +13,9 @@ interface RowInfo {
 
 export default function TimelineGrid() {
   const { projectStart, projectEnd, timelineWidth, project } = useTimeline();
-  const { zoomLevel, isIDTimelineCollapsed } = useUIStore();
-  const { phases } = useTimelineStore();
-  const { teams } = useTeamStore();
+  const { zoomLevel } = useUIStore();
+  const idTimeline = useSectionStore(selectIDTimeline);
+  const teams = useSectionStore(selectTeams);
 
   const markers = getTimeMarkers(projectStart, projectEnd, zoomLevel);
   const totalDays = getDaysBetween(projectStart, projectEnd);
@@ -26,22 +25,24 @@ export default function TimelineGrid() {
     const rowList: RowInfo[] = [];
     let currentTop = 0;
 
-    // Industrial Design section header
-    rowList.push({ top: currentTop, height: ROW_HEIGHT, isSection: true });
-    currentTop += ROW_HEIGHT;
+    // ID Timeline section header and content
+    if (idTimeline) {
+      rowList.push({ top: currentTop, height: ROW_HEIGHT, isSection: true });
+      currentTop += ROW_HEIGHT;
 
-    // ID phases and elements (when expanded)
-    if (!isIDTimelineCollapsed) {
-      phases.forEach((phase) => {
-        rowList.push({ top: currentTop, height: ROW_HEIGHT, isSection: false });
-        currentTop += ROW_HEIGHT;
-        if (!phase.isCollapsed && phase.elements.length > 0) {
-          phase.elements.forEach(() => {
-            rowList.push({ top: currentTop, height: ELEMENT_ROW_HEIGHT, isSection: false });
-            currentTop += ELEMENT_ROW_HEIGHT;
-          });
-        }
-      });
+      // ID phases and elements (when expanded)
+      if (!idTimeline.isCollapsed) {
+        idTimeline.phases.forEach((phase) => {
+          rowList.push({ top: currentTop, height: ROW_HEIGHT, isSection: false });
+          currentTop += ROW_HEIGHT;
+          if (!phase.isCollapsed && phase.elements.length > 0) {
+            phase.elements.forEach(() => {
+              rowList.push({ top: currentTop, height: ELEMENT_ROW_HEIGHT, isSection: false });
+              currentTop += ELEMENT_ROW_HEIGHT;
+            });
+          }
+        });
+      }
     }
 
     // Teams
@@ -68,7 +69,7 @@ export default function TimelineGrid() {
       gridHeight: Math.max(currentTop, 200),
       rows: rowList,
     };
-  }, [phases, teams, isIDTimelineCollapsed]);
+  }, [idTimeline, teams]);
 
   // Today's position
   const todayPosition = getTodayPosition(project.startDate, project.endDate);

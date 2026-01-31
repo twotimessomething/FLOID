@@ -1,23 +1,22 @@
 import { useCallback, useMemo } from 'react';
-import { useTimelineStore } from '../../stores/timelineStore';
+import { useSectionStore, selectSection, selectPhase } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, ColorPicker, Button } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../utils/dateUtils';
 
-interface PhaseEditorProps {
-  readonly phaseId: string;
-}
-
-export function PhaseEditor({ phaseId }: PhaseEditorProps): JSX.Element {
-  const { phases, updatePhase, updatePhasePosition, deletePhase } = useTimelineStore();
+export function PhaseEditor(): JSX.Element {
+  const { selection, closeModal } = useUIStore();
+  const { updatePhase, updatePhasePosition, deletePhase } = useSectionStore();
   const { project } = useProjectStore();
-  const { closeModal } = useUIStore();
 
-  const phase = useMemo(
-    () => phases.find((p) => p.id === phaseId),
-    [phases, phaseId]
-  );
+  const sectionId = selection.sectionId;
+  const phaseId = selection.id;
+
+  const section = useSectionStore(selectSection(sectionId || ''));
+  const phase = useSectionStore(selectPhase(sectionId || '', phaseId || ''));
+
+  const isIDTimeline = section?.type === 'id-timeline';
 
   const startDate = useMemo(() => {
     if (!phase) return new Date();
@@ -39,28 +38,31 @@ export function PhaseEditor({ phaseId }: PhaseEditorProps): JSX.Element {
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      updatePhase(phaseId, { name: e.target.value });
+      if (!sectionId || !phaseId) return;
+      updatePhase(sectionId, phaseId, { name: e.target.value });
     },
-    [phaseId, updatePhase]
+    [sectionId, phaseId, updatePhase]
   );
 
   const handleDescriptionChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      updatePhase(phaseId, { description: e.target.value });
+      if (!sectionId || !phaseId) return;
+      updatePhase(sectionId, phaseId, { description: e.target.value });
     },
-    [phaseId, updatePhase]
+    [sectionId, phaseId, updatePhase]
   );
 
   const handleColorChange = useCallback(
     (color: string) => {
-      updatePhase(phaseId, { color });
+      if (!sectionId || !phaseId) return;
+      updatePhase(sectionId, phaseId, { color });
     },
-    [phaseId, updatePhase]
+    [sectionId, phaseId, updatePhase]
   );
 
   const handleStartDateChange = useCallback(
     (date: Date) => {
-      if (!phase) return;
+      if (!sectionId || !phaseId || !phase) return;
       const newRelativeStart = getRelativePositionFromDate(
         project.startDate,
         project.endDate,
@@ -68,15 +70,15 @@ export function PhaseEditor({ phaseId }: PhaseEditorProps): JSX.Element {
       );
       // Ensure start doesn't go past end
       if (newRelativeStart < phase.relativeEnd) {
-        updatePhasePosition(phaseId, newRelativeStart, phase.relativeEnd);
+        updatePhasePosition(sectionId, phaseId, newRelativeStart, phase.relativeEnd);
       }
     },
-    [phase, phaseId, project.startDate, project.endDate, updatePhasePosition]
+    [sectionId, phaseId, phase, project.startDate, project.endDate, updatePhasePosition]
   );
 
   const handleEndDateChange = useCallback(
     (date: Date) => {
-      if (!phase) return;
+      if (!sectionId || !phaseId || !phase) return;
       const newRelativeEnd = getRelativePositionFromDate(
         project.startDate,
         project.endDate,
@@ -84,25 +86,33 @@ export function PhaseEditor({ phaseId }: PhaseEditorProps): JSX.Element {
       );
       // Ensure end doesn't go before start
       if (newRelativeEnd > phase.relativeStart) {
-        updatePhasePosition(phaseId, phase.relativeStart, newRelativeEnd);
+        updatePhasePosition(sectionId, phaseId, phase.relativeStart, newRelativeEnd);
       }
     },
-    [phase, phaseId, project.startDate, project.endDate, updatePhasePosition]
+    [sectionId, phaseId, phase, project.startDate, project.endDate, updatePhasePosition]
   );
 
   const handleDelete = useCallback(() => {
-    if (confirm(`Delete phase "${phase?.name}"? This will also delete all elements and milestones within it.`)) {
-      deletePhase(phaseId);
+    if (!sectionId || !phaseId || !phase) return;
+    if (confirm(`Delete phase "${phase.name}"? This will also delete all elements within it.`)) {
+      deletePhase(sectionId, phaseId);
       closeModal();
     }
-  }, [phase?.name, phaseId, deletePhase, closeModal]);
+  }, [sectionId, phaseId, phase, deletePhase, closeModal]);
 
-  if (!phase) {
+  if (!phase || !section) {
     return <div className="text-sm text-[#6b7280]">Phase not found</div>;
   }
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Context label for team phases */}
+      {!isIDTimeline && (
+        <div className="text-xs text-[#6b7280]">
+          Part of <span className="font-medium text-[#111827]">{section.name}</span>
+        </div>
+      )}
+
       <Input
         label="Name"
         value={phase.name}
@@ -118,11 +128,14 @@ export function PhaseEditor({ phaseId }: PhaseEditorProps): JSX.Element {
         placeholder="Add a description..."
       />
 
-      <ColorPicker
-        label="Color"
-        value={phase.color}
-        onChange={handleColorChange}
-      />
+      {/* Color picker only for ID timeline phases */}
+      {isIDTimeline && phase.color && (
+        <ColorPicker
+          label="Color"
+          value={phase.color}
+          onChange={handleColorChange}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <DateInput

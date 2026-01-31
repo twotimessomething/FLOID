@@ -1,6 +1,7 @@
 import { useCallback, useRef, useEffect, useState } from 'react';
-import type { Phase, Element } from '../../types';
-import { useTimelineStore } from '../../stores/timelineStore';
+import type { Phase, Element, Section } from '../../types';
+import { getPhaseColor } from '../../types';
+import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { getBarDimensions, ELEMENT_ROW_HEIGHT } from '../../utils/timelineUtils';
@@ -10,6 +11,7 @@ import DragHandle from './DragHandle';
 interface ElementRowProps {
   readonly element: Element;
   readonly phase: Phase;
+  readonly section: Section;
   readonly isLabel: boolean;
   readonly timelineWidth: number;
 }
@@ -17,20 +19,20 @@ interface ElementRowProps {
 export default function ElementRow({
   element,
   phase,
+  section,
   isLabel,
   timelineWidth,
 }: ElementRowProps): JSX.Element {
-  const { updateElementPosition } = useTimelineStore();
+  const { updateElementPosition } = useSectionStore();
   const { project } = useProjectStore();
-  const { selection, setSelection, setDragging } = useUIStore();
+  const { selection, selectItem, setDragging } = useUIStore();
 
-  const isSelected =
-    selection.type === 'element' && selection.id === element.id;
+  const isIDTimeline = section.type === 'id-timeline';
+  const isSelected = selection.type === 'element' && selection.id === element.id;
 
   // Convert element's relative position (within phase) to absolute position
   const phaseWidth = phase.relativeEnd - phase.relativeStart;
-  const absoluteStart =
-    phase.relativeStart + element.relativeStart * phaseWidth;
+  const absoluteStart = phase.relativeStart + element.relativeStart * phaseWidth;
   const absoluteEnd = phase.relativeStart + element.relativeEnd * phaseWidth;
 
   const { left, width } = getBarDimensions(
@@ -54,8 +56,8 @@ export default function ElementRow({
       hasDragged.current = false;
       return;
     }
-    setSelection({ type: 'element', id: element.id }, { x: e.clientX, y: e.clientY });
-  }, [setSelection, element.id]);
+    selectItem('element', element.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
+  }, [selectItem, element.id, section.id, phase.id]);
 
   // Prevent double-click from propagating to parent (which would create a new element)
   const handleDoubleClick = useCallback((e: React.MouseEvent): void => {
@@ -85,12 +87,7 @@ export default function ElementRow({
         0,
         Math.min(element.relativeEnd - 0.02, element.relativeStart + deltaRelative)
       );
-      updateElementPosition(
-        phase.id,
-        element.id,
-        newStart,
-        element.relativeEnd
-      );
+      updateElementPosition(section.id, phase.id, element.id, newStart, element.relativeEnd);
       // Update drag date
       const absolutePosition = phase.relativeStart + newStart * phaseWidth;
       const date = getDateFromRelativePosition(project.startDate, project.endDate, absolutePosition);
@@ -100,12 +97,7 @@ export default function ElementRow({
         element.relativeStart + 0.02,
         Math.min(1, element.relativeEnd + deltaRelative)
       );
-      updateElementPosition(
-        phase.id,
-        element.id,
-        element.relativeStart,
-        newEnd
-      );
+      updateElementPosition(section.id, phase.id, element.id, element.relativeStart, newEnd);
       // Update drag date
       const absolutePosition = phase.relativeStart + newEnd * phaseWidth;
       const date = getDateFromRelativePosition(project.startDate, project.endDate, absolutePosition);
@@ -165,7 +157,7 @@ export default function ElementRow({
         newStart = 1 - barWidth;
       }
 
-      updateElementPosition(phase.id, element.id, newStart, newEnd);
+      updateElementPosition(section.id, phase.id, element.id, newStart, newEnd);
     };
 
     const handleMouseUp = () => {
@@ -182,7 +174,7 @@ export default function ElementRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [phase.id, element.id, element.relativeStart, element.relativeEnd, phaseWidth, timelineWidth, updateElementPosition, setDragging]);
+  }, [section.id, phase.id, element.id, element.relativeStart, element.relativeEnd, phaseWidth, timelineWidth, updateElementPosition, setDragging]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(
@@ -190,16 +182,16 @@ export default function ElementRow({
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         const rect = (e.target as HTMLElement).getBoundingClientRect();
-        setSelection({ type: 'element', id: element.id }, { x: rect.right, y: rect.top });
+        selectItem('element', element.id, section.id, phase.id, { x: rect.right, y: rect.top });
       }
     },
-    [setSelection, element.id]
+    [selectItem, element.id, section.id, phase.id]
   );
 
   if (isLabel) {
     return (
       <div
-        className={`flex items-center pl-9 pr-3 border-b border-[#e5e7eb]/30 cursor-pointer row-selectable focus-ring ${
+        className={`flex items-center ${isIDTimeline ? 'pl-9' : 'pl-12'} pr-3 border-b border-[#e5e7eb]/30 cursor-pointer row-selectable focus-ring ${
           isSelected ? 'selected bg-blue-50' : ''
         }`}
         style={{ height: ELEMENT_ROW_HEIGHT }}
@@ -215,8 +207,9 @@ export default function ElementRow({
     );
   }
 
-  // Lighter version of phase color for element (80% opacity)
-  const elementColor = phase.color + 'CC';
+  // Get effective color for element (80% opacity)
+  const effectiveColor = getPhaseColor(phase, section);
+  const elementColor = effectiveColor + 'CC';
 
   return (
     <div

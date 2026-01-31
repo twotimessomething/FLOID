@@ -1,14 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
-import { useTimelineStore } from '../../stores/timelineStore';
-import { useTeamStore } from '../../stores/teamStore';
+import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 
 export function LeftSidebar() {
   const { projects, activeProjectId, selectProject, deleteProject, saveCurrentProject, updateProjectIndex, updateProject } =
     useProjectStore();
-  const { phases, milestones, loadPhasesForProject } = useTimelineStore();
-  const { teams, loadTeamsForProject } = useTeamStore();
+  const { sections, loadSectionsForProject } = useSectionStore();
   const { isLeftSidebarOpen, toggleLeftSidebar, closeModal, openProjectSetupModal, openProjectEditModal } = useUIStore();
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState('');
@@ -21,25 +19,21 @@ export function LeftSidebar() {
       if (projectId === activeProjectId) return;
 
       // Save current project before switching
-      saveCurrentProject(phases, milestones, teams);
+      saveCurrentProject(sections);
 
       // Clear any selection
       closeModal();
 
       // Switch to new project
       selectProject(projectId);
-      loadPhasesForProject(projectId);
-      loadTeamsForProject(projectId);
+      loadSectionsForProject(projectId);
     },
     [
       activeProjectId,
-      phases,
-      milestones,
-      teams,
+      sections,
       saveCurrentProject,
       selectProject,
-      loadPhasesForProject,
-      loadTeamsForProject,
+      loadSectionsForProject,
       closeModal,
     ]
   );
@@ -63,12 +57,11 @@ export function LeftSidebar() {
         // If we deleted the active project, load the new active one
         const newActiveId = useProjectStore.getState().activeProjectId;
         if (newActiveId) {
-          loadPhasesForProject(newActiveId);
-          loadTeamsForProject(newActiveId);
+          loadSectionsForProject(newActiveId);
         }
       }
     },
-    [projects, deleteProject, loadPhasesForProject, loadTeamsForProject]
+    [projects, deleteProject, loadSectionsForProject]
   );
 
   // Focus edit input when editing starts
@@ -134,16 +127,15 @@ export function LeftSidebar() {
 
     // If not the active project, switch to it first
     if (projectId !== activeProjectId) {
-      saveCurrentProject(phases, milestones, teams);
+      saveCurrentProject(sections);
       closeModal();
       selectProject(projectId);
-      loadPhasesForProject(projectId);
-      loadTeamsForProject(projectId);
+      loadSectionsForProject(projectId);
     }
 
     // Open the edit modal
     openProjectEditModal(projectId);
-  }, [activeProjectId, phases, milestones, teams, saveCurrentProject, closeModal, selectProject, loadPhasesForProject, loadTeamsForProject, openProjectEditModal]);
+  }, [activeProjectId, sections, saveCurrentProject, closeModal, selectProject, loadSectionsForProject, openProjectEditModal]);
 
   // Sort projects by most recently updated
   const sortedProjects = [...projects].sort(

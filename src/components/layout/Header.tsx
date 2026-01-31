@@ -1,13 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
-import { useTimelineStore } from '../../stores/timelineStore';
-import { useTeamStore } from '../../stores/teamStore';
+import { useSectionStore } from '../../stores/sectionStore';
 import { downloadJson, parseImportedJson } from '../../utils/exportUtils';
 
 export default function Header() {
   const { project, setProject, updateProject, saveCurrentProject, updateProjectIndex, activeProjectId } = useProjectStore();
-  const { phases, milestones, setPhases, setMilestones } = useTimelineStore();
-  const { teams, setTeams } = useTeamStore();
+  const { sections, setSections } = useSectionStore();
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(project.name);
@@ -50,7 +48,7 @@ export default function Header() {
   }, [handleNameSave, project.name]);
 
   const handleExport = () => {
-    downloadJson(project, phases, milestones, teams);
+    downloadJson(project, sections);
   };
 
   const handleImport = () => {
@@ -67,14 +65,10 @@ export default function Header() {
       if (data) {
         // Update the current project with imported data
         setProject(data.project);
-        setPhases(data.phases);
-        setMilestones(data.milestones || []);
-        if (data.teams) {
-          setTeams(data.teams);
-        }
+        setSections(data.sections);
         // Save and update the project index
         if (activeProjectId) {
-          saveCurrentProject(data.phases, data.milestones || [], data.teams || []);
+          saveCurrentProject(data.sections);
           updateProjectIndex(activeProjectId, { name: data.project.name });
         }
       }

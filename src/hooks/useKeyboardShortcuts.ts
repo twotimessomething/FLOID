@@ -1,13 +1,14 @@
 import { useEffect, useCallback } from 'react';
 import { useUIStore } from '../stores/uiStore';
-import { useTimelineStore } from '../stores/timelineStore';
-import { useTeamStore } from '../stores/teamStore';
+import { useSectionStore, selectIDTimeline, selectTeams } from '../stores/sectionStore';
 import { SHORTCUTS } from '../constants/shortcuts';
 import type { SelectionState } from '../types';
 
 interface NavigableItem {
   id: string;
   type: SelectionState['type'];
+  sectionId: string;
+  phaseId: string | null;
   canCollapse: boolean;
   isCollapsed: boolean;
 }
@@ -17,77 +18,91 @@ interface NavigableItem {
  * Supports navigation, collapse/expand, deletion, and sidebar interactions.
  */
 export function useKeyboardShortcuts(): void {
-  const { selection, setSelection, closeModal, isModalOpen } = useUIStore();
-  const { phases, milestones, togglePhaseCollapse, deletePhase, deleteElement, deleteMilestone } =
-    useTimelineStore();
+  const { selection, selectItem, closeModal, isModalOpen } = useUIStore();
+
+  const idTimeline = useSectionStore(selectIDTimeline);
+  const teams = useSectionStore(selectTeams);
   const {
-    teams,
-    toggleTeamCollapse,
-    toggleTeamPhaseCollapse,
-    deleteTeam,
-    deleteTeamPhase,
-    deleteTeamElement,
-    deleteTeamMilestone,
-  } = useTeamStore();
+    toggleSectionCollapse,
+    togglePhaseCollapse,
+    deleteSection,
+    deletePhase,
+    deleteElement,
+    deleteMilestone,
+  } = useSectionStore();
 
   // Build flat list of navigable items for arrow key navigation
   const getNavigableItems = useCallback((): NavigableItem[] => {
     const items: NavigableItem[] = [];
 
-    // Add phases and their children
-    phases.forEach((phase) => {
-      items.push({
-        id: phase.id,
-        type: 'phase',
-        canCollapse: true,
-        isCollapsed: phase.isCollapsed,
-      });
-
-      if (!phase.isCollapsed) {
-        phase.elements.forEach((element) => {
-          items.push({
-            id: element.id,
-            type: 'element',
-            canCollapse: false,
-            isCollapsed: false,
-          });
+    // Add ID timeline and its phases
+    if (idTimeline) {
+      idTimeline.phases.forEach((phase) => {
+        items.push({
+          id: phase.id,
+          type: 'phase',
+          sectionId: idTimeline.id,
+          phaseId: null,
+          canCollapse: true,
+          isCollapsed: phase.isCollapsed,
         });
-      }
-    });
 
-    // Add ID timeline milestones
-    milestones.forEach((milestone) => {
-      items.push({
-        id: milestone.id,
-        type: 'milestone',
-        canCollapse: false,
-        isCollapsed: false,
+        if (!phase.isCollapsed) {
+          phase.elements.forEach((element) => {
+            items.push({
+              id: element.id,
+              type: 'element',
+              sectionId: idTimeline.id,
+              phaseId: phase.id,
+              canCollapse: false,
+              isCollapsed: false,
+            });
+          });
+        }
       });
-    });
+
+      // Add ID timeline milestones
+      idTimeline.milestones.forEach((milestone) => {
+        items.push({
+          id: milestone.id,
+          type: 'milestone',
+          sectionId: idTimeline.id,
+          phaseId: null,
+          canCollapse: false,
+          isCollapsed: false,
+        });
+      });
+    }
 
     // Add teams and their children
     teams.forEach((team) => {
       items.push({
         id: team.id,
-        type: 'team',
+        type: 'section',
+        sectionId: team.id,
+        phaseId: null,
         canCollapse: true,
         isCollapsed: team.isCollapsed,
       });
 
       if (!team.isCollapsed) {
-        team.phases.forEach((teamPhase) => {
+        team.phases.forEach((phase) => {
           items.push({
-            id: teamPhase.id,
-            type: 'teamPhase',
+            id: phase.id,
+            type: 'phase',
+            sectionId: team.id,
+            phaseId: null,
             canCollapse: true,
-            isCollapsed: teamPhase.isCollapsed,
+            isCollapsed: phase.isCollapsed,
           });
 
-          if (!teamPhase.isCollapsed) {
-            teamPhase.elements.forEach((element) => {
+          if (!phase.isCollapsed) {
+            phase.elements.forEach((element) => {
               items.push({
                 id: element.id,
-                type: 'teamElement',
+                type: 'element',
+                sectionId: team.id,
+                phaseId: phase.id,
                 canCollapse: false,
                 isCollapsed: false,
               });
@@ -100,6 +115,8 @@ export function useKeyboardShortcuts(): void {
           items.push({
             id: milestone.id,
             type: 'milestone',
+            sectionId: team.id,
+            phaseId: null,
             canCollapse: false,
             isCollapsed: false,
           });
@@ -108,7 +125,7 @@ export function useKeyboardShortcuts(): void {
     });
 
     return items;
-  }, [phases, milestones, teams]);
+  }, [idTimeline, teams]);
 
   // Find current selection index in navigable items
   const getCurrentIndex = useCallback((): number => {
@@ -145,108 +162,55 @@ export function useKeyboardShortcuts(): void {
           x: window.innerWidth / 2,
           y: window.innerHeight / 2,
         };
-        setSelection({ type: item.type, id: item.id }, centerPosition);
+        selectItem(item.type, item.id, item.sectionId, item.phaseId, centerPosition);
       }
     },
-    [getNavigableItems, getCurrentIndex, setSelection]
+    [getNavigableItems, getCurrentIndex, selectItem]
   );
 
   // Handle collapse/expand toggle
   const handleToggleCollapse = useCallback((): void => {
-    if (!selection.id || !selection.type) return;
+    if (!selection.id || !selection.type || !selection.sectionId) return;
 
     switch (selection.type) {
+      case 'section':
+        toggleSectionCollapse(selection.sectionId);
+        break;
       case 'phase':
-        togglePhaseCollapse(selection.id);
+        togglePhaseCollapse(selection.sectionId, selection.id);
         break;
-      case 'team':
-        toggleTeamCollapse(selection.id);
-        break;
-      case 'teamPhase': {
-        // Find the team that contains this phase
-        const team = teams.find((t) =>
-          t.phases.some((p) => p.id === selection.id)
-        );
-        if (team) {
-          toggleTeamPhaseCollapse(team.id, selection.id);
-        }
-        break;
-      }
     }
-  }, [selection, togglePhaseCollapse, toggleTeamCollapse, toggleTeamPhaseCollapse, teams]);
+  }, [selection, toggleSectionCollapse, togglePhaseCollapse]);
 
   // Handle deletion
   const handleDelete = useCallback((): void => {
-    if (!selection.id || !selection.type) return;
+    if (!selection.id || !selection.type || !selection.sectionId) return;
 
     switch (selection.type) {
+      case 'section':
+        deleteSection(selection.sectionId);
+        break;
       case 'phase':
-        deletePhase(selection.id);
+        deletePhase(selection.sectionId, selection.id);
         break;
-      case 'element': {
-        // Find the phase containing this element
-        const phase = phases.find((p) =>
-          p.elements.some((e) => e.id === selection.id)
-        );
-        if (phase) {
-          deleteElement(phase.id, selection.id);
+      case 'element':
+        if (selection.phaseId) {
+          deleteElement(selection.sectionId, selection.phaseId, selection.id);
         }
         break;
-      }
-      case 'milestone': {
-        // Check if it's an ID timeline milestone
-        const isIDMilestone = milestones.some((m) => m.id === selection.id);
-        if (isIDMilestone) {
-          deleteMilestone(selection.id);
-        } else {
-          // Check team milestones
-          const teamWithMilestone = teams.find((t) =>
-            t.milestones.some((m) => m.id === selection.id)
-          );
-          if (teamWithMilestone) {
-            deleteTeamMilestone(teamWithMilestone.id, selection.id);
-          }
-        }
+      case 'milestone':
+        deleteMilestone(selection.sectionId, selection.id);
         break;
-      }
-      case 'team':
-        deleteTeam(selection.id);
-        break;
-      case 'teamPhase': {
-        const teamWithPhase = teams.find((t) =>
-          t.phases.some((p) => p.id === selection.id)
-        );
-        if (teamWithPhase) {
-          deleteTeamPhase(teamWithPhase.id, selection.id);
-        }
-        break;
-      }
-      case 'teamElement': {
-        // Find team and phase containing this element
-        for (const team of teams) {
-          for (const teamPhase of team.phases) {
-            if (teamPhase.elements.some((e) => e.id === selection.id)) {
-              deleteTeamElement(team.id, teamPhase.id, selection.id);
-              break;
-            }
-          }
-        }
-        break;
-      }
     }
 
     // Close modal after deletion
     closeModal();
   }, [
     selection,
-    phases,
-    teams,
+    deleteSection,
     deletePhase,
     deleteElement,
     deleteMilestone,
-    deleteTeam,
-    deleteTeamPhase,
-    deleteTeamElement,
     closeModal,
   ]);
 
@@ -288,7 +252,7 @@ export function useKeyboardShortcuts(): void {
 
         case SHORTCUTS.ENTER:
         case SHORTCUTS.SPACE:
-          if (selection.type === 'phase' || selection.type === 'team' || selection.type === 'teamPhase') {
+          if (selection.type === 'section' || selection.type === 'phase') {
             handleToggleCollapse();
             event.preventDefault();
           }

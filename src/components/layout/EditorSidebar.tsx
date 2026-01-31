@@ -3,9 +3,7 @@ import {
   PhaseEditor,
   ElementEditor,
   MilestoneEditor,
-  TeamEditor,
-  TeamPhaseEditor,
-  TeamElementEditor,
+  SectionEditor,
 } from '../panels';
 
 const SIDEBAR_WIDTH = 280;
@@ -17,23 +15,16 @@ export function EditorSidebar(): JSX.Element | null {
     return null;
   }
 
-  // Store id in local const after null check for type narrowing
-  const selectedId = selection.id;
-
   const renderEditor = (): JSX.Element | null => {
     switch (selection.type) {
+      case 'section':
+        return <SectionEditor />;
       case 'phase':
-        return <PhaseEditor phaseId={selectedId} />;
+        return <PhaseEditor />;
       case 'element':
-        return <ElementEditor elementId={selectedId} />;
+        return <ElementEditor />;
       case 'milestone':
-        return <MilestoneEditor milestoneId={selectedId} />;
-      case 'team':
-        return <TeamEditor teamId={selectedId} />;
-      case 'teamPhase':
-        return <TeamPhaseEditor teamPhaseId={selectedId} />;
-      case 'teamElement':
-        return <TeamElementEditor teamElementId={selectedId} />;
+        return <MilestoneEditor />;
       default:
         return null;
     }

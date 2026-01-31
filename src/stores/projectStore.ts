@@ -1,42 +1,32 @@
 import { create } from 'zustand';
-import type { Project, Phase, Milestone } from '../types';
-import type { Team } from '../types';
-import { createDefaultProject, createDefaultPhases, createDefaultMilestones } from '../data/defaultTemplate';
+import type { Project, Section } from '../types';
+import { createDefaultProject, createDefaultIDTimelineSection } from '../data/defaultTemplate';
 import {
   loadProjectsIndex,
   saveProjectsIndex,
   loadProjectFromStorage,
   saveProjectToStorage,
   deleteProjectFromStorage,
-  loadFromStorage,
   type ProjectIndexEntry,
 } from '../utils/storageUtils';
 
 interface ProjectState {
-  // Current project
   project: Project;
-
-  // All projects (index only - metadata)
   projects: ProjectIndexEntry[];
   activeProjectId: string | null;
 
-  // Single project actions (legacy)
   setProject: (project: Project) => void;
   updateProject: (updates: Partial<Project>) => void;
   resetProject: () => void;
 
-  // Multi-project actions
   initializeProjects: () => void;
   addProject: (config?: { name?: string; startDate?: string; endDate?: string }) => string;
   deleteProject: (projectId: string) => void;
   selectProject: (projectId: string) => void;
   updateProjectIndex: (projectId: string, updates: Partial<ProjectIndexEntry>) => void;
 
-  // Save current project's data
-  saveCurrentProject: (phases: Phase[], milestones: Milestone[], teams: Team[]) => void;
-
-  // Load project data
-  loadProjectData: (projectId: string) => { phases: Phase[]; milestones: Milestone[]; teams: Team[] } | null;
+  saveCurrentProject: (sections: Section[]) => void;
+  loadProjectData: (projectId: string) => { sections: Section[] } | null;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -54,7 +44,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         updatedAt: new Date().toISOString(),
       };
 
-      // Update the projects index as well
       const updatedProjects = state.projects.map((p) =>
         p.id === state.activeProjectId
           ? { ...p, name: updatedProject.name, updatedAt: updatedProject.updatedAt }
@@ -73,33 +62,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   initializeProjects: () => {
     let projects = loadProjectsIndex();
 
-    // If no projects exist, check for legacy data or create default
     if (projects.length === 0) {
-      const legacyData = loadFromStorage();
-      if (legacyData && legacyData.project) {
-        // Migrate legacy project
-        const legacyProject = legacyData.project as Project;
-        const projectEntry: ProjectIndexEntry = {
-          id: legacyProject.id,
-          name: legacyProject.name,
-          updatedAt: legacyProject.updatedAt,
-        };
-        projects = [projectEntry];
-        saveProjectsIndex(projects);
-        saveProjectToStorage(legacyProject.id, legacyData);
-
-        set({
-          projects,
-          project: legacyProject,
-          activeProjectId: legacyProject.id,
-        });
-        return;
-      }
-
       // Create default project
       const defaultProject = createDefaultProject();
-      const defaultPhases = createDefaultPhases();
-      const defaultMilestones = createDefaultMilestones();
+      const defaultSection = createDefaultIDTimelineSection();
       const projectEntry: ProjectIndexEntry = {
         id: defaultProject.id,
         name: defaultProject.name,
@@ -109,10 +75,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       saveProjectsIndex(projects);
       saveProjectToStorage(defaultProject.id, {
         project: defaultProject,
-        phases: defaultPhases,
-        milestones: defaultMilestones,
-        teams: [],
-        version: 1,
+        sections: [defaultSection],
       });
 
       set({
@@ -130,10 +93,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const mostRecent = sortedProjects[0];
     const projectData = loadProjectFromStorage(mostRecent.id);
 
-    if (projectData && projectData.project) {
+    if (projectData?.project) {
       set({
         projects,
-        project: projectData.project as Project,
+        project: projectData.project,
         activeProjectId: mostRecent.id,
       });
     } else {
@@ -147,33 +110,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  addProject: (config?: { name?: string; startDate?: string; endDate?: string }) => {
+  addProject: (config) => {
     const newProject = createDefaultProject();
-    if (config?.name) {
-      newProject.name = config.name;
-    }
-    if (config?.startDate) {
-      newProject.startDate = config.startDate;
-    }
-    if (config?.endDate) {
-      newProject.endDate = config.endDate;
-    }
+    if (config?.name) newProject.name = config.name;
+    if (config?.startDate) newProject.startDate = config.startDate;
+    if (config?.endDate) newProject.endDate = config.endDate;
 
-    const newPhases = createDefaultPhases();
-    const newMilestones = createDefaultMilestones();
+    const newSection = createDefaultIDTimelineSection();
     const projectEntry: ProjectIndexEntry = {
       id: newProject.id,
       name: newProject.name,
       updatedAt: newProject.updatedAt,
     };
 
-    // Save the new project's data
     saveProjectToStorage(newProject.id, {
       project: newProject,
-      phases: newPhases,
-      milestones: newMilestones,
-      teams: [],
-      version: 1,
+      sections: [newSection],
     });
 
     set((state) => {
@@ -185,29 +137,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     return newProject.id;
   },
 
-  deleteProject: (projectId: string) => {
+  deleteProject: (projectId) => {
     const { projects, activeProjectId } = get();
 
-    // Don't delete if it's the only project
-    if (projects.length <= 1) {
-      return;
-    }
+    if (projects.length <= 1) return;
 
-    // Remove from index
     const updatedProjects = projects.filter((p) => p.id !== projectId);
     saveProjectsIndex(updatedProjects);
-
-    // Delete project data
     deleteProjectFromStorage(projectId);
 
-    // If deleting active project, switch to another
     if (activeProjectId === projectId) {
       const nextProject = updatedProjects[0];
       const projectData = loadProjectFromStorage(nextProject.id);
 
       set({
         projects: updatedProjects,
-        project: projectData?.project as Project || createDefaultProject(),
+        project: projectData?.project || createDefaultProject(),
         activeProjectId: nextProject.id,
       });
     } else {
@@ -215,12 +160,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  selectProject: (projectId: string) => {
+  selectProject: (projectId) => {
     const projectData = loadProjectFromStorage(projectId);
 
-    if (projectData && projectData.project) {
+    if (projectData?.project) {
       set({
-        project: projectData.project as Project,
+        project: projectData.project,
         activeProjectId: projectId,
       });
     }
@@ -236,7 +181,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     });
   },
 
-  saveCurrentProject: (phases, milestones, teams) => {
+  saveCurrentProject: (sections) => {
     const { project, activeProjectId } = get();
     if (!activeProjectId) return;
 
@@ -245,13 +190,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     saveProjectToStorage(activeProjectId, {
       project: updatedProject,
-      phases,
-      milestones,
-      teams,
-      version: 1,
+      sections,
     });
 
-    // Update project index
     set((state) => {
       const updatedProjects = state.projects.map((p) =>
         p.id === activeProjectId ? { ...p, updatedAt } : p
@@ -264,11 +205,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   loadProjectData: (projectId) => {
     const data = loadProjectFromStorage(projectId);
     if (!data) return null;
-
-    return {
-      phases: (data.phases || []) as Phase[],
-      milestones: (data.milestones || []) as Milestone[],
-      teams: (data.teams || []) as Team[],
-    };
+    return { sections: data.sections || [] };
   },
 }));
