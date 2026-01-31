@@ -56,6 +56,11 @@ interface UIState {
   // Scroll to today trigger (incremented to trigger scroll)
   scrollToTodayTrigger: number;
   triggerScrollToToday: () => void;
+
+  // Add team modal
+  isAddTeamModalOpen: boolean;
+  openAddTeamModal: () => void;
+  closeAddTeamModal: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -117,4 +122,9 @@ export const useUIStore = create<UIState>((set) => ({
   scrollToTodayTrigger: 0,
   triggerScrollToToday: () =>
     set((state) => ({ scrollToTodayTrigger: state.scrollToTodayTrigger + 1 })),
+
+  // Add team modal
+  isAddTeamModalOpen: false,
+  openAddTeamModal: () => set({ isAddTeamModalOpen: true }),
+  closeAddTeamModal: () => set({ isAddTeamModalOpen: false }),
 }));

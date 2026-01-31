@@ -5,3 +5,4 @@ export { EditorModal } from './EditorModal';
 export { LeftSidebar } from './LeftSidebar';
 export { ProjectSetupModal } from './ProjectSetupModal';
 export { ProjectEditModal } from './ProjectEditModal';
+export { AddTeamModal } from './AddTeamModal';

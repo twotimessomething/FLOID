@@ -5,6 +5,7 @@ import { EditorModal } from './components/layout/EditorModal';
 import { LeftSidebar } from './components/layout/LeftSidebar';
 import { ProjectSetupModal } from './components/layout/ProjectSetupModal';
 import { ProjectEditModal } from './components/layout/ProjectEditModal';
+import { AddTeamModal } from './components/layout/AddTeamModal';
 import { useAutoSave, useKeyboardShortcuts } from './hooks';
 import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
@@ -49,6 +50,7 @@ function App() {
       <EditorModal />
       <ProjectSetupModal />
       <ProjectEditModal />
+      <AddTeamModal />
     </div>
   );
 }

@@ -1,10 +1,10 @@
-import { useSectionStore } from '../../stores/sectionStore';
+import { useUIStore } from '../../stores/uiStore';
 
 export default function AddTeamButton(): JSX.Element {
-  const addSection = useSectionStore((state) => state.addSection);
+  const openAddTeamModal = useUIStore((state) => state.openAddTeamModal);
 
   const handleAddTeam = (): void => {
-    addSection('');
+    openAddTeamModal();
   };
 
   return (
