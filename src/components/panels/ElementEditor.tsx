@@ -14,9 +14,14 @@ export function ElementEditor(): JSX.Element {
   const phaseId = selection.phaseId;
   const elementId = selection.id;
 
-  const section = useSectionStore(selectSection(sectionId || ''));
-  const phase = useSectionStore(selectPhase(sectionId || '', phaseId || ''));
-  const element = useSectionStore(selectElement(sectionId || '', phaseId || '', elementId || ''));
+  // Memoize selectors to prevent recreation on every render
+  const sectionSelector = useMemo(() => selectSection(sectionId || ''), [sectionId]);
+  const phaseSelector = useMemo(() => selectPhase(sectionId || '', phaseId || ''), [sectionId, phaseId]);
+  const elementSelector = useMemo(() => selectElement(sectionId || '', phaseId || '', elementId || ''), [sectionId, phaseId, elementId]);
+
+  const section = useSectionStore(sectionSelector);
+  const phase = useSectionStore(phaseSelector);
+  const element = useSectionStore(elementSelector);
 
   const isIDTimeline = section?.type === 'id-timeline';
 
@@ -119,17 +124,17 @@ export function ElementEditor(): JSX.Element {
   }, [sectionId, phaseId, elementId, element, deleteElement, closeModal]);
 
   if (!element || !phase || !section) {
-    return <div className="text-sm text-[#6b7280]">Element not found</div>;
+    return <div className="text-sm text-[var(--color-text-secondary)]">Element not found</div>;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-xs text-[#6b7280]">
-        Part of <span className="font-medium text-[#111827]">{phase.name}</span>
+      <div className="text-xs text-[var(--color-text-secondary)]">
+        Part of <span className="font-medium text-[var(--color-text-primary)]">{phase.name}</span>
         {!isIDTimeline && (
           <>
             {' in '}
-            <span className="font-medium text-[#111827]">{section.name}</span>
+            <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>
           </>
         )}
       </div>
@@ -166,7 +171,7 @@ export function ElementEditor(): JSX.Element {
         />
       </div>
 
-      <div className="pt-4 border-t border-[#e5e7eb]">
+      <div className="pt-4 border-t border-[var(--color-border)]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Element
         </Button>

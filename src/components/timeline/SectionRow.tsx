@@ -187,15 +187,15 @@ export default function SectionRow({
     // Render label column content
     return (
       <div
-        className={`${!isIDTimeline ? 'border-t-2 border-[#e5e7eb]' : ''} ${isDragging ? 'opacity-50' : ''}`}
+        className={`${!isIDTimeline ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''}`}
         role="group"
         aria-label={`${section.name} ${isIDTimeline ? 'timeline' : 'team'}`}
       >
         {/* Section header label */}
         <div
-          className={`flex items-center gap-2 px-3 border-b ${isIDTimeline ? 'border-[#e5e7eb] bg-[#fafafa]' : 'border-[#e5e7eb]/50'} ${
+          className={`flex items-center gap-2 px-3 border-b ${isIDTimeline ? 'border-[var(--color-border)]/50 bg-[var(--color-background)]' : 'border-[var(--color-border)]/25'} ${
             !isIDTimeline ? 'cursor-pointer row-selectable focus-ring' : ''
-          } ${isSelected ? 'selected bg-blue-50' : ''}`}
+          } ${isSelected ? 'selected' : ''}`}
           style={{ height: ROW_HEIGHT }}
           onClick={!isIDTimeline ? handleClick : undefined}
           onKeyDown={!isIDTimeline ? handleKeyDown : undefined}
@@ -208,7 +208,7 @@ export default function SectionRow({
           {!isIDTimeline && dragHandleProps && sectionIndex !== undefined && (
             <div
               {...dragHandleProps}
-              className="flex items-center justify-center w-4 h-4 text-[#9ca3af] hover:text-[#6b7280] rounded transition-colors duration-150"
+              className="flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-150"
               title="Drag to reorder"
               aria-label={`Drag to reorder ${section.name}`}
             >
@@ -229,7 +229,7 @@ export default function SectionRow({
           )}
           <button
             onClick={handleToggleCollapse}
-            className="w-4 h-4 flex items-center justify-center text-[#9ca3af] hover:text-[#6b7280] focus-ring rounded-md transition-colors duration-150"
+            className="w-4 h-4 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded-md transition-colors duration-150"
             aria-expanded={!section.isCollapsed}
             aria-label={`${section.isCollapsed ? 'Expand' : 'Collapse'} ${section.name}`}
           >
@@ -255,7 +255,7 @@ export default function SectionRow({
               aria-hidden="true"
             />
           )}
-          <span className={`text-sm ${isIDTimeline ? 'font-semibold' : 'font-medium'} text-[#111827] truncate flex-1`}>
+          <span className={`text-sm ${isIDTimeline ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] truncate flex-1`}>
             {section.name || (isIDTimeline ? 'Industrial Design' : 'Untitled Team')}
           </span>
           {!isIDTimeline && <AddItemButton onClick={handleAddPhase} label="Add phase" />}
@@ -282,14 +282,14 @@ export default function SectionRow({
   // Render timeline content
   return (
     <div
-      className={`${!isIDTimeline ? 'border-t-2 border-[#e5e7eb]' : ''} ${isDragging ? 'opacity-50' : ''}`}
+      className={`${!isIDTimeline ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''}`}
       role="group"
       aria-label={`${section.name} ${isIDTimeline ? 'timeline bars' : 'team timeline'}`}
     >
       {/* Section header row with collapsed phase bars when collapsed */}
       <div
         ref={headerRowRef}
-        className={`relative border-b ${isIDTimeline ? 'border-[#e5e7eb]' : 'border-[#e5e7eb]/50'}`}
+        className={`relative border-b ${isIDTimeline ? 'border-[var(--color-border)]/50' : 'border-[var(--color-border)]/25'}`}
         style={{ height: ROW_HEIGHT }}
         onDoubleClick={handleHeaderDoubleClick}
       >
@@ -308,7 +308,7 @@ export default function SectionRow({
                 <div
                   key={phase.id}
                   className={`absolute top-1 bottom-1 rounded-[10px] cursor-pointer timeline-bar ${
-                    isPhaseSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+                    isPhaseSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''
                   }`}
                   style={{
                     left,

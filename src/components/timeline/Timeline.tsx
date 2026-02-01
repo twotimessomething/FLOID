@@ -130,7 +130,7 @@ export default function Timeline() {
       right: 0,
       top: `${top}px`,
       height: '2px',
-      backgroundColor: '#3b82f6',
+      backgroundColor: 'var(--color-focus)',
       zIndex: 50,
       pointerEvents: 'none',
     };
@@ -200,14 +200,14 @@ export default function Timeline() {
       <div className="flex-1 flex overflow-hidden">
         {/* Fixed Labels Column */}
         <nav
-          className="flex-shrink-0 border-r border-[#e5e7eb] bg-white flex flex-col relative"
+          className="flex-shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col relative"
           style={{ width: labelColumnWidth }}
           aria-label="Timeline labels"
         >
           {/* Resize handle */}
           <div
             className={`absolute top-0 -right-0.5 w-1 h-full cursor-col-resize z-10 transition-colors ${
-              isResizing ? 'bg-blue-500' : 'hover:bg-blue-400'
+              isResizing ? 'bg-[var(--color-focus)]' : 'hover:bg-[var(--color-focus)]/70'
             }`}
             onMouseDown={handleResizeMouseDown}
             aria-label="Resize labels column"
@@ -215,7 +215,7 @@ export default function Timeline() {
           />
           {/* Header spacer */}
           <div
-            className="flex-shrink-0 border-b border-[#e5e7eb]"
+            className="flex-shrink-0 border-b border-[var(--color-border)]"
             style={{ height: HEADER_HEIGHT }}
             aria-hidden="true"
           />
@@ -281,7 +281,12 @@ export default function Timeline() {
             <TimelineHeader onPlayheadMouseDown={handlePlayheadMouseDown} />
 
             {/* Timeline content */}
-            <div className="relative" role="list" aria-label="Timeline bars">
+            <div
+              className="relative cursor-crosshair"
+              role="list"
+              aria-label="Timeline bars"
+              onMouseDown={handlePlayheadMouseDown}
+            >
               {/* Background grid */}
               <TimelineGrid />
 

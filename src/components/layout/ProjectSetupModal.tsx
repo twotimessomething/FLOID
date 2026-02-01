@@ -132,12 +132,12 @@ export function ProjectSetupModal(): JSX.Element | null {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/20">
-          <h2 className="text-base font-semibold text-[#111827]" id="project-setup-title">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="project-setup-title">
             New Project
           </h2>
           <button
             onClick={closeProjectSetupModal}
-            className="p-1 text-[#9ca3af] hover:text-[#6b7280] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg
@@ -185,7 +185,7 @@ export function ProjectSetupModal(): JSX.Element | null {
             </div>
 
             {/* Duration indicator */}
-            <p className="text-xs text-[#9ca3af]">
+            <p className="text-xs text-[var(--color-text-muted)]">
               Project duration:{' '}
               {Math.round(
                 (formData.endDate.getTime() - formData.startDate.getTime()) /
@@ -196,7 +196,7 @@ export function ProjectSetupModal(): JSX.Element | null {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[#e5e7eb]">
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--color-border)]">
             <Button type="button" variant="secondary" onClick={closeProjectSetupModal}>
               Cancel
             </Button>

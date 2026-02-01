@@ -121,12 +121,12 @@ export function EditorModal(): JSX.Element | null {
         role="document"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/20">
-          <h2 className="text-sm font-semibold text-[#111827]" id="modal-title">
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]" id="modal-title">
             Edit
           </h2>
           <button
             onClick={closeModal}
-            className="p-1 text-[#9ca3af] hover:text-[#6b7280] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSectionStore, selectIDTimeline, selectTeams } from '../stores/sectionStore';
 import { SHORTCUTS } from '../constants/shortcuts';
@@ -31,8 +31,8 @@ export function useKeyboardShortcuts(): void {
     deleteMilestone,
   } = useSectionStore();
 
-  // Build flat list of navigable items for arrow key navigation
-  const getNavigableItems = useCallback((): NavigableItem[] => {
+  // Memoize navigable items and index map for O(1) lookups
+  const { items: navigableItems, indexMap } = useMemo(() => {
     const items: NavigableItem[] = [];
 
     // Add ID timeline and its phases
@@ -124,38 +124,40 @@ export function useKeyboardShortcuts(): void {
       }
     });
 
-    return items;
+    // Build index map for O(1) lookups: key = "type:id"
+    const indexMap = new Map<string, number>();
+    items.forEach((item, index) => {
+      indexMap.set(`${item.type}:${item.id}`, index);
+    });
+
+    return { items, indexMap };
   }, [idTimeline, teams]);
 
-  // Find current selection index in navigable items
+  // Find current selection index using O(1) Map lookup
   const getCurrentIndex = useCallback((): number => {
     if (!selection.id || !selection.type) return -1;
-    const items = getNavigableItems();
-    return items.findIndex(
-      (item) => item.id === selection.id && item.type === selection.type
-    );
-  }, [selection, getNavigableItems]);
+    return indexMap.get(`${selection.type}:${selection.id}`) ?? -1;
+  }, [selection.id, selection.type, indexMap]);
 
   // Handle navigation (arrow keys)
   const handleNavigation = useCallback(
     (direction: 'up' | 'down'): void => {
-      const items = getNavigableItems();
-      if (items.length === 0) return;
+      if (navigableItems.length === 0) return;
 
       const currentIndex = getCurrentIndex();
       let newIndex: number;
 
       if (currentIndex === -1) {
         // No selection - start from beginning or end
-        newIndex = direction === 'down' ? 0 : items.length - 1;
+        newIndex = direction === 'down' ? 0 : navigableItems.length - 1;
       } else {
         newIndex =
           direction === 'down'
-            ? Math.min(currentIndex + 1, items.length - 1)
+            ? Math.min(currentIndex + 1, navigableItems.length - 1)
             : Math.max(currentIndex - 1, 0);
       }
 
-      const item = items[newIndex];
+      const item = navigableItems[newIndex];
       if (item) {
         // Use center of screen for keyboard navigation
         const centerPosition = {
@@ -165,7 +167,7 @@ export function useKeyboardShortcuts(): void {
         selectItem(item.type, item.id, item.sectionId, item.phaseId, centerPosition);
       }
     },
-    [getNavigableItems, getCurrentIndex, selectItem]
+    [navigableItems, getCurrentIndex, selectItem]
   );
 
   // Handle collapse/expand toggle

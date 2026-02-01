@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import type { Phase, Section } from '../../types';
 import { getPhaseColor } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
@@ -37,6 +37,12 @@ export default function PhaseRow({
     timelineWidth
   );
 
+  // Memoize phaseWidth to prevent unnecessary callback/effect re-runs
+  const phaseWidth = useMemo(
+    () => phase.relativeEnd - phase.relativeStart,
+    [phase.relativeEnd, phase.relativeStart]
+  );
+
   // Move drag state
   const isMoving = useRef(false);
   const moveLastX = useRef(0);
@@ -70,8 +76,7 @@ export default function PhaseRow({
       const clickX = e.clientX - rect.left;
       const absolutePosition = getRelativeFromPosition(clickX, timelineWidth);
 
-      // Convert absolute position to phase-relative position
-      const phaseWidth = phase.relativeEnd - phase.relativeStart;
+      // Convert absolute position to phase-relative position (use memoized phaseWidth)
       const relativeInPhase = phaseWidth > 0
         ? (absolutePosition - phase.relativeStart) / phaseWidth
         : 0.5;
@@ -101,7 +106,7 @@ export default function PhaseRow({
         selectItem('element', newElement.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
       }
     },
-    [section.id, phase.id, phase.relativeStart, phase.relativeEnd, phase.elements.length, timelineWidth, project.startDate, project.endDate, addElement, selectItem]
+    [section.id, phase.id, phase.relativeStart, phaseWidth, phase.elements.length, timelineWidth, project.startDate, project.endDate, addElement, selectItem]
   );
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
@@ -186,19 +191,18 @@ export default function PhaseRow({
       }
 
       const deltaRelative = deltaX / timelineWidth;
-      const barWidth = phase.relativeEnd - phase.relativeStart;
 
       let newStart = phase.relativeStart + deltaRelative;
       let newEnd = phase.relativeEnd + deltaRelative;
 
-      // Clamp to bounds
+      // Clamp to bounds (use memoized phaseWidth)
       if (newStart < 0) {
         newStart = 0;
-        newEnd = barWidth;
+        newEnd = phaseWidth;
       }
       if (newEnd > 1) {
         newEnd = 1;
-        newStart = 1 - barWidth;
+        newStart = 1 - phaseWidth;
       }
 
       updatePhasePosition(section.id, phase.id, newStart, newEnd);
@@ -218,7 +222,7 @@ export default function PhaseRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, phase.id, phase.relativeStart, phase.relativeEnd, timelineWidth, updatePhasePosition, setDragging]);
+  }, [section.id, phase.id, phase.relativeStart, phase.relativeEnd, phaseWidth, timelineWidth, updatePhasePosition, setDragging]);
 
   // Handle keyboard interaction on the label row
   const handleKeyDown = useCallback(
@@ -238,8 +242,8 @@ export default function PhaseRow({
       <div role="group" aria-label={`${phase.name} phase`}>
         {/* Phase label */}
         <div
-          className={`flex items-center gap-2 ${isIDTimeline ? 'px-3' : 'pl-6 pr-3'} border-b border-[#e5e7eb]/50 cursor-pointer row-selectable focus-ring ${
-            isSelected ? 'selected bg-blue-50' : ''
+          className={`flex items-center gap-2 ${isIDTimeline ? 'px-3' : 'pl-6 pr-3'} border-b border-[var(--color-border)]/25 cursor-pointer row-selectable focus-ring ${
+            isSelected ? 'selected' : ''
           }`}
           style={{ height: ROW_HEIGHT }}
           onClick={handleClick}
@@ -251,7 +255,7 @@ export default function PhaseRow({
         >
           <button
             onClick={handleToggleCollapse}
-            className="w-4 h-4 flex items-center justify-center text-[#9ca3af] hover:text-[#6b7280] focus-ring rounded-md transition-colors duration-150"
+            className="w-4 h-4 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded-md transition-colors duration-150"
             aria-expanded={!phase.isCollapsed}
             aria-label={`${phase.isCollapsed ? 'Expand' : 'Collapse'} ${phase.name}`}
           >
@@ -277,7 +281,7 @@ export default function PhaseRow({
               aria-hidden="true"
             />
           )}
-          <span className={`text-sm ${isIDTimeline ? 'font-medium' : ''} text-[#111827] truncate flex-1`}>
+          <span className={`text-sm ${isIDTimeline ? 'font-medium' : ''} text-[var(--color-text-primary)] truncate flex-1`}>
             {phase.name}
           </span>
           {!isIDTimeline && <AddItemButton onClick={handleAddElement} label="Add element" />}
@@ -308,12 +312,12 @@ export default function PhaseRow({
       {/* Phase bar row - double-click bubbles up to create phases */}
       <div
         ref={phaseRowRef}
-        className="relative border-b border-[#e5e7eb]/50 overflow-visible"
+        className="relative border-b border-[var(--color-border)]/25 overflow-visible"
         style={{ height: ROW_HEIGHT }}
       >
         <div
           className={`absolute top-2 bottom-2 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group overflow-visible ${
-            isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+            isSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''
           }`}
           style={{
             left,

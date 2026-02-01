@@ -1,13 +1,19 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 
 export function LeftSidebar() {
-  const { projects, activeProjectId, selectProject, deleteProject, saveCurrentProject, updateProjectIndex, updateProject } =
-    useProjectStore();
-  const { sections, loadSectionsForProject } = useSectionStore();
-  const { isLeftSidebarOpen, toggleLeftSidebar, closeModal, openProjectSetupModal, openProjectEditModal } = useUIStore();
+  // Use selective store subscriptions to prevent unnecessary re-renders
+  const projects = useProjectStore((state) => state.projects);
+  const activeProjectId = useProjectStore((state) => state.activeProjectId);
+  const { selectProject, deleteProject, saveCurrentProject, updateProjectIndex, updateProject } = useProjectStore();
+
+  const sections = useSectionStore((state) => state.sections);
+  const loadSectionsForProject = useSectionStore((state) => state.loadSectionsForProject);
+
+  const isLeftSidebarOpen = useUIStore((state) => state.isLeftSidebarOpen);
+  const { toggleLeftSidebar, closeModal, openProjectSetupModal, openProjectEditModal } = useUIStore();
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -137,20 +143,24 @@ export function LeftSidebar() {
     openProjectEditModal(projectId);
   }, [activeProjectId, sections, saveCurrentProject, closeModal, selectProject, loadSectionsForProject, openProjectEditModal]);
 
-  // Sort projects by most recently updated
-  const sortedProjects = [...projects].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  // Sort projects by most recently updated - memoize to avoid recalculating on every render
+  const sortedProjects = useMemo(
+    () =>
+      [...projects].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      ),
+    [projects]
   );
 
   if (!isLeftSidebarOpen) {
     return (
       <button
         onClick={toggleLeftSidebar}
-        className="flex-shrink-0 w-10 h-full border-r border-[#e5e7eb] bg-[#fafafa] flex items-start justify-center pt-4 hover:bg-[#f3f4f6] transition-colors duration-150"
+        className="flex-shrink-0 w-10 h-full border-r border-[var(--color-border)] bg-[var(--color-background)] flex items-start justify-center pt-4 hover:bg-[var(--color-hover)] transition-colors duration-150"
         aria-label="Open sidebar"
       >
         <svg
-          className="w-4 h-4 text-[#6b7280]"
+          className="w-4 h-4 text-[var(--color-text-secondary)]"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -162,13 +172,13 @@ export function LeftSidebar() {
   }
 
   return (
-    <aside className="flex-shrink-0 w-56 border-r border-[#e5e7eb] bg-[#fafafa] flex flex-col">
+    <aside className="flex-shrink-0 w-56 border-r border-[var(--color-border)] bg-[var(--color-background)] flex flex-col">
       {/* Header with collapse button */}
-      <div className="flex items-center justify-between p-3 border-b border-[#e5e7eb]">
-        <h2 className="text-sm font-medium text-[#111827]">Projects</h2>
+      <div className="flex items-center justify-between p-3 border-b border-[var(--color-border)]">
+        <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Projects</h2>
         <button
           onClick={toggleLeftSidebar}
-          className="p-1 text-[#9ca3af] hover:text-[#6b7280] hover:bg-[#e5e7eb] rounded-md transition-colors duration-150"
+          className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-active)] rounded-md transition-colors duration-150"
           aria-label="Collapse sidebar"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -186,14 +196,14 @@ export function LeftSidebar() {
               onClick={() => handleSelectProject(proj.id)}
               className={`group flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors duration-150 ${
                 proj.id === activeProjectId
-                  ? 'bg-[#e5e7eb] text-[#111827]'
-                  : 'text-[#4b5563] hover:bg-[#f3f4f6] hover:text-[#111827]'
+                  ? 'bg-[var(--color-active)] text-[var(--color-text-primary)]'
+                  : 'text-[#4b5563] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]'
               }`}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <svg
                   className={`w-4 h-4 flex-shrink-0 ${
-                    proj.id === activeProjectId ? 'text-[#6b7280]' : 'text-[#9ca3af]'
+                    proj.id === activeProjectId ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-muted)]'
                   }`}
                   fill="none"
                   stroke="currentColor"
@@ -215,7 +225,7 @@ export function LeftSidebar() {
                     onBlur={handleSaveEdit}
                     onKeyDown={handleEditKeyDown}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sm bg-white border border-[#d1d5db] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-[#6b7280] min-w-0 flex-1"
+                    className="text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)] min-w-0 flex-1"
                   />
                 ) : (
                   <span
@@ -229,7 +239,7 @@ export function LeftSidebar() {
               <div className="relative" ref={menuOpenProjectId === proj.id ? menuRef : undefined}>
                 <button
                   onClick={(e) => handleToggleMenu(proj.id, e)}
-                  className={`p-1 text-[#9ca3af] hover:text-[#6b7280] rounded transition-all duration-150 ${
+                  className={`p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-all duration-150 ${
                     menuOpenProjectId === proj.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                   }`}
                   aria-label="Project options"
@@ -243,7 +253,7 @@ export function LeftSidebar() {
 
                 {/* Dropdown menu */}
                 {menuOpenProjectId === proj.id && (
-                  <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-[#e5e7eb] rounded-lg shadow-lg py-1 z-10">
+                  <div className="absolute right-0 top-full mt-1 w-36 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 z-10">
                     <button
                       onClick={(e) => handleEditProject(proj.id, e)}
                       className="w-full px-3 py-1.5 text-left text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors duration-150"
@@ -270,12 +280,12 @@ export function LeftSidebar() {
       </div>
 
       {/* Add project button */}
-      <div className="border-t border-[#e5e7eb] p-2">
+      <div className="p-3 flex justify-center">
         <button
           onClick={handleNewProject}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-[#6b7280] hover:text-[#111827] hover:bg-[#f3f4f6] rounded-md transition-colors duration-150"
+          className="flex items-center gap-2 px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] glass-bordered rounded-md transition-colors duration-150"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           <span>New Project</span>

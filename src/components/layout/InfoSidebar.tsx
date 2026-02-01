@@ -76,7 +76,7 @@ function StatusItemRow({ item, showDate, isPhaseLevel }: StatusItemRowProps) {
       <div className="min-w-0 flex-1">
         <div className="text-sm text-[#374151]">{item.name}</div>
         {showDate && item.date && (
-          <div className="text-xs text-[#9ca3af]">{format(item.date, 'MMM d')}</div>
+          <div className="text-xs text-[var(--color-text-muted)]">{format(item.date, 'MMM d')}</div>
         )}
       </div>
     </div>
@@ -101,9 +101,9 @@ function PhaseGroup({ phaseName, color, items, showDate }: PhaseGroupProps) {
           className="w-2 h-2 rounded-full flex-shrink-0"
           style={{ backgroundColor: color }}
         />
-        <span className="text-sm text-[#111827]">{phaseName}</span>
+        <span className="text-sm text-[var(--color-text-primary)]">{phaseName}</span>
         {isPhaseLevel && showDate && items[0].date && (
-          <span className="text-xs text-[#9ca3af]">{format(items[0].date, 'MMM d')}</span>
+          <span className="text-xs text-[var(--color-text-muted)]">{format(items[0].date, 'MMM d')}</span>
         )}
       </div>
       {!isPhaseLevel && (
@@ -126,7 +126,7 @@ interface SectionGroupProps {
 function SectionGroup({ sectionName, phases, showDate }: SectionGroupProps) {
   return (
     <div className="mb-3">
-      <div className="text-xs font-medium text-[#6b7280] mb-1">{sectionName}</div>
+      <div className="text-xs font-medium text-[var(--color-text-secondary)] mb-1">{sectionName}</div>
       <div className="space-y-0.5">
         {phases.map((phase) => (
           <PhaseGroup
@@ -154,10 +154,10 @@ function MilestoneRow({ item }: MilestoneRowProps) {
         style={{ backgroundColor: item.color }}
       />
       <div className="min-w-0 flex-1">
-        <div className="text-sm text-[#111827]">{item.name}</div>
+        <div className="text-sm text-[var(--color-text-primary)]">{item.name}</div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[#6b7280]">{item.sectionName}</span>
-          <span className="text-xs text-[#9ca3af]">{format(item.date, 'MMM d')}</span>
+          <span className="text-xs text-[var(--color-text-secondary)]">{item.sectionName}</span>
+          <span className="text-xs text-[var(--color-text-muted)]">{format(item.date, 'MMM d')}</span>
         </div>
       </div>
     </div>
@@ -170,7 +170,7 @@ interface SectionHeaderProps {
 
 function SectionHeader({ title }: SectionHeaderProps) {
   return (
-    <div className="mb-3 pb-1.5 border-b border-[#e5e7eb]">
+    <div className="mb-3 pb-1.5 border-b border-[var(--color-border)]">
       <h3 className="text-sm font-semibold text-[#374151]">{title}</h3>
     </div>
   );
@@ -221,11 +221,11 @@ export function InfoSidebar() {
     return (
       <button
         onClick={toggleInfoSidebar}
-        className="flex-shrink-0 w-10 h-full border-l border-[#e5e7eb] bg-[#fafafa] flex items-start justify-center pt-4 hover:bg-[#f3f4f6] transition-colors duration-150"
+        className="flex-shrink-0 w-10 h-full border-l border-[var(--color-border)] bg-[var(--color-background)] flex items-start justify-center pt-4 hover:bg-[var(--color-hover)] transition-colors duration-150"
         aria-label="Open status sidebar"
       >
         <svg
-          className="w-4 h-4 text-[#6b7280]"
+          className="w-4 h-4 text-[var(--color-text-secondary)]"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -240,24 +240,24 @@ export function InfoSidebar() {
 
   return (
     <aside
-      className="flex-shrink-0 border-l border-[#e5e7eb] bg-[#fafafa] flex flex-col relative"
+      className="flex-shrink-0 border-l border-[var(--color-border)] bg-[var(--color-background)] flex flex-col relative"
       style={{ width: infoSidebarWidth }}
     >
       {/* Resize handle */}
       <div
         className={`absolute top-0 -left-0.5 w-1 h-full cursor-col-resize z-10 transition-colors ${
-          isResizing ? 'bg-blue-500' : 'hover:bg-blue-400'
+          isResizing ? 'bg-[var(--color-focus)]' : 'hover:bg-[var(--color-focus)]/70'
         }`}
         onMouseDown={handleResizeMouseDown}
         aria-label="Resize status sidebar"
         role="separator"
       />
       {/* Header with collapse button */}
-      <div className="flex items-center justify-between p-3 border-b border-[#e5e7eb]">
-        <h2 className="text-sm font-medium text-[#111827]">Status</h2>
+      <div className="flex items-center justify-between p-3 border-b border-[var(--color-border)]">
+        <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Status</h2>
         <button
           onClick={toggleInfoSidebar}
-          className="p-1 text-[#9ca3af] hover:text-[#6b7280] hover:bg-[#e5e7eb] rounded-md transition-colors duration-150"
+          className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-active)] rounded-md transition-colors duration-150"
           aria-label="Collapse sidebar"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -269,7 +269,7 @@ export function InfoSidebar() {
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-3">
         {!hasContent ? (
-          <div className="text-sm text-[#9ca3af] text-center py-4">
+          <div className="text-sm text-[var(--color-text-muted)] text-center py-4">
             No active items
           </div>
         ) : (

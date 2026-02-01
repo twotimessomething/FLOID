@@ -83,13 +83,13 @@ function TemplateCard({ template, onSelect }: TemplateCardProps): JSX.Element {
   return (
     <button
       onClick={handleClick}
-      className="flex flex-col items-start p-4 rounded-lg border border-[#e5e7eb] bg-white hover:border-[#9ca3af] hover:shadow-sm transition-all duration-150 text-left focus-ring btn-press"
+      className="flex flex-col items-start p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-muted)] hover:shadow-sm transition-all duration-150 text-left focus-ring btn-press"
     >
-      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#f3f4f6] text-[#6b7280] mb-3">
+      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--color-hover)] text-[var(--color-text-secondary)] mb-3">
         <TemplateIcon icon={template.icon} />
       </div>
-      <h3 className="text-sm font-medium text-[#111827] mb-1">{template.name}</h3>
-      <p className="text-xs text-[#6b7280] leading-relaxed">{template.description}</p>
+      <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-1">{template.name}</h3>
+      <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{template.description}</p>
     </button>
   );
 }
@@ -154,12 +154,12 @@ export function AddTeamModal(): JSX.Element | null {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/20">
-          <h2 className="text-base font-semibold text-[#111827]" id="add-team-title">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="add-team-title">
             Add Team
           </h2>
           <button
             onClick={closeAddTeamModal}
-            className="p-1 text-[#9ca3af] hover:text-[#6b7280] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg
@@ -181,7 +181,7 @@ export function AddTeamModal(): JSX.Element | null {
 
         {/* Body */}
         <div className="p-6">
-          <p className="text-sm text-[#6b7280] mb-4">
+          <p className="text-sm text-[var(--color-text-secondary)] mb-4">
             Choose a template to pre-populate phases and milestones.
           </p>
           <div className="grid grid-cols-2 gap-3">

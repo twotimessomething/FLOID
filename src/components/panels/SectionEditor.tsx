@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, ColorPicker, Button } from '../common';
@@ -8,7 +8,10 @@ export function SectionEditor(): JSX.Element {
   const { updateSection, deleteSection } = useSectionStore();
 
   const sectionId = selection.sectionId;
-  const section = useSectionStore(selectSection(sectionId || ''));
+
+  // Memoize selector to prevent recreation on every render
+  const sectionSelector = useMemo(() => selectSection(sectionId || ''), [sectionId]);
+  const section = useSectionStore(sectionSelector);
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,12 +38,12 @@ export function SectionEditor(): JSX.Element {
   }, [sectionId, section, deleteSection, closeModal]);
 
   if (!section) {
-    return <div className="text-sm text-[#6b7280]">Team not found</div>;
+    return <div className="text-sm text-[var(--color-text-secondary)]">Team not found</div>;
   }
 
   // Only team sections can be edited as sections (ID timeline cannot be deleted)
   if (section.type === 'id-timeline') {
-    return <div className="text-sm text-[#6b7280]">The Industrial Design section cannot be edited as a section.</div>;
+    return <div className="text-sm text-[var(--color-text-secondary)]">The Industrial Design section cannot be edited as a section.</div>;
   }
 
   return (
@@ -59,7 +62,7 @@ export function SectionEditor(): JSX.Element {
         onChange={handleColorChange}
       />
 
-      <div className="pt-4 border-t border-[#e5e7eb]">
+      <div className="pt-4 border-t border-[var(--color-border)]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Team
         </Button>

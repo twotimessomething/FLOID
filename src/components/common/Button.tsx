@@ -8,10 +8,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
-  primary: 'bg-[#111827] text-white hover:bg-[#1f2937] active:bg-[#374151]',
-  secondary: 'bg-[#fafafa] text-[#111827] border border-[#e5e7eb] hover:bg-[#f3f4f6] active:bg-[#e5e7eb]',
+  primary: 'bg-[var(--color-text-primary)] text-white hover:bg-[#1f2937] active:bg-[#374151]',
+  secondary: 'bg-[var(--color-background)] text-[var(--color-text-primary)] border border-[var(--color-border)] hover:bg-[var(--color-hover)] active:bg-[var(--color-active)]',
   danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800',
-  ghost: 'text-[#6b7280] hover:text-[#111827] hover:bg-[#fafafa]',
+  ghost: 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-background)]',
 };
 
 const SIZE_STYLES = {
@@ -27,7 +27,7 @@ export function Button({
   children,
   ...props
 }: ButtonProps): JSX.Element {
-  const baseStyles = 'rounded-md font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1';
+  const baseStyles = 'rounded-md font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] focus:ring-offset-1';
   const disabledStyles = disabled ? 'opacity-50 cursor-not-allowed' : '';
 
   return (

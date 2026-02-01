@@ -42,7 +42,7 @@ export function DateInput({
       {label && (
         <label
           htmlFor={inputId}
-          className="text-xs font-medium text-[#6b7280]"
+          className="text-xs font-medium text-[var(--color-text-secondary)]"
         >
           {label}
         </label>
@@ -55,7 +55,7 @@ export function DateInput({
         min={min ? formatForInput(min) : undefined}
         max={max ? formatForInput(max) : undefined}
         disabled={disabled}
-        className="px-2 py-1.5 text-sm border border-[#e5e7eb] rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-[#fafafa] disabled:text-[#9ca3af]"
+        className="px-2 py-1.5 text-sm border border-[var(--color-border)] rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] focus:border-transparent disabled:bg-[var(--color-background)] disabled:text-[var(--color-text-muted)]"
       />
     </div>
   );

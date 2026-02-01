@@ -120,7 +120,7 @@ export function useDragReorder({
       right: 0,
       top: `${top}px`,
       height: '2px',
-      backgroundColor: '#3b82f6',
+      backgroundColor: 'var(--color-focus)',
       zIndex: 50,
       pointerEvents: 'none',
     };

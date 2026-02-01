@@ -13,8 +13,12 @@ export function MilestoneEditor(): JSX.Element {
   const sectionId = selection.sectionId;
   const milestoneId = selection.id;
 
-  const section = useSectionStore(selectSection(sectionId || ''));
-  const milestone = useSectionStore(selectMilestone(sectionId || '', milestoneId || ''));
+  // Memoize selectors to prevent recreation on every render
+  const sectionSelector = useMemo(() => selectSection(sectionId || ''), [sectionId]);
+  const milestoneSelector = useMemo(() => selectMilestone(sectionId || '', milestoneId || ''), [sectionId, milestoneId]);
+
+  const section = useSectionStore(sectionSelector);
+  const milestone = useSectionStore(milestoneSelector);
 
   // Calculate milestone date using project dates (since milestones are project-relative)
   const date = useMemo(() => {
@@ -72,7 +76,7 @@ export function MilestoneEditor(): JSX.Element {
   }, [sectionId, milestoneId, milestone, deleteMilestone, closeModal]);
 
   if (!milestone || !section) {
-    return <div className="text-sm text-[#6b7280]">Milestone not found</div>;
+    return <div className="text-sm text-[var(--color-text-secondary)]">Milestone not found</div>;
   }
 
   // Determine context label
@@ -82,8 +86,8 @@ export function MilestoneEditor(): JSX.Element {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-xs text-[#6b7280]">
-        Milestone in <span className="font-medium text-[#111827]">{contextLabel}</span>
+      <div className="text-xs text-[var(--color-text-secondary)]">
+        Milestone in <span className="font-medium text-[var(--color-text-primary)]">{contextLabel}</span>
       </div>
 
       <Input
@@ -109,7 +113,7 @@ export function MilestoneEditor(): JSX.Element {
         max={projectEndDate}
       />
 
-      <div className="pt-4 border-t border-[#e5e7eb]">
+      <div className="pt-4 border-t border-[var(--color-border)]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Milestone
         </Button>

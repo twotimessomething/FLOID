@@ -13,8 +13,12 @@ export function PhaseEditor(): JSX.Element {
   const sectionId = selection.sectionId;
   const phaseId = selection.id;
 
-  const section = useSectionStore(selectSection(sectionId || ''));
-  const phase = useSectionStore(selectPhase(sectionId || '', phaseId || ''));
+  // Memoize selectors to prevent recreation on every render
+  const sectionSelector = useMemo(() => selectSection(sectionId || ''), [sectionId]);
+  const phaseSelector = useMemo(() => selectPhase(sectionId || '', phaseId || ''), [sectionId, phaseId]);
+
+  const section = useSectionStore(sectionSelector);
+  const phase = useSectionStore(phaseSelector);
 
   const isIDTimeline = section?.type === 'id-timeline';
 
@@ -101,15 +105,15 @@ export function PhaseEditor(): JSX.Element {
   }, [sectionId, phaseId, phase, deletePhase, closeModal]);
 
   if (!phase || !section) {
-    return <div className="text-sm text-[#6b7280]">Phase not found</div>;
+    return <div className="text-sm text-[var(--color-text-secondary)]">Phase not found</div>;
   }
 
   return (
     <div className="flex flex-col gap-4">
       {/* Context label for team phases */}
       {!isIDTimeline && (
-        <div className="text-xs text-[#6b7280]">
-          Part of <span className="font-medium text-[#111827]">{section.name}</span>
+        <div className="text-xs text-[var(--color-text-secondary)]">
+          Part of <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>
         </div>
       )}
 
@@ -154,7 +158,7 @@ export function PhaseEditor(): JSX.Element {
         />
       </div>
 
-      <div className="pt-4 border-t border-[#e5e7eb]">
+      <div className="pt-4 border-t border-[var(--color-border)]">
         <Button variant="danger" onClick={handleDelete} className="w-full">
           Delete Phase
         </Button>

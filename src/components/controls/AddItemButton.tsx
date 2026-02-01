@@ -21,7 +21,7 @@ export default function AddItemButton({
         e.stopPropagation();
         onClick();
       }}
-      className={`${sizeClasses} flex items-center justify-center rounded-md text-[#9ca3af] hover:text-[#6b7280] hover:bg-[#fafafa] add-btn focus-ring`}
+      className={`${sizeClasses} flex items-center justify-center rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-background)] add-btn focus-ring`}
       title={buttonLabel}
       aria-label={buttonLabel}
     >

@@ -36,7 +36,7 @@ export default function ZoomControls() {
       {/* Today button */}
       <button
         onClick={handleToday}
-        className="px-3 py-1.5 text-xs font-medium text-[#6b7280] hover:text-[#111827] hover:bg-black/5 rounded-md glass-bordered transition-colors duration-150"
+        className="px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-black/5 rounded-md glass-bordered transition-colors duration-150"
       >
         Today
       </button>
@@ -47,7 +47,7 @@ export default function ZoomControls() {
         <button
           onClick={handleZoomOut}
           disabled={currentIndex >= ZOOM_LEVELS.length - 1}
-          className="px-2 py-1.5 text-[#6b7280] hover:text-[#111827] hover:bg-black/5 disabled:text-[#9ca3af] disabled:hover:bg-transparent transition-colors duration-150"
+          className="px-2 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-black/5 disabled:text-[var(--color-text-muted)] disabled:hover:bg-transparent transition-colors duration-150"
           aria-label="Zoom out"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,7 +56,7 @@ export default function ZoomControls() {
         </button>
 
         {/* Current zoom level text */}
-        <span className="px-3 py-1.5 text-xs font-medium text-[#111827] border-l border-r border-white/20 min-w-[60px] text-center">
+        <span className="px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] border-l border-r border-white/20 min-w-[60px] text-center">
           {ZOOM_LABELS[zoomLevel]}
         </span>
 
@@ -64,7 +64,7 @@ export default function ZoomControls() {
         <button
           onClick={handleZoomIn}
           disabled={currentIndex <= 0}
-          className="px-2 py-1.5 text-[#6b7280] hover:text-[#111827] hover:bg-black/5 disabled:text-[#9ca3af] disabled:hover:bg-transparent transition-colors duration-150"
+          className="px-2 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-black/5 disabled:text-[var(--color-text-muted)] disabled:hover:bg-transparent transition-colors duration-150"
           aria-label="Zoom in"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

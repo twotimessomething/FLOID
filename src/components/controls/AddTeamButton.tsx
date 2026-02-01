@@ -10,7 +10,7 @@ export default function AddTeamButton(): JSX.Element {
   return (
     <button
       onClick={handleAddTeam}
-      className="flex items-center gap-2 px-3 py-1.5 text-sm text-[#6b7280] hover:text-[#111827] glass-bordered rounded-md transition-colors duration-150"
+      className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] glass-bordered rounded-md transition-colors duration-150"
     >
       <svg
         className="w-4 h-4"

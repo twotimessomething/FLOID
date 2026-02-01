@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import type { Phase, Element, Section } from '../../types';
 import { getPhaseColor } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
@@ -30,8 +30,11 @@ export default function ElementRow({
   const isIDTimeline = section.type === 'id-timeline';
   const isSelected = selection.type === 'element' && selection.id === element.id;
 
-  // Convert element's relative position (within phase) to absolute position
-  const phaseWidth = phase.relativeEnd - phase.relativeStart;
+  // Memoize phaseWidth to prevent unnecessary effect re-runs
+  const phaseWidth = useMemo(
+    () => phase.relativeEnd - phase.relativeStart,
+    [phase.relativeEnd, phase.relativeStart]
+  );
   const absoluteStart = phase.relativeStart + element.relativeStart * phaseWidth;
   const absoluteEnd = phase.relativeStart + element.relativeEnd * phaseWidth;
 
@@ -191,8 +194,8 @@ export default function ElementRow({
   if (isLabel) {
     return (
       <div
-        className={`flex items-center ${isIDTimeline ? 'pl-9' : 'pl-12'} pr-3 border-b border-[#e5e7eb]/30 cursor-pointer row-selectable focus-ring ${
-          isSelected ? 'selected bg-blue-50' : ''
+        className={`flex items-center ${isIDTimeline ? 'pl-9' : 'pl-12'} pr-3 border-b border-[var(--color-border)]/15 cursor-pointer row-selectable focus-ring ${
+          isSelected ? 'selected' : ''
         }`}
         style={{ height: ELEMENT_ROW_HEIGHT }}
         onClick={handleClick}
@@ -202,7 +205,7 @@ export default function ElementRow({
         aria-selected={isSelected}
         aria-label={`${element.name} element${isSelected ? ', selected' : ''}`}
       >
-        <span className="text-sm text-[#6b7280] truncate">{element.name}</span>
+        <span className="text-sm text-[var(--color-text-secondary)] truncate">{element.name}</span>
       </div>
     );
   }
@@ -213,13 +216,13 @@ export default function ElementRow({
 
   return (
     <div
-      className="relative border-b border-[#e5e7eb]/30 overflow-visible"
+      className="relative border-b border-[var(--color-border)]/15 overflow-visible"
       style={{ height: ELEMENT_ROW_HEIGHT }}
       role="listitem"
     >
       <div
         className={`absolute top-1 bottom-1 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group overflow-visible ${
-          isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+          isSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''
         }`}
         style={{
           left,

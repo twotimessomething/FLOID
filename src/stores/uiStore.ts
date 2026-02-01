@@ -34,7 +34,8 @@ interface UIState {
 
   // Playhead (scrubber)
   playheadPosition: number | null;
-  setPlayheadPosition: (position: number | null) => void;
+  playheadY: number | null;
+  setPlayheadPosition: (position: number | null, y?: number | null) => void;
 
   // Editor modal
   isModalOpen: boolean;
@@ -99,7 +100,8 @@ export const useUIStore = create<UIState>((set) => ({
 
   // Playhead
   playheadPosition: null,
-  setPlayheadPosition: (position) => set({ playheadPosition: position }),
+  playheadY: null,
+  setPlayheadPosition: (position, y = null) => set({ playheadPosition: position, playheadY: y }),
 
   // Editor modal
   isModalOpen: false,

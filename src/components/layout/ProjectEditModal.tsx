@@ -215,12 +215,12 @@ export function ProjectEditModal(): JSX.Element | null {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/20">
-          <h2 className="text-base font-semibold text-[#111827]" id="project-edit-title">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="project-edit-title">
             Edit Project
           </h2>
           <button
             onClick={closeProjectEditModal}
-            className="p-1 text-[#9ca3af] hover:text-[#6b7280] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg
@@ -268,7 +268,7 @@ export function ProjectEditModal(): JSX.Element | null {
             </div>
 
             {/* Duration indicator */}
-            <p className="text-xs text-[#9ca3af]">
+            <p className="text-xs text-[var(--color-text-muted)]">
               Project duration:{' '}
               {Math.round(
                 (formData.endDate.getTime() - formData.startDate.getTime()) /
@@ -284,11 +284,11 @@ export function ProjectEditModal(): JSX.Element | null {
                   type="checkbox"
                   checked={scaleTimeline}
                   onChange={handleScaleChange}
-                  className="mt-0.5 w-4 h-4 text-[#6b7280] border-[#d1d5db] rounded focus:ring-[#6b7280] focus:ring-offset-0 cursor-pointer"
+                  className="mt-0.5 w-4 h-4 text-[var(--color-text-secondary)] border-[var(--color-border)] rounded focus:ring-[var(--color-text-secondary)] focus:ring-offset-0 cursor-pointer"
                 />
                 <div>
                   <span className="text-sm text-[#374151]">Scale timeline to new dates</span>
-                  <p className="text-xs text-[#9ca3af] mt-0.5">
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
                     {scaleTimeline
                       ? 'Timeline items will stretch or shrink to fit the new duration'
                       : 'Timeline items will keep their original dates (items outside the new range will be clamped)'}
@@ -299,7 +299,7 @@ export function ProjectEditModal(): JSX.Element | null {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[#e5e7eb]">
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--color-border)]">
             <Button type="button" variant="secondary" onClick={closeProjectEditModal}>
               Cancel
             </Button>

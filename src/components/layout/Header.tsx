@@ -3,9 +3,30 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { downloadJson, parseImportedJson } from '../../utils/exportUtils';
 
+// Hoist static logo SVG outside component to avoid recreation on each render
+// Logo uses brand colors defined as CSS variables: --color-logo-primary, --color-logo-bar-1/2/3
+const FloidLogo = (
+  <svg
+    className="w-10 h-10"
+    viewBox="0 0 64 64"
+    fill="none"
+    aria-hidden="true"
+  >
+    <circle cx="32" cy="32" r="30" fill="var(--color-logo-primary)" />
+    <rect x="14" y="20" width="36" height="6" rx="2" fill="var(--color-logo-bar-1)" />
+    <rect x="14" y="29" width="28" height="6" rx="2" fill="var(--color-logo-bar-2)" />
+    <rect x="14" y="38" width="32" height="6" rx="2" fill="var(--color-logo-bar-3)" />
+  </svg>
+);
+
 export default function Header() {
-  const { project, setProject, updateProject, saveCurrentProject, updateProjectIndex, activeProjectId } = useProjectStore();
-  const { sections, setSections } = useSectionStore();
+  // Use selective store subscriptions to prevent unnecessary re-renders
+  const project = useProjectStore((state) => state.project);
+  const activeProjectId = useProjectStore((state) => state.activeProjectId);
+  const { setProject, updateProject, saveCurrentProject, updateProjectIndex } = useProjectStore();
+
+  const sections = useSectionStore((state) => state.sections);
+  const setSections = useSectionStore((state) => state.setSections);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(project.name);
@@ -77,24 +98,14 @@ export default function Header() {
   };
 
   return (
-    <header className="h-14 border-b border-[#e5e7eb] px-4 flex items-center justify-between bg-white flex-shrink-0">
+    <header className="h-14 border-b border-[var(--color-border)] px-4 flex items-center justify-between bg-[var(--color-surface)] flex-shrink-0">
       <div className="flex items-center gap-3">
         {/* Logo - circular mark with staggered timeline bars */}
-        <svg
-          className="w-10 h-10"
-          viewBox="0 0 64 64"
-          fill="none"
-          aria-hidden="true"
-        >
-          <circle cx="32" cy="32" r="30" fill="#6366F1" />
-          <rect x="14" y="20" width="36" height="6" rx="2" fill="#A5B4FC" />
-          <rect x="14" y="29" width="28" height="6" rx="2" fill="#C4B5FD" />
-          <rect x="14" y="38" width="32" height="6" rx="2" fill="#F9A8D4" />
-        </svg>
+        {FloidLogo}
         {/* Wordmark */}
-        <span className="text-[25px] font-semibold text-[#111827]">FLOID</span>
+        <span className="text-[25px] font-semibold text-[var(--color-text-primary)]">FLOID</span>
         {/* Project name */}
-        <span className="text-[#9ca3af] mx-2">|</span>
+        <span className="text-[var(--color-text-muted)] mx-2">|</span>
         {isEditingName ? (
           <input
             ref={inputRef}
@@ -103,12 +114,12 @@ export default function Header() {
             onChange={(e) => setEditedName(e.target.value)}
             onBlur={handleNameSave}
             onKeyDown={handleNameKeyDown}
-            className="text-sm text-[#111827] bg-transparent border-b border-[#6b7280] outline-none px-1 py-0.5 min-w-[100px]"
+            className="text-sm text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-text-secondary)] outline-none px-1 py-0.5 min-w-[100px]"
           />
         ) : (
           <span
             onDoubleClick={handleNameDoubleClick}
-            className="text-sm text-[#6b7280] hover:text-[#111827] cursor-pointer"
+            className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] cursor-pointer"
             title="Double-click to edit"
           >
             {project.name}
@@ -119,13 +130,13 @@ export default function Header() {
       <div className="flex items-center gap-4">
         <button
           onClick={handleImport}
-          className="text-sm text-[#6b7280] hover:text-[#111827] transition-colors duration-150"
+          className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
         >
           Import
         </button>
         <button
           onClick={handleExport}
-          className="text-sm text-[#6b7280] hover:text-[#111827] transition-colors duration-150"
+          className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
         >
           Export
         </button>

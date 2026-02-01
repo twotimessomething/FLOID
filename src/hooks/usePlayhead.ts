@@ -33,6 +33,17 @@ export function usePlayhead({
     [containerRef, timelineWidth]
   );
 
+  const getYPosition = useCallback(
+    (clientY: number): number => {
+      if (!containerRef.current) return 0;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const scrollTop = containerRef.current.scrollTop;
+      return clientY - rect.top + scrollTop;
+    },
+    [containerRef]
+  );
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       // Only respond to left mouse button
@@ -40,10 +51,11 @@ export function usePlayhead({
 
       isActiveRef.current = true;
       const position = getRelativePosition(e.clientX);
-      setPlayheadPosition(position);
+      const y = getYPosition(e.clientY);
+      setPlayheadPosition(position, y);
       document.body.classList.add('no-select');
     },
-    [getRelativePosition, setPlayheadPosition]
+    [getRelativePosition, getYPosition, setPlayheadPosition]
   );
 
   useEffect(() => {
@@ -51,14 +63,15 @@ export function usePlayhead({
       if (!isActiveRef.current) return;
 
       const position = getRelativePosition(e.clientX);
-      setPlayheadPosition(position);
+      const y = getYPosition(e.clientY);
+      setPlayheadPosition(position, y);
     };
 
     const handleMouseUp = () => {
       if (!isActiveRef.current) return;
 
       isActiveRef.current = false;
-      setPlayheadPosition(null);
+      setPlayheadPosition(null, null);
       document.body.classList.remove('no-select');
     };
 
@@ -69,7 +82,7 @@ export function usePlayhead({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [getRelativePosition, setPlayheadPosition]);
+  }, [getRelativePosition, getYPosition, setPlayheadPosition]);
 
   return {
     isActive: isActiveRef.current,
