@@ -123,7 +123,7 @@ export function ProjectSetupModal(): JSX.Element | null {
       aria-labelledby="project-setup-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
 
       {/* Modal */}
       <div

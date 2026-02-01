@@ -182,7 +182,7 @@ export default function MilestoneMarker({
 
       {/* Always visible title - below the marker */}
       <div
-        className="absolute top-full left-1/2 -translate-x-1/2 -mt-2 px-2 py-0.5 bg-white/70 backdrop-blur-sm text-[#111827] text-xs rounded-md whitespace-nowrap pointer-events-none border border-white/50"
+        className="absolute top-full left-1/2 -translate-x-1/2 -mt-2 px-2 py-0.5 bg-white/70 backdrop-blur-[2px] text-[#111827] text-xs rounded-md whitespace-nowrap pointer-events-none border border-white/50"
         role="tooltip"
       >
         {milestone.name}

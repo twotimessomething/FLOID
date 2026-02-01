@@ -145,7 +145,7 @@ export function AddTeamModal(): JSX.Element | null {
       aria-labelledby="add-team-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
 
       {/* Modal */}
       <div

@@ -183,10 +183,9 @@ export default function Timeline() {
       }
     });
 
-    // Add button row
-    if (teams.length > 0 || idTimeline) {
-      height += ROW_HEIGHT;
-    }
+    // Bottom spacer row
+    height += ROW_HEIGHT;
+
     return Math.max(height, 200);
   }, [idTimeline, teams]);
 
@@ -259,10 +258,13 @@ export default function Timeline() {
               )}
             </div>
 
-            {/* Add Team button */}
-            <div className="px-2 py-1 border-t border-[#e5e7eb]">
-              <AddTeamButton />
-            </div>
+            {/* Spacer row to keep last item accessible above floating button */}
+            <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
+          </div>
+
+          {/* Add Team button - fixed at bottom of labels column */}
+          <div className="absolute bottom-3 left-3 z-10">
+            <AddTeamButton />
           </div>
         </nav>
 
@@ -308,6 +310,9 @@ export default function Timeline() {
                   isDragging={dragState.isDragging && dragState.dragIndex === index}
                 />
               ))}
+
+              {/* Spacer row to match labels column */}
+              <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
             </div>
           </div>
         </div>

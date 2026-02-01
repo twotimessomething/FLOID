@@ -206,7 +206,7 @@ export function ProjectEditModal(): JSX.Element | null {
       aria-labelledby="project-edit-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
 
       {/* Modal */}
       <div
