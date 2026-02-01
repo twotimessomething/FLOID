@@ -1,6 +1,7 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
+import { useProjectStore } from '../../stores/projectStore';
 import { SCHEDULE_TEMPLATES, createSectionFromTemplate } from '../../data/scheduleTemplates';
 import type { ScheduleTemplate } from '../../data/scheduleTemplates';
 
@@ -112,6 +113,15 @@ export function AddScheduleModal(): JSX.Element | null {
   const { isAddScheduleModalOpen, closeAddScheduleModal } = useUIStore();
   const sections = useSectionStore((state) => state.sections);
   const setSections = useSectionStore((state) => state.setSections);
+  const project = useProjectStore((state) => state.project);
+
+  // Get master section's date range to use for new sections
+  const masterDateRange = useMemo(() => {
+    if (!project?.masterSectionId) return undefined;
+    const masterSection = sections.find((s) => s.id === project.masterSectionId);
+    if (!masterSection) return undefined;
+    return { startDate: masterSection.startDate, endDate: masterSection.endDate };
+  }, [project?.masterSectionId, sections]);
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
@@ -125,11 +135,14 @@ export function AddScheduleModal(): JSX.Element | null {
   const handleSelectTemplate = useCallback(
     (template: ScheduleTemplate) => {
       // Use sections.length to determine order (new section goes at the end)
-      const newSection = createSectionFromTemplate(template, sections.length);
+      // Use master section's date range so new section aligns with project
+      const newSection = createSectionFromTemplate(template, sections.length, {
+        dateRange: masterDateRange,
+      });
       setSections([...sections, newSection]);
       closeAddScheduleModal();
     },
-    [sections, setSections, closeAddScheduleModal]
+    [sections, setSections, closeAddScheduleModal, masterDateRange]
   );
 
   // Close on escape key

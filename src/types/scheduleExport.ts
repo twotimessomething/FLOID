@@ -27,7 +27,6 @@ export interface ScheduleExportData {
     templateId?: string;
     revision: number;
     lastModifiedAt: string;
-    bindingMode: 'locked' | 'independent';
     color: string;
   };
 
@@ -93,7 +92,6 @@ export interface ProjectExportData {
     name: string;
     type: 'schedule';
     templateId?: string;
-    bindingMode: 'locked' | 'independent';
     revision: number;
     lastModifiedAt: string;
     sourceProjectId?: string;

@@ -3,11 +3,10 @@ import { useSectionStore, selectSection } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, ColorPicker, Button, MasterBadge, DateInput } from '../common';
-import { isDateSynced, formatDate } from '../../utils/dateUtils';
 
 export function SectionEditor(): JSX.Element {
   const { selection, closeModal } = useUIStore();
-  const { updateSection, updateSectionDates, deleteSection, setAsMaster, setBindingMode } = useSectionStore();
+  const { updateSection, updateSectionDates, deleteSection, setAsMaster } = useSectionStore();
 
   const sectionId = selection.sectionId;
 
@@ -17,7 +16,6 @@ export function SectionEditor(): JSX.Element {
   const project = useProjectStore((state) => state.project);
 
   const isMasterSection = section?.id === project?.masterSectionId;
-  const isSyncedWithMaster = section && project ? isDateSynced(section, project) : false;
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,34 +67,12 @@ export function SectionEditor(): JSX.Element {
     }
   }, [sectionId, section, setAsMaster]);
 
-  const handleBindingModeChange = useCallback(
-    (mode: 'locked' | 'independent') => {
-      if (!sectionId) return;
-
-      if (mode === 'locked') {
-        const confirmed = confirm(
-          'Lock this schedule to the master?\n\nThe schedule dates will sync to the master timeline. Phase positions will be preserved.'
-        );
-        if (!confirmed) return;
-      }
-
-      setBindingMode(sectionId, mode);
-    },
-    [sectionId, setBindingMode]
-  );
-
   if (!section) {
     return <div className="text-sm text-[var(--color-text-secondary)]">Schedule not found</div>;
   }
 
   // Master section view
   if (isMasterSection) {
-    // Count how many locked sections will be affected by date changes
-    const sections = useSectionStore.getState().sections;
-    const lockedSectionsCount = sections.filter(
-      (s) => s.id !== section.id && s.bindingMode === 'locked'
-    ).length;
-
     return (
       <div className="flex flex-col gap-4">
         {/* Master status indicator */}
@@ -138,11 +114,6 @@ export function SectionEditor(): JSX.Element {
               />
             </div>
           </div>
-          {lockedSectionsCount > 0 && (
-            <p className="text-xs text-amber-700">
-              Changing dates will sync {lockedSectionsCount} locked schedule{lockedSectionsCount !== 1 ? 's' : ''}
-            </p>
-          )}
         </div>
 
         <div className="text-xs text-[var(--color-text-muted)]">
@@ -169,88 +140,27 @@ export function SectionEditor(): JSX.Element {
         onChange={handleColorChange}
       />
 
-      {/* Binding mode toggle */}
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-[var(--color-text-primary)]">
-          Date Binding
-        </label>
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleBindingModeChange('independent')}
-            className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
-              section.bindingMode === 'independent'
-                ? 'bg-[var(--color-text-primary)] text-white border-[var(--color-text-primary)]'
-                : 'bg-[var(--color-background)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
-            }`}
-          >
-            Independent
-          </button>
-          <button
-            onClick={() => handleBindingModeChange('locked')}
-            className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
-              section.bindingMode === 'locked'
-                ? 'bg-[var(--color-text-primary)] text-white border-[var(--color-text-primary)]'
-                : 'bg-[var(--color-background)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-text-muted)]'
-            }`}
-          >
-            Locked to Master
-          </button>
+      {/* Date inputs */}
+      <div className="flex flex-col gap-3">
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <DateInput
+              label="Start Date"
+              value={section.startDate}
+              onChange={handleStartDateChange}
+              max={section.endDate}
+            />
+          </div>
+          <div className="flex-1">
+            <DateInput
+              label="End Date"
+              value={section.endDate}
+              onChange={handleEndDateChange}
+              min={section.startDate}
+            />
+          </div>
         </div>
       </div>
-
-      {/* Date inputs - different display based on binding mode */}
-      {section.bindingMode === 'locked' ? (
-        <div className="flex flex-col gap-2 p-3 bg-[var(--color-locked-bg)] border border-[var(--color-locked-border)] rounded-lg">
-          <div className="flex items-center gap-2 text-sm text-[var(--color-locked-text)]">
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
-            <span className="font-medium">Synced with Master</span>
-          </div>
-          <div className="text-xs text-[var(--color-text-muted)]">
-            {formatDate(section.startDate, 'MMM d, yyyy')} — {formatDate(section.endDate, 'MMM d, yyyy')}
-          </div>
-          <p className="text-xs text-[var(--color-text-muted)] mt-1">
-            Dates automatically sync when the master schedule changes
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <DateInput
-                label="Start Date"
-                value={section.startDate}
-                onChange={handleStartDateChange}
-                max={section.endDate}
-              />
-            </div>
-            <div className="flex-1">
-              <DateInput
-                label="End Date"
-                value={section.endDate}
-                onChange={handleEndDateChange}
-                min={section.startDate}
-              />
-            </div>
-          </div>
-          {!isSyncedWithMaster && (
-            <p className="text-xs text-[var(--color-text-muted)]">
-              Dates differ from the master schedule
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Pin as Master button */}
       <div className="pt-2">

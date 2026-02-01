@@ -170,9 +170,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dateRange: { startDate: startDateStr, endDate: endDateStr },
     });
 
-    // Master section is always locked to itself
-    masterSection.bindingMode = 'locked';
-
     const now = new Date();
     const newProject: Project = {
       id: Math.random().toString(36).substring(2, 11),

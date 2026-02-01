@@ -132,7 +132,6 @@ export function createSectionFromTemplate(
     type: 'schedule',
     name: options?.nameOverride ?? template.name,
     templateId: template.id,
-    bindingMode: 'independent',
     revision: 1,
     lastModifiedAt: now,
     color: options?.colorOverride ?? (sectionIndex === 0 ? template.defaultColor : getScheduleColor(sectionIndex - 1)),

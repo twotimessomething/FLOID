@@ -14,7 +14,7 @@ import {
   max as dateMax,
   getDay,
 } from 'date-fns';
-import type { ZoomLevel, Section, ViewportBounds, Phase, Project } from '../types';
+import type { ZoomLevel, Section, ViewportBounds, Phase } from '../types';
 
 export const parseDate = (dateString: string): Date => {
   return parseISO(dateString);
@@ -315,20 +315,6 @@ export const findNearestPhaseBoundary = (
   return nearestBoundary;
 };
 
-// =============================================================================
-// Binding Mode Helpers
-// =============================================================================
-
-/**
- * Check if a section's dates match the project dates (i.e., are synced with master).
- */
-export const isDateSynced = (section: Section, project: Project): boolean => {
-  return (
-    section.startDate === project.projectStartDate &&
-    section.endDate === project.projectEndDate
-  );
-};
-
 /**
  * Clamp a value between min and max.
  */
@@ -419,4 +405,66 @@ export const rescaleMilestones = <T extends { relativePosition: number }>(
       relativePosition: newRelativePosition,
     };
   });
+};
+
+/**
+ * Calculate the content bounds (min/max relative positions) of all phases and milestones in a section.
+ * Returns { minRelative, maxRelative } where both are in [0, 1].
+ * Returns null if section has no content.
+ */
+export const getContentBounds = (
+  phases: readonly Phase[],
+  milestones: readonly { relativePosition: number }[]
+): { minRelative: number; maxRelative: number } | null => {
+  const positions: number[] = [];
+
+  // Collect phase bounds
+  for (const phase of phases) {
+    positions.push(phase.relativeStart, phase.relativeEnd);
+  }
+
+  // Collect milestone positions
+  for (const milestone of milestones) {
+    positions.push(milestone.relativePosition);
+  }
+
+  if (positions.length === 0) {
+    return null;
+  }
+
+  return {
+    minRelative: Math.min(...positions),
+    maxRelative: Math.max(...positions),
+  };
+};
+
+/**
+ * Rescale positions to fill the 0-1 range based on current content bounds.
+ * Used when contracting a section to fit its content.
+ */
+export const normalizePositions = <T extends { relativePosition: number }>(
+  phases: readonly Phase[],
+  milestones: readonly T[],
+  minRelative: number,
+  maxRelative: number
+): { phases: Phase[]; milestones: T[] } => {
+  const range = maxRelative - minRelative;
+  if (range <= 0) {
+    return { phases: phases as Phase[], milestones: milestones as T[] };
+  }
+
+  const normalize = (value: number): number => (value - minRelative) / range;
+
+  const normalizedPhases = phases.map((phase) => ({
+    ...phase,
+    relativeStart: normalize(phase.relativeStart),
+    relativeEnd: normalize(phase.relativeEnd),
+  }));
+
+  const normalizedMilestones = milestones.map((milestone) => ({
+    ...milestone,
+    relativePosition: normalize(milestone.relativePosition),
+  }));
+
+  return { phases: normalizedPhases, milestones: normalizedMilestones };
 };

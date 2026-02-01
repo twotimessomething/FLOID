@@ -165,7 +165,6 @@ export function useScheduleImport(): UseScheduleImportReturn {
         type: 'schedule',
         name: scheduleName,
         templateId: data.schedule.templateId,
-        bindingMode: rescaleToMaster ? 'locked' : 'independent',
         revision: data.schedule.revision,
         lastModifiedAt: now,
         sourceProjectId: data.sourceProjectId,
@@ -209,7 +208,6 @@ export function useScheduleImport(): UseScheduleImportReturn {
           ? {
               ...s,
               color: data.schedule.color,
-              bindingMode: rescaleToMaster ? 'locked' as const : s.bindingMode,
               revision: data.schedule.revision,
               lastModifiedAt: now,
               phases: newPhases,

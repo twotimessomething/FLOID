@@ -4,7 +4,6 @@ export interface Section {
   name: string;
   type: 'schedule';             // Unified type - no more 'id-timeline' | 'team' distinction
   templateId?: string;          // Which template this was created from
-  bindingMode: 'locked' | 'independent';
   revision: number;             // Incrementing version for sync
   lastModifiedAt: string;       // ISO timestamp
   sourceProjectId?: string;     // If imported, where it came from
