@@ -110,8 +110,11 @@ export default function MilestoneMarker({
       // Apply smart snapping behaviors
       let finalPosition = milestone.relativePosition;
 
-      // 1. Milestone gravity: snap to nearby phase boundary (within 5%)
-      const nearestBoundary = findNearestPhaseBoundary(finalPosition, section.phases, 0.05);
+      // 1. Milestone gravity: snap to nearby phase boundary
+      // Use a pixel-based threshold (15px) converted to relative units
+      const SNAP_PIXELS = 15;
+      const snapThreshold = sectionViewportWidth > 0 ? SNAP_PIXELS / sectionViewportWidth : 0.02;
+      const nearestBoundary = findNearestPhaseBoundary(finalPosition, section.phases, snapThreshold);
       if (nearestBoundary !== null) {
         finalPosition = nearestBoundary;
       }
