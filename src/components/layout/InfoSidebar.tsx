@@ -74,7 +74,7 @@ function StatusItemRow({ item, showDate, isPhaseLevel }: StatusItemRowProps) {
   return (
     <div className="flex items-start gap-2 py-0.5 pl-4">
       <div className="min-w-0 flex-1">
-        <div className="text-sm text-[#374151]">{item.name}</div>
+        <div className="text-sm text-[var(--color-text-primary)]">{item.name}</div>
         {showDate && item.date && (
           <div className="text-xs text-[var(--color-text-muted)]">{format(item.date, 'MMM d')}</div>
         )}
@@ -171,7 +171,7 @@ interface SectionHeaderProps {
 function SectionHeader({ title }: SectionHeaderProps) {
   return (
     <div className="mb-3 pb-1.5 border-b border-[var(--color-border)]">
-      <h3 className="text-sm font-semibold text-[#374151]">{title}</h3>
+      <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</h3>
     </div>
   );
 }

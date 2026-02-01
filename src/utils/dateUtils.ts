@@ -3,13 +3,18 @@ import {
   format,
   parseISO,
   addDays,
+  addMonths,
+  subMonths,
   eachDayOfInterval,
   eachWeekOfInterval,
   eachMonthOfInterval,
   isToday,
   getQuarter,
+  min as dateMin,
+  max as dateMax,
+  getDay,
 } from 'date-fns';
-import type { ZoomLevel } from '../types';
+import type { ZoomLevel, Section, ViewportBounds, Phase, Project } from '../types';
 
 export const parseDate = (dateString: string): Date => {
   return parseISO(dateString);
@@ -131,4 +136,287 @@ export const isTodayInRange = (start: string, end: string): boolean => {
 export const getTodayPosition = (start: string, end: string): number => {
   const today = new Date();
   return getRelativePositionFromDate(start, end, today);
+};
+
+/**
+ * Computes the unified viewport bounds from all sections.
+ * Returns min(all section starts) - 1 month to max(all section ends) + 1 month.
+ * If no sections provided, defaults to current date ± 6 months.
+ */
+export const computeViewportBounds = (sections: readonly Section[]): ViewportBounds => {
+  if (sections.length === 0) {
+    const today = new Date();
+    const startDate = subMonths(today, 6);
+    const endDate = addMonths(today, 6);
+    return {
+      startDate,
+      endDate,
+      totalDays: differenceInDays(endDate, startDate),
+    };
+  }
+
+  const startDates = sections.map((s) => parseISO(s.startDate));
+  const endDates = sections.map((s) => parseISO(s.endDate));
+
+  const minStart = dateMin(startDates);
+  const maxEnd = dateMax(endDates);
+
+  // Add 1 month padding on each side
+  const startDate = subMonths(minStart, 1);
+  const endDate = addMonths(maxEnd, 1);
+
+  return {
+    startDate,
+    endDate,
+    totalDays: differenceInDays(endDate, startDate),
+  };
+};
+
+/**
+ * Convert a section-relative position (0-1 within section) to a viewport-relative position (0-1 within viewport).
+ */
+export const sectionToViewportRelative = (
+  sectionRelativePosition: number,
+  section: Section,
+  viewport: ViewportBounds
+): number => {
+  const sectionStart = parseISO(section.startDate);
+  const sectionEnd = parseISO(section.endDate);
+  const sectionDays = differenceInDays(sectionEnd, sectionStart);
+
+  // Convert section-relative to absolute date
+  const daysFromSectionStart = sectionRelativePosition * sectionDays;
+  const absoluteDate = addDays(sectionStart, daysFromSectionStart);
+
+  // Convert absolute date to viewport-relative
+  const daysFromViewportStart = differenceInDays(absoluteDate, viewport.startDate);
+  return viewport.totalDays > 0 ? daysFromViewportStart / viewport.totalDays : 0;
+};
+
+/**
+ * Convert a viewport-relative position (0-1 within viewport) to a section-relative position (0-1 within section).
+ */
+export const viewportToSectionRelative = (
+  viewportRelativePosition: number,
+  section: Section,
+  viewport: ViewportBounds
+): number => {
+  // Convert viewport-relative to absolute date
+  const daysFromViewportStart = viewportRelativePosition * viewport.totalDays;
+  const absoluteDate = addDays(viewport.startDate, daysFromViewportStart);
+
+  // Convert absolute date to section-relative
+  const sectionStart = parseISO(section.startDate);
+  const sectionEnd = parseISO(section.endDate);
+  const sectionDays = differenceInDays(sectionEnd, sectionStart);
+  const daysFromSectionStart = differenceInDays(absoluteDate, sectionStart);
+
+  return sectionDays > 0 ? daysFromSectionStart / sectionDays : 0;
+};
+
+/**
+ * Get the viewport-relative position for today's date.
+ */
+export const getTodayViewportPosition = (viewport: ViewportBounds): number => {
+  const today = new Date();
+  const daysFromStart = differenceInDays(today, viewport.startDate);
+  return viewport.totalDays > 0 ? daysFromStart / viewport.totalDays : 0;
+};
+
+/**
+ * Check if today is within the viewport bounds.
+ */
+export const isTodayInViewport = (viewport: ViewportBounds): boolean => {
+  const today = new Date();
+  return today >= viewport.startDate && today <= viewport.endDate;
+};
+
+// =============================================================================
+// Smart Weekend Snapping
+// =============================================================================
+
+/**
+ * Check if a date falls on a weekend (Saturday or Sunday).
+ */
+export const isWeekend = (date: Date): boolean => {
+  const day = getDay(date);
+  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+};
+
+/**
+ * Snap a date to the next business day if it falls on a weekend.
+ * Saturday → Monday, Sunday → Monday.
+ */
+export const snapToNextBusinessDay = (date: Date): Date => {
+  const day = getDay(date);
+  if (day === 6) return addDays(date, 2); // Saturday → Monday
+  if (day === 0) return addDays(date, 1); // Sunday → Monday
+  return date;
+};
+
+/**
+ * Snap a date to the previous business day if it falls on a weekend.
+ * Saturday → Friday, Sunday → Friday.
+ */
+export const snapToPreviousBusinessDay = (date: Date): Date => {
+  const day = getDay(date);
+  if (day === 6) return addDays(date, -1); // Saturday → Friday
+  if (day === 0) return addDays(date, -2); // Sunday → Friday
+  return date;
+};
+
+/**
+ * Snap a section-relative position to the next business day if it lands on a weekend.
+ * Returns the original position if no snap is needed.
+ */
+export const snapRelativeToBusinessDay = (
+  relativePosition: number,
+  sectionStart: string,
+  sectionEnd: string
+): number => {
+  const date = getDateFromRelativePosition(sectionStart, sectionEnd, relativePosition);
+  const snapped = snapToNextBusinessDay(date);
+  if (date.getTime() === snapped.getTime()) return relativePosition;
+  return getRelativePositionFromDate(sectionStart, sectionEnd, snapped);
+};
+
+// =============================================================================
+// Intelligent Milestone Gravity
+// =============================================================================
+
+/**
+ * Find the nearest phase boundary within a threshold distance.
+ * Returns the boundary position if found, null otherwise.
+ */
+export const findNearestPhaseBoundary = (
+  relativePosition: number,
+  phases: readonly Phase[],
+  threshold: number = 0.05
+): number | null => {
+  let nearestBoundary: number | null = null;
+  let nearestDistance = threshold;
+
+  for (const phase of phases) {
+    // Check start boundary
+    const startDistance = Math.abs(relativePosition - phase.relativeStart);
+    if (startDistance < nearestDistance) {
+      nearestDistance = startDistance;
+      nearestBoundary = phase.relativeStart;
+    }
+
+    // Check end boundary
+    const endDistance = Math.abs(relativePosition - phase.relativeEnd);
+    if (endDistance < nearestDistance) {
+      nearestDistance = endDistance;
+      nearestBoundary = phase.relativeEnd;
+    }
+  }
+
+  return nearestBoundary;
+};
+
+// =============================================================================
+// Binding Mode Helpers
+// =============================================================================
+
+/**
+ * Check if a section's dates match the project dates (i.e., are synced with master).
+ */
+export const isDateSynced = (section: Section, project: Project): boolean => {
+  return (
+    section.startDate === project.projectStartDate &&
+    section.endDate === project.projectEndDate
+  );
+};
+
+/**
+ * Clamp a value between min and max.
+ */
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.max(min, Math.min(max, value));
+};
+
+/**
+ * Rescale phases when date range changes.
+ * Converts absolute dates to new relative positions within the target range.
+ * Preserves the visual appearance of the schedule when dates change.
+ */
+export const rescalePhases = (
+  phases: readonly Phase[],
+  oldStartDate: string,
+  oldEndDate: string,
+  newStartDate: string,
+  newEndDate: string
+): Phase[] => {
+  const oldStart = parseISO(oldStartDate);
+  const oldEnd = parseISO(oldEndDate);
+  const newStart = parseISO(newStartDate);
+  const newEnd = parseISO(newEndDate);
+
+  const oldDays = differenceInDays(oldEnd, oldStart);
+  const newDays = differenceInDays(newEnd, newStart);
+
+  if (oldDays <= 0 || newDays <= 0) {
+    return phases as Phase[];
+  }
+
+  return phases.map((phase) => {
+    // Convert relative positions to absolute dates
+    const phaseStartDate = addDays(oldStart, Math.round(phase.relativeStart * oldDays));
+    const phaseEndDate = addDays(oldStart, Math.round(phase.relativeEnd * oldDays));
+
+    // Convert absolute dates to new relative positions
+    const newRelativeStart = clamp(differenceInDays(phaseStartDate, newStart) / newDays, 0, 1);
+    const newRelativeEnd = clamp(differenceInDays(phaseEndDate, newStart) / newDays, 0, 1);
+
+    // Rescale elements within the phase
+    const rescaledElements = phase.elements.map((element) => {
+      // Elements are relative to phase bounds - they don't need rescaling
+      // since they stay relative to their parent phase
+      return element;
+    });
+
+    return {
+      ...phase,
+      relativeStart: newRelativeStart,
+      relativeEnd: newRelativeEnd,
+      elements: rescaledElements,
+    };
+  });
+};
+
+/**
+ * Rescale milestones when date range changes.
+ */
+export const rescaleMilestones = <T extends { relativePosition: number }>(
+  milestones: readonly T[],
+  oldStartDate: string,
+  oldEndDate: string,
+  newStartDate: string,
+  newEndDate: string
+): T[] => {
+  const oldStart = parseISO(oldStartDate);
+  const oldEnd = parseISO(oldEndDate);
+  const newStart = parseISO(newStartDate);
+  const newEnd = parseISO(newEndDate);
+
+  const oldDays = differenceInDays(oldEnd, oldStart);
+  const newDays = differenceInDays(newEnd, newStart);
+
+  if (oldDays <= 0 || newDays <= 0) {
+    return milestones as T[];
+  }
+
+  return milestones.map((milestone) => {
+    // Convert relative position to absolute date
+    const absoluteDate = addDays(oldStart, Math.round(milestone.relativePosition * oldDays));
+
+    // Convert absolute date to new relative position
+    const newRelativePosition = clamp(differenceInDays(absoluteDate, newStart) / newDays, 0, 1);
+
+    return {
+      ...milestone,
+      relativePosition: newRelativePosition,
+    };
+  });
 };

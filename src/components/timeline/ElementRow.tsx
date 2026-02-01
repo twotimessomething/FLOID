@@ -1,11 +1,11 @@
 import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
-import type { Phase, Element, Section } from '../../types';
+import type { Phase, Element, Section, ViewportBounds } from '../../types';
 import { getPhaseColor } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { getBarDimensions, ELEMENT_ROW_HEIGHT } from '../../utils/timelineUtils';
-import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
+import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, getDaysBetween, snapRelativeToBusinessDay } from '../../utils/dateUtils';
 import DragHandle from './DragHandle';
 
 interface ElementRowProps {
@@ -14,6 +14,7 @@ interface ElementRowProps {
   readonly section: Section;
   readonly isLabel: boolean;
   readonly timelineWidth: number;
+  readonly viewportBounds: ViewportBounds;
 }
 
 export default function ElementRow({
@@ -22,25 +23,32 @@ export default function ElementRow({
   section,
   isLabel,
   timelineWidth,
+  viewportBounds,
 }: ElementRowProps): JSX.Element {
   const { updateElementPosition } = useSectionStore();
-  const { project } = useProjectStore();
+  const project = useProjectStore((state) => state.project);
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
 
-  const isIDTimeline = section.type === 'id-timeline';
+  const isMasterSection = section.id === project?.masterSectionId;
   const isSelected = selection.type === 'element' && selection.id === element.id;
 
-  // Memoize phaseWidth to prevent unnecessary effect re-runs
+  // Memoize phaseWidth (section-relative) to prevent unnecessary effect re-runs
   const phaseWidth = useMemo(
     () => phase.relativeEnd - phase.relativeStart,
     [phase.relativeEnd, phase.relativeStart]
   );
-  const absoluteStart = phase.relativeStart + element.relativeStart * phaseWidth;
-  const absoluteEnd = phase.relativeStart + element.relativeEnd * phaseWidth;
+
+  // Calculate section-relative absolute position of element
+  const sectionRelativeStart = phase.relativeStart + element.relativeStart * phaseWidth;
+  const sectionRelativeEnd = phase.relativeStart + element.relativeEnd * phaseWidth;
+
+  // Convert section-relative to viewport-relative for rendering
+  const viewportStart = sectionToViewportRelative(sectionRelativeStart, section, viewportBounds);
+  const viewportEnd = sectionToViewportRelative(sectionRelativeEnd, section, viewportBounds);
 
   const { left, width } = getBarDimensions(
-    absoluteStart,
-    absoluteEnd,
+    viewportStart,
+    viewportEnd,
     timelineWidth
   );
 
@@ -75,10 +83,10 @@ export default function ElementRow({
 
   const handleDragStart = (edge: 'start' | 'end', _e?: React.MouseEvent): void => {
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
-    // Calculate absolute position and set drag date
+    // Calculate section-relative position and set drag date using section dates
     const relativeInPhase = edge === 'start' ? element.relativeStart : element.relativeEnd;
-    const absolutePosition = phase.relativeStart + relativeInPhase * phaseWidth;
-    const date = getDateFromRelativePosition(project.startDate, project.endDate, absolutePosition);
+    const sectionPosition = phase.relativeStart + relativeInPhase * phaseWidth;
+    const date = getDateFromRelativePosition(section.startDate, section.endDate, sectionPosition);
     const dateStr = formatDate(date, 'MMM d');
     if (edge === 'start') {
       setStartDragDate(dateStr);
@@ -88,7 +96,12 @@ export default function ElementRow({
   };
 
   const handleDrag = (edge: 'start' | 'end', deltaX: number): void => {
-    const phasePixelWidth = phaseWidth * timelineWidth;
+    // Calculate the pixel width of the phase in viewport coordinates
+    const sectionDays = getDaysBetween(section.startDate, section.endDate);
+    const sectionViewportWidth = viewportBounds.totalDays > 0
+      ? (sectionDays / viewportBounds.totalDays) * timelineWidth
+      : timelineWidth;
+    const phasePixelWidth = phaseWidth * sectionViewportWidth;
     const deltaRelative = phasePixelWidth > 0 ? deltaX / phasePixelWidth : 0;
 
     if (edge === 'start') {
@@ -97,9 +110,9 @@ export default function ElementRow({
         Math.min(element.relativeEnd - 0.02, element.relativeStart + deltaRelative)
       );
       updateElementPosition(section.id, phase.id, element.id, newStart, element.relativeEnd);
-      // Update drag date
-      const absolutePosition = phase.relativeStart + newStart * phaseWidth;
-      const date = getDateFromRelativePosition(project.startDate, project.endDate, absolutePosition);
+      // Update drag date using section dates
+      const sectionPosition = phase.relativeStart + newStart * phaseWidth;
+      const date = getDateFromRelativePosition(section.startDate, section.endDate, sectionPosition);
       setStartDragDate(formatDate(date, 'MMM d'));
     } else {
       const newEnd = Math.max(
@@ -107,9 +120,9 @@ export default function ElementRow({
         Math.min(1, element.relativeEnd + deltaRelative)
       );
       updateElementPosition(section.id, phase.id, element.id, element.relativeStart, newEnd);
-      // Update drag date
-      const absolutePosition = phase.relativeStart + newEnd * phaseWidth;
-      const date = getDateFromRelativePosition(project.startDate, project.endDate, absolutePosition);
+      // Update drag date using section dates
+      const sectionPosition = phase.relativeStart + newEnd * phaseWidth;
+      const date = getDateFromRelativePosition(section.startDate, section.endDate, sectionPosition);
       setEndDragDate(formatDate(date, 'MMM d'));
     }
   };
@@ -123,6 +136,22 @@ export default function ElementRow({
       setStartDragDate(undefined);
     } else {
       setEndDragDate(undefined);
+    }
+
+    // Smart weekend snapping: snap edge to next business day if on weekend
+    // Element positions are relative to phase, so convert to section-relative for snapping
+    const relativeInPhase = edge === 'start' ? element.relativeStart : element.relativeEnd;
+    const sectionPosition = phase.relativeStart + relativeInPhase * phaseWidth;
+    const snappedSectionPosition = snapRelativeToBusinessDay(sectionPosition, section.startDate, section.endDate);
+    if (snappedSectionPosition !== sectionPosition) {
+      // Convert back to phase-relative
+      const snappedPhaseRelative = phaseWidth > 0 ? (snappedSectionPosition - phase.relativeStart) / phaseWidth : relativeInPhase;
+      const clampedSnapped = Math.max(0, Math.min(1, snappedPhaseRelative));
+      if (edge === 'start') {
+        updateElementPosition(section.id, phase.id, element.id, clampedSnapped, element.relativeEnd);
+      } else {
+        updateElementPosition(section.id, phase.id, element.id, element.relativeStart, clampedSnapped);
+      }
     }
   };
 
@@ -138,6 +167,15 @@ export default function ElementRow({
     [setDragging]
   );
 
+  // Calculate the pixel width of the phase in viewport coordinates (memoized for effect)
+  const sectionDays = useMemo(() => getDaysBetween(section.startDate, section.endDate), [section.startDate, section.endDate]);
+  const phasePixelWidth = useMemo(() => {
+    const sectionViewportWidth = viewportBounds.totalDays > 0
+      ? (sectionDays / viewportBounds.totalDays) * timelineWidth
+      : timelineWidth;
+    return phaseWidth * sectionViewportWidth;
+  }, [sectionDays, viewportBounds.totalDays, timelineWidth, phaseWidth]);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isMoving.current) return;
@@ -149,7 +187,6 @@ export default function ElementRow({
         hasDragged.current = true;
       }
 
-      const phasePixelWidth = phaseWidth * timelineWidth;
       const deltaRelative = phasePixelWidth > 0 ? deltaX / phasePixelWidth : 0;
       const barWidth = element.relativeEnd - element.relativeStart;
 
@@ -174,6 +211,26 @@ export default function ElementRow({
       isMoving.current = false;
       setDragging(false);
       document.body.classList.remove('no-select');
+
+      // Smart weekend snapping: snap both edges to next business day if on weekend
+      // Convert element positions to section-relative for snapping
+      const startSectionPosition = phase.relativeStart + element.relativeStart * phaseWidth;
+      const endSectionPosition = phase.relativeStart + element.relativeEnd * phaseWidth;
+      const snappedStartSection = snapRelativeToBusinessDay(startSectionPosition, section.startDate, section.endDate);
+      const snappedEndSection = snapRelativeToBusinessDay(endSectionPosition, section.startDate, section.endDate);
+
+      if (snappedStartSection !== startSectionPosition || snappedEndSection !== endSectionPosition) {
+        // Convert back to phase-relative
+        const snappedStartPhase = phaseWidth > 0 ? (snappedStartSection - phase.relativeStart) / phaseWidth : element.relativeStart;
+        const snappedEndPhase = phaseWidth > 0 ? (snappedEndSection - phase.relativeStart) / phaseWidth : element.relativeEnd;
+        updateElementPosition(
+          section.id,
+          phase.id,
+          element.id,
+          Math.max(0, Math.min(1, snappedStartPhase)),
+          Math.max(0, Math.min(1, snappedEndPhase))
+        );
+      }
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -183,7 +240,7 @@ export default function ElementRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, phase.id, element.id, element.relativeStart, element.relativeEnd, phaseWidth, timelineWidth, updateElementPosition, setDragging]);
+  }, [section.id, phase.id, element.id, element.relativeStart, element.relativeEnd, phasePixelWidth, updateElementPosition, setDragging]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(
@@ -200,7 +257,7 @@ export default function ElementRow({
   if (isLabel) {
     return (
       <div
-        className={`flex items-center ${isIDTimeline ? 'pl-9' : 'pl-12'} pr-3 border-b border-[var(--color-border)]/15 cursor-pointer row-selectable focus-ring ${
+        className={`flex items-center ${isMasterSection ? 'pl-9' : 'pl-12'} pr-3 border-b border-[var(--color-border)]/15 cursor-pointer row-selectable focus-ring ${
           isSelected ? 'selected' : ''
         }`}
         style={{ height: ELEMENT_ROW_HEIGHT }}

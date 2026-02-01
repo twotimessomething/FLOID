@@ -8,7 +8,7 @@ import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../
 export function ElementEditor(): JSX.Element {
   const { selection, closeModal } = useUIStore();
   const { updateElement, updateElementPosition, deleteElement } = useSectionStore();
-  const { project } = useProjectStore();
+  const project = useProjectStore((state) => state.project);
 
   const sectionId = selection.sectionId;
   const phaseId = selection.phaseId;
@@ -23,12 +23,12 @@ export function ElementEditor(): JSX.Element {
   const phase = useSectionStore(phaseSelector);
   const element = useSectionStore(elementSelector);
 
-  const isIDTimeline = section?.type === 'id-timeline';
+  const isMasterSection = section?.id === project?.masterSectionId;
 
   // Calculate absolute dates for the element
   // Elements are positioned relative to their parent phase
   const { startDate, endDate, phaseStartDate, phaseEndDate } = useMemo(() => {
-    if (!element || !phase) {
+    if (!element || !phase || !section) {
       return {
         startDate: new Date(),
         endDate: new Date(),
@@ -37,15 +37,15 @@ export function ElementEditor(): JSX.Element {
       };
     }
 
-    // Get phase dates
+    // Get phase dates using section date range
     const pStart = getDateFromRelativePosition(
-      project.startDate,
-      project.endDate,
+      section.startDate,
+      section.endDate,
       phase.relativeStart
     );
     const pEnd = getDateFromRelativePosition(
-      project.startDate,
-      project.endDate,
+      section.startDate,
+      section.endDate,
       phase.relativeEnd
     );
 
@@ -67,7 +67,7 @@ export function ElementEditor(): JSX.Element {
       phaseStartDate: pStart,
       phaseEndDate: pEnd,
     };
-  }, [element, phase, project.startDate, project.endDate]);
+  }, [element, phase, section]);
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,7 +131,7 @@ export function ElementEditor(): JSX.Element {
     <div className="flex flex-col gap-4">
       <div className="text-xs text-[var(--color-text-secondary)]">
         Part of <span className="font-medium text-[var(--color-text-primary)]">{phase.name}</span>
-        {!isIDTimeline && (
+        {!isMasterSection && (
           <>
             {' in '}
             <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>

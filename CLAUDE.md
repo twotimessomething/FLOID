@@ -1,202 +1,243 @@
-# FLOID - Project Guide
+# FLOID
 
-## Project Overview
+A timeline scheduling tool for industrial designers.
 
-FLOID is a web-based scheduling tool for industrial designers. It maps the standard product development process onto project timelines with drag-to-resize functionality and multi-team scheduling support.
+## Brand
 
-**Design Philosophy:** Less is more. Simple, clean UX. No unnecessary information.
+**FLOID** — Fluid timelines for product development.
 
-### Core Concepts
+**Design Philosophy:** Less is more. Simple, clean UX. No unnecessary information. Every interaction should feel natural and immediate.
 
-| Term | Definition |
-|------|------------|
-| Phase | Top-level timeline section within the Industrial Design schedule |
-| Element | Sub-item within a phase (has duration) |
-| Milestone | Single-point marker on the timeline (no duration) |
-| Team | Additional schedule track (e.g., Engineering, Marketing) |
-| Relative Position | 0-1 value representing position within parent bounds |
-| Playhead | DAW-style scrubber for timeline navigation |
+**Styling:** Use CSS variables defined in `index.css` for colors, spacing, and other design tokens. Prefer CSS vars over hardcoded Tailwind values to maintain visual consistency.
 
-### Tech Stack
-- React 18 + TypeScript
-- Vite (build tool)
+## Tech Stack
+
+- React 18 + TypeScript (strict mode)
+- Vite
 - Zustand (state management)
-- TailwindCSS (styling)
-- date-fns (date utilities)
+- TailwindCSS
+- date-fns
+
+## Commands
+
+```bash
+npm run dev       # Start dev server (localhost:3000)
+npm run build     # Production build
+npm run preview   # Preview production build
+npm run lint      # ESLint
+npm run format    # Prettier
+npm run typecheck # TypeScript check
+```
+
+## Core Concepts
+
+| Term | Description |
+|------|-------------|
+| Section | A schedule track on the timeline. Projects have multiple sections. |
+| Master Schedule | The section that drives project dates. Locked sections sync to it. |
+| Binding Mode | `locked` (syncs with master) or `independent` (own dates). |
+| Phase | Top-level timeline block within a section. Has duration. |
+| Element | Sub-item within a phase. Has duration. |
+| Milestone | Single-point marker. No duration. |
+| Relative Position | 0-1 value within parent bounds. Absolute dates computed at render. |
+| Revision | Counter incremented on section modification. Used for import conflicts. |
+
+## Architecture
+
+### State (Zustand)
+
+Three stores, one per domain:
+
+- `projectStore` — Project metadata, master section ID
+- `sectionStore` — Sections, phases, elements, milestones
+- `uiStore` — Selection, zoom, collapse, modals
+
+### Key Patterns
+
+**Relative positioning:** All items store 0-1 positions. Enables cascading on resize.
+
+**Single selection:** One item selected at a time. Opens sidebar editor.
+
+**Master schedule:** One section designated master via `project.masterSectionId`. Drives project date range. Cannot be deleted.
+
+**Binding modes:** Locked sections rescale when master changes. Independent sections maintain own dates.
+
+**Export formats:**
+- `.floid` — Single schedule for sharing
+- `.floid-project` — Full project backup
 
 ---
 
 ## Code Guidelines
 
-### TypeScript Standards
+### TypeScript
 
-**Strict mode is mandatory.** No `any` types except when interfacing with external libraries that require it.
+Strict mode. No `any` types.
 
-```
-// tsconfig.json enforces:
-// - strict: true
-// - noImplicitAny: true
-// - strictNullChecks: true
-```
-
-**Use `interface` for object shapes, `type` for unions/intersections:**
 ```typescript
-// Object shapes → interface
+// interface for objects
 interface Phase {
   id: string;
   name: string;
 }
 
-// Unions, intersections, primitives → type
-type SelectionType = 'phase' | 'element' | 'milestone' | 'team';
-type PhaseWithElements = Phase & { elements: Element[] };
+// type for unions
+type SelectionType = 'phase' | 'element' | 'milestone' | 'section';
 ```
 
-**Always define return types for functions that aren't immediately obvious:**
-```typescript
-// Explicit return type
-function calculatePosition(date: Date, range: TimeRange): number { ... }
+Explicit return types for non-trivial functions. Use `readonly` for immutable data.
 
-// Implicit OK for simple callbacks
-const handleClick = () => setOpen(true);
-```
+### Components
 
-**Use `readonly` for props and immutable data:**
-```typescript
-interface Props {
-  readonly items: readonly Phase[];
-  readonly onSelect: (id: string) => void;
-}
-```
+Functional components only. Named exports only. One component per file.
 
-### Component Patterns
-
-**Functional components only.** No class components.
-
-**One component per file.** The filename must match the component name exactly.
-
-**Props interface naming:** `{ComponentName}Props`
 ```typescript
 interface PhaseRowProps {
-  phase: Phase;
-  isSelected: boolean;
-  onSelect: () => void;
+  readonly phase: Phase;
+  readonly isSelected: boolean;
+  readonly onSelect: () => void;
 }
 
-export function PhaseRow({ phase, isSelected, onSelect }: PhaseRowProps) { ... }
+export function PhaseRow({ phase, isSelected, onSelect }: PhaseRowProps) {
+  // ...
+}
 ```
 
-**Use named exports, not default exports:**
+Extract logic over ~20 lines to custom hooks.
+
+### Performance
+
+**Eliminate waterfalls.** Parallelize independent async operations:
+
 ```typescript
+// Wrong - sequential
+const user = await getUser();
+const posts = await getPosts();
+
+// Correct - parallel
+const [user, posts] = await Promise.all([getUser(), getPosts()]);
+```
+
+**Minimize re-renders.** Use granular selectors:
+
+```typescript
+// Wrong - re-renders on any store change
+const { phases, zoom, selection } = useSectionStore();
+
+// Correct - only re-renders when phases change
+const phases = useSectionStore(state => state.phases);
+```
+
+**Memoize expensive work:**
+
+```typescript
+const sortedPhases = useMemo(
+  () => phases.toSorted((a, b) => a.order - b.order),
+  [phases]
+);
+```
+
+**Stable callbacks for child components:**
+
+```typescript
+const handleSelect = useCallback((id: string) => {
+  selectPhase(id);
+}, [selectPhase]);
+```
+
+**Avoid inline object/array creation in JSX:**
+
+```typescript
+// Wrong - new array every render
+<List items={items.filter(i => i.active)} />
+
 // Correct
-export function PhaseRow() { ... }
+const activeItems = useMemo(() => items.filter(i => i.active), [items]);
+<List items={activeItems} />
+```
 
+**Hoist default non-primitive props:**
+
+```typescript
+// Wrong - new object every render
+function Component({ config = {} }) { ... }
+
+// Correct
+const DEFAULT_CONFIG = {};
+function Component({ config = DEFAULT_CONFIG }) { ... }
+```
+
+**Derive state during render, not in effects:**
+
+```typescript
 // Wrong
-export default function PhaseRow() { ... }
+const [isValid, setIsValid] = useState(false);
+useEffect(() => {
+  setIsValid(value.length > 0);
+}, [value]);
+
+// Correct
+const isValid = value.length > 0;
 ```
 
-**Extract complex logic into custom hooks.** If a component has more than ~20 lines of logic before the return statement, extract to a hook.
+**Use functional setState for stable callbacks:**
 
-**Colocate small helper components.** If a sub-component is only used by one parent and is under 30 lines, keep it in the same file. Otherwise, extract to its own file.
-
-### State Management (Zustand)
-
-**One store per domain:**
-- `projectStore` - Project metadata
-- `timelineStore` - Phases, elements, milestones
-- `teamStore` - Team schedules
-- `uiStore` - UI state (selection, zoom, collapse)
-
-**Store file structure:**
 ```typescript
-interface StoreState {
-  // State
-  items: Item[];
+// Wrong - needs count in deps
+const increment = useCallback(() => setCount(count + 1), [count]);
 
-  // Actions
-  addItem: (item: Item) => void;
-  removeItem: (id: string) => void;
-}
-
-export const useItemStore = create<StoreState>((set, get) => ({
-  items: [],
-
-  addItem: (item) => set((state) => ({
-    items: [...state.items, item]
-  })),
-
-  removeItem: (id) => set((state) => ({
-    items: state.items.filter(i => i.id !== id)
-  })),
-}));
+// Correct - no external deps
+const increment = useCallback(() => setCount(c => c + 1), []);
 ```
 
-**Use selectors to prevent unnecessary re-renders:**
+**Move interaction logic to event handlers, not effects:**
+
 ```typescript
-// In store
-export const selectPhaseById = (id: string) => (state: StoreState) =>
-  state.phases.find(p => p.id === id);
+// Wrong
+useEffect(() => {
+  if (submitted) saveData();
+}, [submitted]);
 
-// In component
-const phase = useTimelineStore(selectPhaseById(phaseId));
+// Correct
+const handleSubmit = () => {
+  setSubmitted(true);
+  saveData();
+};
 ```
 
-**Never mutate state directly.** Always use spread operators or array methods that return new arrays.
+### Bundle Size
 
-### File Organization
+**Direct imports, no barrel files:**
 
-**Group by feature, not file type** for complex features. Keep related files together:
-```
-components/
-  timeline/
-    Timeline.tsx
-    TimelineHeader.tsx
-    PhaseRow.tsx
-    index.ts          # Re-exports all
+```typescript
+// Wrong
+import { Button } from '@/components';
+
+// Correct
+import { Button } from '@/components/common/Button';
 ```
 
-**Every directory with multiple files must have an `index.ts`** that re-exports public items.
+**Dynamic imports for heavy components:**
 
-**Import order (enforced):**
-1. React imports
-2. External library imports
-3. Internal absolute imports (@components, @stores, etc.)
-4. Relative imports
-5. Type imports (using `import type`)
+```typescript
+const HeavyChart = dynamic(() => import('./HeavyChart'), {
+  loading: () => <Skeleton />
+});
+```
 
-### Naming Conventions
+### Styling
 
-| Item | Convention | Example |
-|------|------------|---------|
-| Components | PascalCase | `PhaseRow.tsx` |
-| Hooks | camelCase, prefix `use` | `useDragResize.ts` |
-| Utilities | camelCase | `dateUtils.ts` |
-| Constants | SCREAMING_SNAKE_CASE | `MIN_PHASE_DURATION` |
-| Types/Interfaces | PascalCase | `interface Phase` |
-| Store hooks | camelCase, prefix `use` | `useTimelineStore` |
-| Event handlers | camelCase, prefix `handle` | `handleClick` |
-| Booleans | camelCase, prefix `is/has/can/should` | `isCollapsed`, `hasChildren` |
-| CSS classes | kebab-case (Tailwind) | `bg-gray-100` |
+Tailwind classes only. Inline styles only for computed values:
 
-### Styling (TailwindCSS)
-
-**Tailwind classes only.** No inline styles except for computed values (positions, dimensions).
-
-**Computed styles use style prop:**
 ```typescript
 <div
-  className="absolute top-0 bg-blue-500"
+  className="absolute top-0 bg-blue-500 rounded"
   style={{ left: `${position}px`, width: `${width}px` }}
 />
 ```
 
-**Extract repeated class combinations to constants:**
-```typescript
-const BUTTON_BASE = 'px-4 py-2 rounded font-medium transition-colors';
-const BUTTON_PRIMARY = `${BUTTON_BASE} bg-blue-600 text-white hover:bg-blue-700`;
-```
+Use Tailwind tokens. Avoid arbitrary values:
 
-**Use Tailwind's design tokens.** Don't use arbitrary values unless absolutely necessary:
 ```typescript
 // Prefer
 className="p-4 text-gray-600"
@@ -205,101 +246,39 @@ className="p-4 text-gray-600"
 className="p-[17px] text-[#666]"
 ```
 
-### Performance
+### Naming
 
-**Memoize expensive computations:**
-```typescript
-const sortedPhases = useMemo(
-  () => phases.sort((a, b) => a.order - b.order),
-  [phases]
-);
+| Item | Convention | Example |
+|------|------------|---------|
+| Components | PascalCase | `PhaseRow.tsx` |
+| Hooks | `use` prefix | `useDragResize.ts` |
+| Constants | SCREAMING_SNAKE | `MIN_PHASE_DURATION` |
+| Booleans | `is/has/can/should` | `isCollapsed` |
+| Handlers | `handle` prefix | `handleClick` |
+
+### File Organization
+
+Group by feature. Every directory has `index.ts` with re-exports.
+
+```
+components/
+  timeline/
+    Timeline.tsx
+    PhaseRow.tsx
+    index.ts
 ```
 
-**Use `useCallback` for handlers passed to child components:**
-```typescript
-const handleSelect = useCallback((id: string) => {
-  selectPhase(id);
-}, [selectPhase]);
-```
-
-**Avoid creating objects/arrays in render:**
-```typescript
-// Wrong - creates new array every render
-<Component items={items.filter(i => i.active)} />
-
-// Correct - memoize the filtered result
-const activeItems = useMemo(() => items.filter(i => i.active), [items]);
-<Component items={activeItems} />
-```
-
-**Split store selectors to minimize re-renders.** Select only the specific state needed:
-```typescript
-// Wrong - re-renders on any store change
-const { phases, zoom, selection } = useTimelineStore();
-
-// Correct - only re-renders when phases change
-const phases = useTimelineStore(state => state.phases);
-```
+Import order: React → external → internal → relative → types.
 
 ### Error Handling
 
-**Use early returns for guard clauses:**
+Early returns for guards. Handle loading/error states explicitly.
+
 ```typescript
 function getPhase(id: string): Phase | null {
   if (!id) return null;
-
-  const phase = phases.find(p => p.id === id);
-  if (!phase) return null;
-
-  return phase;
+  return phases.find(p => p.id === id) ?? null;
 }
-```
-
-**Handle loading and error states explicitly:**
-```typescript
-if (loading) return <LoadingSpinner />;
-if (error) return <ErrorMessage error={error} />;
-return <Content data={data} />;
-```
-
-**Log errors in development, fail gracefully in production:**
-```typescript
-try {
-  const data = parseData(input);
-} catch (error) {
-  if (import.meta.env.DEV) {
-    console.error('Parse failed:', error);
-  }
-  return fallbackValue;
-}
-```
-
----
-
-## Key Architecture Decisions
-
-Document significant patterns and decisions here as they are established.
-
-### Relative Positioning System
-All timeline items store position as relative values (0-1) within their parent. This enables automatic cascading when parents are resized. Absolute dates are computed at render time.
-
-### Selection Model
-Single selection only. Selecting any item (phase, element, milestone, team) opens the sidebar editor. Selection state lives in `uiStore`.
-
-### Collapse State
-Collapse state is UI-only (not persisted with project data). Lives in `uiStore` as a Set of collapsed IDs.
-
----
-
-## Commands
-
-```bash
-npm run dev      # Start dev server (http://localhost:3000)
-npm run build    # Production build to dist/
-npm run preview  # Preview production build
-npm run lint     # Run ESLint
-npm run format   # Run Prettier
-npm run typecheck # Run TypeScript compiler check
 ```
 
 ---
@@ -308,112 +287,19 @@ npm run typecheck # Run TypeScript compiler check
 
 ```
 src/
-├── main.tsx                 # App entry point
-├── App.tsx                  # Root component, layout
-├── index.css                # Tailwind imports, global styles
-│
+├── main.tsx
+├── App.tsx
+├── index.css
 ├── components/
-│   ├── layout/              # App shell components
-│   │   ├── Header.tsx
-│   │   ├── EditorSidebar.tsx
-│   │   ├── TimelineContainer.tsx
-│   │   └── index.ts
-│   │
-│   ├── timeline/            # Timeline-specific components
-│   │   ├── Timeline.tsx
-│   │   ├── TimelineHeader.tsx
-│   │   ├── TimelineGrid.tsx
-│   │   ├── PhaseRow.tsx
-│   │   ├── ElementRow.tsx
-│   │   ├── MilestoneMarker.tsx
-│   │   ├── TeamSection.tsx
-│   │   ├── DragHandle.tsx
-│   │   ├── Playhead.tsx
-│   │   ├── CurrentDayLine.tsx
-│   │   └── index.ts
-│   │
-│   ├── panels/              # Sidebar editor panels
-│   │   ├── PhaseEditor.tsx
-│   │   ├── ElementEditor.tsx
-│   │   ├── MilestoneEditor.tsx
-│   │   ├── TeamEditor.tsx
-│   │   └── index.ts
-│   │
-│   ├── controls/            # Interactive controls
-│   │   ├── ZoomControls.tsx
-│   │   ├── AddTeamButton.tsx
-│   │   ├── AddItemButton.tsx
-│   │   └── index.ts
-│   │
-│   └── common/              # Shared UI components
-│       ├── Button.tsx
-│       ├── Input.tsx
-│       ├── DateInput.tsx
-│       └── index.ts
-│
-├── stores/                  # Zustand stores
-│   ├── projectStore.ts
-│   ├── timelineStore.ts
-│   ├── teamStore.ts
-│   ├── uiStore.ts
-│   └── index.ts
-│
-├── hooks/                   # Custom React hooks
-│   ├── useDragResize.ts
-│   ├── useDragReorder.ts
-│   ├── usePlayhead.ts
-│   ├── useAutoSave.ts
-│   └── index.ts
-│
-├── types/                   # TypeScript type definitions
-│   ├── project.ts
-│   ├── timeline.ts
-│   ├── team.ts
-│   └── index.ts
-│
-├── utils/                   # Pure utility functions
-│   ├── dateUtils.ts
-│   ├── timelineUtils.ts
-│   ├── storageUtils.ts
-│   ├── exportUtils.ts
-│   └── index.ts
-│
-├── constants/               # App constants
-│   ├── designProcess.ts
-│   ├── colors.ts
-│   ├── layout.ts
-│   └── index.ts
-│
-└── data/                    # Static data, templates
-    └── defaultTemplate.ts
-```
-
----
-
-## Quick Reference
-
-### Path Aliases
-```typescript
-import { PhaseRow } from '@components/timeline';
-import { useTimelineStore } from '@stores';
-import { formatDate } from '@utils';
-import type { Phase } from '@types';
-```
-
-### Common Patterns
-
-**Selecting store state:**
-```typescript
-const phases = useTimelineStore(state => state.phases);
-const { addPhase, removePhase } = useTimelineStore();
-```
-
-**Conditional classes:**
-```typescript
-className={`base-class ${isActive ? 'active-class' : ''}`}
-```
-
-**Event handler with data:**
-```typescript
-onClick={() => handleSelect(item.id)}
+│   ├── layout/          # Header, sidebars, modals
+│   ├── timeline/        # Timeline, rows, markers
+│   ├── panels/          # Editor panels
+│   ├── controls/        # Zoom, add buttons
+│   └── common/          # Button, Input, etc.
+├── stores/              # Zustand stores
+├── hooks/               # Custom hooks
+├── types/               # TypeScript types
+├── utils/               # Pure utilities
+├── constants/           # App constants
+└── data/                # Templates, defaults
 ```

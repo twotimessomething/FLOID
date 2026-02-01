@@ -1,11 +1,18 @@
 import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
-import type { Phase, Section } from '../../types';
+import type { Phase, Section, ViewportBounds } from '../../types';
 import { getPhaseColor } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { getBarDimensions, ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
-import { getDateFromRelativePosition, formatDate, getDaysBetween } from '../../utils/dateUtils';
+import {
+  getDateFromRelativePosition,
+  formatDate,
+  getDaysBetween,
+  sectionToViewportRelative,
+  viewportToSectionRelative,
+  snapRelativeToBusinessDay,
+} from '../../utils/dateUtils';
 import ElementRow from './ElementRow';
 import DragHandle from './DragHandle';
 import { AddItemButton } from '../controls';
@@ -15,6 +22,7 @@ interface PhaseRowProps {
   readonly section: Section;
   readonly isLabel: boolean;
   readonly timelineWidth: number;
+  readonly viewportBounds: ViewportBounds;
 }
 
 export default function PhaseRow({
@@ -22,18 +30,24 @@ export default function PhaseRow({
   section,
   isLabel,
   timelineWidth,
+  viewportBounds,
 }: PhaseRowProps): JSX.Element {
-  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, addElement } = useSectionStore();
-  const { project } = useProjectStore();
+  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, addElement, clearExpansion } = useSectionStore();
+  const lastExpansion = useSectionStore((state) => state.lastExpansion);
+  const project = useProjectStore((state) => state.project);
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
   const phaseRowRef = useRef<HTMLDivElement>(null);
 
-  const isIDTimeline = section.type === 'id-timeline';
+  const isMasterSection = section.id === project?.masterSectionId;
   const effectiveColor = getPhaseColor(phase, section);
   const isSelected = selection.type === 'phase' && selection.id === phase.id;
+
+  // Convert section-relative positions to viewport-relative for rendering
+  const viewportStart = sectionToViewportRelative(phase.relativeStart, section, viewportBounds);
+  const viewportEnd = sectionToViewportRelative(phase.relativeEnd, section, viewportBounds);
   const { left, width } = getBarDimensions(
-    phase.relativeStart,
-    phase.relativeEnd,
+    viewportStart,
+    viewportEnd,
     timelineWidth
   );
 
@@ -55,6 +69,21 @@ export default function PhaseRow({
   // Drag date bubble state
   const [startDragDate, setStartDragDate] = useState<string | undefined>(undefined);
   const [endDragDate, setEndDragDate] = useState<string | undefined>(undefined);
+
+  // Helper to compensate scroll when expansion happens during drag
+  const compensateExpansionScroll = useCallback(() => {
+    const expansion = useSectionStore.getState().lastExpansion;
+    if (!expansion || expansion.sectionId !== section.id) return;
+
+    const scrollContainer = document.querySelector('.timeline-scroll-container') as HTMLElement | null;
+    if (scrollContainer && expansion.expansionStartDays > 0) {
+      // When expanding left, content shifts right - compensate by scrolling right
+      const scrollDelta = (expansion.expansionStartDays / expansion.newTotalDays) * timelineWidth;
+      scrollContainer.scrollLeft += scrollDelta;
+    }
+
+    clearExpansion();
+  }, [section.id, timelineWidth, clearExpansion]);
 
   const handleClick = useCallback((e: React.MouseEvent): void => {
     // Don't trigger selection if we just finished dragging
@@ -84,16 +113,19 @@ export default function PhaseRow({
       // Calculate position relative to the phase
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const absolutePosition = getRelativeFromPosition(clickX, timelineWidth);
+      // Convert viewport pixel position to viewport-relative
+      const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
+      // Convert viewport-relative to section-relative
+      const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
 
-      // Convert absolute position to phase-relative position (use memoized phaseWidth)
+      // Convert section-relative to phase-relative position
       const relativeInPhase = phaseWidth > 0
-        ? (absolutePosition - phase.relativeStart) / phaseWidth
+        ? (sectionRelative - phase.relativeStart) / phaseWidth
         : 0.5;
 
       // Create an element centered at the click position with reasonable width
-      const totalDays = getDaysBetween(project.startDate, project.endDate);
-      const sevenDaysRelative = totalDays > 0 ? (7 / totalDays) / phaseWidth : 0.15;
+      const sectionDays = getDaysBetween(section.startDate, section.endDate);
+      const sevenDaysRelative = sectionDays > 0 ? (7 / sectionDays) / phaseWidth : 0.15;
       const halfWidth = sevenDaysRelative / 2;
       const relativeStart = Math.max(0, Math.min(1 - sevenDaysRelative, relativeInPhase - halfWidth));
       const relativeEnd = Math.min(1, relativeStart + sevenDaysRelative);
@@ -116,7 +148,7 @@ export default function PhaseRow({
         selectItem('element', newElement.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
       }
     },
-    [section.id, phase.id, phase.relativeStart, phaseWidth, phase.elements.length, timelineWidth, project.startDate, project.endDate, addElement, selectItem]
+    [section, phase.id, phase.relativeStart, phaseWidth, phase.elements.length, timelineWidth, viewportBounds, addElement, selectItem]
   );
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
@@ -140,7 +172,7 @@ export default function PhaseRow({
     // Check if Shift is held to preserve children positions
     preserveChildrenRef.current = e?.shiftKey ?? false;
     if (preserveChildrenRef.current) {
-      // Capture initial absolute positions of all elements
+      // Capture initial absolute positions of all elements (section-relative)
       initialElementPositions.current = phase.elements.map((el) => ({
         id: el.id,
         absoluteStart: phase.relativeStart + el.relativeStart * phaseWidth,
@@ -148,9 +180,9 @@ export default function PhaseRow({
       }));
     }
 
-    // Initialize the drag date
+    // Initialize the drag date - use section dates for date display
     const position = edge === 'start' ? phase.relativeStart : phase.relativeEnd;
-    const date = getDateFromRelativePosition(project.startDate, project.endDate, position);
+    const date = getDateFromRelativePosition(section.startDate, section.endDate, position);
     const dateStr = formatDate(date, 'MMM d');
     if (edge === 'start') {
       setStartDragDate(dateStr);
@@ -160,21 +192,30 @@ export default function PhaseRow({
   };
 
   const handleDrag = (edge: 'start' | 'end', deltaX: number): void => {
-    const deltaRelative = deltaX / timelineWidth;
+    // Convert pixel delta to section-relative delta
+    // We need to scale by the ratio of section width to viewport width
+    const sectionDays = getDaysBetween(section.startDate, section.endDate);
+    const sectionViewportWidth = (sectionDays / viewportBounds.totalDays) * timelineWidth;
+    const deltaSectionRelative = sectionViewportWidth > 0 ? deltaX / sectionViewportWidth : 0;
+
     let newStart: number;
     let newEnd: number;
 
     if (edge === 'start') {
-      newStart = Math.max(0, Math.min(phase.relativeEnd - 0.01, phase.relativeStart + deltaRelative));
+      // Allow going below 0 to trigger auto-expansion
+      newStart = Math.min(phase.relativeEnd - 0.01, phase.relativeStart + deltaSectionRelative);
       newEnd = phase.relativeEnd;
       // Update drag date
-      const date = getDateFromRelativePosition(project.startDate, project.endDate, newStart);
+      const clampedStart = Math.max(0, newStart);
+      const date = getDateFromRelativePosition(section.startDate, section.endDate, clampedStart);
       setStartDragDate(formatDate(date, 'MMM d'));
     } else {
       newStart = phase.relativeStart;
-      newEnd = Math.max(phase.relativeStart + 0.01, Math.min(1, phase.relativeEnd + deltaRelative));
+      // Allow going above 1 to trigger auto-expansion
+      newEnd = Math.max(phase.relativeStart + 0.01, phase.relativeEnd + deltaSectionRelative);
       // Update drag date
-      const date = getDateFromRelativePosition(project.startDate, project.endDate, newEnd);
+      const clampedEnd = Math.min(1, newEnd);
+      const date = getDateFromRelativePosition(section.startDate, section.endDate, clampedEnd);
       setEndDragDate(formatDate(date, 'MMM d'));
     }
 
@@ -203,7 +244,10 @@ export default function PhaseRow({
 
       updatePhaseWithElements(section.id, phase.id, newStart, newEnd, elementUpdates);
     } else {
+      // updatePhasePosition will handle auto-expansion if newStart < 0 or newEnd > 1
       updatePhasePosition(section.id, phase.id, newStart, newEnd);
+      // Compensate scroll immediately if expansion happened
+      compensateExpansionScroll();
     }
   };
 
@@ -220,6 +264,17 @@ export default function PhaseRow({
     } else {
       setEndDragDate(undefined);
     }
+
+    // Smart weekend snapping: snap edge to next business day if on weekend
+    const currentPosition = edge === 'start' ? phase.relativeStart : phase.relativeEnd;
+    const snappedPosition = snapRelativeToBusinessDay(currentPosition, section.startDate, section.endDate);
+    if (snappedPosition !== currentPosition) {
+      if (edge === 'start') {
+        updatePhasePosition(section.id, phase.id, snappedPosition, phase.relativeEnd);
+      } else {
+        updatePhasePosition(section.id, phase.id, phase.relativeStart, snappedPosition);
+      }
+    }
   };
 
   // Move handlers for dragging the entire bar
@@ -235,6 +290,13 @@ export default function PhaseRow({
     [setDragging]
   );
 
+  // Memoize sectionViewportWidth for the move handler
+  const sectionDays = useMemo(() => getDaysBetween(section.startDate, section.endDate), [section.startDate, section.endDate]);
+  const sectionViewportWidth = useMemo(
+    () => viewportBounds.totalDays > 0 ? (sectionDays / viewportBounds.totalDays) * timelineWidth : timelineWidth,
+    [sectionDays, viewportBounds.totalDays, timelineWidth]
+  );
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isMoving.current) return;
@@ -246,22 +308,18 @@ export default function PhaseRow({
         hasDragged.current = true;
       }
 
-      const deltaRelative = deltaX / timelineWidth;
+      // Convert pixel delta to section-relative delta
+      const deltaSectionRelative = sectionViewportWidth > 0 ? deltaX / sectionViewportWidth : 0;
 
-      let newStart = phase.relativeStart + deltaRelative;
-      let newEnd = phase.relativeEnd + deltaRelative;
+      const newStart = phase.relativeStart + deltaSectionRelative;
+      const newEnd = phase.relativeEnd + deltaSectionRelative;
 
-      // Clamp to bounds (use memoized phaseWidth)
-      if (newStart < 0) {
-        newStart = 0;
-        newEnd = phaseWidth;
-      }
-      if (newEnd > 1) {
-        newEnd = 1;
-        newStart = 1 - phaseWidth;
-      }
-
+      // Allow moving past bounds to trigger auto-expansion
+      // The store's updatePhasePosition will handle the expansion
       updatePhasePosition(section.id, phase.id, newStart, newEnd);
+
+      // Compensate scroll immediately if expansion happened
+      compensateExpansionScroll();
     };
 
     const handleMouseUp = () => {
@@ -269,6 +327,13 @@ export default function PhaseRow({
       isMoving.current = false;
       setDragging(false);
       document.body.classList.remove('no-select');
+
+      // Smart weekend snapping: snap both edges to next business day if on weekend
+      const snappedStart = snapRelativeToBusinessDay(phase.relativeStart, section.startDate, section.endDate);
+      const snappedEnd = snapRelativeToBusinessDay(phase.relativeEnd, section.startDate, section.endDate);
+      if (snappedStart !== phase.relativeStart || snappedEnd !== phase.relativeEnd) {
+        updatePhasePosition(section.id, phase.id, snappedStart, snappedEnd);
+      }
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -278,7 +343,27 @@ export default function PhaseRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, phase.id, phase.relativeStart, phase.relativeEnd, phaseWidth, timelineWidth, updatePhasePosition, setDragging]);
+  }, [section.id, phase.id, phase.relativeStart, phase.relativeEnd, sectionViewportWidth, updatePhasePosition, setDragging, compensateExpansionScroll]);
+
+  // Viewport stability: compensate scroll position after auto-expansion
+  useEffect(() => {
+    if (!lastExpansion || lastExpansion.sectionId !== section.id) return;
+
+    // Find the scroll container
+    const scrollContainer = document.querySelector('.timeline-scroll-container') as HTMLElement | null;
+    if (!scrollContainer) {
+      clearExpansion();
+      return;
+    }
+
+    // When we expand left, content shifts right - compensate by scrolling right
+    if (lastExpansion.expansionStartDays > 0) {
+      const scrollDelta = (lastExpansion.expansionStartDays / lastExpansion.newTotalDays) * timelineWidth;
+      scrollContainer.scrollLeft += scrollDelta;
+    }
+
+    clearExpansion();
+  }, [lastExpansion, section.id, timelineWidth, clearExpansion]);
 
   // Handle keyboard interaction on the label row
   const handleKeyDown = useCallback(
@@ -298,7 +383,7 @@ export default function PhaseRow({
       <div role="group" aria-label={`${phase.name} phase`}>
         {/* Phase label */}
         <div
-          className={`flex items-center gap-2 ${isIDTimeline ? 'px-3' : 'pl-6 pr-3'} border-b border-[var(--color-border)]/25 cursor-pointer row-selectable focus-ring ${
+          className={`flex items-center gap-2 ${isMasterSection ? 'px-3' : 'pl-6 pr-3'} border-b border-[var(--color-border)]/25 cursor-pointer row-selectable focus-ring ${
             isSelected ? 'selected' : ''
           }`}
           style={{ height: ROW_HEIGHT }}
@@ -331,17 +416,17 @@ export default function PhaseRow({
               />
             </svg>
           </button>
-          {isIDTimeline && (
+          {isMasterSection && (
             <span
               className="w-2 h-2 rounded-full flex-shrink-0"
               style={{ backgroundColor: effectiveColor }}
               aria-hidden="true"
             />
           )}
-          <span className={`text-sm ${isIDTimeline ? 'font-medium' : ''} text-[var(--color-text-primary)] truncate flex-1`}>
+          <span className={`text-sm ${isMasterSection ? 'font-medium' : ''} text-[var(--color-text-primary)] truncate flex-1`}>
             {phase.name}
           </span>
-          {!isIDTimeline && <AddItemButton onClick={handleAddElement} label="Add element" />}
+          {!isMasterSection && <AddItemButton onClick={handleAddElement} label="Add element" />}
         </div>
 
         {/* Element labels */}
@@ -355,6 +440,7 @@ export default function PhaseRow({
                 section={section}
                 isLabel
                 timelineWidth={timelineWidth}
+                viewportBounds={viewportBounds}
               />
             ))}
           </div>
@@ -437,6 +523,7 @@ export default function PhaseRow({
               section={section}
               isLabel={false}
               timelineWidth={timelineWidth}
+              viewportBounds={viewportBounds}
             />
           ))}
         </div>

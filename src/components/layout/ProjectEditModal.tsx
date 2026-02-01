@@ -1,120 +1,21 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { addMonths } from 'date-fns';
+import { useState, useCallback, useEffect } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
-import { useSectionStore } from '../../stores/sectionStore';
-import { Button, Input, DateInput } from '../common';
-import type { Section } from '../../types';
-
-interface ProjectFormData {
-  name: string;
-  startDate: Date;
-  endDate: Date;
-}
-
-interface OriginalDates {
-  startDate: Date;
-  endDate: Date;
-}
-
-// Helper to recalculate relative position to preserve absolute date
-function recalculateRelativePosition(
-  oldRelative: number,
-  oldStart: number,
-  oldEnd: number,
-  newStart: number,
-  newEnd: number
-): number {
-  // Calculate absolute timestamp from old relative position
-  const absoluteTime = oldStart + oldRelative * (oldEnd - oldStart);
-  // Calculate new relative position
-  const newDuration = newEnd - newStart;
-  if (newDuration <= 0) return 0;
-  const newRelative = (absoluteTime - newStart) / newDuration;
-  // Clamp to [0, 1]
-  return Math.max(0, Math.min(1, newRelative));
-}
-
-// Recalculate all timeline positions to preserve absolute dates
-function recalculateSectionPositions(
-  sections: Section[],
-  oldStart: number,
-  oldEnd: number,
-  newStart: number,
-  newEnd: number
-): Section[] {
-  return sections.map((section) => ({
-    ...section,
-    phases: section.phases.map((phase) => ({
-      ...phase,
-      relativeStart: recalculateRelativePosition(
-        phase.relativeStart,
-        oldStart,
-        oldEnd,
-        newStart,
-        newEnd
-      ),
-      relativeEnd: recalculateRelativePosition(
-        phase.relativeEnd,
-        oldStart,
-        oldEnd,
-        newStart,
-        newEnd
-      ),
-      // Elements are relative to their phase, so they don't need recalculation
-    })),
-    milestones: section.milestones.map((milestone) => ({
-      ...milestone,
-      relativePosition: recalculateRelativePosition(
-        milestone.relativePosition,
-        oldStart,
-        oldEnd,
-        newStart,
-        newEnd
-      ),
-    })),
-  }));
-}
+import { Button, Input } from '../common';
 
 export function ProjectEditModal(): JSX.Element | null {
   const { editingProjectId, closeProjectEditModal } = useUIStore();
   const updateProject = useProjectStore((state) => state.updateProject);
-  const setSections = useSectionStore((state) => state.setSections);
 
-  const [formData, setFormData] = useState<ProjectFormData>({
-    name: '',
-    startDate: new Date(),
-    endDate: new Date(),
-  });
-
-  const [originalDates, setOriginalDates] = useState<OriginalDates | null>(null);
-  const [scaleTimeline, setScaleTimeline] = useState(true);
+  const [name, setName] = useState('');
 
   // Initialize form when modal opens with current project data
-  // Use getState() to avoid re-running when project changes
   useEffect(() => {
     if (editingProjectId) {
       const currentProject = useProjectStore.getState().project;
-      const startDate = new Date(currentProject.startDate);
-      const endDate = new Date(currentProject.endDate);
-      setFormData({
-        name: currentProject.name,
-        startDate,
-        endDate,
-      });
-      setOriginalDates({ startDate, endDate });
-      setScaleTimeline(true);
+      setName(currentProject.name);
     }
   }, [editingProjectId]);
-
-  // Check if dates have changed
-  const datesChanged = useMemo(() => {
-    if (!originalDates) return false;
-    return (
-      formData.startDate.getTime() !== originalDates.startDate.getTime() ||
-      formData.endDate.getTime() !== originalDates.endDate.getTime()
-    );
-  }, [formData.startDate, formData.endDate, originalDates]);
 
   // Close on escape key
   useEffect(() => {
@@ -140,62 +41,22 @@ export function ProjectEditModal(): JSX.Element | null {
   );
 
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({ ...prev, name: e.target.value }));
-  }, []);
-
-  const handleStartDateChange = useCallback((date: Date) => {
-    setFormData((prev) => {
-      // If end date is before new start date, adjust it
-      const newEndDate = date > prev.endDate ? addMonths(date, 12) : prev.endDate;
-      return { ...prev, startDate: date, endDate: newEndDate };
-    });
-  }, []);
-
-  const handleEndDateChange = useCallback((date: Date) => {
-    setFormData((prev) => ({ ...prev, endDate: date }));
-  }, []);
-
-  const handleScaleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setScaleTimeline(e.target.checked);
+    setName(e.target.value);
   }, []);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-
-      const name = formData.name.trim() || 'Untitled Project';
-      const newStartDate = formData.startDate.toISOString();
-      const newEndDate = formData.endDate.toISOString();
-
-      // If dates changed and user wants to keep existing dates (not scale)
-      if (datesChanged && !scaleTimeline && originalDates) {
-        const sections = useSectionStore.getState().sections;
-
-        const updatedSections = recalculateSectionPositions(
-          sections,
-          originalDates.startDate.getTime(),
-          originalDates.endDate.getTime(),
-          formData.startDate.getTime(),
-          formData.endDate.getTime()
-        );
-
-        // Update store with recalculated positions
-        setSections(updatedSections);
-      }
-
-      // Update the project
-      updateProject({ name, startDate: newStartDate, endDate: newEndDate });
-
+      const projectName = name.trim() || 'Untitled Project';
+      updateProject({ name: projectName });
       closeProjectEditModal();
     },
-    [formData, datesChanged, scaleTimeline, originalDates, updateProject, setSections, closeProjectEditModal]
+    [name, updateProject, closeProjectEditModal]
   );
 
   if (!editingProjectId) {
     return null;
   }
-
-  const isValid = formData.startDate < formData.endDate;
 
   return (
     <div
@@ -246,56 +107,11 @@ export function ProjectEditModal(): JSX.Element | null {
             {/* Project Name */}
             <Input
               label="Project Name"
-              value={formData.name}
+              value={name}
               onChange={handleNameChange}
               placeholder="Product Development"
               autoFocus
             />
-
-            {/* Date Range */}
-            <div className="grid grid-cols-2 gap-4">
-              <DateInput
-                label="Start Date"
-                value={formData.startDate}
-                onChange={handleStartDateChange}
-              />
-              <DateInput
-                label="End Date"
-                value={formData.endDate}
-                onChange={handleEndDateChange}
-                min={formData.startDate}
-              />
-            </div>
-
-            {/* Duration indicator */}
-            <p className="text-xs text-[var(--color-text-muted)]">
-              Project duration:{' '}
-              {Math.round(
-                (formData.endDate.getTime() - formData.startDate.getTime()) /
-                  (1000 * 60 * 60 * 24 * 30)
-              )}{' '}
-              months
-            </p>
-
-            {/* Scale timeline option - only show when dates have changed */}
-            {datesChanged && (
-              <label className="flex items-start gap-3 pt-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={scaleTimeline}
-                  onChange={handleScaleChange}
-                  className="mt-0.5 w-4 h-4 text-[var(--color-text-secondary)] border-[var(--color-border)] rounded focus:ring-[var(--color-text-secondary)] focus:ring-offset-0 cursor-pointer"
-                />
-                <div>
-                  <span className="text-sm text-[#374151]">Scale timeline to new dates</span>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                    {scaleTimeline
-                      ? 'Timeline items will stretch or shrink to fit the new duration'
-                      : 'Timeline items will keep their original dates (items outside the new range will be clamped)'}
-                  </p>
-                </div>
-              </label>
-            )}
           </div>
 
           {/* Actions */}
@@ -303,7 +119,7 @@ export function ProjectEditModal(): JSX.Element | null {
             <Button type="button" variant="secondary" onClick={closeProjectEditModal}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={!isValid}>
+            <Button type="submit" variant="primary">
               Save Changes
             </Button>
           </div>

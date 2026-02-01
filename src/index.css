@@ -19,6 +19,16 @@
   --color-hover: #f3f4f6;
   --color-active: #e5e7eb;
 
+  /* UI elements */
+  --color-tooltip: #1f2937;
+  --color-gridline: #d1d5db;
+  --color-today: #ef4444;
+  --color-danger: #ef4444;
+  --color-danger-hover: #fef2f2;
+  --color-locked-bg: #f9fafb;
+  --color-locked-border: #e5e7eb;
+  --color-locked-text: #6b7280;
+
   /* Logo accent colors */
   --color-logo-primary: #6366f1;
   --color-logo-bar-1: #a5b4fc;
@@ -269,6 +279,22 @@ body {
 .skip-link:focus {
   top: 0.5rem;
   left: 0.5rem;
+}
+
+/* Toast slide-in animation */
+.toast-slide-in {
+  animation: toastSlideIn 200ms ease-out;
+}
+
+@keyframes toastSlideIn {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Reduced motion preference support */

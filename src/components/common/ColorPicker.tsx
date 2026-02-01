@@ -1,4 +1,4 @@
-import { TEAM_COLORS } from '../../constants/colors';
+import { SCHEDULE_COLORS } from '../../constants/colors';
 
 interface ColorPickerProps {
   readonly label?: string;
@@ -11,7 +11,7 @@ export function ColorPicker({
   label,
   value,
   onChange,
-  colors = TEAM_COLORS,
+  colors = SCHEDULE_COLORS,
 }: ColorPickerProps): JSX.Element {
   return (
     <div className="flex flex-col gap-2">

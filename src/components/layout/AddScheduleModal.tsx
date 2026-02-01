@@ -1,11 +1,22 @@
 import { useCallback, useEffect } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
-import { TEAM_TEMPLATES, createSectionFromTemplate } from '../../data/teamTemplates';
-import type { TeamTemplate } from '../../data/teamTemplates';
+import { SCHEDULE_TEMPLATES, createSectionFromTemplate } from '../../data/scheduleTemplates';
+import type { ScheduleTemplate } from '../../data/scheduleTemplates';
 
-function TemplateIcon({ icon }: { readonly icon: TeamTemplate['icon'] }): JSX.Element {
+function TemplateIcon({ icon }: { readonly icon: ScheduleTemplate['icon'] }): JSX.Element {
   switch (icon) {
+    case 'palette':
+      return (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z"
+          />
+        </svg>
+      );
     case 'cog':
       return (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,7 +67,7 @@ function TemplateIcon({ icon }: { readonly icon: TeamTemplate['icon'] }): JSX.El
           />
         </svg>
       );
-    case 'blank':
+    case 'plus':
       return (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -71,8 +82,8 @@ function TemplateIcon({ icon }: { readonly icon: TeamTemplate['icon'] }): JSX.El
 }
 
 interface TemplateCardProps {
-  readonly template: TeamTemplate;
-  readonly onSelect: (template: TeamTemplate) => void;
+  readonly template: ScheduleTemplate;
+  readonly onSelect: (template: ScheduleTemplate) => void;
 }
 
 function TemplateCard({ template, onSelect }: TemplateCardProps): JSX.Element {
@@ -85,7 +96,10 @@ function TemplateCard({ template, onSelect }: TemplateCardProps): JSX.Element {
       onClick={handleClick}
       className="flex flex-col items-start p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-muted)] hover:shadow-sm transition-all duration-150 text-left focus-ring btn-press"
     >
-      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--color-hover)] text-[var(--color-text-secondary)] mb-3">
+      <div
+        className="flex items-center justify-center w-10 h-10 rounded-lg mb-3"
+        style={{ backgroundColor: `${template.defaultColor}15`, color: template.defaultColor }}
+      >
         <TemplateIcon icon={template.icon} />
       </div>
       <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-1">{template.name}</h3>
@@ -94,45 +108,45 @@ function TemplateCard({ template, onSelect }: TemplateCardProps): JSX.Element {
   );
 }
 
-export function AddTeamModal(): JSX.Element | null {
-  const { isAddTeamModalOpen, closeAddTeamModal } = useUIStore();
+export function AddScheduleModal(): JSX.Element | null {
+  const { isAddScheduleModalOpen, closeAddScheduleModal } = useUIStore();
   const sections = useSectionStore((state) => state.sections);
   const setSections = useSectionStore((state) => state.setSections);
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget) {
-        closeAddTeamModal();
+        closeAddScheduleModal();
       }
     },
-    [closeAddTeamModal]
+    [closeAddScheduleModal]
   );
 
   const handleSelectTemplate = useCallback(
-    (template: TeamTemplate) => {
-      const teamCount = sections.filter((s) => s.type === 'team').length;
-      const newSection = createSectionFromTemplate(template, teamCount);
+    (template: ScheduleTemplate) => {
+      // Use sections.length to determine order (new section goes at the end)
+      const newSection = createSectionFromTemplate(template, sections.length);
       setSections([...sections, newSection]);
-      closeAddTeamModal();
+      closeAddScheduleModal();
     },
-    [sections, setSections, closeAddTeamModal]
+    [sections, setSections, closeAddScheduleModal]
   );
 
   // Close on escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
-        closeAddTeamModal();
+        closeAddScheduleModal();
       }
     };
 
-    if (isAddTeamModalOpen) {
+    if (isAddScheduleModalOpen) {
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isAddTeamModalOpen, closeAddTeamModal]);
+  }, [isAddScheduleModalOpen, closeAddScheduleModal]);
 
-  if (!isAddTeamModalOpen) {
+  if (!isAddScheduleModalOpen) {
     return null;
   }
 
@@ -142,7 +156,7 @@ export function AddTeamModal(): JSX.Element | null {
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="add-team-title"
+      aria-labelledby="add-schedule-title"
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
@@ -154,11 +168,11 @@ export function AddTeamModal(): JSX.Element | null {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/20">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="add-team-title">
-            Add Team
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="add-schedule-title">
+            Add Schedule
           </h2>
           <button
-            onClick={closeAddTeamModal}
+            onClick={closeAddScheduleModal}
             className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
             aria-label="Close (Escape)"
           >
@@ -185,7 +199,7 @@ export function AddTeamModal(): JSX.Element | null {
             Choose a template to pre-populate phases and milestones.
           </p>
           <div className="grid grid-cols-2 gap-3">
-            {TEAM_TEMPLATES.map((template) => (
+            {SCHEDULE_TEMPLATES.filter((t) => t.category === 'team' || t.category === 'core').map((template) => (
               <TemplateCard
                 key={template.id}
                 template={template}

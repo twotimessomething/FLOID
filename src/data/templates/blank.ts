@@ -1,0 +1,13 @@
+import type { ScheduleTemplate } from './types';
+
+export const blankTemplate: ScheduleTemplate = {
+  id: 'blank',
+  name: 'Blank Schedule',
+  description: 'Start with an empty timeline',
+  icon: 'plus',
+  category: 'core',
+  suggestedAsMaster: false,
+  defaultColor: '#6B7280', // Gray
+  phases: [],
+  milestones: [],
+};

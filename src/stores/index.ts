@@ -5,7 +5,7 @@ export {
   selectPhase,
   selectElement,
   selectMilestone,
-  selectIDTimeline,
-  selectTeams,
+  selectMasterSection,
+  selectNonMasterSections,
 } from './sectionStore';
 export { useUIStore } from './uiStore';

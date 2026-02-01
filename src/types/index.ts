@@ -7,5 +7,17 @@ export type {
   ZoomLevel,
   SelectionState,
   ModalPosition,
+  ViewportBounds,
 } from './timeline';
-export { ID_TIMELINE_SECTION_ID, getPhaseColor } from './timeline';
+export { getPhaseColor } from './timeline';
+export type {
+  ExportPhase,
+  ExportMilestone,
+  ScheduleExportData,
+  ImportResultType,
+  ImportAnalysis,
+  ImportOptions,
+  ImportModalType,
+  ImportModalState,
+  ProjectExportData,
+} from './scheduleExport';

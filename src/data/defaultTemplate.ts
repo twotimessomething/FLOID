@@ -1,67 +1,50 @@
 import { addMonths } from 'date-fns';
-import type { Project, Section, Phase, Milestone } from '../types';
-import { ID_TIMELINE_SECTION_ID } from '../types';
-import { DEFAULT_PHASES, DEFAULT_MILESTONES } from '../constants/designProcess';
+import type { Project, Section } from '../types';
+import { getTemplateById, createSectionFromTemplate } from './scheduleTemplates';
 
 const generateId = (): string => {
   return Math.random().toString(36).substring(2, 11);
 };
 
-export const createDefaultProject = (): Project => {
+/**
+ * Create default section date range: 1st of current month to 12 months later.
+ */
+export const createDefaultSectionDateRange = (): { startDate: string; endDate: string } => {
   const now = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1); // Start of current month
-  const endDate = addMonths(startDate, 12); // 12 month project
+  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endDate = addMonths(startDate, 12);
+  return {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  };
+};
+
+export const createDefaultProject = (masterSectionId: string, startDate: string, endDate: string): Project => {
+  const now = new Date();
 
   return {
     id: generateId(),
     name: 'Product Development',
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
+    masterSectionId,
+    projectStartDate: startDate,
+    projectEndDate: endDate,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
 };
 
+/**
+ * Create the default ID Timeline section using the schedule template system.
+ */
 export const createDefaultIDTimelineSection = (): Section => {
-  const sectionId = ID_TIMELINE_SECTION_ID;
+  const idTemplate = getTemplateById('id-timeline');
+  if (!idTemplate) {
+    throw new Error('ID Timeline template not found');
+  }
 
-  const phases: Phase[] = DEFAULT_PHASES.map((phaseTemplate) => {
-    const phaseId = generateId();
+  const { startDate, endDate } = createDefaultSectionDateRange();
 
-    const elements = phaseTemplate.elements.map((element) => ({
-      ...element,
-      id: generateId(),
-      phaseId,
-    }));
-
-    return {
-      id: phaseId,
-      sectionId,
-      name: phaseTemplate.name,
-      description: phaseTemplate.description,
-      color: phaseTemplate.color, // ID timeline phases have individual colors
-      order: phaseTemplate.order,
-      isCollapsed: phaseTemplate.isCollapsed,
-      elements,
-      relativeStart: phaseTemplate.relativeStart,
-      relativeEnd: phaseTemplate.relativeEnd,
-    };
+  return createSectionFromTemplate(idTemplate, 0, {
+    dateRange: { startDate, endDate },
   });
-
-  const milestones: Milestone[] = DEFAULT_MILESTONES.map((milestoneTemplate) => ({
-    ...milestoneTemplate,
-    id: generateId(),
-    sectionId,
-  }));
-
-  return {
-    id: sectionId,
-    type: 'id-timeline',
-    name: 'Industrial Design',
-    color: '#6366F1', // Indigo (default, though ID timeline uses per-phase colors)
-    order: 0,
-    isCollapsed: false,
-    phases,
-    milestones,
-  };
 };

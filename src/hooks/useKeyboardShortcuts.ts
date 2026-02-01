@@ -1,8 +1,8 @@
 import { useEffect, useCallback, useMemo } from 'react';
 import { useUIStore } from '../stores/uiStore';
-import { useSectionStore, selectIDTimeline, selectTeams } from '../stores/sectionStore';
+import { useSectionStore, selectMasterSection, selectNonMasterSections } from '../stores/sectionStore';
 import { SHORTCUTS } from '../constants/shortcuts';
-import type { SelectionState } from '../types';
+import type { SelectionState, Section } from '../types';
 
 interface NavigableItem {
   id: string;
@@ -20,8 +20,8 @@ interface NavigableItem {
 export function useKeyboardShortcuts(): void {
   const { selection, selectItem, closeModal, isModalOpen } = useUIStore();
 
-  const idTimeline = useSectionStore(selectIDTimeline);
-  const teams = useSectionStore(selectTeams);
+  const masterSection = useSectionStore(selectMasterSection);
+  const nonMasterSections = useSectionStore(selectNonMasterSections);
   const {
     toggleSectionCollapse,
     togglePhaseCollapse,
@@ -31,17 +31,27 @@ export function useKeyboardShortcuts(): void {
     deleteMilestone,
   } = useSectionStore();
 
-  // Memoize navigable items and index map for O(1) lookups
-  const { items: navigableItems, indexMap } = useMemo(() => {
-    const items: NavigableItem[] = [];
+  // Helper to add section items to navigable list
+  const addSectionItems = (section: Section, items: NavigableItem[], includeSectionHeader: boolean) => {
+    // Optionally include section header (for non-master sections)
+    if (includeSectionHeader) {
+      items.push({
+        id: section.id,
+        type: 'section',
+        sectionId: section.id,
+        phaseId: null,
+        canCollapse: true,
+        isCollapsed: section.isCollapsed,
+      });
+    }
 
-    // Add ID timeline and its phases
-    if (idTimeline) {
-      idTimeline.phases.forEach((phase) => {
+    if (!section.isCollapsed) {
+      // Add phases
+      section.phases.forEach((phase) => {
         items.push({
           id: phase.id,
           type: 'phase',
-          sectionId: idTimeline.id,
+          sectionId: section.id,
           phaseId: null,
           canCollapse: true,
           isCollapsed: phase.isCollapsed,
@@ -52,7 +62,7 @@ export function useKeyboardShortcuts(): void {
             items.push({
               id: element.id,
               type: 'element',
-              sectionId: idTimeline.id,
+              sectionId: section.id,
               phaseId: phase.id,
               canCollapse: false,
               isCollapsed: false,
@@ -61,67 +71,32 @@ export function useKeyboardShortcuts(): void {
         }
       });
 
-      // Add ID timeline milestones
-      idTimeline.milestones.forEach((milestone) => {
+      // Add milestones
+      section.milestones.forEach((milestone) => {
         items.push({
           id: milestone.id,
           type: 'milestone',
-          sectionId: idTimeline.id,
+          sectionId: section.id,
           phaseId: null,
           canCollapse: false,
           isCollapsed: false,
         });
       });
     }
+  };
 
-    // Add teams and their children
-    teams.forEach((team) => {
-      items.push({
-        id: team.id,
-        type: 'section',
-        sectionId: team.id,
-        phaseId: null,
-        canCollapse: true,
-        isCollapsed: team.isCollapsed,
-      });
+  // Memoize navigable items and index map for O(1) lookups
+  const { items: navigableItems, indexMap } = useMemo(() => {
+    const items: NavigableItem[] = [];
 
-      if (!team.isCollapsed) {
-        team.phases.forEach((phase) => {
-          items.push({
-            id: phase.id,
-            type: 'phase',
-            sectionId: team.id,
-            phaseId: null,
-            canCollapse: true,
-            isCollapsed: phase.isCollapsed,
-          });
+    // Add master section (without header - it's always visible)
+    if (masterSection) {
+      addSectionItems(masterSection, items, false);
+    }
 
-          if (!phase.isCollapsed) {
-            phase.elements.forEach((element) => {
-              items.push({
-                id: element.id,
-                type: 'element',
-                sectionId: team.id,
-                phaseId: phase.id,
-                canCollapse: false,
-                isCollapsed: false,
-              });
-            });
-          }
-        });
-
-        // Add team milestones
-        team.milestones.forEach((milestone) => {
-          items.push({
-            id: milestone.id,
-            type: 'milestone',
-            sectionId: team.id,
-            phaseId: null,
-            canCollapse: false,
-            isCollapsed: false,
-          });
-        });
-      }
+    // Add non-master sections (with headers)
+    nonMasterSections.forEach((section) => {
+      addSectionItems(section, items, true);
     });
 
     // Build index map for O(1) lookups: key = "type:id"
@@ -131,7 +106,7 @@ export function useKeyboardShortcuts(): void {
     });
 
     return { items, indexMap };
-  }, [idTimeline, teams]);
+  }, [masterSection, nonMasterSections]);
 
   // Find current selection index using O(1) Map lookup
   const getCurrentIndex = useCallback((): number => {

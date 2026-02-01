@@ -7,8 +7,8 @@ export const PHASE_COLORS = {
   production: '#10B981', // Emerald
 };
 
-// Team colors palette
-export const TEAM_COLORS = [
+// Schedule colors palette
+export const SCHEDULE_COLORS = [
   '#f97316', // orange-500
   '#14b8a6', // teal-500
   '#8b5cf6', // violet-500
@@ -19,6 +19,6 @@ export const TEAM_COLORS = [
   '#6366f1', // indigo-500
 ];
 
-export const getTeamColor = (index: number): string => {
-  return TEAM_COLORS[index % TEAM_COLORS.length];
+export const getScheduleColor = (index: number): string => {
+  return SCHEDULE_COLORS[index % SCHEDULE_COLORS.length];
 };

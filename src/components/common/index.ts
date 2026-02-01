@@ -3,3 +3,5 @@ export { Input } from './Input';
 export { TextArea } from './TextArea';
 export { DateInput } from './DateInput';
 export { ColorPicker } from './ColorPicker';
+export { Toast } from './Toast';
+export { MasterBadge } from './MasterBadge';

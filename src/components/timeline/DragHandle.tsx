@@ -81,7 +81,7 @@ export default function DragHandle({
       {/* Date bubble tooltip */}
       {showBubble && dragDate && (
         <div
-          className={`absolute bottom-full mb-2 px-2 py-1 bg-[#1f2937] text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none ${
+          className={`absolute bottom-full mb-2 px-2 py-1 bg-[var(--color-tooltip)] text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none ${
             edge === 'start' ? 'left-0 -translate-x-1/2' : 'right-0 translate-x-1/2'
           }`}
           aria-hidden="true"
@@ -89,7 +89,7 @@ export default function DragHandle({
           {dragDate}
           {/* Arrow */}
           <div
-            className={`absolute top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-[#1f2937] ${
+            className={`absolute top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-[var(--color-tooltip)] ${
               edge === 'start' ? 'left-1/2 -translate-x-1/2' : 'right-1/2 translate-x-1/2'
             }`}
           />

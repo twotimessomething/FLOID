@@ -1,13 +1,16 @@
 import { useCallback, useRef, useMemo } from 'react';
-import type { Section } from '../../types';
+import type { Section, ViewportBounds } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
+import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
+import { sectionToViewportRelative, viewportToSectionRelative, getDaysBetween } from '../../utils/dateUtils';
 import { PHASE_COLORS } from '../../constants/colors';
 import { getPhaseColor } from '../../types';
 import PhaseRow from './PhaseRow';
 import MilestoneMarker from './MilestoneMarker';
 import { AddItemButton } from '../controls';
+import { MasterBadge } from '../common';
 
 interface DragHandleProps {
   readonly onMouseDown: (e: React.MouseEvent) => void;
@@ -18,7 +21,7 @@ interface SectionRowProps {
   readonly section: Section;
   readonly isLabel: boolean;
   readonly timelineWidth: number;
-  readonly totalDays: number;
+  readonly viewportBounds: ViewportBounds;
   readonly sectionIndex?: number;
   readonly dragHandleProps?: DragHandleProps;
   readonly isDragging?: boolean;
@@ -28,16 +31,17 @@ export default function SectionRow({
   section,
   isLabel,
   timelineWidth,
-  totalDays,
+  viewportBounds,
   sectionIndex,
   dragHandleProps,
   isDragging,
 }: SectionRowProps): JSX.Element {
   const { toggleSectionCollapse, addPhase, addMilestone } = useSectionStore();
+  const project = useProjectStore((state) => state.project);
   const { selection, selectItem, openContextMenu } = useUIStore();
   const headerRowRef = useRef<HTMLDivElement>(null);
 
-  const isIDTimeline = section.type === 'id-timeline';
+  const isMasterSection = section.id === project?.masterSectionId;
 
   // Calculate the height of content below header for milestone line
   const milestoneLineHeight = useMemo(() => {
@@ -94,18 +98,16 @@ export default function SectionRow({
 
   const handleClick = (e: React.MouseEvent): void => {
     // Only teams are clickable as sections
-    if (!isIDTimeline) {
+    if (!isMasterSection) {
       selectItem('section', section.id, section.id, null, { x: e.clientX, y: e.clientY });
     }
   };
 
   const handleContextMenu = useCallback((e: React.MouseEvent): void => {
-    // Only teams have context menus at section level
-    if (isIDTimeline) return;
     e.preventDefault();
     e.stopPropagation();
     openContextMenu({ x: e.clientX, y: e.clientY }, 'section', section.id, section.id);
-  }, [isIDTimeline, openContextMenu, section.id]);
+  }, [openContextMenu, section.id]);
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
     e.stopPropagation();
@@ -116,7 +118,7 @@ export default function SectionRow({
     addPhase(section.id, {
       name: '',
       description: '',
-      color: isIDTimeline ? getNextPhaseColor(section.phases.length) : null,
+      color: isMasterSection ? getNextPhaseColor(section.phases.length) : null,
       relativeStart: 0.1,
       relativeEnd: 0.4,
       order: section.phases.length,
@@ -132,12 +134,14 @@ export default function SectionRow({
       if (!rect) return;
 
       const clickX = e.clientX - rect.left;
-      const relativePosition = getRelativeFromPosition(clickX, timelineWidth);
+      // Convert viewport-relative position to section-relative
+      const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
+      const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
 
       addMilestone(section.id, {
         name: '',
         description: '',
-        relativePosition: Math.max(0, Math.min(1, relativePosition)),
+        relativePosition: Math.max(0, Math.min(1, sectionRelative)),
         order: section.milestones.length,
       });
 
@@ -150,7 +154,7 @@ export default function SectionRow({
         selectItem('milestone', newMilestone.id, section.id, null, { x: e.clientX, y: e.clientY });
       }
     },
-    [section.id, section.milestones.length, timelineWidth, addMilestone, selectItem]
+    [section.id, section, section.milestones.length, timelineWidth, viewportBounds, addMilestone, selectItem]
   );
 
   // Double-click on phases container creates a new phase
@@ -160,18 +164,21 @@ export default function SectionRow({
 
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const relativePosition = getRelativeFromPosition(clickX, timelineWidth);
+      // Convert viewport-relative position to section-relative
+      const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
+      const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
 
-      // Create a phase centered at the click position with 30-day width
-      const thirtyDaysRelative = totalDays > 0 ? 30 / totalDays : 0.15;
+      // Create a phase centered at the click position with 30-day width (relative to section)
+      const sectionDays = getDaysBetween(section.startDate, section.endDate);
+      const thirtyDaysRelative = sectionDays > 0 ? 30 / sectionDays : 0.15;
       const halfWidth = thirtyDaysRelative / 2;
-      const relativeStart = Math.max(0, relativePosition - halfWidth);
-      const relativeEnd = Math.min(1, relativePosition + halfWidth);
+      const relativeStart = Math.max(0, sectionRelative - halfWidth);
+      const relativeEnd = Math.min(1, sectionRelative + halfWidth);
 
       addPhase(section.id, {
         name: '',
         description: '',
-        color: isIDTimeline ? getNextPhaseColor(section.phases.length) : null,
+        color: isMasterSection ? getNextPhaseColor(section.phases.length) : null,
         order: section.phases.length,
         isCollapsed: false,
         elements: [],
@@ -188,33 +195,33 @@ export default function SectionRow({
         selectItem('phase', newPhase.id, section.id, null, { x: e.clientX, y: e.clientY });
       }
     },
-    [section.id, section.phases.length, isIDTimeline, timelineWidth, totalDays, addPhase, selectItem]
+    [section, isMasterSection, timelineWidth, viewportBounds, addPhase, selectItem]
   );
 
   if (isLabel) {
     // Render label column content
     return (
       <div
-        className={`${!isIDTimeline ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''}`}
+        className={`${!isMasterSection ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''} ${isMasterSection ? 'border-l-2 border-l-amber-400' : ''}`}
         role="group"
-        aria-label={`${section.name} ${isIDTimeline ? 'timeline' : 'team'}`}
+        aria-label={`${section.name} ${isMasterSection ? 'timeline' : 'team'}`}
       >
         {/* Section header label */}
         <div
-          className={`flex items-center gap-2 px-3 border-b ${isIDTimeline ? 'border-[var(--color-border)]/50 bg-[var(--color-background)]' : 'border-[var(--color-border)]/25'} ${
-            !isIDTimeline ? 'cursor-pointer row-selectable focus-ring' : ''
+          className={`flex items-center gap-2 px-3 border-b ${isMasterSection ? 'border-[var(--color-border)]/50 bg-[var(--color-background)]' : 'border-[var(--color-border)]/25'} ${
+            !isMasterSection ? 'cursor-pointer row-selectable focus-ring' : ''
           } ${isSelected ? 'selected' : ''}`}
           style={{ height: ROW_HEIGHT }}
-          onClick={!isIDTimeline ? handleClick : undefined}
-          onContextMenu={!isIDTimeline ? handleContextMenu : undefined}
-          onKeyDown={!isIDTimeline ? handleKeyDown : undefined}
-          role={!isIDTimeline ? 'button' : undefined}
-          tabIndex={!isIDTimeline ? 0 : undefined}
-          aria-selected={!isIDTimeline ? isSelected : undefined}
-          aria-label={!isIDTimeline ? `${section.name} team${isSelected ? ', selected' : ''}` : undefined}
+          onClick={!isMasterSection ? handleClick : undefined}
+          onContextMenu={handleContextMenu}
+          onKeyDown={!isMasterSection ? handleKeyDown : undefined}
+          role={!isMasterSection ? 'button' : undefined}
+          tabIndex={!isMasterSection ? 0 : undefined}
+          aria-selected={!isMasterSection ? isSelected : undefined}
+          aria-label={!isMasterSection ? `${section.name} team${isSelected ? ', selected' : ''}` : undefined}
         >
           {/* Drag handle for reordering (teams only) */}
-          {!isIDTimeline && dragHandleProps && sectionIndex !== undefined && (
+          {!isMasterSection && dragHandleProps && sectionIndex !== undefined && (
             <div
               {...dragHandleProps}
               className="flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-150"
@@ -257,17 +264,19 @@ export default function SectionRow({
               />
             </svg>
           </button>
-          {!isIDTimeline && (
+          {!isMasterSection && (
             <span
               className="w-2 h-2 rounded-full flex-shrink-0"
               style={{ backgroundColor: section.color }}
               aria-hidden="true"
             />
           )}
-          <span className={`text-sm ${isIDTimeline ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] truncate flex-1`}>
-            {section.name || (isIDTimeline ? 'Industrial Design' : 'Untitled Team')}
+          <span className={`text-sm ${isMasterSection ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] truncate`}>
+            {section.name || (isMasterSection ? 'Industrial Design' : 'Untitled Team')}
           </span>
-          {!isIDTimeline && <AddItemButton onClick={handleAddPhase} label="Add phase" />}
+          <span className="flex-1" />
+          {isMasterSection && <MasterBadge size="sm" />}
+          {!isMasterSection && <AddItemButton onClick={handleAddPhase} label="Add phase" />}
         </div>
 
         {/* Phase labels (when expanded) */}
@@ -280,6 +289,7 @@ export default function SectionRow({
                 section={section}
                 isLabel
                 timelineWidth={timelineWidth}
+                viewportBounds={viewportBounds}
               />
             ))}
           </div>
@@ -291,23 +301,26 @@ export default function SectionRow({
   // Render timeline content
   return (
     <div
-      className={`${!isIDTimeline ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''}`}
+      className={`${!isMasterSection ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''}`}
       role="group"
-      aria-label={`${section.name} ${isIDTimeline ? 'timeline bars' : 'team timeline'}`}
+      aria-label={`${section.name} ${isMasterSection ? 'timeline bars' : 'team timeline'}`}
     >
       {/* Section header row with collapsed phase bars when collapsed */}
       <div
         ref={headerRowRef}
-        className={`relative border-b ${isIDTimeline ? 'border-[var(--color-border)]/50' : 'border-[var(--color-border)]/25'}`}
+        className={`relative border-b ${isMasterSection ? 'border-[var(--color-border)]/50' : 'border-[var(--color-border)]/25'}`}
         style={{ height: ROW_HEIGHT }}
         onDoubleClick={handleHeaderDoubleClick}
       >
         {section.isCollapsed && (
           <>
             {section.phases.map((phase) => {
+              // Convert section-relative positions to viewport-relative
+              const viewportStart = sectionToViewportRelative(phase.relativeStart, section, viewportBounds);
+              const viewportEnd = sectionToViewportRelative(phase.relativeEnd, section, viewportBounds);
               const { left, width } = getBarDimensions(
-                phase.relativeStart,
-                phase.relativeEnd,
+                viewportStart,
+                viewportEnd,
                 timelineWidth
               );
               const isPhaseSelected = selection.type === 'phase' && selection.id === phase.id;
@@ -350,6 +363,7 @@ export default function SectionRow({
             milestone={milestone}
             section={section}
             timelineWidth={timelineWidth}
+            viewportBounds={viewportBounds}
             lineHeight={milestoneLineHeight}
           />
         ))}
@@ -369,6 +383,7 @@ export default function SectionRow({
               section={section}
               isLabel={false}
               timelineWidth={timelineWidth}
+              viewportBounds={viewportBounds}
             />
           ))}
         </div>

@@ -1,4 +1,4 @@
-import { useTimeline } from '../../hooks/useTimeline';
+import { useViewport } from '../../hooks/useViewport';
 import { useUIStore } from '../../stores/uiStore';
 import { getTimeMarkers, getMonthMarkers, getDaysBetween } from '../../utils/dateUtils';
 import { getPositionFromRelative, HEADER_HEIGHT } from '../../utils/timelineUtils';
@@ -8,12 +8,12 @@ interface TimelineHeaderProps {
 }
 
 export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderProps) {
-  const { projectStart, projectEnd, timelineWidth } = useTimeline();
+  const { viewportBounds, timelineWidth } = useViewport();
   const { zoomLevel } = useUIStore();
 
-  const markers = getTimeMarkers(projectStart, projectEnd, zoomLevel);
-  const monthMarkers = getMonthMarkers(projectStart, projectEnd);
-  const totalDays = getDaysBetween(projectStart, projectEnd);
+  const markers = getTimeMarkers(viewportBounds.startDate, viewportBounds.endDate, zoomLevel);
+  const monthMarkers = getMonthMarkers(viewportBounds.startDate, viewportBounds.endDate);
+  const totalDays = getDaysBetween(viewportBounds.startDate, viewportBounds.endDate);
 
   return (
     <div
@@ -26,7 +26,7 @@ export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderPr
         {zoomLevel !== 'quarter' && (
           <div className="absolute top-0 left-0 right-0 h-1/2 flex items-center">
             {monthMarkers.map((marker, index) => {
-              const daysSinceStart = getDaysBetween(projectStart, marker.date);
+              const daysSinceStart = getDaysBetween(viewportBounds.startDate, marker.date);
               const relativePos = totalDays > 0 ? daysSinceStart / totalDays : 0;
               const left = getPositionFromRelative(relativePos, timelineWidth);
 
@@ -46,7 +46,7 @@ export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderPr
         {/* Day/Week markers on bottom row */}
         <div className="absolute bottom-0 left-0 right-0 h-1/2 flex items-center border-t border-[var(--color-border)]/50">
           {markers.map((marker, index) => {
-            const daysSinceStart = getDaysBetween(projectStart, marker.date);
+            const daysSinceStart = getDaysBetween(viewportBounds.startDate, marker.date);
             const relativePos = totalDays > 0 ? daysSinceStart / totalDays : 0;
             const left = getPositionFromRelative(relativePos, timelineWidth);
 

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Project, Section } from '../types';
 import { createDefaultProject, createDefaultIDTimelineSection } from '../data/defaultTemplate';
+import { createSectionFromTemplate, getTemplateById } from '../data/scheduleTemplates';
 import {
   loadProjectsIndex,
   saveProjectsIndex,
@@ -9,6 +10,14 @@ import {
   deleteProjectFromStorage,
   type ProjectIndexEntry,
 } from '../utils/storageUtils';
+
+// Configuration for creating a new project
+export interface NewProjectConfig {
+  name: string;
+  startDate: Date;
+  endDate: Date;
+  masterTemplateId: string;
+}
 
 interface ProjectState {
   project: Project;
@@ -20,17 +29,33 @@ interface ProjectState {
   resetProject: () => void;
 
   initializeProjects: () => void;
-  addProject: (config?: { name?: string; startDate?: string; endDate?: string }) => string;
+  addProject: (config?: { name?: string }) => string;
+  createProject: (config: NewProjectConfig) => { projectId: string; section: Section };
   deleteProject: (projectId: string) => void;
   selectProject: (projectId: string) => void;
   updateProjectIndex: (projectId: string, updates: Partial<ProjectIndexEntry>) => void;
+
+  // Master section operations
+  setMasterSection: (sectionId: string, startDate: string, endDate: string) => void;
+  updateProjectDates: (startDate: string, endDate: string) => void;
 
   saveCurrentProject: (sections: Section[]) => void;
   loadProjectData: (projectId: string) => { sections: Section[] } | null;
 }
 
+// Helper to create a default project with its master section
+const createDefaultProjectWithSection = (name?: string): { project: Project; section: Section } => {
+  const section = createDefaultIDTimelineSection();
+  const project = createDefaultProject(section.id, section.startDate, section.endDate);
+  if (name) project.name = name;
+  return { project, section };
+};
+
 export const useProjectStore = create<ProjectState>((set, get) => ({
-  project: createDefaultProject(),
+  project: (() => {
+    const section = createDefaultIDTimelineSection();
+    return createDefaultProject(section.id, section.startDate, section.endDate);
+  })(),
   projects: [],
   activeProjectId: null,
 
@@ -57,31 +82,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       };
     }),
 
-  resetProject: () => set({ project: createDefaultProject() }),
+  resetProject: () => {
+    const { project } = createDefaultProjectWithSection();
+    set({ project });
+  },
 
   initializeProjects: () => {
-    let projects = loadProjectsIndex();
+    const projects = loadProjectsIndex();
 
+    // No projects - start with empty state
     if (projects.length === 0) {
-      // Create default project
-      const defaultProject = createDefaultProject();
-      const defaultSection = createDefaultIDTimelineSection();
-      const projectEntry: ProjectIndexEntry = {
-        id: defaultProject.id,
-        name: defaultProject.name,
-        updatedAt: defaultProject.updatedAt,
-      };
-      projects = [projectEntry];
-      saveProjectsIndex(projects);
-      saveProjectToStorage(defaultProject.id, {
-        project: defaultProject,
-        sections: [defaultSection],
-      });
-
       set({
-        projects,
-        project: defaultProject,
-        activeProjectId: defaultProject.id,
+        projects: [],
+        project: null as unknown as Project,
+        activeProjectId: null,
       });
       return;
     }
@@ -100,23 +114,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         activeProjectId: mostRecent.id,
       });
     } else {
-      // Project data missing, create fresh
-      const defaultProject = createDefaultProject();
-      set({
-        projects,
-        project: { ...defaultProject, id: mostRecent.id, name: mostRecent.name },
-        activeProjectId: mostRecent.id,
-      });
+      // Project data missing - remove from index and try next
+      const remainingProjects = projects.filter(p => p.id !== mostRecent.id);
+      saveProjectsIndex(remainingProjects);
+      deleteProjectFromStorage(mostRecent.id);
+
+      if (remainingProjects.length === 0) {
+        set({
+          projects: [],
+          project: null as unknown as Project,
+          activeProjectId: null,
+        });
+      } else {
+        // Recursively try to load remaining projects
+        set({ projects: remainingProjects });
+        get().initializeProjects();
+      }
     }
   },
 
   addProject: (config) => {
-    const newProject = createDefaultProject();
-    if (config?.name) newProject.name = config.name;
-    if (config?.startDate) newProject.startDate = config.startDate;
-    if (config?.endDate) newProject.endDate = config.endDate;
+    const { project: newProject, section: newSection } = createDefaultProjectWithSection(config?.name);
 
-    const newSection = createDefaultIDTimelineSection();
     const projectEntry: ProjectIndexEntry = {
       id: newProject.id,
       name: newProject.name,
@@ -137,24 +156,89 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     return newProject.id;
   },
 
+  createProject: (config) => {
+    const template = getTemplateById(config.masterTemplateId);
+    if (!template) {
+      throw new Error(`Template not found: ${config.masterTemplateId}`);
+    }
+
+    const startDateStr = config.startDate.toISOString();
+    const endDateStr = config.endDate.toISOString();
+
+    // Create master section from template
+    const masterSection = createSectionFromTemplate(template, 0, {
+      dateRange: { startDate: startDateStr, endDate: endDateStr },
+    });
+
+    // Master section is always locked to itself
+    masterSection.bindingMode = 'locked';
+
+    const now = new Date();
+    const newProject: Project = {
+      id: Math.random().toString(36).substring(2, 11),
+      name: config.name.trim() || 'New Project',
+      masterSectionId: masterSection.id,
+      projectStartDate: startDateStr,
+      projectEndDate: endDateStr,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    const projectEntry: ProjectIndexEntry = {
+      id: newProject.id,
+      name: newProject.name,
+      updatedAt: newProject.updatedAt,
+    };
+
+    saveProjectToStorage(newProject.id, {
+      project: newProject,
+      sections: [masterSection],
+    });
+
+    set((state) => {
+      const updatedProjects = [...state.projects, projectEntry];
+      saveProjectsIndex(updatedProjects);
+      return { projects: updatedProjects };
+    });
+
+    return { projectId: newProject.id, section: masterSection };
+  },
+
   deleteProject: (projectId) => {
     const { projects, activeProjectId } = get();
-
-    if (projects.length <= 1) return;
 
     const updatedProjects = projects.filter((p) => p.id !== projectId);
     saveProjectsIndex(updatedProjects);
     deleteProjectFromStorage(projectId);
 
+    // If no projects remain, clear state entirely
+    if (updatedProjects.length === 0) {
+      set({
+        projects: [],
+        project: null as unknown as Project,
+        activeProjectId: null,
+      });
+      return;
+    }
+
     if (activeProjectId === projectId) {
       const nextProject = updatedProjects[0];
       const projectData = loadProjectFromStorage(nextProject.id);
 
-      set({
-        projects: updatedProjects,
-        project: projectData?.project || createDefaultProject(),
-        activeProjectId: nextProject.id,
-      });
+      if (projectData?.project) {
+        set({
+          projects: updatedProjects,
+          project: projectData.project,
+          activeProjectId: nextProject.id,
+        });
+      } else {
+        const { project: defaultProject } = createDefaultProjectWithSection(nextProject.name);
+        set({
+          projects: updatedProjects,
+          project: { ...defaultProject, id: nextProject.id },
+          activeProjectId: nextProject.id,
+        });
+      }
     } else {
       set({ projects: updatedProjects });
     }
@@ -180,6 +264,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { projects: updatedProjects };
     });
   },
+
+  setMasterSection: (sectionId, startDate, endDate) =>
+    set((state) => ({
+      project: {
+        ...state.project,
+        masterSectionId: sectionId,
+        projectStartDate: startDate,
+        projectEndDate: endDate,
+        updatedAt: new Date().toISOString(),
+      },
+    })),
+
+  updateProjectDates: (startDate, endDate) =>
+    set((state) => ({
+      project: {
+        ...state.project,
+        projectStartDate: startDate,
+        projectEndDate: endDate,
+        updatedAt: new Date().toISOString(),
+      },
+    })),
 
   saveCurrentProject: (sections) => {
     const { project, activeProjectId } = get();

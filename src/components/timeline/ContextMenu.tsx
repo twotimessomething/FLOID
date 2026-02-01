@@ -2,11 +2,15 @@ import { useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
+import { useProjectStore } from '../../stores/projectStore';
+import { downloadScheduleFloid } from '../../utils/exportUtils';
 
 interface MenuItem {
   label: string;
   action: () => void;
   danger?: boolean;
+  disabled?: boolean;
+  info?: boolean;
 }
 
 export function ContextMenu(): JSX.Element | null {
@@ -18,8 +22,10 @@ export function ContextMenu(): JSX.Element | null {
     deleteMilestone,
     deleteSection,
     addElement,
+    setAsMaster,
     sections,
   } = useSectionStore();
+  const project = useProjectStore((state) => state.project);
 
   const { isOpen, position, targetType, targetId, sectionId, phaseId } = contextMenu;
 
@@ -135,6 +141,32 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [sectionId, targetId, addElement, selectItem, position, closeContextMenu]);
 
+  const handleExportSchedule = useCallback(() => {
+    if (!sectionId) return;
+
+    const section = sections.find((s) => s.id === sectionId);
+    if (section) {
+      downloadScheduleFloid(project, section);
+    }
+    closeContextMenu();
+  }, [sectionId, sections, project, closeContextMenu]);
+
+  const handleSetAsMaster = useCallback(() => {
+    if (!sectionId) return;
+
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    const confirmed = confirm(
+      `Pin "${section.name}" as master schedule?\n\nThis will update the project dates to match this schedule's date range.`
+    );
+
+    if (confirmed) {
+      setAsMaster(sectionId);
+    }
+    closeContextMenu();
+  }, [sectionId, sections, setAsMaster, closeContextMenu]);
+
   const getDeleteConfirmMessage = (): string | null => {
     if (!targetId || !sectionId) return null;
 
@@ -168,18 +200,42 @@ export function ContextMenu(): JSX.Element | null {
 
   const getMenuItems = (): MenuItem[] => {
     const items: MenuItem[] = [];
+    const section = sections.find((s) => s.id === sectionId);
+    const isMasterSection = section?.id === project.masterSectionId;
 
-    // Edit is available for all types
-    items.push({ label: 'Edit', action: handleEdit });
+    // Edit is available for all types (except master section at section level)
+    if (targetType !== 'section' || !isMasterSection) {
+      items.push({ label: 'Edit', action: handleEdit });
+    }
 
     // Add Element is only available for phases
     if (targetType === 'phase') {
       items.push({ label: 'Add Element', action: handleAddElement });
     }
 
-    // Delete is available for all types (except ID timeline section)
-    const section = sections.find((s) => s.id === sectionId);
-    const canDelete = targetType !== 'section' || section?.type !== 'id-timeline';
+    // Section-specific options
+    if (targetType === 'section' && section) {
+      // Master status indicator or set as master option
+      if (isMasterSection) {
+        items.push({
+          label: 'Pinned as Master',
+          action: () => {},
+          disabled: true,
+          info: true,
+        });
+      } else {
+        items.push({
+          label: 'Pin as Master Schedule',
+          action: handleSetAsMaster,
+        });
+      }
+
+      // Export Schedule is available for all sections
+      items.push({ label: 'Export Schedule', action: handleExportSchedule });
+    }
+
+    // Delete is available for all types (except master section)
+    const canDelete = targetType !== 'section' || !isMasterSection;
 
     if (canDelete) {
       items.push({ label: 'Delete', action: handleDelete, danger: true });
@@ -203,14 +259,22 @@ export function ContextMenu(): JSX.Element | null {
       {menuItems.map((item, index) => (
         <button
           key={index}
-          onClick={item.action}
+          onClick={item.disabled ? undefined : item.action}
+          disabled={item.disabled}
           className={`w-full px-3 py-1.5 text-left text-sm transition-colors ${
-            item.danger
-              ? 'text-red-600 hover:bg-red-50'
-              : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)]'
-          }`}
+            item.disabled
+              ? 'text-[var(--color-text-muted)] cursor-default'
+              : item.danger
+                ? 'text-red-600 hover:bg-red-50'
+                : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)]'
+          } ${item.info ? 'flex items-center gap-1.5' : ''}`}
           role="menuitem"
         >
+          {item.info && (
+            <svg className="w-4 h-4 text-amber-500 rotate-45" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
+            </svg>
+          )}
           {item.label}
         </button>
       ))}

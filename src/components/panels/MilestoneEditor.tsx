@@ -3,12 +3,11 @@ import { useSectionStore, selectSection, selectMilestone } from '../../stores/se
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, Button } from '../common';
-import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../utils/dateUtils';
+import { getDateFromRelativePosition, getRelativePositionFromDate, parseDate } from '../../utils/dateUtils';
 
 export function MilestoneEditor(): JSX.Element {
   const { selection, closeModal } = useUIStore();
   const { updateMilestone, deleteMilestone } = useSectionStore();
-  const { project } = useProjectStore();
 
   const sectionId = selection.sectionId;
   const milestoneId = selection.id;
@@ -19,22 +18,23 @@ export function MilestoneEditor(): JSX.Element {
 
   const section = useSectionStore(sectionSelector);
   const milestone = useSectionStore(milestoneSelector);
+  const project = useProjectStore((state) => state.project);
 
-  // Calculate milestone date using project dates (since milestones are project-relative)
+  // Calculate milestone date using section dates (milestones are section-relative)
   const date = useMemo(() => {
-    if (!milestone) {
+    if (!milestone || !section) {
       return new Date();
     }
 
     return getDateFromRelativePosition(
-      project.startDate,
-      project.endDate,
+      section.startDate,
+      section.endDate,
       milestone.relativePosition
     );
-  }, [milestone, project.startDate, project.endDate]);
+  }, [milestone, section]);
 
-  const projectStartDate = useMemo(() => new Date(project.startDate), [project.startDate]);
-  const projectEndDate = useMemo(() => new Date(project.endDate), [project.endDate]);
+  const sectionStartDate = useMemo(() => section ? parseDate(section.startDate) : new Date(), [section]);
+  const sectionEndDate = useMemo(() => section ? parseDate(section.endDate) : new Date(), [section]);
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,17 +54,17 @@ export function MilestoneEditor(): JSX.Element {
 
   const handleDateChange = useCallback(
     (newDate: Date) => {
-      if (!sectionId || !milestoneId) return;
+      if (!sectionId || !milestoneId || !section) return;
       const newRelativePosition = getRelativePositionFromDate(
-        project.startDate,
-        project.endDate,
+        section.startDate,
+        section.endDate,
         newDate
       );
       // Clamp to 0-1
       const clampedPosition = Math.max(0, Math.min(1, newRelativePosition));
       updateMilestone(sectionId, milestoneId, { relativePosition: clampedPosition });
     },
-    [sectionId, milestoneId, project.startDate, project.endDate, updateMilestone]
+    [sectionId, milestoneId, section, updateMilestone]
   );
 
   const handleDelete = useCallback(() => {
@@ -80,8 +80,9 @@ export function MilestoneEditor(): JSX.Element {
   }
 
   // Determine context label
-  const contextLabel = section.type === 'id-timeline'
-    ? 'Industrial Design'
+  const isMasterSection = section.id === project?.masterSectionId;
+  const contextLabel = isMasterSection
+    ? section.name
     : section.name;
 
   return (
@@ -109,8 +110,8 @@ export function MilestoneEditor(): JSX.Element {
         label="Date"
         value={date}
         onChange={handleDateChange}
-        min={projectStartDate}
-        max={projectEndDate}
+        min={sectionStartDate}
+        max={sectionEndDate}
       />
 
       <div className="pt-4 border-t border-[var(--color-border)]">

@@ -1,7 +1,8 @@
+import { addDays } from 'date-fns';
 import { useUIStore } from '../../stores/uiStore';
-import { useTimeline } from '../../hooks/useTimeline';
+import { useViewport } from '../../hooks/useViewport';
 import { getPositionFromRelative, HEADER_HEIGHT } from '../../utils/timelineUtils';
-import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
+import { formatDate } from '../../utils/dateUtils';
 
 interface PlayheadProps {
   readonly height: number;
@@ -9,16 +10,14 @@ interface PlayheadProps {
 
 export default function Playhead({ height }: PlayheadProps) {
   const { playheadPosition, playheadY } = useUIStore();
-  const { timelineWidth, project } = useTimeline();
+  const { viewportBounds, timelineWidth } = useViewport();
 
   if (playheadPosition === null) return null;
 
   const left = getPositionFromRelative(playheadPosition, timelineWidth);
-  const date = getDateFromRelativePosition(
-    project.startDate,
-    project.endDate,
-    playheadPosition
-  );
+  // Convert viewport-relative position to absolute date
+  const daysFromStart = playheadPosition * viewportBounds.totalDays;
+  const date = addDays(viewportBounds.startDate, Math.round(daysFromStart));
   const dateLabel = formatDate(date, 'MMM d, yyyy');
 
   // Position the label above the mouse (subtract header height since playheadY is relative to scroll container)
@@ -30,11 +29,11 @@ export default function Playhead({ height }: PlayheadProps) {
       style={{ left, height }}
     >
       {/* Vertical line */}
-      <div className="absolute top-0 bottom-0 w-px bg-gray-400 -translate-x-1/2" />
+      <div className="absolute top-0 bottom-0 w-px bg-[var(--color-text-muted)] -translate-x-1/2" />
 
       {/* Date label following mouse - glass effect */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 bg-white/70 backdrop-blur-md text-gray-800 text-xs font-medium rounded-lg whitespace-nowrap shadow-lg ring-1 ring-black/5"
+        className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 bg-white/70 backdrop-blur-md text-[var(--color-text-primary)] text-xs font-medium rounded-lg whitespace-nowrap shadow-lg ring-1 ring-black/5"
         style={{ top: labelY }}
       >
         {dateLabel}

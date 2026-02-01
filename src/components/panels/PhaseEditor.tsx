@@ -3,12 +3,12 @@ import { useSectionStore, selectSection, selectPhase } from '../../stores/sectio
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, ColorPicker, Button } from '../common';
-import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../utils/dateUtils';
+import { getDateFromRelativePosition, getRelativePositionFromDate, parseDate } from '../../utils/dateUtils';
 
 export function PhaseEditor(): JSX.Element {
   const { selection, closeModal } = useUIStore();
   const { updatePhase, updatePhasePosition, deletePhase } = useSectionStore();
-  const { project } = useProjectStore();
+  const project = useProjectStore((state) => state.project);
 
   const sectionId = selection.sectionId;
   const phaseId = selection.id;
@@ -20,25 +20,30 @@ export function PhaseEditor(): JSX.Element {
   const section = useSectionStore(sectionSelector);
   const phase = useSectionStore(phaseSelector);
 
-  const isIDTimeline = section?.type === 'id-timeline';
+  const isMasterSection = section?.id === project?.masterSectionId;
 
+  // Use section dates for calculating phase dates
   const startDate = useMemo(() => {
-    if (!phase) return new Date();
+    if (!phase || !section) return new Date();
     return getDateFromRelativePosition(
-      project.startDate,
-      project.endDate,
+      section.startDate,
+      section.endDate,
       phase.relativeStart
     );
-  }, [phase, project.startDate, project.endDate]);
+  }, [phase, section]);
 
   const endDate = useMemo(() => {
-    if (!phase) return new Date();
+    if (!phase || !section) return new Date();
     return getDateFromRelativePosition(
-      project.startDate,
-      project.endDate,
+      section.startDate,
+      section.endDate,
       phase.relativeEnd
     );
-  }, [phase, project.startDate, project.endDate]);
+  }, [phase, section]);
+
+  // Section date boundaries for date picker limits
+  const sectionStartDate = section ? parseDate(section.startDate) : new Date();
+  const sectionEndDate = section ? parseDate(section.endDate) : new Date();
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,10 +71,10 @@ export function PhaseEditor(): JSX.Element {
 
   const handleStartDateChange = useCallback(
     (date: Date) => {
-      if (!sectionId || !phaseId || !phase) return;
+      if (!sectionId || !phaseId || !phase || !section) return;
       const newRelativeStart = getRelativePositionFromDate(
-        project.startDate,
-        project.endDate,
+        section.startDate,
+        section.endDate,
         date
       );
       // Ensure start doesn't go past end
@@ -77,15 +82,15 @@ export function PhaseEditor(): JSX.Element {
         updatePhasePosition(sectionId, phaseId, newRelativeStart, phase.relativeEnd);
       }
     },
-    [sectionId, phaseId, phase, project.startDate, project.endDate, updatePhasePosition]
+    [sectionId, phaseId, phase, section, updatePhasePosition]
   );
 
   const handleEndDateChange = useCallback(
     (date: Date) => {
-      if (!sectionId || !phaseId || !phase) return;
+      if (!sectionId || !phaseId || !phase || !section) return;
       const newRelativeEnd = getRelativePositionFromDate(
-        project.startDate,
-        project.endDate,
+        section.startDate,
+        section.endDate,
         date
       );
       // Ensure end doesn't go before start
@@ -93,7 +98,7 @@ export function PhaseEditor(): JSX.Element {
         updatePhasePosition(sectionId, phaseId, phase.relativeStart, newRelativeEnd);
       }
     },
-    [sectionId, phaseId, phase, project.startDate, project.endDate, updatePhasePosition]
+    [sectionId, phaseId, phase, section, updatePhasePosition]
   );
 
   const handleDelete = useCallback(() => {
@@ -110,8 +115,8 @@ export function PhaseEditor(): JSX.Element {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Context label for team phases */}
-      {!isIDTimeline && (
+      {/* Context label for non-master section phases */}
+      {!isMasterSection && (
         <div className="text-xs text-[var(--color-text-secondary)]">
           Part of <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>
         </div>
@@ -132,8 +137,8 @@ export function PhaseEditor(): JSX.Element {
         placeholder="Add a description..."
       />
 
-      {/* Color picker only for ID timeline phases */}
-      {isIDTimeline && phase.color && (
+      {/* Color picker only for master section phases (that have individual colors) */}
+      {isMasterSection && phase.color && (
         <ColorPicker
           label="Color"
           value={phase.color}
@@ -146,7 +151,7 @@ export function PhaseEditor(): JSX.Element {
           label="Start Date"
           value={startDate}
           onChange={handleStartDateChange}
-          min={project.startDate}
+          min={sectionStartDate}
           max={endDate}
         />
         <DateInput
@@ -154,7 +159,7 @@ export function PhaseEditor(): JSX.Element {
           value={endDate}
           onChange={handleEndDateChange}
           min={startDate}
-          max={project.endDate}
+          max={sectionEndDate}
         />
       </div>
 

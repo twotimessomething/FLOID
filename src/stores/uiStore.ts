@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ZoomLevel, SelectionState, ModalPosition } from '../types';
+import type { ZoomLevel, SelectionState, ModalPosition, ImportAnalysis, ImportModalType } from '../types';
 
 // Label column constraints
 const MIN_LABEL_WIDTH = 120;
@@ -19,6 +19,23 @@ export interface ContextMenuState {
   targetId: string | null;
   sectionId: string | null;
   phaseId: string | null;
+}
+
+// Toast state
+export type ToastType = 'success' | 'error' | 'warning';
+
+export interface ToastState {
+  isVisible: boolean;
+  type: ToastType;
+  message: string;
+  duration: number;
+}
+
+// Import modal state
+export interface UIImportModalState {
+  isOpen: boolean;
+  type: ImportModalType | null;
+  analysis: ImportAnalysis | null;
 }
 
 interface UIState {
@@ -79,10 +96,10 @@ interface UIState {
   scrollToTodayTrigger: number;
   triggerScrollToToday: () => void;
 
-  // Add team modal
-  isAddTeamModalOpen: boolean;
-  openAddTeamModal: () => void;
-  closeAddTeamModal: () => void;
+  // Add schedule modal
+  isAddScheduleModalOpen: boolean;
+  openAddScheduleModal: () => void;
+  closeAddScheduleModal: () => void;
 
   // Context menu
   contextMenu: ContextMenuState;
@@ -94,6 +111,23 @@ interface UIState {
     phaseId?: string | null
   ) => void;
   closeContextMenu: () => void;
+
+  // Toast notifications
+  toast: ToastState;
+  showToast: (type: ToastType, message: string, duration?: number) => void;
+  hideToast: () => void;
+
+  // Import modal
+  importModal: UIImportModalState;
+  openImportModal: (
+    type: ImportModalType,
+    analysis: ImportAnalysis
+  ) => void;
+  closeImportModal: () => void;
+
+  // File drag state for drop zone
+  isDraggingFile: boolean;
+  setDraggingFile: (isDragging: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -165,10 +199,10 @@ export const useUIStore = create<UIState>((set) => ({
   triggerScrollToToday: () =>
     set((state) => ({ scrollToTodayTrigger: state.scrollToTodayTrigger + 1 })),
 
-  // Add team modal
-  isAddTeamModalOpen: false,
-  openAddTeamModal: () => set({ isAddTeamModalOpen: true }),
-  closeAddTeamModal: () => set({ isAddTeamModalOpen: false }),
+  // Add schedule modal
+  isAddScheduleModalOpen: false,
+  openAddScheduleModal: () => set({ isAddScheduleModalOpen: true }),
+  closeAddScheduleModal: () => set({ isAddScheduleModalOpen: false }),
 
   // Context menu
   contextMenu: {
@@ -197,4 +231,55 @@ export const useUIStore = create<UIState>((set) => ({
         isOpen: false,
       },
     })),
+
+  // Toast notifications
+  toast: {
+    isVisible: false,
+    type: 'success' as ToastType,
+    message: '',
+    duration: 3000,
+  },
+  showToast: (type, message, duration = 3000) =>
+    set({
+      toast: {
+        isVisible: true,
+        type,
+        message,
+        duration,
+      },
+    }),
+  hideToast: () =>
+    set((state) => ({
+      toast: {
+        ...state.toast,
+        isVisible: false,
+      },
+    })),
+
+  // Import modal
+  importModal: {
+    isOpen: false,
+    type: null,
+    analysis: null,
+  },
+  openImportModal: (type, analysis) =>
+    set({
+      importModal: {
+        isOpen: true,
+        type,
+        analysis,
+      },
+    }),
+  closeImportModal: () =>
+    set({
+      importModal: {
+        isOpen: false,
+        type: null,
+        analysis: null,
+      },
+    }),
+
+  // File drag state
+  isDraggingFile: false,
+  setDraggingFile: (isDragging) => set({ isDraggingFile: isDragging }),
 }));

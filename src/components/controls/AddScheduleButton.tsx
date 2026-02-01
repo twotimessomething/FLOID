@@ -1,15 +1,15 @@
 import { useUIStore } from '../../stores/uiStore';
 
-export default function AddTeamButton(): JSX.Element {
-  const openAddTeamModal = useUIStore((state) => state.openAddTeamModal);
+export default function AddScheduleButton(): JSX.Element {
+  const openAddScheduleModal = useUIStore((state) => state.openAddScheduleModal);
 
-  const handleAddTeam = (): void => {
-    openAddTeamModal();
+  const handleAddSchedule = (): void => {
+    openAddScheduleModal();
   };
 
   return (
     <button
-      onClick={handleAddTeam}
+      onClick={handleAddSchedule}
       className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] glass-bordered rounded-md transition-colors duration-150"
     >
       <svg
@@ -25,7 +25,7 @@ export default function AddTeamButton(): JSX.Element {
           d="M12 4v16m8-8H4"
         />
       </svg>
-      <span>Add Team</span>
+      <span>Add Schedule</span>
     </button>
   );
 }

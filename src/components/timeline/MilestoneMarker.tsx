@@ -1,15 +1,15 @@
-import { useRef, useCallback, useEffect, useState } from 'react';
-import type { Milestone, Section } from '../../types';
+import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
+import type { Milestone, Section, ViewportBounds } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
-import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { ROW_HEIGHT } from '../../utils/timelineUtils';
-import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
+import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, getDaysBetween, snapRelativeToBusinessDay, findNearestPhaseBoundary } from '../../utils/dateUtils';
 
 interface MilestoneMarkerProps {
   readonly milestone: Milestone;
   readonly section: Section;
   readonly timelineWidth: number;
+  readonly viewportBounds: ViewportBounds;
   readonly lineHeight?: number; // Height of the vertical line extending down
 }
 
@@ -17,10 +17,10 @@ export default function MilestoneMarker({
   milestone,
   section,
   timelineWidth,
+  viewportBounds,
   lineHeight = 0,
 }: MilestoneMarkerProps) {
   const { updateMilestone } = useSectionStore();
-  const { project } = useProjectStore();
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
 
   const isSelected = selection.type === 'milestone' && selection.id === milestone.id;
@@ -29,8 +29,9 @@ export default function MilestoneMarker({
   const hasDragged = useRef(false);
   const [dragDate, setDragDate] = useState<string | undefined>(undefined);
 
-  // Calculate absolute position within the full timeline
-  const milestoneLeft = milestone.relativePosition * timelineWidth;
+  // Convert section-relative position to viewport-relative for rendering
+  const viewportPosition = sectionToViewportRelative(milestone.relativePosition, section, viewportBounds);
+  const milestoneLeft = viewportPosition * timelineWidth;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -62,11 +63,18 @@ export default function MilestoneMarker({
       setDragging(true, 'move');
       document.body.classList.add('no-select');
 
-      // Initialize drag date
-      const date = getDateFromRelativePosition(project.startDate, project.endDate, milestone.relativePosition);
+      // Initialize drag date using section dates
+      const date = getDateFromRelativePosition(section.startDate, section.endDate, milestone.relativePosition);
       setDragDate(formatDate(date, 'MMM d'));
     },
-    [setDragging, milestone.relativePosition, project.startDate, project.endDate]
+    [setDragging, milestone.relativePosition, section.startDate, section.endDate]
+  );
+
+  // Memoize section viewport width for the effect
+  const sectionDays = useMemo(() => getDaysBetween(section.startDate, section.endDate), [section.startDate, section.endDate]);
+  const sectionViewportWidth = useMemo(
+    () => viewportBounds.totalDays > 0 ? (sectionDays / viewportBounds.totalDays) * timelineWidth : timelineWidth,
+    [sectionDays, viewportBounds.totalDays, timelineWidth]
   );
 
   useEffect(() => {
@@ -81,14 +89,14 @@ export default function MilestoneMarker({
         hasDragged.current = true;
       }
 
-      // Convert pixel delta to relative position within timeline
-      const deltaRelative = deltaX / timelineWidth;
-      const newPosition = Math.max(0, Math.min(1, milestone.relativePosition + deltaRelative));
+      // Convert pixel delta to section-relative position
+      const deltaSectionRelative = sectionViewportWidth > 0 ? deltaX / sectionViewportWidth : 0;
+      const newPosition = Math.max(0, Math.min(1, milestone.relativePosition + deltaSectionRelative));
 
       updateMilestone(section.id, milestone.id, { relativePosition: newPosition });
 
-      // Update drag date
-      const date = getDateFromRelativePosition(project.startDate, project.endDate, newPosition);
+      // Update drag date using section dates
+      const date = getDateFromRelativePosition(section.startDate, section.endDate, newPosition);
       setDragDate(formatDate(date, 'MMM d'));
     };
 
@@ -98,6 +106,26 @@ export default function MilestoneMarker({
       setDragging(false);
       setDragDate(undefined);
       document.body.classList.remove('no-select');
+
+      // Apply smart snapping behaviors
+      let finalPosition = milestone.relativePosition;
+
+      // 1. Milestone gravity: snap to nearby phase boundary (within 5%)
+      const nearestBoundary = findNearestPhaseBoundary(finalPosition, section.phases, 0.05);
+      if (nearestBoundary !== null) {
+        finalPosition = nearestBoundary;
+      }
+
+      // 2. Weekend snapping: snap to next business day if on weekend
+      const snappedPosition = snapRelativeToBusinessDay(finalPosition, section.startDate, section.endDate);
+      if (snappedPosition !== finalPosition) {
+        finalPosition = snappedPosition;
+      }
+
+      // Update if position changed
+      if (finalPosition !== milestone.relativePosition) {
+        updateMilestone(section.id, milestone.id, { relativePosition: finalPosition });
+      }
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -107,7 +135,7 @@ export default function MilestoneMarker({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, milestone.relativePosition, milestone.id, timelineWidth, project.startDate, project.endDate, updateMilestone, setDragging]);
+  }, [section.id, section.startDate, section.endDate, milestone.relativePosition, milestone.id, sectionViewportWidth, updateMilestone, setDragging]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(
@@ -142,12 +170,12 @@ export default function MilestoneMarker({
       {/* Drag date bubble */}
       {dragDate && (
         <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[#1f2937] text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none"
           aria-hidden="true"
         >
           {dragDate}
           {/* Arrow */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-[#1f2937]" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-[var(--color-tooltip)]" />
         </div>
       )}
 
@@ -161,8 +189,8 @@ export default function MilestoneMarker({
         <div
           className={`w-3 h-3 rotate-45 ${
             isSelected
-              ? 'bg-[var(--color-focus)] ring-2 ring-blue-300'
-              : 'bg-[var(--color-text-primary)] group-hover:bg-[#1f2937]'
+              ? 'bg-[var(--color-focus)] ring-2 ring-[var(--color-focus)]/40'
+              : 'bg-[var(--color-text-primary)] group-hover:bg-gray-800'
           }`}
         />
       </div>
@@ -170,7 +198,7 @@ export default function MilestoneMarker({
       {/* Short vertical line extending down from marker */}
       <div
         className={`absolute top-1/2 left-0 -translate-x-1/2 w-0.5 h-3 ${
-          isSelected ? 'bg-[var(--color-focus)]' : 'bg-[var(--color-text-primary)] group-hover:bg-[#1f2937]'
+          isSelected ? 'bg-[var(--color-focus)]' : 'bg-[var(--color-text-primary)] group-hover:bg-gray-800'
         }`}
         aria-hidden="true"
       />
@@ -178,7 +206,7 @@ export default function MilestoneMarker({
       {/* Extended vertical line through content rows */}
       {lineHeight > 0 && (
         <div
-          className="absolute left-0 -translate-x-1/2 w-px bg-[#d1d5db] pointer-events-none"
+          className="absolute left-0 -translate-x-1/2 w-px bg-[var(--color-gridline)] pointer-events-none"
           style={{
             top: ROW_HEIGHT,
             height: lineHeight,

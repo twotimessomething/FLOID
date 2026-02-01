@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import { useProjectStore } from '../stores/projectStore';
-import { useSectionStore } from '../stores/sectionStore';
+import { useSectionStore, selectMasterSection } from '../stores/sectionStore';
 import type { Section, Phase, Element, Milestone } from '../types';
 import { getPhaseColor } from '../types';
+import { parseISO, differenceInDays, addDays } from 'date-fns';
 
 export interface StatusItem {
   id: string;
@@ -36,28 +36,29 @@ export interface TimelineStatus {
   todayPosition: number;
 }
 
-function getTodayPosition(startDate: string, endDate: string): number {
-  const start = new Date(startDate).getTime();
-  const end = new Date(endDate).getTime();
+function getTodayPositionInSection(section: Section): number {
+  const start = parseISO(section.startDate).getTime();
+  const end = parseISO(section.endDate).getTime();
   const today = new Date().getTime();
 
   const position = (today - start) / (end - start);
   return Math.max(0, Math.min(1, position));
 }
 
-function positionToDate(position: number, startDate: string, endDate: string): Date {
-  const start = new Date(startDate).getTime();
-  const end = new Date(endDate).getTime();
-  const timestamp = start + position * (end - start);
-  return new Date(timestamp);
+function sectionPositionToDate(position: number, section: Section): Date {
+  const start = parseISO(section.startDate);
+  const end = parseISO(section.endDate);
+  const days = differenceInDays(end, start);
+  return addDays(start, Math.round(position * days));
 }
 
 export function useTimelineStatus(): TimelineStatus {
-  const project = useProjectStore((state) => state.project);
   const sections = useSectionStore((state) => state.sections);
+  const masterSection = useSectionStore(selectMasterSection);
 
   return useMemo(() => {
-    const todayPosition = getTodayPosition(project.startDate, project.endDate);
+    // Get today's position relative to the master section
+    const todayPosition = masterSection ? getTodayPositionInSection(masterSection) : 0.5;
 
     const inFlight: StatusItem[] = [];
     const nextUp: StatusItem[] = [];
@@ -69,12 +70,15 @@ export function useTimelineStatus(): TimelineStatus {
     const milestoneBySection: Map<string, MilestoneItem> = new Map();
 
     sections.forEach((section: Section) => {
+      // Get today's position relative to this section
+      const sectionTodayPosition = getTodayPositionInSection(section);
+
       section.phases.forEach((phase: Phase) => {
         const phaseColor = getPhaseColor(phase, section);
 
         // Check if phase has elements
         if (phase.elements.length > 0) {
-          // Process elements - convert relative-to-phase to absolute
+          // Process elements - convert relative-to-phase to section-relative
           phase.elements.forEach((element: Element) => {
             const phaseWidth = phase.relativeEnd - phase.relativeStart;
             const absoluteStart = phase.relativeStart + element.relativeStart * phaseWidth;
@@ -95,15 +99,15 @@ export function useTimelineStatus(): TimelineStatus {
               absoluteEnd,
             };
 
-            // In flight: today is within bounds
-            if (todayPosition >= absoluteStart && todayPosition <= absoluteEnd) {
+            // In flight: today is within bounds (relative to this section)
+            if (sectionTodayPosition >= absoluteStart && sectionTodayPosition <= absoluteEnd) {
               inFlight.push(item);
             }
             // Next up: starts after today
-            else if (absoluteStart > todayPosition) {
+            else if (absoluteStart > sectionTodayPosition) {
               const existing = nextUpBySection.get(section.id);
               if (!existing || absoluteStart < existing.absoluteStart) {
-                item.date = positionToDate(absoluteStart, project.startDate, project.endDate);
+                item.date = sectionPositionToDate(absoluteStart, section);
                 nextUpBySection.set(section.id, item);
               }
             }
@@ -125,14 +129,14 @@ export function useTimelineStatus(): TimelineStatus {
           };
 
           // In flight: today is within bounds
-          if (todayPosition >= phase.relativeStart && todayPosition <= phase.relativeEnd) {
+          if (sectionTodayPosition >= phase.relativeStart && sectionTodayPosition <= phase.relativeEnd) {
             inFlight.push(item);
           }
           // Next up: starts after today
-          else if (phase.relativeStart > todayPosition) {
+          else if (phase.relativeStart > sectionTodayPosition) {
             const existing = nextUpBySection.get(section.id);
             if (!existing || phase.relativeStart < existing.absoluteStart) {
-              item.date = positionToDate(phase.relativeStart, project.startDate, project.endDate);
+              item.date = sectionPositionToDate(phase.relativeStart, section);
               nextUpBySection.set(section.id, item);
             }
           }
@@ -141,7 +145,7 @@ export function useTimelineStatus(): TimelineStatus {
 
       // Process milestones
       section.milestones.forEach((milestone: Milestone) => {
-        if (milestone.relativePosition > todayPosition) {
+        if (milestone.relativePosition > sectionTodayPosition) {
           const existing = milestoneBySection.get(section.id);
           if (!existing || milestone.relativePosition < existing.relativePosition) {
             milestoneBySection.set(section.id, {
@@ -150,7 +154,7 @@ export function useTimelineStatus(): TimelineStatus {
               color: section.color,
               sectionName: section.name,
               relativePosition: milestone.relativePosition,
-              date: positionToDate(milestone.relativePosition, project.startDate, project.endDate),
+              date: sectionPositionToDate(milestone.relativePosition, section),
             });
           }
         }
@@ -178,5 +182,5 @@ export function useTimelineStatus(): TimelineStatus {
       upcomingMilestones,
       todayPosition,
     };
-  }, [project.startDate, project.endDate, sections]);
+  }, [sections, masterSection]);
 }

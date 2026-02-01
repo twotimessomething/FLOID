@@ -48,11 +48,11 @@ export function LeftSidebar() {
     openProjectSetupModal();
   }, [openProjectSetupModal]);
 
+  const clearSections = useSectionStore((state) => state.clearSections);
+
   const handleDeleteProject = useCallback(
     (projectId: string, e: React.MouseEvent) => {
       e.stopPropagation();
-
-      if (projects.length <= 1) return;
 
       const projectToDelete = projects.find((p) => p.id === projectId);
       if (!projectToDelete) return;
@@ -60,14 +60,17 @@ export function LeftSidebar() {
       if (window.confirm(`Delete "${projectToDelete.name}"? This cannot be undone.`)) {
         deleteProject(projectId);
 
-        // If we deleted the active project, load the new active one
+        // If we deleted the active project, load the new active one (if any remain)
         const newActiveId = useProjectStore.getState().activeProjectId;
         if (newActiveId) {
           loadSectionsForProject(newActiveId);
+        } else {
+          // No projects left, clear sections
+          clearSections();
         }
       }
     },
-    [projects, deleteProject, loadSectionsForProject]
+    [projects, deleteProject, loadSectionsForProject, clearSections]
   );
 
   // Focus edit input when editing starts
@@ -189,6 +192,13 @@ export function LeftSidebar() {
 
       {/* Projects list */}
       <div className="flex-1 overflow-y-auto p-2">
+        {sortedProjects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4 py-8">
+            <p className="text-sm text-[var(--color-text-muted)]">
+              No projects yet
+            </p>
+          </div>
+        ) : (
         <div className="space-y-1">
           {sortedProjects.map((proj) => (
             <div
@@ -197,7 +207,7 @@ export function LeftSidebar() {
               className={`group flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors duration-150 ${
                 proj.id === activeProjectId
                   ? 'bg-[var(--color-active)] text-[var(--color-text-primary)]'
-                  : 'text-[#4b5563] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]'
               }`}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -256,36 +266,35 @@ export function LeftSidebar() {
                   <div className="absolute right-0 top-full mt-1 w-36 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 z-10">
                     <button
                       onClick={(e) => handleEditProject(proj.id, e)}
-                      className="w-full px-3 py-1.5 text-left text-sm text-[#374151] hover:bg-[#f3f4f6] transition-colors duration-150"
+                      className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
                     >
                       Edit project...
                     </button>
-                    {projects.length > 1 && (
-                      <button
-                        onClick={(e) => {
-                          setMenuOpenProjectId(null);
-                          handleDeleteProject(proj.id, e);
-                        }}
-                        className="w-full px-3 py-1.5 text-left text-sm text-[#ef4444] hover:bg-[#fef2f2] transition-colors duration-150"
-                      >
-                        Delete project
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => {
+                        setMenuOpenProjectId(null);
+                        handleDeleteProject(proj.id, e);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-danger)] hover:bg-[var(--color-danger-hover)] transition-colors duration-150"
+                    >
+                      Delete project
+                    </button>
                   </div>
                 )}
               </div>
             </div>
           ))}
         </div>
+        )}
       </div>
 
-      {/* Add project button */}
-      <div className="p-3 flex justify-center">
+      {/* New project button - padded to align with Add Schedule button */}
+      <div className="pb-7 pt-3 flex justify-center">
         <button
           onClick={handleNewProject}
-          className="flex items-center gap-2 px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] glass-bordered rounded-md transition-colors duration-150"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] glass-bordered rounded-md transition-colors duration-150"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           <span>New Project</span>

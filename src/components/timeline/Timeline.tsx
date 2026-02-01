@@ -1,30 +1,35 @@
 import { useRef, useMemo, useCallback, useEffect, useState } from 'react';
-import { useSectionStore, selectIDTimeline, selectTeams } from '../../stores/sectionStore';
+import { useSectionStore, selectMasterSection, selectNonMasterSections } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
-import { useTimeline } from '../../hooks/useTimeline';
+import { useProjectStore } from '../../stores/projectStore';
+import { useViewport } from '../../hooks/useViewport';
 import { usePlayhead } from '../../hooks/usePlayhead';
 import { useDragReorder } from '../../hooks/useDragReorder';
 import TimelineHeader from './TimelineHeader';
 import TimelineGrid from './TimelineGrid';
 import SectionRow from './SectionRow';
 import Playhead from './Playhead';
-import { AddTeamButton, ZoomControls } from '../controls';
+import { AddScheduleButton, ZoomControls } from '../controls';
 import { HEADER_HEIGHT, ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getPositionFromRelative } from '../../utils/timelineUtils';
-import { getTodayPosition } from '../../utils/dateUtils';
+import { getTodayViewportPosition, isTodayInViewport } from '../../utils/dateUtils';
+import type { Section } from '../../types';
 
 export default function Timeline() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const labelsScrollRef = useRef<HTMLDivElement>(null);
   const isScrollSyncing = useRef(false);
 
-  const idTimeline = useSectionStore(selectIDTimeline);
-  const teams = useSectionStore(selectTeams);
+  const activeProjectId = useProjectStore((state) => state.activeProjectId);
+  const openProjectSetupModal = useUIStore((state) => state.openProjectSetupModal);
+
+  const masterSection = useSectionStore(selectMasterSection);
+  const nonMasterSections = useSectionStore(selectNonMasterSections);
   const { reorderSections } = useSectionStore();
 
   const labelColumnWidth = useUIStore((state) => state.labelColumnWidth);
   const setLabelColumnWidth = useUIStore((state) => state.setLabelColumnWidth);
   const scrollToTodayTrigger = useUIStore((state) => state.scrollToTodayTrigger);
-  const { timelineWidth, totalDays, project } = useTimeline();
+  const { viewportBounds, timelineWidth } = useViewport();
   const { handleMouseDown: handlePlayheadMouseDown } = usePlayhead({
     timelineWidth,
     containerRef: scrollContainerRef,
@@ -69,9 +74,9 @@ export default function Timeline() {
     if (scrollToTodayTrigger === 0) return;
     if (!scrollContainerRef.current) return;
 
-    const todayPosition = getTodayPosition(project.startDate, project.endDate);
-    if (todayPosition < 0 || todayPosition > 1) return;
+    if (!isTodayInViewport(viewportBounds)) return;
 
+    const todayPosition = getTodayViewportPosition(viewportBounds);
     const todayPixel = getPositionFromRelative(todayPosition, timelineWidth);
     const containerWidth = scrollContainerRef.current.clientWidth;
     const scrollTarget = todayPixel - containerWidth / 2;
@@ -80,48 +85,54 @@ export default function Timeline() {
       left: Math.max(0, scrollTarget),
       behavior: 'smooth',
     });
-  }, [scrollToTodayTrigger, project.startDate, project.endDate, timelineWidth]);
+  }, [scrollToTodayTrigger, viewportBounds, timelineWidth]);
 
-  // Calculate individual team heights for proper drop indicator positioning
-  const teamHeights = useMemo(() => {
-    return teams.map((team) => {
-      let height = ROW_HEIGHT; // Team header row
-      if (!team.isCollapsed) {
-        team.phases.forEach((phase) => {
-          height += ROW_HEIGHT; // Phase row
-          if (!phase.isCollapsed) {
-            height += phase.elements.length * ELEMENT_ROW_HEIGHT;
-          }
-        });
-      }
-      return height;
-    });
-  }, [teams]);
+  // Calculate section height for a given section
+  const calculateSectionHeight = (section: Section): number => {
+    let height = ROW_HEIGHT; // Section header row
+    if (!section.isCollapsed) {
+      section.phases.forEach((phase) => {
+        height += ROW_HEIGHT; // Phase row
+        if (!phase.isCollapsed) {
+          height += phase.elements.length * ELEMENT_ROW_HEIGHT;
+        }
+      });
+    }
+    return height;
+  };
 
-  // Use drag reorder for teams
+  // Calculate individual non-master section heights for proper drop indicator positioning
+  const sectionHeights = useMemo(() => {
+    return nonMasterSections.map((section) => calculateSectionHeight(section));
+  }, [nonMasterSections]);
+
+  // Use drag reorder for non-master sections
   const {
     state: dragState,
     getDragHandleProps,
   } = useDragReorder({
-    onReorder: reorderSections,
-    itemCount: teams.length,
+    onReorder: (from, to) => {
+      // Adjust indices to account for master section at index 0
+      reorderSections(from + 1, to + 1);
+    },
+    itemCount: nonMasterSections.length,
     rowHeight: ROW_HEIGHT, // Movement threshold
   });
 
   // Custom drop indicator style using actual cumulative heights
-  const getTeamDropIndicatorStyle = useCallback((): React.CSSProperties | null => {
+  const getDropIndicatorStyle = useCallback((): React.CSSProperties | null => {
     if (!dragState.isDragging || dragState.dropIndex === null || dragState.dropIndex === dragState.dragIndex) {
       return null;
     }
 
-    // Calculate position based on cumulative team heights
+    // Calculate position based on cumulative section heights
     const targetIndex = dragState.dropIndex > (dragState.dragIndex ?? 0)
       ? dragState.dropIndex + 1
       : dragState.dropIndex;
 
     let top = 0;
-    for (let i = 0; i < targetIndex && i < teamHeights.length; i++) {
-      top += teamHeights[i];
+    for (let i = 0; i < targetIndex && i < sectionHeights.length; i++) {
+      top += sectionHeights[i];
     }
 
     return {
@@ -134,7 +145,7 @@ export default function Timeline() {
       zIndex: 50,
       pointerEvents: 'none',
     };
-  }, [dragState.isDragging, dragState.dropIndex, dragState.dragIndex, teamHeights]);
+  }, [dragState.isDragging, dragState.dropIndex, dragState.dragIndex, sectionHeights]);
 
   // Sync vertical scroll between labels column and timeline content
   const handleLabelsScroll = useCallback(() => {
@@ -157,37 +168,61 @@ export default function Timeline() {
   const contentHeight = useMemo(() => {
     let height = 0;
 
-    // ID Timeline section
-    if (idTimeline) {
-      height += ROW_HEIGHT; // Section header row
-      if (!idTimeline.isCollapsed) {
-        idTimeline.phases.forEach((phase) => {
-          height += ROW_HEIGHT;
-          if (!phase.isCollapsed && phase.elements.length > 0) {
-            height += phase.elements.length * ELEMENT_ROW_HEIGHT;
-          }
-        });
-      }
+    // Master section
+    if (masterSection) {
+      height += calculateSectionHeight(masterSection);
     }
 
-    // Teams
-    teams.forEach((team) => {
-      height += ROW_HEIGHT; // Team header row
-      if (!team.isCollapsed) {
-        team.phases.forEach((phase) => {
-          height += ROW_HEIGHT;
-          if (!phase.isCollapsed && phase.elements.length > 0) {
-            height += phase.elements.length * ELEMENT_ROW_HEIGHT;
-          }
-        });
-      }
+    // Non-master sections
+    nonMasterSections.forEach((section) => {
+      height += calculateSectionHeight(section);
     });
 
     // Bottom spacer row
     height += ROW_HEIGHT;
 
     return Math.max(height, 200);
-  }, [idTimeline, teams]);
+  }, [masterSection, nonMasterSections]);
+
+  // Empty state when no projects exist
+  if (!activeProjectId) {
+    return (
+      <div className="h-full flex items-center justify-center bg-[var(--color-surface)]">
+        <div className="text-center max-w-sm mx-auto px-6">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-[var(--color-hover)] flex items-center justify-center">
+            <svg
+              className="w-8 h-8 text-[var(--color-text-muted)]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+              />
+            </svg>
+          </div>
+          <h2 className="text-lg font-medium text-[var(--color-text-primary)] mb-2">
+            No projects yet
+          </h2>
+          <p className="text-sm text-[var(--color-text-muted)] mb-6">
+            Create a project to start planning your timeline.
+          </p>
+          <button
+            onClick={openProjectSetupModal}
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-[var(--color-text-primary)] rounded-lg hover:opacity-90 transition-opacity duration-150"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Create Project
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col relative" role="application" aria-label="Timeline editor">
@@ -228,33 +263,33 @@ export default function Timeline() {
             role="list"
             aria-label="Sections and phases"
           >
-            {/* ID Timeline section */}
-            {idTimeline && (
+            {/* Master section */}
+            {masterSection && (
               <SectionRow
-                section={idTimeline}
+                section={masterSection}
                 isLabel
                 timelineWidth={timelineWidth}
-                totalDays={totalDays}
+                viewportBounds={viewportBounds}
               />
             )}
 
-            {/* Teams */}
+            {/* Non-master sections */}
             <div className="relative" data-drag-container>
-              {teams.map((team, index) => (
+              {nonMasterSections.map((section, index) => (
                 <SectionRow
-                  key={team.id}
-                  section={team}
+                  key={section.id}
+                  section={section}
                   isLabel
                   timelineWidth={timelineWidth}
-                  totalDays={totalDays}
+                  viewportBounds={viewportBounds}
                   sectionIndex={index}
                   dragHandleProps={getDragHandleProps(index)}
                   isDragging={dragState.isDragging && dragState.dragIndex === index}
                 />
               ))}
-              {/* Drop indicator for team reordering */}
-              {getTeamDropIndicatorStyle() && (
-                <div style={getTeamDropIndicatorStyle()!} />
+              {/* Drop indicator for section reordering */}
+              {getDropIndicatorStyle() && (
+                <div style={getDropIndicatorStyle()!} />
               )}
             </div>
 
@@ -262,16 +297,16 @@ export default function Timeline() {
             <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
           </div>
 
-          {/* Add Team button - fixed at bottom of labels column */}
+          {/* Add Schedule button - fixed at bottom of labels column */}
           <div className="absolute bottom-3 left-3 z-10">
-            <AddTeamButton />
+            <AddScheduleButton />
           </div>
         </nav>
 
         {/* Scrollable Timeline Column */}
         <div
           ref={scrollContainerRef}
-          className="flex-1 overflow-auto"
+          className="flex-1 overflow-auto timeline-scroll-container"
           onScroll={handleTimelineScroll}
           role="region"
           aria-label="Timeline content"
@@ -290,27 +325,40 @@ export default function Timeline() {
               {/* Background grid */}
               <TimelineGrid />
 
+              {/* Today line - extends full content height */}
+              {isTodayInViewport(viewportBounds) && (
+                <div
+                  className="absolute top-0 w-0.5 bg-[var(--color-today)] z-20 pointer-events-none"
+                  style={{
+                    left: getPositionFromRelative(getTodayViewportPosition(viewportBounds), timelineWidth),
+                    height: contentHeight,
+                  }}
+                >
+                  <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 bg-[var(--color-today)] rounded-full" />
+                </div>
+              )}
+
               {/* Playhead (scrubber) */}
               <Playhead height={contentHeight} />
 
-              {/* ID Timeline section bars */}
-              {idTimeline && (
+              {/* Master section bars */}
+              {masterSection && (
                 <SectionRow
-                  section={idTimeline}
+                  section={masterSection}
                   isLabel={false}
                   timelineWidth={timelineWidth}
-                  totalDays={totalDays}
+                  viewportBounds={viewportBounds}
                 />
               )}
 
-              {/* Team bars */}
-              {teams.map((team, index) => (
+              {/* Non-master section bars */}
+              {nonMasterSections.map((section, index) => (
                 <SectionRow
-                  key={team.id}
-                  section={team}
+                  key={section.id}
+                  section={section}
                   isLabel={false}
                   timelineWidth={timelineWidth}
-                  totalDays={totalDays}
+                  viewportBounds={viewportBounds}
                   sectionIndex={index}
                   isDragging={dragState.isDragging && dragState.dragIndex === index}
                 />

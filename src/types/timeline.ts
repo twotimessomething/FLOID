@@ -1,13 +1,28 @@
-// Section = container for phases (unified ID timeline + Team)
+// Section = container for phases (unified schedule type)
 export interface Section {
   id: string;
-  type: 'id-timeline' | 'team';
   name: string;
-  color: string;
+  type: 'schedule';             // Unified type - no more 'id-timeline' | 'team' distinction
+  templateId?: string;          // Which template this was created from
+  bindingMode: 'locked' | 'independent';
+  revision: number;             // Incrementing version for sync
+  lastModifiedAt: string;       // ISO timestamp
+  sourceProjectId?: string;     // If imported, where it came from
+  sourceProjectName?: string;   // For display purposes
   order: number;
-  isCollapsed: boolean;
+  startDate: string;            // ISO date string
+  endDate: string;              // ISO date string
   phases: Phase[];
   milestones: Milestone[];
+  color: string;
+  isCollapsed: boolean;
+}
+
+// Computed viewport bounds derived from all sections
+export interface ViewportBounds {
+  startDate: Date;
+  endDate: Date;
+  totalDays: number;
 }
 
 // Phase = time segment within a section
@@ -16,7 +31,7 @@ export interface Phase {
   sectionId: string;
   name: string;
   description: string;
-  color: string | null; // null = inherit from section (teams), string = custom (ID timeline)
+  color: string | null; // null = inherit from section
   order: number;
   isCollapsed: boolean;
   elements: Element[];
@@ -42,7 +57,7 @@ export interface Milestone {
   sectionId: string;
   name: string;
   description: string;
-  relativePosition: number; // 0-1 within full project timeline
+  relativePosition: number; // 0-1 within section timeline
   order: number;
 }
 
@@ -61,9 +76,6 @@ export interface SelectionState {
   phaseId: string | null; // Present for elements
   position?: ModalPosition;
 }
-
-// ID for the special ID timeline section (never changes)
-export const ID_TIMELINE_SECTION_ID = 'id-timeline';
 
 // Helper to get effective color for a phase
 export function getPhaseColor(phase: Phase, section: Section): string {
