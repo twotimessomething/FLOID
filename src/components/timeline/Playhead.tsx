@@ -30,11 +30,11 @@ export default function Playhead({ height }: PlayheadProps) {
       style={{ left, height }}
     >
       {/* Vertical line */}
-      <div className="absolute top-0 bottom-0 w-0.5 bg-blue-500 -translate-x-1/2" />
+      <div className="absolute top-0 bottom-0 w-px bg-gray-400 -translate-x-1/2" />
 
-      {/* Date label following mouse */}
+      {/* Date label following mouse - glass effect */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 bg-blue-500 text-white text-xs rounded whitespace-nowrap shadow-sm"
+        className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 bg-white/70 backdrop-blur-md text-gray-800 text-xs font-medium rounded-lg whitespace-nowrap shadow-lg ring-1 ring-black/5"
         style={{ top: labelY }}
       >
         {dateLabel}

@@ -35,6 +35,13 @@ interface SectionState {
     relativeStart: number,
     relativeEnd: number
   ) => void;
+  updatePhaseWithElements: (
+    sectionId: string,
+    phaseId: string,
+    relativeStart: number,
+    relativeEnd: number,
+    elementUpdates: Array<{ id: string; relativeStart: number; relativeEnd: number }>
+  ) => void;
 
   // Element operations
   addElement: (
@@ -264,6 +271,32 @@ export const useSectionStore = create<SectionState>((set, get) => ({
               phases: section.phases.map((phase) =>
                 phase.id === phaseId
                   ? { ...phase, relativeStart, relativeEnd }
+                  : phase
+              ),
+            }
+          : section
+      ),
+    })),
+
+  updatePhaseWithElements: (sectionId, phaseId, relativeStart, relativeEnd, elementUpdates) =>
+    set((state) => ({
+      sections: state.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              phases: section.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      relativeStart,
+                      relativeEnd,
+                      elements: phase.elements.map((el) => {
+                        const update = elementUpdates.find((u) => u.id === el.id);
+                        return update
+                          ? { ...el, relativeStart: update.relativeStart, relativeEnd: update.relativeEnd }
+                          : el;
+                      }),
+                    }
                   : phase
               ),
             }

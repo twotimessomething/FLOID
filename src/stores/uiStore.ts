@@ -11,6 +11,16 @@ const MIN_INFO_SIDEBAR_WIDTH = 180;
 const MAX_INFO_SIDEBAR_WIDTH = 400;
 const DEFAULT_INFO_SIDEBAR_WIDTH = 224; // w-56 = 14rem = 224px
 
+// Context menu state
+export interface ContextMenuState {
+  isOpen: boolean;
+  position: ModalPosition;
+  targetType: SelectionState['type'];
+  targetId: string | null;
+  sectionId: string | null;
+  phaseId: string | null;
+}
+
 interface UIState {
   // Zoom
   zoomLevel: ZoomLevel;
@@ -73,6 +83,17 @@ interface UIState {
   isAddTeamModalOpen: boolean;
   openAddTeamModal: () => void;
   closeAddTeamModal: () => void;
+
+  // Context menu
+  contextMenu: ContextMenuState;
+  openContextMenu: (
+    position: ModalPosition,
+    targetType: SelectionState['type'],
+    targetId: string | null,
+    sectionId: string | null,
+    phaseId?: string | null
+  ) => void;
+  closeContextMenu: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -148,4 +169,32 @@ export const useUIStore = create<UIState>((set) => ({
   isAddTeamModalOpen: false,
   openAddTeamModal: () => set({ isAddTeamModalOpen: true }),
   closeAddTeamModal: () => set({ isAddTeamModalOpen: false }),
+
+  // Context menu
+  contextMenu: {
+    isOpen: false,
+    position: { x: 0, y: 0 },
+    targetType: null,
+    targetId: null,
+    sectionId: null,
+    phaseId: null,
+  },
+  openContextMenu: (position, targetType, targetId, sectionId, phaseId = null) =>
+    set({
+      contextMenu: {
+        isOpen: true,
+        position,
+        targetType,
+        targetId,
+        sectionId,
+        phaseId,
+      },
+    }),
+  closeContextMenu: () =>
+    set((state) => ({
+      contextMenu: {
+        ...state.contextMenu,
+        isOpen: false,
+      },
+    })),
 }));

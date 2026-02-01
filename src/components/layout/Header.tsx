@@ -3,21 +3,6 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { downloadJson, parseImportedJson } from '../../utils/exportUtils';
 
-// Hoist static logo SVG outside component to avoid recreation on each render
-// Logo uses brand colors defined as CSS variables: --color-logo-primary, --color-logo-bar-1/2/3
-const FloidLogo = (
-  <svg
-    className="w-10 h-10"
-    viewBox="0 0 64 64"
-    fill="none"
-    aria-hidden="true"
-  >
-    <circle cx="32" cy="32" r="30" fill="var(--color-logo-primary)" />
-    <rect x="14" y="20" width="36" height="6" rx="2" fill="var(--color-logo-bar-1)" />
-    <rect x="14" y="29" width="28" height="6" rx="2" fill="var(--color-logo-bar-2)" />
-    <rect x="14" y="38" width="32" height="6" rx="2" fill="var(--color-logo-bar-3)" />
-  </svg>
-);
 
 export default function Header() {
   // Use selective store subscriptions to prevent unnecessary re-renders
@@ -100,10 +85,8 @@ export default function Header() {
   return (
     <header className="h-14 border-b border-[var(--color-border)] px-4 flex items-center justify-between bg-[var(--color-surface)] flex-shrink-0">
       <div className="flex items-center gap-3">
-        {/* Logo - circular mark with staggered timeline bars */}
-        {FloidLogo}
-        {/* Wordmark */}
-        <span className="text-[25px] font-semibold text-[var(--color-text-primary)]">FLOID</span>
+        {/* Logo with wordmark */}
+        <img src="/FLOID_logo.svg" alt="FLOID" className="h-8" />
         {/* Project name */}
         <span className="text-[var(--color-text-muted)] mx-2">|</span>
         {isEditingName ? (

@@ -2,7 +2,7 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 
 interface DragHandleProps {
   readonly edge: 'start' | 'end';
-  readonly onDragStart: () => void;
+  readonly onDragStart: (e: React.MouseEvent) => void;
   readonly onDrag: (deltaX: number) => void;
   readonly onDragEnd: () => void;
   readonly label?: string;
@@ -30,7 +30,7 @@ export default function DragHandle({
       isDragging.current = true;
       lastX.current = e.clientX;
       setShowBubble(true);
-      onDragStart();
+      onDragStart(e);
       document.body.classList.add('no-select');
     },
     [onDragStart]

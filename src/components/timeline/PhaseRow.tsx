@@ -23,9 +23,9 @@ export default function PhaseRow({
   isLabel,
   timelineWidth,
 }: PhaseRowProps): JSX.Element {
-  const { togglePhaseCollapse, updatePhasePosition, addElement } = useSectionStore();
+  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, addElement } = useSectionStore();
   const { project } = useProjectStore();
-  const { selection, selectItem, setDragging } = useUIStore();
+  const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
   const phaseRowRef = useRef<HTMLDivElement>(null);
 
   const isIDTimeline = section.type === 'id-timeline';
@@ -48,6 +48,10 @@ export default function PhaseRow({
   const moveLastX = useRef(0);
   const hasDragged = useRef(false);
 
+  // Preserve children state (Shift key modifier)
+  const preserveChildrenRef = useRef(false);
+  const initialElementPositions = useRef<Array<{ id: string; absoluteStart: number; absoluteEnd: number }>>([]);
+
   // Drag date bubble state
   const [startDragDate, setStartDragDate] = useState<string | undefined>(undefined);
   const [endDragDate, setEndDragDate] = useState<string | undefined>(undefined);
@@ -60,6 +64,12 @@ export default function PhaseRow({
     }
     selectItem('phase', phase.id, section.id, null, { x: e.clientX, y: e.clientY });
   }, [selectItem, phase.id, section.id]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id);
+  }, [openContextMenu, phase.id, section.id]);
 
   // Prevent double-click from propagating to parent (which would create a new element)
   const handleBarDoubleClick = useCallback((e: React.MouseEvent): void => {
@@ -124,8 +134,20 @@ export default function PhaseRow({
     });
   };
 
-  const handleDragStart = (edge: 'start' | 'end'): void => {
+  const handleDragStart = (edge: 'start' | 'end', e?: React.MouseEvent): void => {
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
+
+    // Check if Shift is held to preserve children positions
+    preserveChildrenRef.current = e?.shiftKey ?? false;
+    if (preserveChildrenRef.current) {
+      // Capture initial absolute positions of all elements
+      initialElementPositions.current = phase.elements.map((el) => ({
+        id: el.id,
+        absoluteStart: phase.relativeStart + el.relativeStart * phaseWidth,
+        absoluteEnd: phase.relativeStart + el.relativeEnd * phaseWidth,
+      }));
+    }
+
     // Initialize the drag date
     const position = edge === 'start' ? phase.relativeStart : phase.relativeEnd;
     const date = getDateFromRelativePosition(project.startDate, project.endDate, position);
@@ -139,18 +161,49 @@ export default function PhaseRow({
 
   const handleDrag = (edge: 'start' | 'end', deltaX: number): void => {
     const deltaRelative = deltaX / timelineWidth;
+    let newStart: number;
+    let newEnd: number;
+
     if (edge === 'start') {
-      const newStart = Math.max(0, Math.min(phase.relativeEnd - 0.01, phase.relativeStart + deltaRelative));
-      updatePhasePosition(section.id, phase.id, newStart, phase.relativeEnd);
+      newStart = Math.max(0, Math.min(phase.relativeEnd - 0.01, phase.relativeStart + deltaRelative));
+      newEnd = phase.relativeEnd;
       // Update drag date
       const date = getDateFromRelativePosition(project.startDate, project.endDate, newStart);
       setStartDragDate(formatDate(date, 'MMM d'));
     } else {
-      const newEnd = Math.max(phase.relativeStart + 0.01, Math.min(1, phase.relativeEnd + deltaRelative));
-      updatePhasePosition(section.id, phase.id, phase.relativeStart, newEnd);
+      newStart = phase.relativeStart;
+      newEnd = Math.max(phase.relativeStart + 0.01, Math.min(1, phase.relativeEnd + deltaRelative));
       // Update drag date
       const date = getDateFromRelativePosition(project.startDate, project.endDate, newEnd);
       setEndDragDate(formatDate(date, 'MMM d'));
+    }
+
+    if (preserveChildrenRef.current && initialElementPositions.current.length > 0) {
+      // Calculate new element positions to preserve absolute positions
+      const newPhaseWidth = newEnd - newStart;
+      const elementUpdates = initialElementPositions.current.map((initial) => {
+        // Clamp absolute positions to new phase bounds
+        const clampedAbsStart = Math.max(newStart, Math.min(newEnd, initial.absoluteStart));
+        const clampedAbsEnd = Math.max(newStart, Math.min(newEnd, initial.absoluteEnd));
+
+        // Convert back to relative positions within the new phase
+        const newRelStart = newPhaseWidth > 0 ? (clampedAbsStart - newStart) / newPhaseWidth : 0;
+        const newRelEnd = newPhaseWidth > 0 ? (clampedAbsEnd - newStart) / newPhaseWidth : 1;
+
+        // Ensure minimum element width
+        const minWidth = 0.02;
+        const finalRelEnd = Math.max(newRelStart + minWidth, newRelEnd);
+
+        return {
+          id: initial.id,
+          relativeStart: Math.max(0, Math.min(1 - minWidth, newRelStart)),
+          relativeEnd: Math.min(1, finalRelEnd),
+        };
+      });
+
+      updatePhaseWithElements(section.id, phase.id, newStart, newEnd, elementUpdates);
+    } else {
+      updatePhasePosition(section.id, phase.id, newStart, newEnd);
     }
   };
 
@@ -158,6 +211,9 @@ export default function PhaseRow({
     setDragging(false);
     // Mark that a drag occurred to prevent click from triggering
     hasDragged.current = true;
+    // Clear preserve children state
+    preserveChildrenRef.current = false;
+    initialElementPositions.current = [];
     // Clear the drag date
     if (edge === 'start') {
       setStartDragDate(undefined);
@@ -247,6 +303,7 @@ export default function PhaseRow({
           }`}
           style={{ height: ROW_HEIGHT }}
           onClick={handleClick}
+          onContextMenu={handleContextMenu}
           onKeyDown={handleKeyDown}
           role="button"
           tabIndex={0}
@@ -325,6 +382,7 @@ export default function PhaseRow({
             backgroundColor: effectiveColor,
           }}
           onClick={handleClick}
+          onContextMenu={handleContextMenu}
           onDoubleClick={handleBarDoubleClick}
           onMouseDown={handleMoveStart}
           role="button"
@@ -336,7 +394,7 @@ export default function PhaseRow({
           {/* Left drag handle */}
           <DragHandle
             edge="start"
-            onDragStart={() => handleDragStart('start')}
+            onDragStart={(e) => handleDragStart('start', e)}
             onDrag={(deltaX) => handleDrag('start', deltaX)}
             onDragEnd={() => handleDragEnd('start')}
             label={`Resize ${phase.name} start`}
@@ -347,7 +405,7 @@ export default function PhaseRow({
           {/* Right drag handle */}
           <DragHandle
             edge="end"
-            onDragStart={() => handleDragStart('end')}
+            onDragStart={(e) => handleDragStart('end', e)}
             onDrag={(deltaX) => handleDrag('end', deltaX)}
             onDragEnd={() => handleDragEnd('end')}
             label={`Resize ${phase.name} end`}

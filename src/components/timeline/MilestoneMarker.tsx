@@ -21,7 +21,7 @@ export default function MilestoneMarker({
 }: MilestoneMarkerProps) {
   const { updateMilestone } = useSectionStore();
   const { project } = useProjectStore();
-  const { selection, selectItem, setDragging } = useUIStore();
+  const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
 
   const isSelected = selection.type === 'milestone' && selection.id === milestone.id;
   const isDraggingRef = useRef(false);
@@ -41,6 +41,12 @@ export default function MilestoneMarker({
     }
     selectItem('milestone', milestone.id, section.id, null, { x: e.clientX, y: e.clientY });
   };
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'milestone', milestone.id, section.id);
+  }, [openContextMenu, milestone.id, section.id]);
 
   // Prevent double-click from propagating to parent
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
@@ -124,6 +130,7 @@ export default function MilestoneMarker({
         height: ROW_HEIGHT,
       }}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
       onDoubleClick={handleDoubleClick}
       onMouseDown={handleMouseDown}
       onKeyDown={handleKeyDown}

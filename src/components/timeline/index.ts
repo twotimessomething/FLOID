@@ -7,3 +7,4 @@ export { default as ElementRow } from './ElementRow';
 export { default as MilestoneMarker } from './MilestoneMarker';
 export { default as DragHandle } from './DragHandle';
 export { default as Playhead } from './Playhead';
+export { ContextMenu } from './ContextMenu';

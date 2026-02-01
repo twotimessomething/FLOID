@@ -25,7 +25,7 @@ export default function ElementRow({
 }: ElementRowProps): JSX.Element {
   const { updateElementPosition } = useSectionStore();
   const { project } = useProjectStore();
-  const { selection, selectItem, setDragging } = useUIStore();
+  const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
 
   const isIDTimeline = section.type === 'id-timeline';
   const isSelected = selection.type === 'element' && selection.id === element.id;
@@ -62,12 +62,18 @@ export default function ElementRow({
     selectItem('element', element.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
   }, [selectItem, element.id, section.id, phase.id]);
 
+  const handleContextMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'element', element.id, section.id, phase.id);
+  }, [openContextMenu, element.id, section.id, phase.id]);
+
   // Prevent double-click from propagating to parent (which would create a new element)
   const handleDoubleClick = useCallback((e: React.MouseEvent): void => {
     e.stopPropagation();
   }, []);
 
-  const handleDragStart = (edge: 'start' | 'end'): void => {
+  const handleDragStart = (edge: 'start' | 'end', _e?: React.MouseEvent): void => {
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
     // Calculate absolute position and set drag date
     const relativeInPhase = edge === 'start' ? element.relativeStart : element.relativeEnd;
@@ -199,6 +205,7 @@ export default function ElementRow({
         }`}
         style={{ height: ELEMENT_ROW_HEIGHT }}
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
         onKeyDown={handleKeyDown}
         role="listitem"
         tabIndex={0}
@@ -230,6 +237,7 @@ export default function ElementRow({
           backgroundColor: elementColor,
         }}
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
         onMouseDown={handleMoveStart}
         onKeyDown={handleKeyDown}
@@ -241,7 +249,7 @@ export default function ElementRow({
         {/* Left drag handle */}
         <DragHandle
           edge="start"
-          onDragStart={() => handleDragStart('start')}
+          onDragStart={(e) => handleDragStart('start', e)}
           onDrag={(deltaX) => handleDrag('start', deltaX)}
           onDragEnd={() => handleDragEnd('start')}
           label={`Resize ${element.name} start`}
@@ -252,7 +260,7 @@ export default function ElementRow({
         {/* Right drag handle */}
         <DragHandle
           edge="end"
-          onDragStart={() => handleDragStart('end')}
+          onDragStart={(e) => handleDragStart('end', e)}
           onDrag={(deltaX) => handleDrag('end', deltaX)}
           onDragEnd={() => handleDragEnd('end')}
           label={`Resize ${element.name} end`}

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import Header from './components/layout/Header';
 import TimelineContainer from './components/layout/TimelineContainer';
 import { EditorModal } from './components/layout/EditorModal';
@@ -7,13 +7,16 @@ import { InfoSidebar } from './components/layout/InfoSidebar';
 import { ProjectSetupModal } from './components/layout/ProjectSetupModal';
 import { ProjectEditModal } from './components/layout/ProjectEditModal';
 import { AddTeamModal } from './components/layout/AddTeamModal';
+import { ContextMenu } from './components/timeline';
 import { useAutoSave, useKeyboardShortcuts } from './hooks';
 import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
+import { useUIStore } from './stores/uiStore';
 
 function App() {
   const { initializeFromProject, loadSectionsForProject } = useSectionStore();
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
+  const closeContextMenu = useUIStore((state) => state.closeContextMenu);
 
   // Initialize auto-save functionality
   useAutoSave();
@@ -32,8 +35,15 @@ function App() {
     }
   }, [activeProjectId, loadSectionsForProject]);
 
+  // Disable default browser context menu app-wide
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    // Close any open context menu when right-clicking elsewhere
+    closeContextMenu();
+  }, [closeContextMenu]);
+
   return (
-    <div className="h-full flex flex-col bg-[#fafafa]">
+    <div className="h-full flex flex-col bg-[#fafafa]" onContextMenu={handleContextMenu}>
       {/* Skip link for keyboard navigation */}
       <a href="#main-timeline" className="skip-link">
         Skip to timeline
@@ -53,6 +63,7 @@ function App() {
       <ProjectSetupModal />
       <ProjectEditModal />
       <AddTeamModal />
+      <ContextMenu />
     </div>
   );
 }

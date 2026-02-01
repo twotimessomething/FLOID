@@ -34,7 +34,7 @@ export default function SectionRow({
   isDragging,
 }: SectionRowProps): JSX.Element {
   const { toggleSectionCollapse, addPhase, addMilestone } = useSectionStore();
-  const { selection, selectItem } = useUIStore();
+  const { selection, selectItem, openContextMenu } = useUIStore();
   const headerRowRef = useRef<HTMLDivElement>(null);
 
   const isIDTimeline = section.type === 'id-timeline';
@@ -98,6 +98,14 @@ export default function SectionRow({
       selectItem('section', section.id, section.id, null, { x: e.clientX, y: e.clientY });
     }
   };
+
+  const handleContextMenu = useCallback((e: React.MouseEvent): void => {
+    // Only teams have context menus at section level
+    if (isIDTimeline) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'section', section.id, section.id);
+  }, [isIDTimeline, openContextMenu, section.id]);
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
     e.stopPropagation();
@@ -198,6 +206,7 @@ export default function SectionRow({
           } ${isSelected ? 'selected' : ''}`}
           style={{ height: ROW_HEIGHT }}
           onClick={!isIDTimeline ? handleClick : undefined}
+          onContextMenu={!isIDTimeline ? handleContextMenu : undefined}
           onKeyDown={!isIDTimeline ? handleKeyDown : undefined}
           role={!isIDTimeline ? 'button' : undefined}
           tabIndex={!isIDTimeline ? 0 : undefined}
