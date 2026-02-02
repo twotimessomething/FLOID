@@ -72,22 +72,28 @@ export default function SectionRow({
 
   const isSelected = selection.type === 'section' && selection.id === section.id;
 
-  // Handle click on collapsed phase bar
+  // Handle click on collapsed phase bar - use data-attributes to avoid creating new functions per phase
   const handleCollapsedPhaseClick = useCallback(
-    (phaseId: string) => (e: React.MouseEvent): void => {
+    (e: React.MouseEvent): void => {
       e.stopPropagation();
-      selectItem('phase', phaseId, section.id, null, { x: e.clientX, y: e.clientY });
+      const phaseId = (e.currentTarget as HTMLElement).dataset.phaseId;
+      if (phaseId) {
+        selectItem('phase', phaseId, section.id, null, { x: e.clientX, y: e.clientY });
+      }
     },
     [selectItem, section.id]
   );
 
-  // Handle keyboard on collapsed phase bar
+  // Handle keyboard on collapsed phase bar - use data-attributes to avoid creating new functions per phase
   const handleCollapsedPhaseKeyDown = useCallback(
-    (phaseId: string) => (e: React.KeyboardEvent): void => {
+    (e: React.KeyboardEvent): void => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        const rect = (e.target as HTMLElement).getBoundingClientRect();
-        selectItem('phase', phaseId, section.id, null, { x: rect.right, y: rect.top });
+        const phaseId = (e.currentTarget as HTMLElement).dataset.phaseId;
+        if (phaseId) {
+          const rect = (e.target as HTMLElement).getBoundingClientRect();
+          selectItem('phase', phaseId, section.id, null, { x: rect.right, y: rect.top });
+        }
       }
     },
     [selectItem, section.id]
@@ -156,16 +162,18 @@ export default function SectionRow({
         selectItem('milestone', newMilestone.id, section.id, null, { x: e.clientX, y: e.clientY });
       }
     },
-    [section.id, section, section.milestones.length, timelineWidth, viewportBounds, addMilestone, selectItem]
+    [section, timelineWidth, viewportBounds, addMilestone, selectItem]
   );
 
-  // Double-click on phases container creates a new phase
-  const handleCreatePhase = useCallback(
-    (e: React.MouseEvent): void => {
-      e.stopPropagation();
+  // Create a phase at a specific position (called by PhaseRow or container double-click)
+  const createPhaseAtPosition = useCallback(
+    (clientX: number, insertAtIndex: number): void => {
+      // Get the phases container to calculate position
+      const phasesContainer = document.querySelector(`[aria-label="${section.name} phase bars"]`) as HTMLElement | null;
+      if (!phasesContainer) return;
 
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
+      const rect = phasesContainer.getBoundingClientRect();
+      const clickX = clientX - rect.left;
       // Convert viewport-relative position to section-relative
       const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
       const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
@@ -177,27 +185,54 @@ export default function SectionRow({
       const relativeStart = Math.max(0, sectionRelative - halfWidth);
       const relativeEnd = Math.min(1, sectionRelative + halfWidth);
 
+      // Add the phase at the end first
       addPhase(section.id, {
         name: '',
         description: '',
         color: isMasterSection ? getNextPhaseColor(section.phases.length) : null,
-        order: section.phases.length,
+        order: insertAtIndex,
         isCollapsed: false,
         elements: [],
         relativeStart,
         relativeEnd,
       });
 
-      // Get the new phase and select it
+      // Get the new phase and reorder if needed
       const updatedSections = useSectionStore.getState().sections;
       const updatedSection = updatedSections.find((s) => s.id === section.id);
       const newPhase = updatedSection?.phases[updatedSection.phases.length - 1];
 
       if (newPhase) {
-        selectItem('phase', newPhase.id, section.id, null, { x: e.clientX, y: e.clientY });
+        // Reorder phases to put the new phase at the correct position
+        // The new phase is at the end, move it to insertAtIndex position
+        const currentIndex = updatedSection.phases.length - 1;
+        const targetIndex = Math.min(insertAtIndex, updatedSection.phases.length - 1);
+
+        if (currentIndex !== targetIndex) {
+          useSectionStore.getState().reorderPhases(section.id, currentIndex, targetIndex);
+        }
+
+        selectItem('phase', newPhase.id, section.id, null, { x: clientX, y: 0 });
       }
     },
     [section, isMasterSection, timelineWidth, viewportBounds, addPhase, selectItem]
+  );
+
+  // Double-click on phases container creates a new phase at the end
+  const handleCreatePhase = useCallback(
+    (e: React.MouseEvent): void => {
+      e.stopPropagation();
+      createPhaseAtPosition(e.clientX, section.phases.length);
+    },
+    [createPhaseAtPosition, section.phases.length]
+  );
+
+  // Handle creating a phase after a specific phase (called from PhaseRow)
+  const handleCreatePhaseAfter = useCallback(
+    (afterOrder: number, clickX: number): void => {
+      createPhaseAtPosition(clickX, afterOrder + 1);
+    },
+    [createPhaseAtPosition]
   );
 
   if (isLabel) {
@@ -331,6 +366,7 @@ export default function SectionRow({
               return (
                 <div
                   key={phase.id}
+                  data-phase-id={phase.id}
                   className={`absolute top-1 bottom-1 rounded-[10px] cursor-pointer timeline-bar ${
                     isPhaseSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''
                   }`}
@@ -339,9 +375,9 @@ export default function SectionRow({
                     width,
                     backgroundColor: effectiveColor,
                   }}
-                  onClick={handleCollapsedPhaseClick(phase.id)}
+                  onClick={handleCollapsedPhaseClick}
                   onDoubleClick={handleCollapsedPhaseDoubleClick}
-                  onKeyDown={handleCollapsedPhaseKeyDown(phase.id)}
+                  onKeyDown={handleCollapsedPhaseKeyDown}
                   role="button"
                   tabIndex={0}
                   aria-label={`${phase.name} phase bar (collapsed view)`}
@@ -387,6 +423,7 @@ export default function SectionRow({
               isLabel={false}
               timelineWidth={timelineWidth}
               viewportBounds={viewportBounds}
+              onCreatePhaseAfter={handleCreatePhaseAfter}
             />
           ))}
         </div>

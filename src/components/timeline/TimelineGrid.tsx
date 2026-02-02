@@ -6,6 +6,20 @@ import { getTimeMarkers, getDaysBetween } from '../../utils/dateUtils';
 import { getPositionFromRelative, ROW_HEIGHT, ELEMENT_ROW_HEIGHT } from '../../utils/timelineUtils';
 import type { Section } from '../../types';
 
+// Pure function hoisted outside component to avoid recreation on each render
+function calculateSectionHeight(section: Section): number {
+  let height = ROW_HEIGHT;
+  if (!section.isCollapsed) {
+    section.phases.forEach((phase) => {
+      height += ROW_HEIGHT;
+      if (!phase.isCollapsed && phase.elements.length > 0) {
+        height += phase.elements.length * ELEMENT_ROW_HEIGHT;
+      }
+    });
+  }
+  return height;
+}
+
 export default function TimelineGrid() {
   const { viewportBounds, timelineWidth } = useViewport();
   const { zoomLevel } = useUIStore();
@@ -14,20 +28,6 @@ export default function TimelineGrid() {
 
   const markers = getTimeMarkers(viewportBounds.startDate, viewportBounds.endDate, zoomLevel);
   const totalDays = viewportBounds.totalDays;
-
-  // Calculate section height
-  const calculateSectionHeight = (section: Section): number => {
-    let height = ROW_HEIGHT;
-    if (!section.isCollapsed) {
-      section.phases.forEach((phase) => {
-        height += ROW_HEIGHT;
-        if (!phase.isCollapsed && phase.elements.length > 0) {
-          height += phase.elements.length * ELEMENT_ROW_HEIGHT;
-        }
-      });
-    }
-    return height;
-  };
 
   // Calculate total height for vertical gridlines (exact section height, no minimum)
   const sectionHeight = useMemo(() => {

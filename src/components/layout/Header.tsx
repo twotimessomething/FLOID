@@ -18,6 +18,10 @@ export default function Header() {
   const [editedName, setEditedName] = useState(project?.name ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Ref to store project name for stable callback
+  const projectNameRef = useRef(project?.name ?? '');
+  projectNameRef.current = project?.name ?? '';
+
   const { handleImport: handleScheduleImport } = useScheduleImport();
 
   // Update editedName when project changes
@@ -52,10 +56,11 @@ export default function Header() {
     if (e.key === 'Enter') {
       handleNameSave();
     } else if (e.key === 'Escape') {
-      setEditedName(project?.name ?? '');
+      // Use ref to avoid callback recreation when project name changes
+      setEditedName(projectNameRef.current);
       setIsEditingName(false);
     }
-  }, [handleNameSave, project?.name]);
+  }, [handleNameSave]);
 
   const handleExport = () => {
     downloadJson(project, sections);

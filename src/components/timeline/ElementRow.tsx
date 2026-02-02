@@ -59,6 +59,12 @@ export default function ElementRow({
   const moveLastX = useRef(0);
   const hasDragged = useRef(false);
 
+  // Refs to avoid effect re-runs during drag (store latest values for use in event handlers)
+  const elementRef = useRef({ relativeStart: element.relativeStart, relativeEnd: element.relativeEnd });
+  const phaseRelativeStartRef = useRef(phase.relativeStart);
+  elementRef.current = { relativeStart: element.relativeStart, relativeEnd: element.relativeEnd };
+  phaseRelativeStartRef.current = phase.relativeStart;
+
   // Drag date bubble state
   const [startDragDate, setStartDragDate] = useState<string | undefined>(undefined);
   const [endDragDate, setEndDragDate] = useState<string | undefined>(undefined);
@@ -192,10 +198,12 @@ export default function ElementRow({
       }
 
       const deltaRelative = phasePixelWidth > 0 ? deltaX / phasePixelWidth : 0;
-      const barWidth = element.relativeEnd - element.relativeStart;
+      // Use refs to get latest values without causing effect re-runs
+      const { relativeStart, relativeEnd } = elementRef.current;
+      const barWidth = relativeEnd - relativeStart;
 
-      let newStart = element.relativeStart + deltaRelative;
-      let newEnd = element.relativeEnd + deltaRelative;
+      let newStart = relativeStart + deltaRelative;
+      let newEnd = relativeEnd + deltaRelative;
 
       // Clamp to bounds (0-1 within phase)
       if (newStart < 0) {
@@ -219,15 +227,18 @@ export default function ElementRow({
       // Smart weekend snapping: snap both edges to next business day if on weekend (if enabled)
       // Convert element positions to section-relative for snapping
       if (settings.skipWeekends) {
-        const startSectionPosition = phase.relativeStart + element.relativeStart * phaseWidth;
-        const endSectionPosition = phase.relativeStart + element.relativeEnd * phaseWidth;
+        // Use refs to get latest values
+        const { relativeStart, relativeEnd } = elementRef.current;
+        const phaseStart = phaseRelativeStartRef.current;
+        const startSectionPosition = phaseStart + relativeStart * phaseWidth;
+        const endSectionPosition = phaseStart + relativeEnd * phaseWidth;
         const snappedStartSection = snapRelativeToBusinessDay(startSectionPosition, section.startDate, section.endDate);
         const snappedEndSection = snapRelativeToBusinessDay(endSectionPosition, section.startDate, section.endDate);
 
         if (snappedStartSection !== startSectionPosition || snappedEndSection !== endSectionPosition) {
           // Convert back to phase-relative
-          const snappedStartPhase = phaseWidth > 0 ? (snappedStartSection - phase.relativeStart) / phaseWidth : element.relativeStart;
-          const snappedEndPhase = phaseWidth > 0 ? (snappedEndSection - phase.relativeStart) / phaseWidth : element.relativeEnd;
+          const snappedStartPhase = phaseWidth > 0 ? (snappedStartSection - phaseStart) / phaseWidth : relativeStart;
+          const snappedEndPhase = phaseWidth > 0 ? (snappedEndSection - phaseStart) / phaseWidth : relativeEnd;
           updateElementPosition(
             section.id,
             phase.id,
@@ -246,7 +257,7 @@ export default function ElementRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, section.startDate, section.endDate, phase.id, phase.relativeStart, element.id, element.relativeStart, element.relativeEnd, phaseWidth, phasePixelWidth, updateElementPosition, setDragging, settings.skipWeekends]);
+  }, [section.id, section.startDate, section.endDate, phase.id, element.id, phaseWidth, phasePixelWidth, updateElementPosition, setDragging, settings.skipWeekends]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(

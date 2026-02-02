@@ -34,6 +34,10 @@ export default function MilestoneMarker({
   const hasDragged = useRef(false);
   const [dragDate, setDragDate] = useState<string | undefined>(undefined);
 
+  // Refs to avoid callback/effect re-runs during drag
+  const milestonePositionRef = useRef(milestone.relativePosition);
+  milestonePositionRef.current = milestone.relativePosition;
+
   // Convert section-relative position to viewport-relative for rendering
   const viewportPosition = sectionToViewportRelative(milestone.relativePosition, section, viewportBounds);
   const milestoneLeft = viewportPosition * timelineWidth;
@@ -68,11 +72,11 @@ export default function MilestoneMarker({
       setDragging(true, 'move');
       document.body.classList.add('no-select');
 
-      // Initialize drag date using section dates
-      const date = getDateFromRelativePosition(section.startDate, section.endDate, milestone.relativePosition);
+      // Initialize drag date using section dates (use ref to avoid callback recreation)
+      const date = getDateFromRelativePosition(section.startDate, section.endDate, milestonePositionRef.current);
       setDragDate(formatDate(date, 'MMM d'));
     },
-    [setDragging, milestone.relativePosition, section.startDate, section.endDate]
+    [setDragging, section.startDate, section.endDate]
   );
 
   // Memoize section viewport width for the effect
@@ -94,9 +98,9 @@ export default function MilestoneMarker({
         hasDragged.current = true;
       }
 
-      // Convert pixel delta to section-relative position
+      // Convert pixel delta to section-relative position (use ref for latest position)
       const deltaSectionRelative = sectionViewportWidth > 0 ? deltaX / sectionViewportWidth : 0;
-      const newPosition = Math.max(0, Math.min(1, milestone.relativePosition + deltaSectionRelative));
+      const newPosition = Math.max(0, Math.min(1, milestonePositionRef.current + deltaSectionRelative));
 
       updateMilestone(section.id, milestone.id, { relativePosition: newPosition });
 
@@ -112,8 +116,8 @@ export default function MilestoneMarker({
       setDragDate(undefined);
       document.body.classList.remove('no-select');
 
-      // Apply smart snapping behaviors
-      let finalPosition = milestone.relativePosition;
+      // Apply smart snapping behaviors (use ref for latest position)
+      let finalPosition = milestonePositionRef.current;
 
       // 1. Milestone gravity: snap to nearby phase boundary (if enabled)
       if (settings.milestoneSnap) {
@@ -135,7 +139,7 @@ export default function MilestoneMarker({
       }
 
       // Update if position changed
-      if (finalPosition !== milestone.relativePosition) {
+      if (finalPosition !== milestonePositionRef.current) {
         updateMilestone(section.id, milestone.id, { relativePosition: finalPosition });
       }
     };
@@ -147,7 +151,7 @@ export default function MilestoneMarker({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, section.startDate, section.endDate, section.phases, milestone.relativePosition, milestone.id, sectionViewportWidth, updateMilestone, setDragging, settings.milestoneSnap, settings.skipWeekends]);
+  }, [section.id, section.startDate, section.endDate, section.phases, milestone.id, sectionViewportWidth, updateMilestone, setDragging, settings.milestoneSnap, settings.skipWeekends]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(

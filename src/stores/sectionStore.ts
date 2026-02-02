@@ -50,6 +50,7 @@ interface SectionState {
   updatePhase: (sectionId: string, phaseId: string, updates: Partial<Phase>) => void;
   deletePhase: (sectionId: string, phaseId: string) => void;
   togglePhaseCollapse: (sectionId: string, phaseId: string) => void;
+  reorderPhases: (sectionId: string, fromIndex: number, toIndex: number) => void;
   updatePhasePosition: (
     sectionId: string,
     phaseId: string,
@@ -415,6 +416,26 @@ export const useSectionStore = create<SectionState>((set, get) => ({
             }
           : section
       ),
+    })),
+
+  reorderPhases: (sectionId, fromIndex, toIndex) =>
+    set((state) => ({
+      sections: state.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        const phases = [...section.phases];
+        const [removed] = phases.splice(fromIndex, 1);
+        phases.splice(toIndex, 0, removed);
+        // Update order values
+        const reorderedPhases = phases.map((phase, index) => ({
+          ...phase,
+          order: index,
+        }));
+        return {
+          ...section,
+          phases: reorderedPhases,
+          lastModifiedAt: new Date().toISOString(),
+        };
+      }),
     })),
 
   updatePhasePosition: (sectionId, phaseId, relativeStart, relativeEnd) =>

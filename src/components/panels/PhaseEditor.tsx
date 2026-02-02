@@ -13,12 +13,9 @@ export function PhaseEditor(): JSX.Element {
   const sectionId = selection.sectionId;
   const phaseId = selection.id;
 
-  // Memoize selectors to prevent recreation on every render
-  const sectionSelector = useMemo(() => selectSection(sectionId || ''), [sectionId]);
-  const phaseSelector = useMemo(() => selectPhase(sectionId || '', phaseId || ''), [sectionId, phaseId]);
-
-  const section = useSectionStore(sectionSelector);
-  const phase = useSectionStore(phaseSelector);
+  // Use inline selectors - Zustand handles memoization internally based on result equality
+  const section = useSectionStore((state) => selectSection(sectionId || '')(state));
+  const phase = useSectionStore((state) => selectPhase(sectionId || '', phaseId || '')(state));
 
   const isMasterSection = section?.id === project?.masterSectionId;
 

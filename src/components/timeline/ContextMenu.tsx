@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
@@ -23,6 +23,7 @@ export function ContextMenu(): JSX.Element | null {
     deleteSection,
     addElement,
     setAsMaster,
+    reorderPhases,
     sections,
   } = useSectionStore();
   const project = useProjectStore((state) => state.project);
@@ -141,6 +142,34 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [sectionId, targetId, addElement, selectItem, position, closeContextMenu]);
 
+  const handleMovePhaseUp = useCallback(() => {
+    if (!sectionId || !targetId || targetType !== 'phase') return;
+
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    const phaseIndex = section.phases.findIndex((p) => p.id === targetId);
+    if (phaseIndex > 0) {
+      reorderPhases(sectionId, phaseIndex, phaseIndex - 1);
+    }
+
+    closeContextMenu();
+  }, [sectionId, targetId, targetType, sections, reorderPhases, closeContextMenu]);
+
+  const handleMovePhaseDown = useCallback(() => {
+    if (!sectionId || !targetId || targetType !== 'phase') return;
+
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    const phaseIndex = section.phases.findIndex((p) => p.id === targetId);
+    if (phaseIndex < section.phases.length - 1) {
+      reorderPhases(sectionId, phaseIndex, phaseIndex + 1);
+    }
+
+    closeContextMenu();
+  }, [sectionId, targetId, targetType, sections, reorderPhases, closeContextMenu]);
+
   const handleExportSchedule = useCallback(() => {
     if (!sectionId) return;
 
@@ -198,19 +227,35 @@ export function ContextMenu(): JSX.Element | null {
     }
   };
 
-  const getMenuItems = (): MenuItem[] => {
+  // Memoize menu items to avoid recalculating on every render
+  const menuItems = useMemo((): MenuItem[] => {
     const items: MenuItem[] = [];
     const section = sections.find((s) => s.id === sectionId);
-    const isMasterSection = section?.id === project.masterSectionId;
+    const isMasterSection = section?.id === project?.masterSectionId;
 
     // Edit is available for all types (except master section at section level)
     if (targetType !== 'section' || !isMasterSection) {
       items.push({ label: 'Edit', action: handleEdit });
     }
 
-    // Add Element is only available for phases
-    if (targetType === 'phase') {
+    // Phase-specific options
+    if (targetType === 'phase' && section) {
       items.push({ label: 'Add Element', action: handleAddElement });
+
+      const phaseIndex = section.phases.findIndex((p) => p.id === targetId);
+      const isFirstPhase = phaseIndex === 0;
+      const isLastPhase = phaseIndex === section.phases.length - 1;
+
+      items.push({
+        label: 'Move Up',
+        action: handleMovePhaseUp,
+        disabled: isFirstPhase,
+      });
+      items.push({
+        label: 'Move Down',
+        action: handleMovePhaseDown,
+        disabled: isLastPhase,
+      });
     }
 
     // Section-specific options
@@ -242,11 +287,9 @@ export function ContextMenu(): JSX.Element | null {
     }
 
     return items;
-  };
+  }, [sections, sectionId, targetId, project?.masterSectionId, targetType, handleEdit, handleAddElement, handleMovePhaseUp, handleMovePhaseDown, handleSetAsMaster, handleExportSchedule, handleDelete]);
 
   if (!isOpen) return null;
-
-  const menuItems = getMenuItems();
 
   return createPortal(
     <div

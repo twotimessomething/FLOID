@@ -24,6 +24,7 @@ interface PhaseRowProps {
   readonly isLabel: boolean;
   readonly timelineWidth: number;
   readonly viewportBounds: ViewportBounds;
+  readonly onCreatePhaseAfter?: (afterOrder: number, clickX: number) => void;
 }
 
 export default function PhaseRow({
@@ -32,6 +33,7 @@ export default function PhaseRow({
   isLabel,
   timelineWidth,
   viewportBounds,
+  onCreatePhaseAfter,
 }: PhaseRowProps): JSX.Element {
   const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, updatePhaseWithRipple, addElement, clearExpansion } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
@@ -63,6 +65,10 @@ export default function PhaseRow({
   const isMoving = useRef(false);
   const moveLastX = useRef(0);
   const hasDragged = useRef(false);
+
+  // Refs to avoid effect re-runs during drag
+  const phasePositionRef = useRef({ relativeStart: phase.relativeStart, relativeEnd: phase.relativeEnd });
+  phasePositionRef.current = { relativeStart: phase.relativeStart, relativeEnd: phase.relativeEnd };
 
   // Preserve children state (Shift key modifier)
   const preserveChildrenRef = useRef(false);
@@ -110,6 +116,17 @@ export default function PhaseRow({
     e.stopPropagation();
   }, []);
 
+  // Double-click on the phase row creates a new phase below this one
+  const handlePhaseRowDoubleClick = useCallback(
+    (e: React.MouseEvent): void => {
+      if (onCreatePhaseAfter) {
+        e.stopPropagation();
+        onCreatePhaseAfter(phase.order, e.clientX);
+      }
+    },
+    [onCreatePhaseAfter, phase.order]
+  );
+
   // Double-click on elements container creates a new element within this phase
   const handleCreateElement = useCallback(
     (e: React.MouseEvent): void => {
@@ -129,8 +146,8 @@ export default function PhaseRow({
         : 0.5;
 
       // Create an element centered at the click position with reasonable width
-      const sectionDays = getDaysBetween(section.startDate, section.endDate);
-      const sevenDaysRelative = sectionDays > 0 ? (7 / sectionDays) / phaseWidth : 0.15;
+      const sectionDayCount = getDaysBetween(section.startDate, section.endDate);
+      const sevenDaysRelative = sectionDayCount > 0 ? (7 / sectionDayCount) / phaseWidth : 0.15;
       const halfWidth = sevenDaysRelative / 2;
       const relativeStart = Math.max(0, Math.min(1 - sevenDaysRelative, relativeInPhase - halfWidth));
       const relativeEnd = Math.min(1, relativeStart + sevenDaysRelative);
@@ -153,7 +170,9 @@ export default function PhaseRow({
         selectItem('element', newElement.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
       }
     },
-    [section, phase.id, phase.relativeStart, phaseWidth, phase.elements.length, timelineWidth, viewportBounds, addElement, selectItem]
+    // section object is passed to viewportToSectionRelative but only startDate/endDate are used
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [section.id, section.startDate, section.endDate, phase.id, phase.relativeStart, phaseWidth, phase.elements.length, timelineWidth, viewportBounds, addElement, selectItem]
   );
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
@@ -330,8 +349,10 @@ export default function PhaseRow({
       // Convert pixel delta to section-relative delta
       const deltaSectionRelative = sectionViewportWidth > 0 ? deltaX / sectionViewportWidth : 0;
 
-      const newStart = phase.relativeStart + deltaSectionRelative;
-      const newEnd = phase.relativeEnd + deltaSectionRelative;
+      // Use refs for latest position values to avoid effect re-runs during drag
+      const { relativeStart, relativeEnd } = phasePositionRef.current;
+      const newStart = relativeStart + deltaSectionRelative;
+      const newEnd = relativeEnd + deltaSectionRelative;
 
       // Allow moving past bounds to trigger auto-expansion
       // The store's updatePhasePosition will handle the expansion
@@ -349,9 +370,11 @@ export default function PhaseRow({
 
       // Smart weekend snapping: snap both edges to next business day if on weekend (if enabled)
       if (settings.skipWeekends) {
-        const snappedStart = snapRelativeToBusinessDay(phase.relativeStart, section.startDate, section.endDate);
-        const snappedEnd = snapRelativeToBusinessDay(phase.relativeEnd, section.startDate, section.endDate);
-        if (snappedStart !== phase.relativeStart || snappedEnd !== phase.relativeEnd) {
+        // Use refs for latest position values
+        const { relativeStart, relativeEnd } = phasePositionRef.current;
+        const snappedStart = snapRelativeToBusinessDay(relativeStart, section.startDate, section.endDate);
+        const snappedEnd = snapRelativeToBusinessDay(relativeEnd, section.startDate, section.endDate);
+        if (snappedStart !== relativeStart || snappedEnd !== relativeEnd) {
           updatePhasePosition(section.id, phase.id, snappedStart, snappedEnd);
         }
       }
@@ -364,7 +387,7 @@ export default function PhaseRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, section.startDate, section.endDate, phase.id, phase.relativeStart, phase.relativeEnd, sectionViewportWidth, updatePhasePosition, setDragging, compensateExpansionScroll, settings.skipWeekends]);
+  }, [section.id, section.startDate, section.endDate, phase.id, sectionViewportWidth, updatePhasePosition, setDragging, compensateExpansionScroll, settings.skipWeekends]);
 
   // Viewport stability: compensate scroll position after auto-expansion
   useEffect(() => {
@@ -473,11 +496,12 @@ export default function PhaseRow({
   // Render timeline content
   return (
     <div role="group" aria-label={`${phase.name} timeline`}>
-      {/* Phase bar row - double-click bubbles up to create phases */}
+      {/* Phase bar row - double-click creates a phase below this one */}
       <div
         ref={phaseRowRef}
         className="relative border-b border-[var(--color-border)]/25 overflow-visible"
         style={{ height: ROW_HEIGHT }}
+        onDoubleClick={handlePhaseRowDoubleClick}
       >
         <div
           className={`absolute top-2 bottom-2 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group overflow-visible ${
