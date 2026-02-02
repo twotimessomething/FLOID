@@ -128,6 +128,11 @@ interface UIState {
   // File drag state for drop zone
   isDraggingFile: boolean;
   setDraggingFile: (isDragging: boolean) => void;
+
+  // Settings modal
+  isSettingsModalOpen: boolean;
+  openSettingsModal: () => void;
+  closeSettingsModal: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -282,4 +287,9 @@ export const useUIStore = create<UIState>((set) => ({
   // File drag state
   isDraggingFile: false,
   setDraggingFile: (isDragging) => set({ isDraggingFile: isDragging }),
+
+  // Settings modal
+  isSettingsModalOpen: false,
+  openSettingsModal: () => set({ isSettingsModalOpen: true }),
+  closeSettingsModal: () => set({ isSettingsModalOpen: false }),
 }));

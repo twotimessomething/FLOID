@@ -4,6 +4,7 @@ import { getPhaseColor } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
+import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { getBarDimensions, ELEMENT_ROW_HEIGHT } from '../../utils/timelineUtils';
 import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, getDaysBetween, snapRelativeToBusinessDay } from '../../utils/dateUtils';
 import DragHandle from './DragHandle';
@@ -30,6 +31,7 @@ export default function ElementRow({
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
 
   const isMasterSection = section.id === project?.masterSectionId;
+  const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const isSelected = selection.type === 'element' && selection.id === element.id;
 
   // Memoize phaseWidth (section-relative) to prevent unnecessary effect re-runs
@@ -138,19 +140,21 @@ export default function ElementRow({
       setEndDragDate(undefined);
     }
 
-    // Smart weekend snapping: snap edge to next business day if on weekend
+    // Smart weekend snapping: snap edge to next business day if on weekend (if enabled)
     // Element positions are relative to phase, so convert to section-relative for snapping
-    const relativeInPhase = edge === 'start' ? element.relativeStart : element.relativeEnd;
-    const sectionPosition = phase.relativeStart + relativeInPhase * phaseWidth;
-    const snappedSectionPosition = snapRelativeToBusinessDay(sectionPosition, section.startDate, section.endDate);
-    if (snappedSectionPosition !== sectionPosition) {
-      // Convert back to phase-relative
-      const snappedPhaseRelative = phaseWidth > 0 ? (snappedSectionPosition - phase.relativeStart) / phaseWidth : relativeInPhase;
-      const clampedSnapped = Math.max(0, Math.min(1, snappedPhaseRelative));
-      if (edge === 'start') {
-        updateElementPosition(section.id, phase.id, element.id, clampedSnapped, element.relativeEnd);
-      } else {
-        updateElementPosition(section.id, phase.id, element.id, element.relativeStart, clampedSnapped);
+    if (settings.skipWeekends) {
+      const relativeInPhase = edge === 'start' ? element.relativeStart : element.relativeEnd;
+      const sectionPosition = phase.relativeStart + relativeInPhase * phaseWidth;
+      const snappedSectionPosition = snapRelativeToBusinessDay(sectionPosition, section.startDate, section.endDate);
+      if (snappedSectionPosition !== sectionPosition) {
+        // Convert back to phase-relative
+        const snappedPhaseRelative = phaseWidth > 0 ? (snappedSectionPosition - phase.relativeStart) / phaseWidth : relativeInPhase;
+        const clampedSnapped = Math.max(0, Math.min(1, snappedPhaseRelative));
+        if (edge === 'start') {
+          updateElementPosition(section.id, phase.id, element.id, clampedSnapped, element.relativeEnd);
+        } else {
+          updateElementPosition(section.id, phase.id, element.id, element.relativeStart, clampedSnapped);
+        }
       }
     }
   };
@@ -212,24 +216,26 @@ export default function ElementRow({
       setDragging(false);
       document.body.classList.remove('no-select');
 
-      // Smart weekend snapping: snap both edges to next business day if on weekend
+      // Smart weekend snapping: snap both edges to next business day if on weekend (if enabled)
       // Convert element positions to section-relative for snapping
-      const startSectionPosition = phase.relativeStart + element.relativeStart * phaseWidth;
-      const endSectionPosition = phase.relativeStart + element.relativeEnd * phaseWidth;
-      const snappedStartSection = snapRelativeToBusinessDay(startSectionPosition, section.startDate, section.endDate);
-      const snappedEndSection = snapRelativeToBusinessDay(endSectionPosition, section.startDate, section.endDate);
+      if (settings.skipWeekends) {
+        const startSectionPosition = phase.relativeStart + element.relativeStart * phaseWidth;
+        const endSectionPosition = phase.relativeStart + element.relativeEnd * phaseWidth;
+        const snappedStartSection = snapRelativeToBusinessDay(startSectionPosition, section.startDate, section.endDate);
+        const snappedEndSection = snapRelativeToBusinessDay(endSectionPosition, section.startDate, section.endDate);
 
-      if (snappedStartSection !== startSectionPosition || snappedEndSection !== endSectionPosition) {
-        // Convert back to phase-relative
-        const snappedStartPhase = phaseWidth > 0 ? (snappedStartSection - phase.relativeStart) / phaseWidth : element.relativeStart;
-        const snappedEndPhase = phaseWidth > 0 ? (snappedEndSection - phase.relativeStart) / phaseWidth : element.relativeEnd;
-        updateElementPosition(
-          section.id,
-          phase.id,
-          element.id,
-          Math.max(0, Math.min(1, snappedStartPhase)),
-          Math.max(0, Math.min(1, snappedEndPhase))
-        );
+        if (snappedStartSection !== startSectionPosition || snappedEndSection !== endSectionPosition) {
+          // Convert back to phase-relative
+          const snappedStartPhase = phaseWidth > 0 ? (snappedStartSection - phase.relativeStart) / phaseWidth : element.relativeStart;
+          const snappedEndPhase = phaseWidth > 0 ? (snappedEndSection - phase.relativeStart) / phaseWidth : element.relativeEnd;
+          updateElementPosition(
+            section.id,
+            phase.id,
+            element.id,
+            Math.max(0, Math.min(1, snappedStartPhase)),
+            Math.max(0, Math.min(1, snappedEndPhase))
+          );
+        }
       }
     };
 
@@ -240,7 +246,7 @@ export default function ElementRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, phase.id, element.id, element.relativeStart, element.relativeEnd, phasePixelWidth, updateElementPosition, setDragging]);
+  }, [section.id, section.startDate, section.endDate, phase.id, phase.relativeStart, element.id, element.relativeStart, element.relativeEnd, phaseWidth, phasePixelWidth, updateElementPosition, setDragging, settings.skipWeekends]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(

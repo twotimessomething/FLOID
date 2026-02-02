@@ -4,6 +4,7 @@ import { getPhaseColor } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
+import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { getBarDimensions, ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
 import {
   getDateFromRelativePosition,
@@ -35,6 +36,7 @@ export default function PhaseRow({
   const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, updatePhaseWithRipple, addElement, clearExpansion } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
   const project = useProjectStore((state) => state.project);
+  const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
   const phaseRowRef = useRef<HTMLDivElement>(null);
 
@@ -280,14 +282,16 @@ export default function PhaseRow({
       setEndDragDate(undefined);
     }
 
-    // Smart weekend snapping: snap edge to next business day if on weekend
-    const currentPosition = edge === 'start' ? phase.relativeStart : phase.relativeEnd;
-    const snappedPosition = snapRelativeToBusinessDay(currentPosition, section.startDate, section.endDate);
-    if (snappedPosition !== currentPosition) {
-      if (edge === 'start') {
-        updatePhasePosition(section.id, phase.id, snappedPosition, phase.relativeEnd);
-      } else {
-        updatePhasePosition(section.id, phase.id, phase.relativeStart, snappedPosition);
+    // Smart weekend snapping: snap edge to next business day if on weekend (if enabled)
+    if (settings.skipWeekends) {
+      const currentPosition = edge === 'start' ? phase.relativeStart : phase.relativeEnd;
+      const snappedPosition = snapRelativeToBusinessDay(currentPosition, section.startDate, section.endDate);
+      if (snappedPosition !== currentPosition) {
+        if (edge === 'start') {
+          updatePhasePosition(section.id, phase.id, snappedPosition, phase.relativeEnd);
+        } else {
+          updatePhasePosition(section.id, phase.id, phase.relativeStart, snappedPosition);
+        }
       }
     }
   };
@@ -343,11 +347,13 @@ export default function PhaseRow({
       setDragging(false);
       document.body.classList.remove('no-select');
 
-      // Smart weekend snapping: snap both edges to next business day if on weekend
-      const snappedStart = snapRelativeToBusinessDay(phase.relativeStart, section.startDate, section.endDate);
-      const snappedEnd = snapRelativeToBusinessDay(phase.relativeEnd, section.startDate, section.endDate);
-      if (snappedStart !== phase.relativeStart || snappedEnd !== phase.relativeEnd) {
-        updatePhasePosition(section.id, phase.id, snappedStart, snappedEnd);
+      // Smart weekend snapping: snap both edges to next business day if on weekend (if enabled)
+      if (settings.skipWeekends) {
+        const snappedStart = snapRelativeToBusinessDay(phase.relativeStart, section.startDate, section.endDate);
+        const snappedEnd = snapRelativeToBusinessDay(phase.relativeEnd, section.startDate, section.endDate);
+        if (snappedStart !== phase.relativeStart || snappedEnd !== phase.relativeEnd) {
+          updatePhasePosition(section.id, phase.id, snappedStart, snappedEnd);
+        }
       }
     };
 
@@ -358,7 +364,7 @@ export default function PhaseRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, phase.id, phase.relativeStart, phase.relativeEnd, sectionViewportWidth, updatePhasePosition, setDragging, compensateExpansionScroll]);
+  }, [section.id, section.startDate, section.endDate, phase.id, phase.relativeStart, phase.relativeEnd, sectionViewportWidth, updatePhasePosition, setDragging, compensateExpansionScroll, settings.skipWeekends]);
 
   // Viewport stability: compensate scroll position after auto-expansion
   useEffect(() => {

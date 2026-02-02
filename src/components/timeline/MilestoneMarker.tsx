@@ -2,6 +2,8 @@ import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 import type { Milestone, Section, ViewportBounds } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useProjectStore } from '../../stores/projectStore';
+import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { ROW_HEIGHT } from '../../utils/timelineUtils';
 import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, getDaysBetween, snapRelativeToBusinessDay, findNearestPhaseBoundary } from '../../utils/dateUtils';
 
@@ -22,6 +24,7 @@ export default function MilestoneMarker({
 }: MilestoneMarkerProps) {
   const { updateMilestone } = useSectionStore();
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
+  const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
 
   const isSelected = selection.type === 'milestone' && selection.id === milestone.id;
   const isDraggingRef = useRef(false);
@@ -110,19 +113,23 @@ export default function MilestoneMarker({
       // Apply smart snapping behaviors
       let finalPosition = milestone.relativePosition;
 
-      // 1. Milestone gravity: snap to nearby phase boundary
-      // Use a pixel-based threshold (15px) converted to relative units
-      const SNAP_PIXELS = 15;
-      const snapThreshold = sectionViewportWidth > 0 ? SNAP_PIXELS / sectionViewportWidth : 0.02;
-      const nearestBoundary = findNearestPhaseBoundary(finalPosition, section.phases, snapThreshold);
-      if (nearestBoundary !== null) {
-        finalPosition = nearestBoundary;
+      // 1. Milestone gravity: snap to nearby phase boundary (if enabled)
+      if (settings.milestoneSnap) {
+        // Use a pixel-based threshold (15px) converted to relative units
+        const SNAP_PIXELS = 15;
+        const snapThreshold = sectionViewportWidth > 0 ? SNAP_PIXELS / sectionViewportWidth : 0.02;
+        const nearestBoundary = findNearestPhaseBoundary(finalPosition, section.phases, snapThreshold);
+        if (nearestBoundary !== null) {
+          finalPosition = nearestBoundary;
+        }
       }
 
-      // 2. Weekend snapping: snap to next business day if on weekend
-      const snappedPosition = snapRelativeToBusinessDay(finalPosition, section.startDate, section.endDate);
-      if (snappedPosition !== finalPosition) {
-        finalPosition = snappedPosition;
+      // 2. Weekend snapping: snap to next business day if on weekend (if enabled)
+      if (settings.skipWeekends) {
+        const snappedPosition = snapRelativeToBusinessDay(finalPosition, section.startDate, section.endDate);
+        if (snappedPosition !== finalPosition) {
+          finalPosition = snappedPosition;
+        }
       }
 
       // Update if position changed
@@ -138,7 +145,7 @@ export default function MilestoneMarker({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, section.startDate, section.endDate, milestone.relativePosition, milestone.id, sectionViewportWidth, updateMilestone, setDragging]);
+  }, [section.id, section.startDate, section.endDate, section.phases, milestone.relativePosition, milestone.id, sectionViewportWidth, updateMilestone, setDragging, settings.milestoneSnap, settings.skipWeekends]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(

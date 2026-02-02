@@ -8,6 +8,7 @@ import { NewProjectModal } from './components/layout/NewProjectModal';
 import { ProjectEditModal } from './components/layout/ProjectEditModal';
 import { AddScheduleModal } from './components/layout/AddScheduleModal';
 import { ImportConfirmModal } from './components/layout/ImportConfirmModal';
+import { SettingsModal } from './components/layout/SettingsModal';
 import { ContextMenu } from './components/timeline';
 import { Toast } from './components/common';
 import { useAutoSave, useKeyboardShortcuts, useScheduleImport } from './hooks';
@@ -124,6 +125,7 @@ function App() {
       <ProjectEditModal />
       <AddScheduleModal />
       <ImportConfirmModal onConfirm={handleConfirmAction} />
+      <SettingsModal />
       <ContextMenu />
       <Toast />
 

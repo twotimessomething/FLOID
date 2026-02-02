@@ -1,4 +1,5 @@
-export type { Project } from './project';
+export type { Project, ProjectSettings } from './project';
+export { DEFAULT_PROJECT_SETTINGS } from './project';
 export type {
   Section,
   Phase,

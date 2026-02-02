@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { Project, Section } from '../types';
+import type { Project, Section, ProjectSettings } from '../types';
+import { DEFAULT_PROJECT_SETTINGS } from '../types';
 import { createDefaultProject, createDefaultIDTimelineSection } from '../data/defaultTemplate';
 import { createSectionFromTemplate, getTemplateById } from '../data/scheduleTemplates';
 import {
@@ -38,6 +39,10 @@ interface ProjectState {
   // Master section operations
   setMasterSection: (sectionId: string, startDate: string, endDate: string) => void;
   updateProjectDates: (startDate: string, endDate: string) => void;
+
+  // Settings
+  getSettings: () => ProjectSettings;
+  updateSettings: (updates: Partial<ProjectSettings>) => void;
 
   saveCurrentProject: (sections: Section[]) => void;
   loadProjectData: (projectId: string) => { sections: Section[] } | null;
@@ -279,6 +284,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ...state.project,
         projectStartDate: startDate,
         projectEndDate: endDate,
+        updatedAt: new Date().toISOString(),
+      },
+    })),
+
+  getSettings: () => {
+    const { project } = get();
+    return project?.settings ?? DEFAULT_PROJECT_SETTINGS;
+  },
+
+  updateSettings: (updates) =>
+    set((state) => ({
+      project: {
+        ...state.project,
+        settings: {
+          ...(state.project?.settings ?? DEFAULT_PROJECT_SETTINGS),
+          ...updates,
+        },
         updatedAt: new Date().toISOString(),
       },
     })),
