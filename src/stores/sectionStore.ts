@@ -63,6 +63,11 @@ interface SectionState {
     relativeEnd: number,
     elementUpdates: Array<{ id: string; relativeStart: number; relativeEnd: number }>
   ) => void;
+  updatePhaseWithRipple: (
+    sectionId: string,
+    phaseId: string,
+    newRelativeEnd: number
+  ) => void;
 
   // Element operations
   addElement: (
@@ -650,6 +655,89 @@ export const useSectionStore = create<SectionState>((set, get) => ({
               }
             : s
         ),
+      };
+    }),
+
+  updatePhaseWithRipple: (sectionId, phaseId, newRelativeEnd) =>
+    set((state) => {
+      const section = state.sections.find((s) => s.id === sectionId);
+      if (!section) return state;
+
+      const phase = section.phases.find((p) => p.id === phaseId);
+      if (!phase) return state;
+
+      const project = useProjectStore.getState().project;
+      const isMasterSection = section.id === project?.masterSectionId;
+
+      // Calculate delta from current end to new end
+      const delta = newRelativeEnd - phase.relativeEnd;
+      if (Math.abs(delta) < 0.0001) return state; // No meaningful change
+
+      // For master section, clamp the new end to 1
+      const clampedNewEnd = isMasterSection ? Math.min(1, newRelativeEnd) : newRelativeEnd;
+      const actualDelta = clampedNewEnd - phase.relativeEnd;
+
+      // Find phases that start at or after the current phase's end (downstream phases)
+      const downstreamPhases = section.phases.filter(
+        (p) => p.id !== phaseId && p.relativeStart >= phase.relativeEnd - 0.0001
+      );
+
+      // Find milestones that are at or after the current phase's end
+      const downstreamMilestones = section.milestones.filter(
+        (m) => m.relativePosition >= phase.relativeEnd - 0.0001
+      );
+
+      // For master section, check if ripple would push anything past 1
+      if (isMasterSection) {
+        const maxDownstreamEnd = Math.max(
+          ...downstreamPhases.map((p) => p.relativeEnd),
+          ...downstreamMilestones.map((m) => m.relativePosition),
+          0
+        );
+        if (maxDownstreamEnd + actualDelta > 1) {
+          // Reduce delta to prevent overflow
+          const allowedDelta = Math.max(0, 1 - maxDownstreamEnd);
+          if (allowedDelta < 0.0001) return state; // Can't ripple further
+        }
+      }
+
+      const now = new Date().toISOString();
+
+      return {
+        sections: state.sections.map((s) => {
+          if (s.id !== sectionId) return s;
+
+          return {
+            ...s,
+            lastModifiedAt: now,
+            revision: s.revision + 1,
+            phases: s.phases.map((p) => {
+              if (p.id === phaseId) {
+                // Update the dragged phase's end
+                return { ...p, relativeEnd: clampedNewEnd };
+              }
+              if (downstreamPhases.some((dp) => dp.id === p.id)) {
+                // Shift downstream phases by delta
+                return {
+                  ...p,
+                  relativeStart: p.relativeStart + actualDelta,
+                  relativeEnd: p.relativeEnd + actualDelta,
+                };
+              }
+              return p;
+            }),
+            milestones: s.milestones.map((m) => {
+              if (downstreamMilestones.some((dm) => dm.id === m.id)) {
+                // Shift downstream milestones by delta
+                return {
+                  ...m,
+                  relativePosition: m.relativePosition + actualDelta,
+                };
+              }
+              return m;
+            }),
+          };
+        }),
       };
     }),
 

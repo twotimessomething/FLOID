@@ -32,7 +32,7 @@ export default function PhaseRow({
   timelineWidth,
   viewportBounds,
 }: PhaseRowProps): JSX.Element {
-  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, addElement, clearExpansion } = useSectionStore();
+  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, updatePhaseWithRipple, addElement, clearExpansion } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
   const project = useProjectStore((state) => state.project);
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
@@ -65,6 +65,9 @@ export default function PhaseRow({
   // Preserve children state (Shift key modifier)
   const preserveChildrenRef = useRef(false);
   const initialElementPositions = useRef<Array<{ id: string; absoluteStart: number; absoluteEnd: number }>>([]);
+
+  // Ripple mode state (Shift+Cmd/Ctrl modifier on end handle)
+  const rippleModeRef = useRef(false);
 
   // Drag date bubble state
   const [startDragDate, setStartDragDate] = useState<string | undefined>(undefined);
@@ -169,8 +172,12 @@ export default function PhaseRow({
   const handleDragStart = (edge: 'start' | 'end', e?: React.MouseEvent): void => {
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
 
-    // Check if Shift is held to preserve children positions
-    preserveChildrenRef.current = e?.shiftKey ?? false;
+    // Check for ripple mode: Shift+Cmd/Ctrl on end handle only
+    const isRippleModifier = e?.shiftKey && (e?.metaKey || e?.ctrlKey);
+    rippleModeRef.current = edge === 'end' && (isRippleModifier ?? false);
+
+    // Check if Shift is held (without Cmd/Ctrl) to preserve children positions
+    preserveChildrenRef.current = (e?.shiftKey && !e?.metaKey && !e?.ctrlKey) ?? false;
     if (preserveChildrenRef.current) {
       // Capture initial absolute positions of all elements (section-relative)
       initialElementPositions.current = phase.elements.map((el) => ({
@@ -219,6 +226,12 @@ export default function PhaseRow({
       setEndDragDate(formatDate(date, 'MMM d'));
     }
 
+    // Ripple mode: shift all downstream phases when resizing end
+    if (rippleModeRef.current && edge === 'end') {
+      updatePhaseWithRipple(section.id, phase.id, newEnd);
+      return;
+    }
+
     if (preserveChildrenRef.current && initialElementPositions.current.length > 0) {
       // Calculate new element positions to preserve absolute positions
       const newPhaseWidth = newEnd - newStart;
@@ -258,6 +271,8 @@ export default function PhaseRow({
     // Clear preserve children state
     preserveChildrenRef.current = false;
     initialElementPositions.current = [];
+    // Clear ripple mode state
+    rippleModeRef.current = false;
     // Clear the drag date
     if (edge === 'start') {
       setStartDragDate(undefined);
