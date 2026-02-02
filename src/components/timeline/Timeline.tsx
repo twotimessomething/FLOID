@@ -8,6 +8,7 @@ import { useDragReorder } from '../../hooks/useDragReorder';
 import TimelineHeader from './TimelineHeader';
 import TimelineGrid from './TimelineGrid';
 import SectionRow from './SectionRow';
+import StickyMilestones from './StickyMilestones';
 import Playhead from './Playhead';
 import { AddScheduleButton, ZoomControls } from '../controls';
 import { HEADER_HEIGHT, ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getPositionFromRelative } from '../../utils/timelineUtils';
@@ -39,6 +40,9 @@ export default function Timeline() {
   const [isResizing, setIsResizing] = useState(false);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
+
+  // Scroll position for sticky milestones
+  const [scrollTop, setScrollTop] = useState(0);
 
   // Handle label column resize
   const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
@@ -157,12 +161,50 @@ export default function Timeline() {
   }, []);
 
   const handleTimelineScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+
+    // Track scroll position for sticky milestones
+    setScrollTop(scrollContainerRef.current.scrollTop);
+
     if (isScrollSyncing.current) return;
-    if (!labelsScrollRef.current || !scrollContainerRef.current) return;
+    if (!labelsScrollRef.current) return;
     isScrollSyncing.current = true;
     labelsScrollRef.current.scrollTop = scrollContainerRef.current.scrollTop;
     isScrollSyncing.current = false;
   }, []);
+
+  // Combine all sections in order for sticky milestones
+  const allSections = useMemo(() => {
+    const sections: Section[] = [];
+    if (masterSection) sections.push(masterSection);
+    sections.push(...nonMasterSections);
+    return sections;
+  }, [masterSection, nonMasterSections]);
+
+  // Calculate which milestone IDs are currently sticky (to hide originals)
+  const stickyMilestoneIds = useMemo(() => {
+    const ids = new Set<string>();
+    let cumulativeY = 0;
+
+    for (const section of allSections) {
+      const sectionY = cumulativeY;
+      const sectionHeight = calculateSectionHeight(section);
+
+      // Section's milestones are sticky when header scrolled past but section not fully gone
+      const headerScrolledPast = scrollTop > sectionY;
+      const sectionFullyScrolledPast = scrollTop > sectionY + sectionHeight - ROW_HEIGHT;
+
+      if (headerScrolledPast && !sectionFullyScrolledPast) {
+        for (const milestone of section.milestones) {
+          ids.add(milestone.id);
+        }
+      }
+
+      cumulativeY += sectionHeight;
+    }
+
+    return ids;
+  }, [allSections, scrollTop]);
 
   // Calculate content height for playhead (includes all sections)
   const contentHeight = useMemo(() => {
@@ -315,6 +357,14 @@ export default function Timeline() {
             {/* Timeline Header with date markers */}
             <TimelineHeader onPlayheadMouseDown={handlePlayheadMouseDown} />
 
+            {/* Sticky milestones that stay visible when scrolling */}
+            <StickyMilestones
+              sections={allSections}
+              scrollTop={scrollTop}
+              timelineWidth={timelineWidth}
+              viewportBounds={viewportBounds}
+            />
+
             {/* Timeline content */}
             <div
               className="relative cursor-crosshair"
@@ -348,6 +398,7 @@ export default function Timeline() {
                   isLabel={false}
                   timelineWidth={timelineWidth}
                   viewportBounds={viewportBounds}
+                  stickyMilestoneIds={stickyMilestoneIds}
                 />
               )}
 
@@ -361,6 +412,7 @@ export default function Timeline() {
                   viewportBounds={viewportBounds}
                   sectionIndex={index}
                   isDragging={dragState.isDragging && dragState.dragIndex === index}
+                  stickyMilestoneIds={stickyMilestoneIds}
                 />
               ))}
 

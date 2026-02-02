@@ -25,6 +25,7 @@ interface SectionRowProps {
   readonly sectionIndex?: number;
   readonly dragHandleProps?: DragHandleProps;
   readonly isDragging?: boolean;
+  readonly stickyMilestoneIds?: Set<string>;
 }
 
 export default function SectionRow({
@@ -35,6 +36,7 @@ export default function SectionRow({
   sectionIndex,
   dragHandleProps,
   isDragging,
+  stickyMilestoneIds,
 }: SectionRowProps): JSX.Element {
   const { toggleSectionCollapse, addPhase, addMilestone } = useSectionStore();
   const project = useProjectStore((state) => state.project);
@@ -365,6 +367,7 @@ export default function SectionRow({
             timelineWidth={timelineWidth}
             viewportBounds={viewportBounds}
             lineHeight={milestoneLineHeight}
+            isHidden={stickyMilestoneIds?.has(milestone.id)}
           />
         ))}
       </div>

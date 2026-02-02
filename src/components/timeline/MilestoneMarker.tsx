@@ -13,6 +13,7 @@ interface MilestoneMarkerProps {
   readonly timelineWidth: number;
   readonly viewportBounds: ViewportBounds;
   readonly lineHeight?: number; // Height of the vertical line extending down
+  readonly isHidden?: boolean; // Hide when rendered as sticky
 }
 
 export default function MilestoneMarker({
@@ -21,6 +22,7 @@ export default function MilestoneMarker({
   timelineWidth,
   viewportBounds,
   lineHeight = 0,
+  isHidden = false,
 }: MilestoneMarkerProps) {
   const { updateMilestone } = useSectionStore();
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
@@ -166,6 +168,7 @@ export default function MilestoneMarker({
         left: milestoneLeft,
         top: 0,
         height: ROW_HEIGHT,
+        visibility: isHidden ? 'hidden' : 'visible',
       }}
       onClick={handleClick}
       onContextMenu={handleContextMenu}

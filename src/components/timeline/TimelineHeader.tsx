@@ -17,7 +17,7 @@ export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderPr
 
   return (
     <div
-      className="sticky top-0 bg-[var(--color-surface)] border-b border-[var(--color-border)] z-10 cursor-crosshair select-none"
+      className="sticky top-0 bg-[var(--color-surface)] border-b border-[var(--color-border)] z-50 cursor-crosshair select-none"
       style={{ height: HEADER_HEIGHT }}
       onMouseDown={onPlayheadMouseDown}
     >
