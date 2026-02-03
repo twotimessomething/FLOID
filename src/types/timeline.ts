@@ -62,7 +62,7 @@ export interface Milestone {
   order: number;
 }
 
-// Bar milestone = simple label marker on a phase or element bar
+// Bar milestone = simple label marker on a phase or task bar
 export interface BarMilestone {
   id: string;
   name: string;

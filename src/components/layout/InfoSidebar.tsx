@@ -65,8 +65,8 @@ interface StatusItemRowProps {
 }
 
 function StatusItemRow({ item, showDate, isPhaseLevel }: StatusItemRowProps) {
-  // If it's an element within a phase, show element name
-  // If it's a phase-level item (no elements), we just show the phase name in the header
+  // If it's a task within a phase, show task name
+  // If it's a phase-level item (no tasks), we just show the phase name in the header
   if (isPhaseLevel) {
     return null;
   }
@@ -91,7 +91,7 @@ interface PhaseGroupProps {
 }
 
 function PhaseGroup({ phaseName, color, items, showDate }: PhaseGroupProps) {
-  // Check if this is a phase-level item (the phase itself, not elements)
+  // Check if this is a phase-level item (the phase itself, not tasks)
   const isPhaseLevel = items.length === 1 && items[0].phaseName === items[0].name;
 
   return (

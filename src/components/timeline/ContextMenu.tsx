@@ -495,7 +495,7 @@ export function ContextMenu(): JSX.Element | null {
       const phase = section.phases.find((p) => p.id === targetId);
 
       if (location === 'label') {
-        // Label area: Edit, Collapse/Expand, Add Element, Move Up/Down, Delete
+        // Label area: Edit, Collapse/Expand, Add Task, Move Up/Down, Delete
         items.push({ label: 'Edit', action: handleEdit });
 
         // Collapse/Expand toggle with dynamic label

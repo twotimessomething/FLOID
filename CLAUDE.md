@@ -37,7 +37,7 @@ npm run typecheck # TypeScript check
 | Master Schedule | The section that drives project dates. Locked sections sync to it. |
 | Binding Mode | `locked` (syncs with master) or `independent` (own dates). |
 | Phase | Top-level timeline block within a section. Has duration. |
-| Element | Sub-item within a phase. Has duration. |
+| Task | Sub-item within a phase. Has duration. |
 | Milestone | Single-point marker. No duration. |
 | Relative Position | 0-1 value within parent bounds. Absolute dates computed at render. |
 | Revision | Counter incremented on section modification. Used for import conflicts. |
@@ -49,7 +49,7 @@ npm run typecheck # TypeScript check
 Three stores, one per domain:
 
 - `projectStore` — Project metadata, master section ID
-- `sectionStore` — Sections, phases, elements, milestones
+- `sectionStore` — Sections, phases, tasks, milestones
 - `uiStore` — Selection, zoom, collapse, modals
 
 ### Key Patterns
@@ -82,7 +82,7 @@ interface Phase {
 }
 
 // type for unions
-type SelectionType = 'phase' | 'element' | 'milestone' | 'section';
+type SelectionType = 'phase' | 'task' | 'milestone' | 'section';
 ```
 
 Explicit return types for non-trivial functions. Use `readonly` for immutable data.
