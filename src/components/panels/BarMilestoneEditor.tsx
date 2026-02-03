@@ -3,9 +3,9 @@ import {
   useSectionStore,
   selectSection,
   selectPhase,
-  selectElement,
+  selectTask,
   selectPhaseBarMilestone,
-  selectElementBarMilestone,
+  selectTaskBarMilestone,
 } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -16,44 +16,44 @@ export function BarMilestoneEditor(): JSX.Element {
   const { selection, closeModal } = useUIStore();
   const {
     updatePhaseBarMilestone,
-    updateElementBarMilestone,
+    updateTaskBarMilestone,
     deletePhaseBarMilestone,
-    deleteElementBarMilestone,
+    deleteTaskBarMilestone,
   } = useSectionStore();
   const project = useProjectStore((state) => state.project);
 
   const sectionId = selection.sectionId;
   const phaseId = selection.phaseId;
-  const elementId = selection.elementId;
+  const taskId = selection.taskId;
   const barMilestoneId = selection.id;
 
   // Memoize selectors
   const sectionSelector = useMemo(() => selectSection(sectionId || ''), [sectionId]);
   const phaseSelector = useMemo(() => selectPhase(sectionId || '', phaseId || ''), [sectionId, phaseId]);
-  const elementSelector = useMemo(
-    () => selectElement(sectionId || '', phaseId || '', elementId || ''),
-    [sectionId, phaseId, elementId]
+  const taskSelector = useMemo(
+    () => selectTask(sectionId || '', phaseId || '', taskId || ''),
+    [sectionId, phaseId, taskId]
   );
 
-  // Select the bar milestone from either phase or element
+  // Select the bar milestone from either phase or task
   const phaseBarMilestoneSelector = useMemo(
     () => selectPhaseBarMilestone(sectionId || '', phaseId || '', barMilestoneId || ''),
     [sectionId, phaseId, barMilestoneId]
   );
-  const elementBarMilestoneSelector = useMemo(
-    () => selectElementBarMilestone(sectionId || '', phaseId || '', elementId || '', barMilestoneId || ''),
-    [sectionId, phaseId, elementId, barMilestoneId]
+  const taskBarMilestoneSelector = useMemo(
+    () => selectTaskBarMilestone(sectionId || '', phaseId || '', taskId || '', barMilestoneId || ''),
+    [sectionId, phaseId, taskId, barMilestoneId]
   );
 
   const section = useSectionStore(sectionSelector);
   const phase = useSectionStore(phaseSelector);
-  const element = useSectionStore(elementSelector);
+  const task = useSectionStore(taskSelector);
   const phaseBarMilestone = useSectionStore(phaseBarMilestoneSelector);
-  const elementBarMilestone = useSectionStore(elementBarMilestoneSelector);
+  const taskBarMilestone = useSectionStore(taskBarMilestoneSelector);
 
   // Determine which bar milestone we're editing
-  const barMilestone = elementId ? elementBarMilestone : phaseBarMilestone;
-  const isOnElement = !!elementId;
+  const barMilestone = taskId ? taskBarMilestone : phaseBarMilestone;
+  const isOnTask = !!taskId;
 
   const isMasterSection = section?.id === project?.masterSectionId;
 
@@ -61,13 +61,13 @@ export function BarMilestoneEditor(): JSX.Element {
   const milestoneDate = useMemo(() => {
     if (!barMilestone || !phase || !section) return null;
 
-    if (isOnElement && element) {
-      // Bar milestone on element: convert element-relative to section-relative
+    if (isOnTask && task) {
+      // Bar milestone on task: convert task-relative to section-relative
       const phaseWidth = phase.relativeEnd - phase.relativeStart;
-      const elementSectionStart = phase.relativeStart + element.relativeStart * phaseWidth;
-      const elementSectionEnd = phase.relativeStart + element.relativeEnd * phaseWidth;
-      const elementWidth = elementSectionEnd - elementSectionStart;
-      const sectionRelative = elementSectionStart + barMilestone.relativePosition * elementWidth;
+      const taskSectionStart = phase.relativeStart + task.relativeStart * phaseWidth;
+      const taskSectionEnd = phase.relativeStart + task.relativeEnd * phaseWidth;
+      const taskWidth = taskSectionEnd - taskSectionStart;
+      const sectionRelative = taskSectionStart + barMilestone.relativePosition * taskWidth;
       return getDateFromRelativePosition(section.startDate, section.endDate, sectionRelative);
     } else {
       // Bar milestone on phase: convert phase-relative to section-relative
@@ -75,37 +75,37 @@ export function BarMilestoneEditor(): JSX.Element {
       const sectionRelative = phase.relativeStart + barMilestone.relativePosition * phaseWidth;
       return getDateFromRelativePosition(section.startDate, section.endDate, sectionRelative);
     }
-  }, [barMilestone, phase, element, section, isOnElement]);
+  }, [barMilestone, phase, task, section, isOnTask]);
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!sectionId || !phaseId || !barMilestoneId) return;
-      if (isOnElement && elementId) {
-        updateElementBarMilestone(sectionId, phaseId, elementId, barMilestoneId, { name: e.target.value });
+      if (isOnTask && taskId) {
+        updateTaskBarMilestone(sectionId, phaseId, taskId, barMilestoneId, { name: e.target.value });
       } else {
         updatePhaseBarMilestone(sectionId, phaseId, barMilestoneId, { name: e.target.value });
       }
     },
-    [sectionId, phaseId, elementId, barMilestoneId, isOnElement, updatePhaseBarMilestone, updateElementBarMilestone]
+    [sectionId, phaseId, taskId, barMilestoneId, isOnTask, updatePhaseBarMilestone, updateTaskBarMilestone]
   );
 
   const handleDelete = useCallback(() => {
     if (!sectionId || !phaseId || !barMilestoneId) return;
-    if (isOnElement && elementId) {
-      deleteElementBarMilestone(sectionId, phaseId, elementId, barMilestoneId);
+    if (isOnTask && taskId) {
+      deleteTaskBarMilestone(sectionId, phaseId, taskId, barMilestoneId);
     } else {
       deletePhaseBarMilestone(sectionId, phaseId, barMilestoneId);
     }
     closeModal();
-  }, [sectionId, phaseId, elementId, barMilestoneId, isOnElement, deletePhaseBarMilestone, deleteElementBarMilestone, closeModal]);
+  }, [sectionId, phaseId, taskId, barMilestoneId, isOnTask, deletePhaseBarMilestone, deleteTaskBarMilestone, closeModal]);
 
   if (!barMilestone || !phase || !section) {
     return <div className="text-sm text-[var(--color-text-secondary)]">Milestone not found</div>;
   }
 
   // Context label
-  const contextLabel = isOnElement && element
-    ? `${element.name} in ${phase.name}`
+  const contextLabel = isOnTask && task
+    ? `${task.name} in ${phase.name}`
     : phase.name;
 
   return (

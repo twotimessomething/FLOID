@@ -2,7 +2,7 @@
  * Template types for schedule definitions.
  */
 
-export interface TemplateElement {
+export interface TemplateTask {
   readonly name: string;
   readonly description: string;
   readonly relativeStart: number;
@@ -16,7 +16,7 @@ export interface TemplatePhase {
   readonly relativeStart: number;
   readonly relativeEnd: number;
   readonly order: number;
-  readonly elements: readonly TemplateElement[];
+  readonly tasks: readonly TemplateTask[];
   readonly color?: string;
 }
 

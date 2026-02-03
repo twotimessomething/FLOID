@@ -24,7 +24,7 @@ export interface ContextMenuState {
   targetId: string | null;
   sectionId: string | null;
   phaseId: string | null;
-  elementId: string | null;
+  taskId: string | null;
   location: ContextMenuLocation;
   clickRelativePosition?: number;
 }
@@ -71,7 +71,7 @@ interface UIState {
     sectionId: string | null,
     phaseId?: string | null,
     position?: ModalPosition,
-    elementId?: string | null
+    taskId?: string | null
   ) => void;
   clearSelection: () => void;
 
@@ -130,7 +130,7 @@ interface UIState {
     targetId: string | null,
     sectionId: string | null,
     phaseId?: string | null,
-    elementId?: string | null,
+    taskId?: string | null,
     location?: ContextMenuLocation,
     clickRelativePosition?: number
   ) => void;
@@ -187,15 +187,15 @@ export const useUIStore = create<UIState>((set) => ({
   setZoomLevel: (level) => set({ zoomLevel: level }),
 
   // Selection
-  selection: { type: null, id: null, sectionId: null, phaseId: null, elementId: null },
-  selectItem: (type, id, sectionId, phaseId = null, position, elementId = null) =>
+  selection: { type: null, id: null, sectionId: null, phaseId: null, taskId: null },
+  selectItem: (type, id, sectionId, phaseId = null, position, taskId = null) =>
     set({
-      selection: { type, id, sectionId, phaseId, position, elementId },
+      selection: { type, id, sectionId, phaseId, position, taskId },
       isModalOpen: type !== null,
     }),
   clearSelection: () =>
     set({
-      selection: { type: null, id: null, sectionId: null, phaseId: null, elementId: null },
+      selection: { type: null, id: null, sectionId: null, phaseId: null, taskId: null },
     }),
 
   // Drag state
@@ -214,7 +214,7 @@ export const useUIStore = create<UIState>((set) => ({
   closeModal: () =>
     set({
       isModalOpen: false,
-      selection: { type: null, id: null, sectionId: null, phaseId: null, elementId: null },
+      selection: { type: null, id: null, sectionId: null, phaseId: null, taskId: null },
     }),
 
   // Left sidebar
@@ -263,10 +263,10 @@ export const useUIStore = create<UIState>((set) => ({
     targetId: null,
     sectionId: null,
     phaseId: null,
-    elementId: null,
+    taskId: null,
     location: 'label',
   },
-  openContextMenu: (position, targetType, targetId, sectionId, phaseId = null, elementId = null, location = 'label', clickRelativePosition) =>
+  openContextMenu: (position, targetType, targetId, sectionId, phaseId = null, taskId = null, location = 'label', clickRelativePosition) =>
     set({
       contextMenu: {
         isOpen: true,
@@ -275,7 +275,7 @@ export const useUIStore = create<UIState>((set) => ({
         targetId,
         sectionId,
         phaseId,
-        elementId,
+        taskId,
         location,
         clickRelativePosition,
       },

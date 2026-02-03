@@ -27,7 +27,7 @@ export function useKeyboardShortcuts(): void {
     togglePhaseCollapse,
     deleteSection,
     deletePhase,
-    deleteElement,
+    deleteTask,
     deleteMilestone,
   } = useSectionStore();
 
@@ -58,10 +58,10 @@ export function useKeyboardShortcuts(): void {
         });
 
         if (!phase.isCollapsed) {
-          phase.elements.forEach((element) => {
+          phase.tasks.forEach((task) => {
             items.push({
-              id: element.id,
-              type: 'element',
+              id: task.id,
+              type: 'task',
               sectionId: section.id,
               phaseId: phase.id,
               canCollapse: false,
@@ -170,9 +170,9 @@ export function useKeyboardShortcuts(): void {
       case 'phase':
         deletePhase(selection.sectionId, selection.id);
         break;
-      case 'element':
+      case 'task':
         if (selection.phaseId) {
-          deleteElement(selection.sectionId, selection.phaseId, selection.id);
+          deleteTask(selection.sectionId, selection.phaseId, selection.id);
         }
         break;
       case 'milestone':
@@ -186,7 +186,7 @@ export function useKeyboardShortcuts(): void {
     selection,
     deleteSection,
     deletePhase,
-    deleteElement,
+    deleteTask,
     deleteMilestone,
     closeModal,
   ]);

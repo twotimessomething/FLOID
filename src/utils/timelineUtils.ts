@@ -9,7 +9,7 @@ export const ZOOM_PIXELS_PER_DAY: Record<ZoomLevel, number> = {
 };
 
 export const ROW_HEIGHT = 48;
-export const ELEMENT_ROW_HEIGHT = 28;
+export const TASK_ROW_HEIGHT = 28;
 export const LABEL_COLUMN_WIDTH = 200;
 export const HEADER_HEIGHT = 48;
 

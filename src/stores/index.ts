@@ -3,9 +3,11 @@ export {
   useSectionStore,
   selectSection,
   selectPhase,
-  selectElement,
+  selectTask,
   selectMilestone,
   selectMasterSection,
   selectNonMasterSections,
+  selectPhaseBarMilestone,
+  selectTaskBarMilestone,
 } from './sectionStore';
 export { useUIStore } from './uiStore';

@@ -15,7 +15,7 @@ export const engineeringTemplate: ScheduleTemplate = {
       relativeStart: 0.0,
       relativeEnd: 0.12,
       order: 0,
-      elements: [
+      tasks: [
         {
           name: 'Technical Requirements',
           description: 'Document PRD specifications, performance targets, and constraints',
@@ -45,7 +45,7 @@ export const engineeringTemplate: ScheduleTemplate = {
       relativeStart: 0.12,
       relativeEnd: 0.28,
       order: 1,
-      elements: [
+      tasks: [
         {
           name: 'CAD Modeling',
           description: '3D modeling, detailed design, and component selection',
@@ -82,7 +82,7 @@ export const engineeringTemplate: ScheduleTemplate = {
       relativeStart: 0.28,
       relativeEnd: 0.45,
       order: 2,
-      elements: [
+      tasks: [
         {
           name: 'EVT Build',
           description: 'Build first engineering prototypes with production-intent components',
@@ -119,7 +119,7 @@ export const engineeringTemplate: ScheduleTemplate = {
       relativeStart: 0.45,
       relativeEnd: 0.65,
       order: 3,
-      elements: [
+      tasks: [
         {
           name: 'DVT Build',
           description: 'Build design validation units with soft tooling',
@@ -163,7 +163,7 @@ export const engineeringTemplate: ScheduleTemplate = {
       relativeStart: 0.65,
       relativeEnd: 0.85,
       order: 4,
-      elements: [
+      tasks: [
         {
           name: 'PVT Build',
           description: 'First production run on final tooling and assembly line',
@@ -207,7 +207,7 @@ export const engineeringTemplate: ScheduleTemplate = {
       relativeStart: 0.85,
       relativeEnd: 1.0,
       order: 5,
-      elements: [
+      tasks: [
         {
           name: 'Initial Production',
           description: 'First mass production lots with progressive volume increase',

@@ -3,7 +3,7 @@ import type { Section, Phase, Milestone } from '../types';
 import { getScheduleColor } from '../constants/colors';
 
 // Re-export types and individual templates
-export type { ScheduleTemplate, TemplatePhase, TemplateMilestone, TemplateElement } from './templates';
+export type { ScheduleTemplate, TemplatePhase, TemplateMilestone, TemplateTask } from './templates';
 export {
   industrialDesignTemplate,
   engineeringTemplate,
@@ -94,14 +94,14 @@ export function createSectionFromTemplate(
   const phases: Phase[] = template.phases.map((phaseTemplate) => {
     const phaseId = generateId();
 
-    const elements = phaseTemplate.elements.map((element) => ({
+    const tasks = phaseTemplate.tasks.map((task) => ({
       id: generateId(),
       phaseId,
-      name: element.name,
-      description: element.description,
-      relativeStart: element.relativeStart,
-      relativeEnd: element.relativeEnd,
-      order: element.order,
+      name: task.name,
+      description: task.description,
+      relativeStart: task.relativeStart,
+      relativeEnd: task.relativeEnd,
+      order: task.order,
     }));
 
     return {
@@ -112,7 +112,7 @@ export function createSectionFromTemplate(
       color: phaseTemplate.color ?? null,
       order: phaseTemplate.order,
       isCollapsed: false,
-      elements,
+      tasks,
       relativeStart: phaseTemplate.relativeStart,
       relativeEnd: phaseTemplate.relativeEnd,
     };

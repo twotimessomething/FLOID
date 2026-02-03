@@ -22,11 +22,11 @@ export function ContextMenu(): JSX.Element | null {
   const { contextMenu, closeContextMenu, selectItem } = useUIStore();
   const {
     deletePhase,
-    deleteElement,
+    deleteTask,
     deleteMilestone,
     deleteSection,
     addPhase,
-    addElement,
+    addTask,
     addMilestone,
     setAsMaster,
     reorderPhases,
@@ -34,14 +34,14 @@ export function ContextMenu(): JSX.Element | null {
     togglePhaseCollapse,
     toggleSectionCollapse,
     addPhaseBarMilestone,
-    addElementBarMilestone,
+    addTaskBarMilestone,
     deletePhaseBarMilestone,
-    deleteElementBarMilestone,
+    deleteTaskBarMilestone,
     updatePhase,
   } = useSectionStore();
   const project = useProjectStore((state) => state.project);
 
-  const { isOpen, position, targetType, targetId, sectionId, phaseId, elementId, location, clickRelativePosition } = contextMenu;
+  const { isOpen, position, targetType, targetId, sectionId, phaseId, taskId, location, clickRelativePosition } = contextMenu;
 
   // Color submenu state
   const [showColorSubmenu, setShowColorSubmenu] = useState(false);
@@ -110,9 +110,9 @@ export function ContextMenu(): JSX.Element | null {
 
   const handleEdit = useCallback(() => {
     if (!targetId || !sectionId) return;
-    selectItem(targetType, targetId, sectionId, phaseId, position, elementId);
+    selectItem(targetType, targetId, sectionId, phaseId, position, taskId);
     closeContextMenu();
-  }, [targetType, targetId, sectionId, phaseId, elementId, position, selectItem, closeContextMenu]);
+  }, [targetType, targetId, sectionId, phaseId, taskId, position, selectItem, closeContextMenu]);
 
   const handleDelete = useCallback(async () => {
     if (!targetId || !sectionId) return;
@@ -135,9 +135,9 @@ export function ContextMenu(): JSX.Element | null {
       case 'phase':
         deletePhase(sectionId, targetId);
         break;
-      case 'element':
+      case 'task':
         if (phaseId) {
-          deleteElement(sectionId, phaseId, targetId);
+          deleteTask(sectionId, phaseId, targetId);
         }
         break;
       case 'milestone':
@@ -148,8 +148,8 @@ export function ContextMenu(): JSX.Element | null {
         break;
       case 'barMilestone':
         if (phaseId) {
-          if (elementId) {
-            deleteElementBarMilestone(sectionId, phaseId, elementId, targetId);
+          if (taskId) {
+            deleteTaskBarMilestone(sectionId, phaseId, taskId, targetId);
           } else {
             deletePhaseBarMilestone(sectionId, phaseId, targetId);
           }
@@ -157,7 +157,7 @@ export function ContextMenu(): JSX.Element | null {
         break;
     }
     closeContextMenu();
-  }, [targetType, targetId, sectionId, phaseId, elementId, deletePhase, deleteElement, deleteMilestone, deleteSection, deletePhaseBarMilestone, deleteElementBarMilestone, closeContextMenu, confirm]);
+  }, [targetType, targetId, sectionId, phaseId, taskId, deletePhase, deleteTask, deleteMilestone, deleteSection, deletePhaseBarMilestone, deleteTaskBarMilestone, closeContextMenu, confirm]);
 
   const handleAddPhase = useCallback(() => {
     if (!sectionId) return;
@@ -178,7 +178,7 @@ export function ContextMenu(): JSX.Element | null {
       relativeEnd: 0.4,
       order: section.phases.length,
       isCollapsed: false,
-      elements: [],
+      tasks: [],
     });
 
     // Select the newly created phase
@@ -193,10 +193,10 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [sectionId, sections, project?.masterSectionId, addPhase, selectItem, position, closeContextMenu]);
 
-  const handleAddElement = useCallback(() => {
+  const handleAddTask = useCallback(() => {
     if (!sectionId || !targetId) return;
 
-    addElement(sectionId, targetId, {
+    addTask(sectionId, targetId, {
       name: '',
       description: '',
       relativeStart: 0,
@@ -204,18 +204,18 @@ export function ContextMenu(): JSX.Element | null {
       order: 0,
     });
 
-    // Select the newly created element
+    // Select the newly created task
     const updatedSections = useSectionStore.getState().sections;
     const section = updatedSections.find((s) => s.id === sectionId);
     const phase = section?.phases.find((p) => p.id === targetId);
-    const newElement = phase?.elements[phase.elements.length - 1];
+    const newTask = phase?.tasks[phase.tasks.length - 1];
 
-    if (newElement) {
-      selectItem('element', newElement.id, sectionId, targetId, position);
+    if (newTask) {
+      selectItem('task', newTask.id, sectionId, targetId, position);
     }
 
     closeContextMenu();
-  }, [sectionId, targetId, addElement, selectItem, position, closeContextMenu]);
+  }, [sectionId, targetId, addTask, selectItem, position, closeContextMenu]);
 
   const handleMovePhaseUp = useCallback(() => {
     if (!sectionId || !targetId || targetType !== 'phase') return;
@@ -295,16 +295,16 @@ export function ContextMenu(): JSX.Element | null {
     const newMilestone = { name: '', relativePosition: clickRelativePosition };
     let newId: string;
 
-    if (elementId) {
-      newId = addElementBarMilestone(sectionId, phaseId, elementId, newMilestone);
-      selectItem('barMilestone', newId, sectionId, phaseId, position, elementId);
+    if (taskId) {
+      newId = addTaskBarMilestone(sectionId, phaseId, taskId, newMilestone);
+      selectItem('barMilestone', newId, sectionId, phaseId, position, taskId);
     } else {
       newId = addPhaseBarMilestone(sectionId, phaseId, newMilestone);
       selectItem('barMilestone', newId, sectionId, phaseId, position);
     }
 
     closeContextMenu();
-  }, [sectionId, phaseId, elementId, clickRelativePosition, addPhaseBarMilestone, addElementBarMilestone, selectItem, position, closeContextMenu]);
+  }, [sectionId, phaseId, taskId, clickRelativePosition, addPhaseBarMilestone, addTaskBarMilestone, selectItem, position, closeContextMenu]);
 
   // Add section milestone at click position (for section header)
   const handleAddMilestoneHere = useCallback(() => {
@@ -369,7 +369,7 @@ export function ContextMenu(): JSX.Element | null {
       relativeEnd,
       order: insertOrder,
       isCollapsed: false,
-      elements: [],
+      tasks: [],
     });
 
     // Reorder if needed
@@ -397,39 +397,39 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [sectionId, phaseId, clickRelativePosition, sections, project?.masterSectionId, addPhase, reorderPhases, selectItem, position, closeContextMenu]);
 
-  // Add element at click position (for empty element area)
-  const handleAddElementHere = useCallback(() => {
+  // Add task at click position (for empty task area)
+  const handleAddTaskHere = useCallback(() => {
     if (!sectionId || !phaseId || clickRelativePosition === undefined) return;
 
     const section = sections.find((s) => s.id === sectionId);
     const phase = section?.phases.find((p) => p.id === phaseId);
     if (!phase) return;
 
-    // Create element starting at click position with ~20% width (phase-relative)
-    const elementWidth = 0.2;
-    const relativeStart = Math.max(0, Math.min(1 - elementWidth, clickRelativePosition));
-    const relativeEnd = Math.min(1, relativeStart + elementWidth);
+    // Create task starting at click position with ~20% width (phase-relative)
+    const taskWidth = 0.2;
+    const relativeStart = Math.max(0, Math.min(1 - taskWidth, clickRelativePosition));
+    const relativeEnd = Math.min(1, relativeStart + taskWidth);
 
-    addElement(sectionId, phaseId, {
+    addTask(sectionId, phaseId, {
       name: '',
       description: '',
       relativeStart,
       relativeEnd,
-      order: phase.elements.length,
+      order: phase.tasks.length,
     });
 
-    // Select the newly created element
+    // Select the newly created task
     const updatedSections = useSectionStore.getState().sections;
     const updatedSection = updatedSections.find((s) => s.id === sectionId);
     const updatedPhase = updatedSection?.phases.find((p) => p.id === phaseId);
-    const newElement = updatedPhase?.elements[updatedPhase.elements.length - 1];
+    const newTask = updatedPhase?.tasks[updatedPhase.tasks.length - 1];
 
-    if (newElement) {
-      selectItem('element', newElement.id, sectionId, phaseId, position);
+    if (newTask) {
+      selectItem('task', newTask.id, sectionId, phaseId, position);
     }
 
     closeContextMenu();
-  }, [sectionId, phaseId, clickRelativePosition, sections, addElement, selectItem, position, closeContextMenu]);
+  }, [sectionId, phaseId, clickRelativePosition, sections, addTask, selectItem, position, closeContextMenu]);
 
   const getDeleteConfirmMessage = (): string | null => {
     if (!targetId || !sectionId) return null;
@@ -440,15 +440,15 @@ export function ContextMenu(): JSX.Element | null {
     switch (targetType) {
       case 'phase': {
         const phase = section.phases.find((p) => p.id === targetId);
-        if (phase && phase.elements.length > 0) {
-          return `Delete "${phase.name}"? This will also delete ${phase.elements.length} element(s).`;
+        if (phase && phase.tasks.length > 0) {
+          return `Delete "${phase.name}"? This will also delete ${phase.tasks.length} task(s).`;
         }
         return `Delete "${phase?.name}"?`;
       }
-      case 'element': {
+      case 'task': {
         const phase = section.phases.find((p) => p.id === phaseId);
-        const element = phase?.elements.find((e) => e.id === targetId);
-        return `Delete "${element?.name || 'this element'}"?`;
+        const task = phase?.tasks.find((t) => t.id === targetId);
+        return `Delete "${task?.name || 'this task'}"?`;
       }
       case 'milestone': {
         const milestone = section.milestones.find((m) => m.id === targetId);
@@ -461,9 +461,9 @@ export function ContextMenu(): JSX.Element | null {
         // Find the bar milestone
         if (phaseId) {
           const phase = section.phases.find((p) => p.id === phaseId);
-          if (elementId) {
-            const element = phase?.elements.find((e) => e.id === elementId);
-            const bm = element?.barMilestones?.find((b) => b.id === targetId);
+          if (taskId) {
+            const task = phase?.tasks.find((t) => t.id === taskId);
+            const bm = task?.barMilestones?.find((b) => b.id === targetId);
             return `Delete "${bm?.name || 'this milestone'}"?`;
           } else {
             const bm = phase?.barMilestones?.find((b) => b.id === targetId);
@@ -506,7 +506,7 @@ export function ContextMenu(): JSX.Element | null {
           });
         }
 
-        items.push({ label: 'Add Element', action: handleAddElement });
+        items.push({ label: 'Add Task', action: handleAddTask });
 
         const phaseIndex = section.phases.findIndex((p) => p.id === targetId);
         const isFirstPhase = phaseIndex === 0;
@@ -539,17 +539,17 @@ export function ContextMenu(): JSX.Element | null {
 
         items.push({ label: 'Delete', action: handleDelete, danger: true });
       } else if (location === 'empty') {
-        // Empty area (element container): Add Element Here
+        // Empty area (task container): Add Task Here
         if (clickRelativePosition !== undefined) {
-          items.push({ label: 'Add Element Here', action: handleAddElementHere });
+          items.push({ label: 'Add Task Here', action: handleAddTaskHere });
         }
       }
 
       return items;
     }
 
-    // Element context menu
-    if (targetType === 'element') {
+    // Task context menu
+    if (targetType === 'task') {
       if (location === 'label') {
         // Label area: Edit, Delete
         items.push({ label: 'Edit', action: handleEdit });
@@ -636,7 +636,7 @@ export function ContextMenu(): JSX.Element | null {
     }
 
     return items;
-  }, [sections, sectionId, targetId, phaseId, elementId, project?.masterSectionId, targetType, location, clickRelativePosition, showColorSubmenu, handleEdit, handleAddPhase, handleAddElement, handleMovePhaseUp, handleMovePhaseDown, handleSetAsMaster, handleExportSchedule, handleDelete, handleTogglePhaseCollapse, handleToggleSectionCollapse, handleAddBarMilestoneHere, handleAddMilestoneHere, handleAddPhaseHere, handleAddElementHere]);
+  }, [sections, sectionId, targetId, phaseId, taskId, project?.masterSectionId, targetType, location, clickRelativePosition, showColorSubmenu, handleEdit, handleAddPhase, handleAddTask, handleMovePhaseUp, handleMovePhaseDown, handleSetAsMaster, handleExportSchedule, handleDelete, handleTogglePhaseCollapse, handleToggleSectionCollapse, handleAddBarMilestoneHere, handleAddMilestoneHere, handleAddPhaseHere, handleAddTaskHere]);
 
   if (!isOpen) return null;
 

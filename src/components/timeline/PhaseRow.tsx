@@ -1,6 +1,7 @@
 import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import type { Phase, Section, ViewportBounds } from '../../types';
 import { getPhaseColor } from '../../types';
+import { getNextPhaseColor } from '../../constants/colors';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -14,9 +15,10 @@ import {
   viewportToSectionRelative,
   snapRelativeToBusinessDay,
 } from '../../utils/dateUtils';
-import { ElementRow } from './ElementRow';
+import { TaskRow } from './TaskRow';
 import { DragHandle } from './DragHandle';
 import { BarMilestoneMarker } from './BarMilestoneMarker';
+import { AddItemButton } from './AddItemButton';
 
 interface PhaseRowProps {
   readonly phase: Phase;
@@ -39,7 +41,7 @@ export function PhaseRow({
   phaseIndex,
   totalPhases,
 }: PhaseRowProps): JSX.Element {
-  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, updatePhaseWithRipple, addElement, addPhaseBarMilestone, clearExpansion } = useSectionStore();
+  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithTasks, updatePhaseWithRipple, addTask, addPhaseBarMilestone, clearExpansion, addPhase, reorderPhases } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
   const project = useProjectStore((state) => state.project);
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
@@ -76,7 +78,7 @@ export function PhaseRow({
 
   // Preserve children state (Shift key modifier)
   const preserveChildrenRef = useRef(false);
-  const initialElementPositions = useRef<Array<{ id: string; absoluteStart: number; absoluteEnd: number }>>([]);
+  const initialTaskPositions = useRef<Array<{ id: string; absoluteStart: number; absoluteEnd: number }>>([]);
 
   // Ripple mode state (Shift+Cmd/Ctrl modifier on end handle)
   const rippleModeRef = useRef(false);
@@ -160,8 +162,8 @@ export function PhaseRow({
     openContextMenu({ x: e.clientX, y: e.clientY }, 'section', section.id, section.id, phase.id, null, 'empty', clickRelativePosition);
   }, [openContextMenu, section, phase.id, timelineWidth, viewportBounds]);
 
-  // Context menu for element container empty area - for adding elements
-  const handleElementContainerContextMenu = useCallback((e: React.MouseEvent): void => {
+  // Context menu for task container empty area - for adding tasks
+  const handleTaskContainerContextMenu = useCallback((e: React.MouseEvent): void => {
     e.preventDefault();
     e.stopPropagation();
     // Calculate phase-relative position from click
@@ -172,7 +174,7 @@ export function PhaseRow({
     // Convert to phase-relative
     const phaseRelative = phaseWidth > 0 ? (sectionRelative - phase.relativeStart) / phaseWidth : 0.5;
     const clickRelativePosition = Math.max(0, Math.min(1, phaseRelative));
-    // Use 'empty' location with phase as target for "Add Element Here"
+    // Use 'empty' location with phase as target for "Add Task Here"
     openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id, phase.id, null, 'empty', clickRelativePosition);
   }, [openContextMenu, section, phase.id, phase.relativeStart, phaseWidth, timelineWidth, viewportBounds]);
 
@@ -207,6 +209,47 @@ export function PhaseRow({
     selectItem('barMilestone', newId, section.id, phase.id, { x: e.clientX, y: e.clientY });
   }, [addPhaseBarMilestone, section.id, phase.id, selectItem]);
 
+  // Click on "+" button creates a new phase starting at the end of this phase
+  const handleAddPhaseAfter = useCallback(
+    (e: React.MouseEvent): void => {
+      // Calculate new phase position - starts at current phase's end
+      const sectionDays = getDaysBetween(section.startDate, section.endDate);
+      const thirtyDaysRelative = sectionDays > 0 ? 30 / sectionDays : 0.15;
+      const relativeStart = phase.relativeEnd;
+      const relativeEnd = Math.min(1, relativeStart + thirtyDaysRelative);
+
+      // Add the phase
+      addPhase(section.id, {
+        name: '',
+        description: '',
+        color: isMasterSection ? getNextPhaseColor(section.phases.length) : null,
+        order: phase.order + 1,
+        isCollapsed: false,
+        tasks: [],
+        relativeStart,
+        relativeEnd,
+      });
+
+      // Get the new phase and reorder if needed
+      const updatedSections = useSectionStore.getState().sections;
+      const updatedSection = updatedSections.find((s) => s.id === section.id);
+      const newPhase = updatedSection?.phases[updatedSection.phases.length - 1];
+
+      if (newPhase) {
+        // Reorder phases to put the new phase at the correct position
+        const currentIndex = updatedSection.phases.length - 1;
+        const targetIndex = Math.min(phase.order + 1, updatedSection.phases.length - 1);
+
+        if (currentIndex !== targetIndex) {
+          reorderPhases(section.id, currentIndex, targetIndex);
+        }
+
+        selectItem('phase', newPhase.id, section.id, null, { x: e.clientX, y: e.clientY });
+      }
+    },
+    [section.id, section.startDate, section.endDate, section.phases.length, phase.relativeEnd, phase.order, isMasterSection, addPhase, reorderPhases, selectItem]
+  );
+
   // Double-click on the phase row creates a new phase below this one
   const handlePhaseRowDoubleClick = useCallback(
     (e: React.MouseEvent): void => {
@@ -218,8 +261,8 @@ export function PhaseRow({
     [onCreatePhaseAfter, phase.order]
   );
 
-  // Double-click on elements container creates a new element within this phase
-  const handleCreateElement = useCallback(
+  // Double-click on tasks container creates a new task within this phase
+  const handleCreateTask = useCallback(
     (e: React.MouseEvent): void => {
       e.stopPropagation();
 
@@ -236,34 +279,34 @@ export function PhaseRow({
         ? (sectionRelative - phase.relativeStart) / phaseWidth
         : 0.5;
 
-      // Create an element centered at the click position with reasonable width
+      // Create a task centered at the click position with reasonable width
       const sectionDayCount = getDaysBetween(section.startDate, section.endDate);
       const sevenDaysRelative = sectionDayCount > 0 ? (7 / sectionDayCount) / phaseWidth : 0.15;
       const halfWidth = sevenDaysRelative / 2;
       const relativeStart = Math.max(0, Math.min(1 - sevenDaysRelative, relativeInPhase - halfWidth));
       const relativeEnd = Math.min(1, relativeStart + sevenDaysRelative);
 
-      addElement(section.id, phase.id, {
+      addTask(section.id, phase.id, {
         name: '',
         description: '',
         relativeStart,
         relativeEnd,
-        order: phase.elements.length,
+        order: phase.tasks.length,
       });
 
-      // Get the new element and select it
+      // Get the new task and select it
       const updatedSections = useSectionStore.getState().sections;
       const updatedSection = updatedSections.find((s) => s.id === section.id);
       const updatedPhase = updatedSection?.phases.find((p) => p.id === phase.id);
-      const newElement = updatedPhase?.elements[updatedPhase.elements.length - 1];
+      const newTask = updatedPhase?.tasks[updatedPhase.tasks.length - 1];
 
-      if (newElement) {
-        selectItem('element', newElement.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
+      if (newTask) {
+        selectItem('task', newTask.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
       }
     },
     // section object is passed to viewportToSectionRelative but only startDate/endDate are used
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [section.id, section.startDate, section.endDate, phase.id, phase.relativeStart, phaseWidth, phase.elements.length, timelineWidth, viewportBounds, addElement, selectItem]
+    [section.id, section.startDate, section.endDate, phase.id, phase.relativeStart, phaseWidth, phase.tasks.length, timelineWidth, viewportBounds, addTask, selectItem]
   );
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
@@ -281,11 +324,11 @@ export function PhaseRow({
     // Check if Shift is held (without Cmd/Ctrl) to preserve children positions
     preserveChildrenRef.current = (e?.shiftKey && !e?.metaKey && !e?.ctrlKey) ?? false;
     if (preserveChildrenRef.current) {
-      // Capture initial absolute positions of all elements (section-relative)
-      initialElementPositions.current = phase.elements.map((el) => ({
-        id: el.id,
-        absoluteStart: phase.relativeStart + el.relativeStart * phaseWidth,
-        absoluteEnd: phase.relativeStart + el.relativeEnd * phaseWidth,
+      // Capture initial absolute positions of all tasks (section-relative)
+      initialTaskPositions.current = phase.tasks.map((task) => ({
+        id: task.id,
+        absoluteStart: phase.relativeStart + task.relativeStart * phaseWidth,
+        absoluteEnd: phase.relativeStart + task.relativeEnd * phaseWidth,
       }));
     }
 
@@ -334,10 +377,10 @@ export function PhaseRow({
       return;
     }
 
-    if (preserveChildrenRef.current && initialElementPositions.current.length > 0) {
-      // Calculate new element positions to preserve absolute positions
+    if (preserveChildrenRef.current && initialTaskPositions.current.length > 0) {
+      // Calculate new task positions to preserve absolute positions
       const newPhaseWidth = newEnd - newStart;
-      const elementUpdates = initialElementPositions.current.map((initial) => {
+      const taskUpdates = initialTaskPositions.current.map((initial) => {
         // Clamp absolute positions to new phase bounds
         const clampedAbsStart = Math.max(newStart, Math.min(newEnd, initial.absoluteStart));
         const clampedAbsEnd = Math.max(newStart, Math.min(newEnd, initial.absoluteEnd));
@@ -346,7 +389,7 @@ export function PhaseRow({
         const newRelStart = newPhaseWidth > 0 ? (clampedAbsStart - newStart) / newPhaseWidth : 0;
         const newRelEnd = newPhaseWidth > 0 ? (clampedAbsEnd - newStart) / newPhaseWidth : 1;
 
-        // Ensure minimum element width
+        // Ensure minimum task width
         const minWidth = 0.02;
         const finalRelEnd = Math.max(newRelStart + minWidth, newRelEnd);
 
@@ -357,7 +400,7 @@ export function PhaseRow({
         };
       });
 
-      updatePhaseWithElements(section.id, phase.id, newStart, newEnd, elementUpdates);
+      updatePhaseWithTasks(section.id, phase.id, newStart, newEnd, taskUpdates);
     } else {
       // updatePhasePosition will handle auto-expansion if newStart < 0 or newEnd > 1
       updatePhasePosition(section.id, phase.id, newStart, newEnd);
@@ -372,7 +415,7 @@ export function PhaseRow({
     hasDragged.current = true;
     // Clear preserve children state
     preserveChildrenRef.current = false;
-    initialElementPositions.current = [];
+    initialTaskPositions.current = [];
     // Clear ripple mode state
     rippleModeRef.current = false;
     // Clear the drag date
@@ -553,13 +596,13 @@ export function PhaseRow({
           </span>
         </div>
 
-        {/* Element labels */}
-        {!phase.isCollapsed && phase.elements.length > 0 && (
-          <div role="list" aria-label={`${phase.name} elements`}>
-            {phase.elements.map((element) => (
-              <ElementRow
-                key={element.id}
-                element={element}
+        {/* Task labels */}
+        {!phase.isCollapsed && phase.tasks.length > 0 && (
+          <div role="list" aria-label={`${phase.name} tasks`}>
+            {phase.tasks.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
                 phase={phase}
                 section={section}
                 isLabel
@@ -645,21 +688,27 @@ export function PhaseRow({
               color={effectiveColor}
             />
           ))}
+
+          {/* Add phase button - appears on hover */}
+          <AddItemButton
+            onClick={handleAddPhaseAfter}
+            label="Add phase after"
+          />
         </div>
       </div>
 
-      {/* Element bars */}
-      {!phase.isCollapsed && phase.elements.length > 0 && (
+      {/* Task bars */}
+      {!phase.isCollapsed && phase.tasks.length > 0 && (
         <div
           role="list"
-          aria-label={`${phase.name} element bars`}
-          onDoubleClick={handleCreateElement}
-          onContextMenu={handleElementContainerContextMenu}
+          aria-label={`${phase.name} task bars`}
+          onDoubleClick={handleCreateTask}
+          onContextMenu={handleTaskContainerContextMenu}
         >
-          {phase.elements.map((element) => (
-            <ElementRow
-              key={element.id}
-              element={element}
+          {phase.tasks.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
               phase={phase}
               section={section}
               isLabel={false}

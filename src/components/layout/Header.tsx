@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore, type ThemeMode } from '../../stores/uiStore';
@@ -62,7 +62,7 @@ export function Header() {
   const project = useProjectStore((state) => state.project);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const sections = useSectionStore((state) => state.sections);
-  const { updateProject, saveCurrentProject, importProject, selectProject } = useProjectStore();
+  const { saveCurrentProject, importProject, selectProject } = useProjectStore();
 
   const loadSectionsForProject = useSectionStore((state) => state.loadSectionsForProject);
 
@@ -70,14 +70,6 @@ export function Header() {
   const setTheme = useUIStore((state) => state.setTheme);
   const showToast = useUIStore((state) => state.showToast);
   const openExportModal = useUIStore((state) => state.openExportModal);
-
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editedName, setEditedName] = useState(project?.name ?? '');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Ref to store project name for stable callback
-  const projectNameRef = useRef(project?.name ?? '');
-  projectNameRef.current = project?.name ?? '';
 
   const { handleImport: handleScheduleImport } = useScheduleImport();
 
@@ -88,44 +80,6 @@ export function Header() {
   }, [theme, setTheme]);
 
   const ThemeIcon = theme === 'light' ? SunIcon : theme === 'dark' ? MoonIcon : MonitorIcon;
-
-  // Update editedName when project changes
-  useEffect(() => {
-    setEditedName(project?.name ?? '');
-  }, [project?.name]);
-
-  // Focus input when editing starts
-  useEffect(() => {
-    if (isEditingName && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditingName]);
-
-  const handleNameDoubleClick = useCallback(() => {
-    setIsEditingName(true);
-  }, []);
-
-  const handleNameSave = useCallback(() => {
-    if (!project) return;
-    const trimmedName = editedName.trim();
-    if (trimmedName && trimmedName !== project.name) {
-      updateProject({ name: trimmedName });
-    } else {
-      setEditedName(project.name);
-    }
-    setIsEditingName(false);
-  }, [editedName, project, updateProject]);
-
-  const handleNameKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleNameSave();
-    } else if (e.key === 'Escape') {
-      // Use ref to avoid callback recreation when project name changes
-      setEditedName(projectNameRef.current);
-      setIsEditingName(false);
-    }
-  }, [handleNameSave]);
 
   const handleExport = useCallback(() => {
     openExportModal();
@@ -188,25 +142,9 @@ export function Header() {
         {project && (
           <>
             <span className="text-[var(--color-text-muted)] mx-2">|</span>
-            {isEditingName ? (
-              <input
-                ref={inputRef}
-                type="text"
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                onBlur={handleNameSave}
-                onKeyDown={handleNameKeyDown}
-                className="text-sm text-[var(--color-text-primary)] bg-[var(--color-input-bg)] border-b border-[var(--color-text-secondary)] outline-none px-1 py-0.5 min-w-[100px] rounded-sm"
-              />
-            ) : (
-              <span
-                onDoubleClick={handleNameDoubleClick}
-                className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] cursor-pointer"
-                title="Double-click to edit"
-              >
-                {project.name}
-              </span>
-            )}
+            <span className="text-sm text-[var(--color-text-secondary)]">
+              {project.name}
+            </span>
           </>
         )}
       </div>

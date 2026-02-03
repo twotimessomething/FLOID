@@ -355,18 +355,18 @@ export const rescalePhases = (
     const newRelativeStart = clamp(differenceInDays(phaseStartDate, newStart) / newDays, 0, 1);
     const newRelativeEnd = clamp(differenceInDays(phaseEndDate, newStart) / newDays, 0, 1);
 
-    // Rescale elements within the phase
-    const rescaledElements = phase.elements.map((element) => {
-      // Elements are relative to phase bounds - they don't need rescaling
+    // Rescale tasks within the phase
+    const rescaledTasks = phase.tasks.map((task) => {
+      // Tasks are relative to phase bounds - they don't need rescaling
       // since they stay relative to their parent phase
-      return element;
+      return task;
     });
 
     return {
       ...phase,
       relativeStart: newRelativeStart,
       relativeEnd: newRelativeEnd,
-      elements: rescaledElements,
+      tasks: rescaledTasks,
     };
   });
 };

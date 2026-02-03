@@ -3,7 +3,7 @@ export { DEFAULT_PROJECT_SETTINGS } from './project';
 export type {
   Section,
   Phase,
-  Element,
+  Task,
   Milestone,
   BarMilestone,
   ZoomLevel,

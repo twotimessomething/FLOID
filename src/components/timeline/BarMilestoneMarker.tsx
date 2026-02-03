@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 import type { BarMilestone } from '../../types';
-import { useSectionStore, selectSection, selectPhase, selectElement } from '../../stores/sectionStore';
+import { useSectionStore, selectSection, selectPhase, selectTask } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import type { ContextMenuLocation } from '../../stores/uiStore';
 import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
@@ -9,7 +9,7 @@ interface BarMilestoneMarkerProps {
   readonly barMilestone: BarMilestone;
   readonly sectionId: string;
   readonly phaseId: string;
-  readonly elementId?: string;
+  readonly taskId?: string;
   readonly barWidth: number;
   readonly color: string;
 }
@@ -18,26 +18,26 @@ export function BarMilestoneMarker({
   barMilestone,
   sectionId,
   phaseId,
-  elementId,
+  taskId,
   barWidth,
   color,
 }: BarMilestoneMarkerProps): JSX.Element {
-  const { updatePhaseBarMilestone, updateElementBarMilestone } = useSectionStore();
+  const { updatePhaseBarMilestone, updateTaskBarMilestone } = useSectionStore();
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
 
-  // Get section, phase, and element data for date calculations
+  // Get section, phase, and task data for date calculations
   const sectionSelector = useMemo(() => selectSection(sectionId), [sectionId]);
   const phaseSelector = useMemo(() => selectPhase(sectionId, phaseId), [sectionId, phaseId]);
-  const elementSelector = useMemo(() => selectElement(sectionId, phaseId, elementId || ''), [sectionId, phaseId, elementId]);
+  const taskSelector = useMemo(() => selectTask(sectionId, phaseId, taskId || ''), [sectionId, phaseId, taskId]);
   const section = useSectionStore(sectionSelector);
   const phase = useSectionStore(phaseSelector);
-  const element = useSectionStore(elementSelector);
+  const task = useSectionStore(taskSelector);
 
   const isSelected =
     selection.type === 'barMilestone' &&
     selection.id === barMilestone.id &&
     selection.phaseId === phaseId &&
-    selection.elementId === elementId;
+    selection.taskId === taskId;
 
   const isDraggingRef = useRef(false);
   const lastXRef = useRef(0);
@@ -57,12 +57,12 @@ export function BarMilestoneMarker({
 
     const phaseWidth = phase.relativeEnd - phase.relativeStart;
 
-    if (elementId && element) {
-      // Bar milestone on element: convert element-relative to section-relative
-      const elementSectionStart = phase.relativeStart + element.relativeStart * phaseWidth;
-      const elementSectionEnd = phase.relativeStart + element.relativeEnd * phaseWidth;
-      const elementWidth = elementSectionEnd - elementSectionStart;
-      const sectionRelative = elementSectionStart + relativePos * elementWidth;
+    if (taskId && task) {
+      // Bar milestone on task: convert task-relative to section-relative
+      const taskSectionStart = phase.relativeStart + task.relativeStart * phaseWidth;
+      const taskSectionEnd = phase.relativeStart + task.relativeEnd * phaseWidth;
+      const taskWidth = taskSectionEnd - taskSectionStart;
+      const sectionRelative = taskSectionStart + relativePos * taskWidth;
       const date = getDateFromRelativePosition(section.startDate, section.endDate, sectionRelative);
       return formatDate(date, 'MMM d');
     } else {
@@ -71,7 +71,7 @@ export function BarMilestoneMarker({
       const date = getDateFromRelativePosition(section.startDate, section.endDate, sectionRelative);
       return formatDate(date, 'MMM d');
     }
-  }, [section, phase, element, elementId]);
+  }, [section, phase, task, taskId]);
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -80,9 +80,9 @@ export function BarMilestoneMarker({
         hasDragged.current = false;
         return;
       }
-      selectItem('barMilestone', barMilestone.id, sectionId, phaseId, { x: e.clientX, y: e.clientY }, elementId);
+      selectItem('barMilestone', barMilestone.id, sectionId, phaseId, { x: e.clientX, y: e.clientY }, taskId);
     },
-    [selectItem, barMilestone.id, sectionId, phaseId, elementId]
+    [selectItem, barMilestone.id, sectionId, phaseId, taskId]
   );
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
@@ -118,8 +118,8 @@ export function BarMilestoneMarker({
       const deltaRelative = barWidth > 0 ? deltaX / barWidth : 0;
       const newPosition = Math.max(0, Math.min(1, positionRef.current + deltaRelative));
 
-      if (elementId) {
-        updateElementBarMilestone(sectionId, phaseId, elementId, barMilestone.id, { relativePosition: newPosition });
+      if (taskId) {
+        updateTaskBarMilestone(sectionId, phaseId, taskId, barMilestone.id, { relativePosition: newPosition });
       } else {
         updatePhaseBarMilestone(sectionId, phaseId, barMilestone.id, { relativePosition: newPosition });
       }
@@ -144,7 +144,7 @@ export function BarMilestoneMarker({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [sectionId, phaseId, elementId, barMilestone.id, barWidth, updatePhaseBarMilestone, updateElementBarMilestone, setDragging, calculateDate]);
+  }, [sectionId, phaseId, taskId, barMilestone.id, barWidth, updatePhaseBarMilestone, updateTaskBarMilestone, setDragging, calculateDate]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -152,10 +152,10 @@ export function BarMilestoneMarker({
         e.preventDefault();
         e.stopPropagation();
         const rect = (e.target as HTMLElement).getBoundingClientRect();
-        selectItem('barMilestone', barMilestone.id, sectionId, phaseId, { x: rect.right, y: rect.top }, elementId);
+        selectItem('barMilestone', barMilestone.id, sectionId, phaseId, { x: rect.right, y: rect.top }, taskId);
       }
     },
-    [selectItem, barMilestone.id, sectionId, phaseId, elementId]
+    [selectItem, barMilestone.id, sectionId, phaseId, taskId]
   );
 
   const handleContextMenu = useCallback(
@@ -169,11 +169,11 @@ export function BarMilestoneMarker({
         barMilestone.id,
         sectionId,
         phaseId,
-        elementId,
+        taskId,
         location
       );
     },
-    [openContextMenu, barMilestone.id, sectionId, phaseId, elementId]
+    [openContextMenu, barMilestone.id, sectionId, phaseId, taskId]
   );
 
   // Calculate contrasting text color (simple luminance check)

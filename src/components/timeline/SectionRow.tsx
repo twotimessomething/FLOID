@@ -3,9 +3,9 @@ import type { Section, ViewportBounds } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
+import { ROW_HEIGHT, TASK_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
 import { sectionToViewportRelative, viewportToSectionRelative, getDaysBetween } from '../../utils/dateUtils';
-import { PHASE_COLORS } from '../../constants/colors';
+import { getNextPhaseColor } from '../../constants/colors';
 import { getPhaseColor } from '../../types';
 import { PhaseRow } from './PhaseRow';
 import { MilestoneMarker } from './MilestoneMarker';
@@ -59,7 +59,7 @@ export function SectionRow({
     section.phases.forEach((phase) => {
       height += ROW_HEIGHT; // Phase row
       if (!phase.isCollapsed) {
-        height += phase.elements.length * ELEMENT_ROW_HEIGHT;
+        height += phase.tasks.length * TASK_ROW_HEIGHT;
       }
     });
     return height;
@@ -200,7 +200,7 @@ export function SectionRow({
         color: isMasterSection ? getNextPhaseColor(section.phases.length) : null,
         order: insertAtIndex,
         isCollapsed: false,
-        elements: [],
+        tasks: [],
         relativeStart,
         relativeEnd,
       });
@@ -457,11 +457,4 @@ export function SectionRow({
       )}
     </div>
   );
-}
-
-// Helper to get next phase color for ID timeline
-function getNextPhaseColor(existingCount: number): string {
-  const colorKeys = Object.keys(PHASE_COLORS) as (keyof typeof PHASE_COLORS)[];
-  const colorIndex = existingCount % colorKeys.length;
-  return PHASE_COLORS[colorKeys[colorIndex]];
 }

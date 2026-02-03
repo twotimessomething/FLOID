@@ -33,14 +33,14 @@ export interface Phase {
   color: string | null; // null = inherit from section
   order: number;
   isCollapsed: boolean;
-  elements: Element[];
+  tasks: Task[];
   barMilestones?: BarMilestone[]; // Optional - defaults to empty array
   relativeStart: number;
   relativeEnd: number;
 }
 
-// Element = item within phase
-export interface Element {
+// Task = item within phase
+export interface Task {
   id: string;
   phaseId: string;
   name: string;
@@ -78,11 +78,11 @@ export interface ModalPosition {
 
 // Enhanced selection with parent context for O(1) lookups
 export interface SelectionState {
-  type: 'section' | 'phase' | 'element' | 'milestone' | 'barMilestone' | null;
+  type: 'section' | 'phase' | 'task' | 'milestone' | 'barMilestone' | null;
   id: string | null;
   sectionId: string | null; // Always present for lookups
-  phaseId: string | null; // Present for elements and bar milestones
-  elementId?: string | null; // Present for bar milestones on elements
+  phaseId: string | null; // Present for tasks and bar milestones
+  taskId?: string | null; // Present for bar milestones on tasks
   position?: ModalPosition;
 }
 

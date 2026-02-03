@@ -78,9 +78,9 @@ export function useScheduleImport(): UseScheduleImportReturn {
           }
         }
 
-        // Elements keep their relative positions within the phase
-        const elements = exportPhase.elements.map((el) => ({
-          ...el,
+        // Tasks keep their relative positions within the phase
+        const tasks = exportPhase.tasks.map((t) => ({
+          ...t,
           id: generateId(),
           phaseId: newPhaseId,
         }));
@@ -96,7 +96,7 @@ export function useScheduleImport(): UseScheduleImportReturn {
           isCollapsed: exportPhase.isCollapsed,
           relativeStart,
           relativeEnd,
-          elements,
+          tasks,
         };
 
         return phase;

@@ -26,9 +26,9 @@
   --color-gridline: #d1d5db;
   --color-gridline-minor: rgba(209, 213, 219, 0.3);
   --color-gridline-major: rgba(209, 213, 219, 0.6);
-  --color-row-border-light: rgba(229, 231, 235, 0.15);
-  --color-row-border: rgba(229, 231, 235, 0.25);
-  --color-row-border-strong: rgba(229, 231, 235, 0.5);
+  --color-row-border-light: rgba(229, 231, 235, 0.45);
+  --color-row-border: rgba(229, 231, 235, 0.6);
+  --color-row-border-strong: rgba(229, 231, 235, 0.75);
   --color-milestone-line: rgba(0, 0, 0, 0.15);
   --color-today: #ef4444;
   --color-danger: #ef4444;

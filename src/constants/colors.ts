@@ -22,3 +22,9 @@ export const SCHEDULE_COLORS = [
 export const getScheduleColor = (index: number): string => {
   return SCHEDULE_COLORS[index % SCHEDULE_COLORS.length];
 };
+
+export const getNextPhaseColor = (existingCount: number): string => {
+  const colorKeys = Object.keys(PHASE_COLORS) as (keyof typeof PHASE_COLORS)[];
+  const colorIndex = existingCount % colorKeys.length;
+  return PHASE_COLORS[colorKeys[colorIndex]];
+};

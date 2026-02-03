@@ -1,5 +1,5 @@
 export { PhaseEditor } from './PhaseEditor';
-export { ElementEditor } from './ElementEditor';
+export { TaskEditor } from './TaskEditor';
 export { MilestoneEditor } from './MilestoneEditor';
 export { SectionEditor } from './SectionEditor';
 export { BarMilestoneEditor } from './BarMilestoneEditor';

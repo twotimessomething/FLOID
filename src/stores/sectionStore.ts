@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { parseISO, differenceInDays, addDays, subDays } from 'date-fns';
-import type { Section, Phase, Element, Milestone, BarMilestone } from '../types';
+import type { Section, Phase, Task, Milestone, BarMilestone } from '../types';
 import { createDefaultIDTimelineSection, createDefaultSectionDateRange } from '../data/defaultTemplate';
 import { useProjectStore } from './projectStore';
 import { useUIStore } from './uiStore';
@@ -57,12 +57,12 @@ interface SectionState {
     relativeStart: number,
     relativeEnd: number
   ) => void;
-  updatePhaseWithElements: (
+  updatePhaseWithTasks: (
     sectionId: string,
     phaseId: string,
     relativeStart: number,
     relativeEnd: number,
-    elementUpdates: Array<{ id: string; relativeStart: number; relativeEnd: number }>
+    taskUpdates: Array<{ id: string; relativeStart: number; relativeEnd: number }>
   ) => void;
   updatePhaseWithRipple: (
     sectionId: string,
@@ -70,23 +70,23 @@ interface SectionState {
     newRelativeEnd: number
   ) => void;
 
-  // Element operations
-  addElement: (
+  // Task operations
+  addTask: (
     sectionId: string,
     phaseId: string,
-    element: Omit<Element, 'id' | 'phaseId'>
+    task: Omit<Task, 'id' | 'phaseId'>
   ) => void;
-  updateElement: (
+  updateTask: (
     sectionId: string,
     phaseId: string,
-    elementId: string,
-    updates: Partial<Element>
+    taskId: string,
+    updates: Partial<Task>
   ) => void;
-  deleteElement: (sectionId: string, phaseId: string, elementId: string) => void;
-  updateElementPosition: (
+  deleteTask: (sectionId: string, phaseId: string, taskId: string) => void;
+  updateTaskPosition: (
     sectionId: string,
     phaseId: string,
-    elementId: string,
+    taskId: string,
     relativeStart: number,
     relativeEnd: number
   ) => void;
@@ -101,10 +101,10 @@ interface SectionState {
   updatePhaseBarMilestone: (sectionId: string, phaseId: string, barMilestoneId: string, updates: Partial<BarMilestone>) => void;
   deletePhaseBarMilestone: (sectionId: string, phaseId: string, barMilestoneId: string) => void;
 
-  // Element bar milestone operations
-  addElementBarMilestone: (sectionId: string, phaseId: string, elementId: string, barMilestone: Omit<BarMilestone, 'id'>) => string;
-  updateElementBarMilestone: (sectionId: string, phaseId: string, elementId: string, barMilestoneId: string, updates: Partial<BarMilestone>) => void;
-  deleteElementBarMilestone: (sectionId: string, phaseId: string, elementId: string, barMilestoneId: string) => void;
+  // Task bar milestone operations
+  addTaskBarMilestone: (sectionId: string, phaseId: string, taskId: string, barMilestone: Omit<BarMilestone, 'id'>) => string;
+  updateTaskBarMilestone: (sectionId: string, phaseId: string, taskId: string, barMilestoneId: string, updates: Partial<BarMilestone>) => void;
+  deleteTaskBarMilestone: (sectionId: string, phaseId: string, taskId: string, barMilestoneId: string) => void;
 
   // Expansion tracking for viewport stability
   clearExpansion: () => void;
@@ -122,11 +122,11 @@ export const selectPhase = (sectionId: string, phaseId: string) => (state: Secti
   return section?.phases.find((p) => p.id === phaseId);
 };
 
-export const selectElement =
-  (sectionId: string, phaseId: string, elementId: string) => (state: SectionState) => {
+export const selectTask =
+  (sectionId: string, phaseId: string, taskId: string) => (state: SectionState) => {
     const section = state.sections.find((s) => s.id === sectionId);
     const phase = section?.phases.find((p) => p.id === phaseId);
-    return phase?.elements.find((e) => e.id === elementId);
+    return phase?.tasks.find((t) => t.id === taskId);
   };
 
 export const selectMilestone = (sectionId: string, milestoneId: string) => (state: SectionState) => {
@@ -141,12 +141,12 @@ export const selectPhaseBarMilestone =
     return phase?.barMilestones?.find((bm) => bm.id === barMilestoneId);
   };
 
-export const selectElementBarMilestone =
-  (sectionId: string, phaseId: string, elementId: string, barMilestoneId: string) => (state: SectionState) => {
+export const selectTaskBarMilestone =
+  (sectionId: string, phaseId: string, taskId: string, barMilestoneId: string) => (state: SectionState) => {
     const section = state.sections.find((s) => s.id === sectionId);
     const phase = section?.phases.find((p) => p.id === phaseId);
-    const element = phase?.elements.find((e) => e.id === elementId);
-    return element?.barMilestones?.find((bm) => bm.id === barMilestoneId);
+    const task = phase?.tasks.find((t) => t.id === taskId);
+    return task?.barMilestones?.find((bm) => bm.id === barMilestoneId);
   };
 
 // Select master section (section whose ID matches project.masterSectionId)
@@ -638,7 +638,7 @@ export const useSectionStore = create<SectionState>((set, get) => ({
       };
     }),
 
-  updatePhaseWithElements: (sectionId, phaseId, relativeStart, relativeEnd, elementUpdates) =>
+  updatePhaseWithTasks: (sectionId, phaseId, relativeStart, relativeEnd, taskUpdates) =>
     set((state) => {
       const section = state.sections.find((s) => s.id === sectionId);
       if (!section) return state;
@@ -689,11 +689,11 @@ export const useSectionStore = create<SectionState>((set, get) => ({
                         ...phase,
                         relativeStart: finalStart,
                         relativeEnd: finalEnd,
-                        elements: phase.elements.map((el) => {
-                          const update = elementUpdates.find((u) => u.id === el.id);
+                        tasks: phase.tasks.map((task) => {
+                          const update = taskUpdates.find((u) => u.id === task.id);
                           return update
-                            ? { ...el, relativeStart: update.relativeStart, relativeEnd: update.relativeEnd }
-                            : el;
+                            ? { ...task, relativeStart: update.relativeStart, relativeEnd: update.relativeEnd }
+                            : task;
                         }),
                       }
                     : phase
@@ -787,7 +787,7 @@ export const useSectionStore = create<SectionState>((set, get) => ({
       };
     }),
 
-  addElement: (sectionId, phaseId, element) =>
+  addTask: (sectionId, phaseId, task) =>
     set((state) => ({
       sections: state.sections.map((section) =>
         section.id === sectionId
@@ -799,9 +799,9 @@ export const useSectionStore = create<SectionState>((set, get) => ({
                 phase.id === phaseId
                   ? {
                       ...phase,
-                      elements: [
-                        ...phase.elements,
-                        { ...element, id: generateId(), phaseId },
+                      tasks: [
+                        ...phase.tasks,
+                        { ...task, id: generateId(), phaseId },
                       ],
                     }
                   : phase
@@ -811,7 +811,7 @@ export const useSectionStore = create<SectionState>((set, get) => ({
       ),
     })),
 
-  updateElement: (sectionId, phaseId, elementId, updates) =>
+  updateTask: (sectionId, phaseId, taskId, updates) =>
     set((state) => ({
       sections: state.sections.map((section) =>
         section.id === sectionId
@@ -823,8 +823,8 @@ export const useSectionStore = create<SectionState>((set, get) => ({
                 phase.id === phaseId
                   ? {
                       ...phase,
-                      elements: phase.elements.map((el) =>
-                        el.id === elementId ? { ...el, ...updates } : el
+                      tasks: phase.tasks.map((task) =>
+                        task.id === taskId ? { ...task, ...updates } : task
                       ),
                     }
                   : phase
@@ -834,7 +834,7 @@ export const useSectionStore = create<SectionState>((set, get) => ({
       ),
     })),
 
-  deleteElement: (sectionId, phaseId, elementId) =>
+  deleteTask: (sectionId, phaseId, taskId) =>
     set((state) => ({
       sections: state.sections.map((section) =>
         section.id === sectionId
@@ -846,7 +846,7 @@ export const useSectionStore = create<SectionState>((set, get) => ({
                 phase.id === phaseId
                   ? {
                       ...phase,
-                      elements: phase.elements.filter((el) => el.id !== elementId),
+                      tasks: phase.tasks.filter((task) => task.id !== taskId),
                     }
                   : phase
               ),
@@ -855,7 +855,7 @@ export const useSectionStore = create<SectionState>((set, get) => ({
       ),
     })),
 
-  updateElementPosition: (sectionId, phaseId, elementId, relativeStart, relativeEnd) =>
+  updateTaskPosition: (sectionId, phaseId, taskId, relativeStart, relativeEnd) =>
     set((state) => ({
       sections: state.sections.map((section) =>
         section.id === sectionId
@@ -867,10 +867,10 @@ export const useSectionStore = create<SectionState>((set, get) => ({
                 phase.id === phaseId
                   ? {
                       ...phase,
-                      elements: phase.elements.map((el) =>
-                        el.id === elementId
-                          ? { ...el, relativeStart, relativeEnd }
-                          : el
+                      tasks: phase.tasks.map((task) =>
+                        task.id === taskId
+                          ? { ...task, relativeStart, relativeEnd }
+                          : task
                       ),
                     }
                   : phase
@@ -996,8 +996,8 @@ export const useSectionStore = create<SectionState>((set, get) => ({
       ),
     })),
 
-  // Element bar milestone operations
-  addElementBarMilestone: (sectionId, phaseId, elementId, barMilestone) => {
+  // Task bar milestone operations
+  addTaskBarMilestone: (sectionId, phaseId, taskId, barMilestone) => {
     const newId = generateId();
     set((state) => ({
       sections: state.sections.map((section) =>
@@ -1010,13 +1010,13 @@ export const useSectionStore = create<SectionState>((set, get) => ({
                 phase.id === phaseId
                   ? {
                       ...phase,
-                      elements: phase.elements.map((el) =>
-                        el.id === elementId
+                      tasks: phase.tasks.map((task) =>
+                        task.id === taskId
                           ? {
-                              ...el,
-                              barMilestones: [...(el.barMilestones || []), { ...barMilestone, id: newId }],
+                              ...task,
+                              barMilestones: [...(task.barMilestones || []), { ...barMilestone, id: newId }],
                             }
-                          : el
+                          : task
                       ),
                     }
                   : phase
@@ -1028,7 +1028,7 @@ export const useSectionStore = create<SectionState>((set, get) => ({
     return newId;
   },
 
-  updateElementBarMilestone: (sectionId, phaseId, elementId, barMilestoneId, updates) =>
+  updateTaskBarMilestone: (sectionId, phaseId, taskId, barMilestoneId, updates) =>
     set((state) => ({
       sections: state.sections.map((section) =>
         section.id === sectionId
@@ -1040,15 +1040,15 @@ export const useSectionStore = create<SectionState>((set, get) => ({
                 phase.id === phaseId
                   ? {
                       ...phase,
-                      elements: phase.elements.map((el) =>
-                        el.id === elementId
+                      tasks: phase.tasks.map((task) =>
+                        task.id === taskId
                           ? {
-                              ...el,
-                              barMilestones: (el.barMilestones || []).map((bm) =>
+                              ...task,
+                              barMilestones: (task.barMilestones || []).map((bm) =>
                                 bm.id === barMilestoneId ? { ...bm, ...updates } : bm
                               ),
                             }
-                          : el
+                          : task
                       ),
                     }
                   : phase
@@ -1058,7 +1058,7 @@ export const useSectionStore = create<SectionState>((set, get) => ({
       ),
     })),
 
-  deleteElementBarMilestone: (sectionId, phaseId, elementId, barMilestoneId) =>
+  deleteTaskBarMilestone: (sectionId, phaseId, taskId, barMilestoneId) =>
     set((state) => ({
       sections: state.sections.map((section) =>
         section.id === sectionId
@@ -1070,13 +1070,13 @@ export const useSectionStore = create<SectionState>((set, get) => ({
                 phase.id === phaseId
                   ? {
                       ...phase,
-                      elements: phase.elements.map((el) =>
-                        el.id === elementId
+                      tasks: phase.tasks.map((task) =>
+                        task.id === taskId
                           ? {
-                              ...el,
-                              barMilestones: (el.barMilestones || []).filter((bm) => bm.id !== barMilestoneId),
+                              ...task,
+                              barMilestones: (task.barMilestones || []).filter((bm) => bm.id !== barMilestoneId),
                             }
-                          : el
+                          : task
                       ),
                     }
                   : phase

@@ -1,6 +1,6 @@
 // Types
 export type {
-  TemplateElement,
+  TemplateTask,
   TemplatePhase,
   TemplateMilestone,
   ScheduleTemplate,

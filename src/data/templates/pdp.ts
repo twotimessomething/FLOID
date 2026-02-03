@@ -15,7 +15,7 @@ export const pdpTemplate: ScheduleTemplate = {
       relativeStart: 0.0,
       relativeEnd: 0.08,
       order: 0,
-      elements: [
+      tasks: [
         {
           name: 'Ideation',
           description: 'Brainstorming, trend analysis, and opportunity identification',
@@ -45,7 +45,7 @@ export const pdpTemplate: ScheduleTemplate = {
       relativeStart: 0.08,
       relativeEnd: 0.18,
       order: 1,
-      elements: [
+      tasks: [
         {
           name: 'Market Assessment',
           description: 'Preliminary market research and competitive analysis',
@@ -82,7 +82,7 @@ export const pdpTemplate: ScheduleTemplate = {
       relativeStart: 0.18,
       relativeEnd: 0.32,
       order: 2,
-      elements: [
+      tasks: [
         {
           name: 'User Research',
           description: 'In-depth customer research and needs analysis',
@@ -133,7 +133,7 @@ export const pdpTemplate: ScheduleTemplate = {
       relativeStart: 0.32,
       relativeEnd: 0.6,
       order: 3,
-      elements: [
+      tasks: [
         {
           name: 'Design & Engineering',
           description: 'Product design, engineering, and CAD development',
@@ -184,7 +184,7 @@ export const pdpTemplate: ScheduleTemplate = {
       relativeStart: 0.6,
       relativeEnd: 0.8,
       order: 4,
-      elements: [
+      tasks: [
         {
           name: 'Product Testing',
           description: 'In-house product testing and validation',
@@ -235,7 +235,7 @@ export const pdpTemplate: ScheduleTemplate = {
       relativeStart: 0.8,
       relativeEnd: 1.0,
       order: 5,
-      elements: [
+      tasks: [
         {
           name: 'Production Ramp',
           description: 'Full-scale production ramp-up',

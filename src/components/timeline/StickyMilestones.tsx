@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { Section, ViewportBounds } from '../../types';
 import { useUIStore } from '../../stores/uiStore';
-import { ROW_HEIGHT, ELEMENT_ROW_HEIGHT, HEADER_HEIGHT } from '../../utils/timelineUtils';
+import { ROW_HEIGHT, TASK_ROW_HEIGHT, HEADER_HEIGHT } from '../../utils/timelineUtils';
 import { sectionToViewportRelative } from '../../utils/dateUtils';
 
 interface StickyMilestonesProps {
@@ -19,14 +19,14 @@ interface StickyMilestoneData {
   readonly isSelected: boolean;
 }
 
-// Calculate the height of a section (header + expanded phases/elements)
+// Calculate the height of a section (header + expanded phases/tasks)
 function calculateSectionHeight(section: Section): number {
   let height = ROW_HEIGHT; // Section header
   if (!section.isCollapsed) {
     section.phases.forEach((phase) => {
       height += ROW_HEIGHT; // Phase row
       if (!phase.isCollapsed) {
-        height += phase.elements.length * ELEMENT_ROW_HEIGHT;
+        height += phase.tasks.length * TASK_ROW_HEIGHT;
       }
     });
   }

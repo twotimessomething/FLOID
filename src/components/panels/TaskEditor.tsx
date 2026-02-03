@@ -1,34 +1,34 @@
 import { useCallback, useMemo } from 'react';
-import { useSectionStore, selectSection, selectPhase, selectElement } from '../../stores/sectionStore';
+import { useSectionStore, selectSection, selectPhase, selectTask } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, ConfirmDeleteButton } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../utils/dateUtils';
 
-export function ElementEditor(): JSX.Element {
+export function TaskEditor(): JSX.Element {
   const { selection, closeModal } = useUIStore();
-  const { updateElement, updateElementPosition, deleteElement } = useSectionStore();
+  const { updateTask, updateTaskPosition, deleteTask } = useSectionStore();
   const project = useProjectStore((state) => state.project);
 
   const sectionId = selection.sectionId;
   const phaseId = selection.phaseId;
-  const elementId = selection.id;
+  const taskId = selection.id;
 
   // Memoize selectors to prevent recreation on every render
   const sectionSelector = useMemo(() => selectSection(sectionId || ''), [sectionId]);
   const phaseSelector = useMemo(() => selectPhase(sectionId || '', phaseId || ''), [sectionId, phaseId]);
-  const elementSelector = useMemo(() => selectElement(sectionId || '', phaseId || '', elementId || ''), [sectionId, phaseId, elementId]);
+  const taskSelector = useMemo(() => selectTask(sectionId || '', phaseId || '', taskId || ''), [sectionId, phaseId, taskId]);
 
   const section = useSectionStore(sectionSelector);
   const phase = useSectionStore(phaseSelector);
-  const element = useSectionStore(elementSelector);
+  const task = useSectionStore(taskSelector);
 
   const isMasterSection = section?.id === project?.masterSectionId;
 
-  // Calculate absolute dates for the element
-  // Elements are positioned relative to their parent phase
+  // Calculate absolute dates for the task
+  // Tasks are positioned relative to their parent phase
   const { startDate, endDate, phaseStartDate, phaseEndDate } = useMemo(() => {
-    if (!element || !phase || !section) {
+    if (!task || !phase || !section) {
       return {
         startDate: new Date(),
         endDate: new Date(),
@@ -49,80 +49,80 @@ export function ElementEditor(): JSX.Element {
       phase.relativeEnd
     );
 
-    // Get element dates (relative to phase)
-    const eStart = getDateFromRelativePosition(
+    // Get task dates (relative to phase)
+    const tStart = getDateFromRelativePosition(
       pStart.toISOString(),
       pEnd.toISOString(),
-      element.relativeStart
+      task.relativeStart
     );
-    const eEnd = getDateFromRelativePosition(
+    const tEnd = getDateFromRelativePosition(
       pStart.toISOString(),
       pEnd.toISOString(),
-      element.relativeEnd
+      task.relativeEnd
     );
 
     return {
-      startDate: eStart,
-      endDate: eEnd,
+      startDate: tStart,
+      endDate: tEnd,
       phaseStartDate: pStart,
       phaseEndDate: pEnd,
     };
-  }, [element, phase, section]);
+  }, [task, phase, section]);
 
   const handleNameChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!sectionId || !phaseId || !elementId) return;
-      updateElement(sectionId, phaseId, elementId, { name: e.target.value });
+      if (!sectionId || !phaseId || !taskId) return;
+      updateTask(sectionId, phaseId, taskId, { name: e.target.value });
     },
-    [sectionId, phaseId, elementId, updateElement]
+    [sectionId, phaseId, taskId, updateTask]
   );
 
   const handleDescriptionChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      if (!sectionId || !phaseId || !elementId) return;
-      updateElement(sectionId, phaseId, elementId, { description: e.target.value });
+      if (!sectionId || !phaseId || !taskId) return;
+      updateTask(sectionId, phaseId, taskId, { description: e.target.value });
     },
-    [sectionId, phaseId, elementId, updateElement]
+    [sectionId, phaseId, taskId, updateTask]
   );
 
   const handleStartDateChange = useCallback(
     (date: Date) => {
-      if (!sectionId || !phaseId || !elementId || !element) return;
+      if (!sectionId || !phaseId || !taskId || !task) return;
       const newRelativeStart = getRelativePositionFromDate(
         phaseStartDate.toISOString(),
         phaseEndDate.toISOString(),
         date
       );
       // Clamp to valid range
-      const clampedStart = Math.max(0, Math.min(newRelativeStart, element.relativeEnd - 0.01));
-      updateElementPosition(sectionId, phaseId, elementId, clampedStart, element.relativeEnd);
+      const clampedStart = Math.max(0, Math.min(newRelativeStart, task.relativeEnd - 0.01));
+      updateTaskPosition(sectionId, phaseId, taskId, clampedStart, task.relativeEnd);
     },
-    [sectionId, phaseId, elementId, element, phaseStartDate, phaseEndDate, updateElementPosition]
+    [sectionId, phaseId, taskId, task, phaseStartDate, phaseEndDate, updateTaskPosition]
   );
 
   const handleEndDateChange = useCallback(
     (date: Date) => {
-      if (!sectionId || !phaseId || !elementId || !element) return;
+      if (!sectionId || !phaseId || !taskId || !task) return;
       const newRelativeEnd = getRelativePositionFromDate(
         phaseStartDate.toISOString(),
         phaseEndDate.toISOString(),
         date
       );
       // Clamp to valid range
-      const clampedEnd = Math.min(1, Math.max(newRelativeEnd, element.relativeStart + 0.01));
-      updateElementPosition(sectionId, phaseId, elementId, element.relativeStart, clampedEnd);
+      const clampedEnd = Math.min(1, Math.max(newRelativeEnd, task.relativeStart + 0.01));
+      updateTaskPosition(sectionId, phaseId, taskId, task.relativeStart, clampedEnd);
     },
-    [sectionId, phaseId, elementId, element, phaseStartDate, phaseEndDate, updateElementPosition]
+    [sectionId, phaseId, taskId, task, phaseStartDate, phaseEndDate, updateTaskPosition]
   );
 
   const handleDelete = useCallback(() => {
-    if (!sectionId || !phaseId || !elementId) return;
-    deleteElement(sectionId, phaseId, elementId);
+    if (!sectionId || !phaseId || !taskId) return;
+    deleteTask(sectionId, phaseId, taskId);
     closeModal();
-  }, [sectionId, phaseId, elementId, deleteElement, closeModal]);
+  }, [sectionId, phaseId, taskId, deleteTask, closeModal]);
 
-  if (!element || !phase || !section) {
-    return <div className="text-sm text-[var(--color-text-secondary)]">Element not found</div>;
+  if (!task || !phase || !section) {
+    return <div className="text-sm text-[var(--color-text-secondary)]">Task not found</div>;
   }
 
   return (
@@ -139,15 +139,15 @@ export function ElementEditor(): JSX.Element {
 
       <Input
         label="Name"
-        value={element.name}
+        value={task.name}
         onChange={handleNameChange}
         autoFocus
-        placeholder="Element name"
+        placeholder="Task name"
       />
 
       <TextArea
         label="Description"
-        value={element.description}
+        value={task.description}
         onChange={handleDescriptionChange}
         placeholder="Add a description..."
       />
@@ -170,7 +170,7 @@ export function ElementEditor(): JSX.Element {
       </div>
 
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <ConfirmDeleteButton label="Delete Element" onConfirm={handleDelete} />
+        <ConfirmDeleteButton label="Delete Task" onConfirm={handleDelete} />
       </div>
     </div>
   );

@@ -17,7 +17,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
       order: 0,
       relativeStart: 0,
       relativeEnd: 0.12,
-      elements: [
+      tasks: [
         {
           name: 'User Research',
           description: 'Interviews, observation, and needs analysis',
@@ -48,7 +48,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
       order: 1,
       relativeStart: 0.12,
       relativeEnd: 0.28,
-      elements: [
+      tasks: [
         {
           name: 'Ideation & Sketching',
           description: 'Thumbnail sketches and broad concept exploration',
@@ -86,7 +86,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
       order: 2,
       relativeStart: 0.28,
       relativeEnd: 0.52,
-      elements: [
+      tasks: [
         {
           name: 'Form Development',
           description: 'Detailed form studies and proportional refinement',
@@ -138,7 +138,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
       order: 3,
       relativeStart: 0.52,
       relativeEnd: 0.72,
-      elements: [
+      tasks: [
         {
           name: 'DFM Review',
           description: 'Design for manufacturing analysis and optimization',
@@ -176,7 +176,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
       order: 4,
       relativeStart: 0.72,
       relativeEnd: 0.88,
-      elements: [
+      tasks: [
         {
           name: 'EVT Design Review',
           description: 'Review and approval of engineering validation samples',
@@ -207,7 +207,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
       order: 5,
       relativeStart: 0.88,
       relativeEnd: 1,
-      elements: [
+      tasks: [
         {
           name: 'Golden Sample Approval',
           description: 'Sign-off on production-representative samples',

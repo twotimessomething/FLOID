@@ -15,7 +15,7 @@ export const marketingTemplate: ScheduleTemplate = {
       relativeStart: 0.0,
       relativeEnd: 0.18,
       order: 0,
-      elements: [
+      tasks: [
         {
           name: 'Market Sizing',
           description: 'TAM/SAM/SOM analysis and market opportunity assessment',
@@ -52,7 +52,7 @@ export const marketingTemplate: ScheduleTemplate = {
       relativeStart: 0.18,
       relativeEnd: 0.38,
       order: 1,
-      elements: [
+      tasks: [
         {
           name: 'Positioning Development',
           description: 'Product positioning statement and differentiation strategy',
@@ -89,7 +89,7 @@ export const marketingTemplate: ScheduleTemplate = {
       relativeStart: 0.38,
       relativeEnd: 0.65,
       order: 2,
-      elements: [
+      tasks: [
         {
           name: 'Creative Brief',
           description: 'Campaign creative direction and brand guidelines',
@@ -133,7 +133,7 @@ export const marketingTemplate: ScheduleTemplate = {
       relativeStart: 0.65,
       relativeEnd: 0.85,
       order: 3,
-      elements: [
+      tasks: [
         {
           name: 'PR & Media Outreach',
           description: 'Press releases, media kits, and journalist briefings',
@@ -170,7 +170,7 @@ export const marketingTemplate: ScheduleTemplate = {
       relativeStart: 0.85,
       relativeEnd: 0.92,
       order: 4,
-      elements: [
+      tasks: [
         {
           name: 'Launch Day',
           description: 'Coordinated launch across all channels',
@@ -200,7 +200,7 @@ export const marketingTemplate: ScheduleTemplate = {
       relativeStart: 0.92,
       relativeEnd: 1.0,
       order: 5,
-      elements: [
+      tasks: [
         {
           name: '30-Day Review',
           description: 'Campaign performance analysis and ROI reporting',

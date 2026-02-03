@@ -216,7 +216,7 @@ export const convertImportedProject = (data: ProjectExportData): { project: Proj
       isCollapsed: phase.isCollapsed,
       relativeStart: phase.relativeStart,
       relativeEnd: phase.relativeEnd,
-      elements: phase.elements,
+      tasks: phase.tasks,
     })),
     // Strip absolute dates from milestones (keep relative positions)
     milestones: section.milestones.map((milestone) => ({

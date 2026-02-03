@@ -15,7 +15,7 @@ export const softwareTemplate: ScheduleTemplate = {
       relativeStart: 0.0,
       relativeEnd: 0.12,
       order: 0,
-      elements: [
+      tasks: [
         {
           name: 'Requirements & User Stories',
           description: 'Product requirements, user stories, and acceptance criteria',
@@ -52,7 +52,7 @@ export const softwareTemplate: ScheduleTemplate = {
       relativeStart: 0.12,
       relativeEnd: 0.52,
       order: 1,
-      elements: [
+      tasks: [
         {
           name: 'Backend/API Development',
           description: 'Server-side logic, database, and API implementation',
@@ -96,7 +96,7 @@ export const softwareTemplate: ScheduleTemplate = {
       relativeStart: 0.52,
       relativeEnd: 0.68,
       order: 2,
-      elements: [
+      tasks: [
         {
           name: 'Feature Freeze',
           description: 'Lock feature scope, no new features accepted',
@@ -140,7 +140,7 @@ export const softwareTemplate: ScheduleTemplate = {
       relativeStart: 0.68,
       relativeEnd: 0.85,
       order: 3,
-      elements: [
+      tasks: [
         {
           name: 'Beta Deployment',
           description: 'Deploy beta version to select users or public beta',
@@ -184,7 +184,7 @@ export const softwareTemplate: ScheduleTemplate = {
       relativeStart: 0.85,
       relativeEnd: 0.94,
       order: 4,
-      elements: [
+      tasks: [
         {
           name: 'RC Build',
           description: 'Create release candidate build',
@@ -221,7 +221,7 @@ export const softwareTemplate: ScheduleTemplate = {
       relativeStart: 0.94,
       relativeEnd: 1.0,
       order: 5,
-      elements: [
+      tasks: [
         {
           name: 'Production Deploy',
           description: 'Staged rollout to production environment',

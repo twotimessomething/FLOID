@@ -11,7 +11,7 @@ import { SectionRow } from './SectionRow';
 import { StickyMilestones } from './StickyMilestones';
 import { Playhead } from './Playhead';
 import { AddScheduleButton, ZoomControls } from '../controls';
-import { HEADER_HEIGHT, ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getPositionFromRelative } from '../../utils/timelineUtils';
+import { HEADER_HEIGHT, ROW_HEIGHT, TASK_ROW_HEIGHT, getPositionFromRelative } from '../../utils/timelineUtils';
 import { getTodayViewportPosition, isTodayInViewport } from '../../utils/dateUtils';
 import type { Section } from '../../types';
 
@@ -98,7 +98,7 @@ export function Timeline() {
       section.phases.forEach((phase) => {
         height += ROW_HEIGHT; // Phase row
         if (!phase.isCollapsed) {
-          height += phase.elements.length * ELEMENT_ROW_HEIGHT;
+          height += phase.tasks.length * TASK_ROW_HEIGHT;
         }
       });
     }

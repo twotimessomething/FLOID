@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useSectionStore, selectMasterSection } from '../stores/sectionStore';
-import type { Section, Phase, Element, Milestone } from '../types';
+import type { Section, Phase, Task, Milestone } from '../types';
 import { getPhaseColor } from '../types';
 import { parseISO, differenceInDays, addDays } from 'date-fns';
 
@@ -14,7 +14,7 @@ export interface StatusItem {
   phaseId?: string;
   phaseName?: string;
   phaseOrder?: number;
-  elementOrder?: number;
+  taskOrder?: number;
   absoluteStart: number;
   absoluteEnd: number;
   date?: Date;
@@ -76,17 +76,17 @@ export function useTimelineStatus(): TimelineStatus {
       section.phases.forEach((phase: Phase) => {
         const phaseColor = getPhaseColor(phase, section);
 
-        // Check if phase has elements
-        if (phase.elements.length > 0) {
-          // Process elements - convert relative-to-phase to section-relative
-          phase.elements.forEach((element: Element) => {
+        // Check if phase has tasks
+        if (phase.tasks.length > 0) {
+          // Process tasks - convert relative-to-phase to section-relative
+          phase.tasks.forEach((task: Task) => {
             const phaseWidth = phase.relativeEnd - phase.relativeStart;
-            const absoluteStart = phase.relativeStart + element.relativeStart * phaseWidth;
-            const absoluteEnd = phase.relativeStart + element.relativeEnd * phaseWidth;
+            const absoluteStart = phase.relativeStart + task.relativeStart * phaseWidth;
+            const absoluteEnd = phase.relativeStart + task.relativeEnd * phaseWidth;
 
             const item: StatusItem = {
-              id: element.id,
-              name: element.name,
+              id: task.id,
+              name: task.name,
               color: phaseColor,
               sectionId: section.id,
               sectionName: section.name,
@@ -94,7 +94,7 @@ export function useTimelineStatus(): TimelineStatus {
               phaseId: phase.id,
               phaseName: phase.name,
               phaseOrder: phase.order,
-              elementOrder: element.order,
+              taskOrder: task.order,
               absoluteStart,
               absoluteEnd,
             };
@@ -113,7 +113,7 @@ export function useTimelineStatus(): TimelineStatus {
             }
           });
         } else {
-          // No elements - use the phase itself
+          // No tasks - use the phase itself
           const item: StatusItem = {
             id: phase.id,
             name: phase.name,
@@ -161,11 +161,11 @@ export function useTimelineStatus(): TimelineStatus {
       });
     });
 
-    // Sort in-flight items by section order, phase order, element order
+    // Sort in-flight items by section order, phase order, task order
     inFlight.sort((a, b) => {
       if (a.sectionOrder !== b.sectionOrder) return a.sectionOrder - b.sectionOrder;
       if ((a.phaseOrder ?? 0) !== (b.phaseOrder ?? 0)) return (a.phaseOrder ?? 0) - (b.phaseOrder ?? 0);
-      return (a.elementOrder ?? 0) - (b.elementOrder ?? 0);
+      return (a.taskOrder ?? 0) - (b.taskOrder ?? 0);
     });
 
     // Collect next-up items sorted by section order

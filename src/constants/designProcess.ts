@@ -27,7 +27,7 @@ export const DEFAULT_PHASES: Omit<Phase, 'id' | 'sectionId'>[] = [
     isCollapsed: false,
     relativeStart: 0,
     relativeEnd: 0.15,
-    elements: [
+    tasks: [
       {
         id: '',
         phaseId: '',
@@ -74,7 +74,7 @@ export const DEFAULT_PHASES: Omit<Phase, 'id' | 'sectionId'>[] = [
     isCollapsed: false,
     relativeStart: 0.15,
     relativeEnd: 0.35,
-    elements: [
+    tasks: [
       {
         id: '',
         phaseId: '',
@@ -121,7 +121,7 @@ export const DEFAULT_PHASES: Omit<Phase, 'id' | 'sectionId'>[] = [
     isCollapsed: false,
     relativeStart: 0.35,
     relativeEnd: 0.6,
-    elements: [
+    tasks: [
       {
         id: '',
         phaseId: '',
@@ -168,7 +168,7 @@ export const DEFAULT_PHASES: Omit<Phase, 'id' | 'sectionId'>[] = [
     isCollapsed: false,
     relativeStart: 0.6,
     relativeEnd: 0.85,
-    elements: [
+    tasks: [
       {
         id: '',
         phaseId: '',
@@ -215,7 +215,7 @@ export const DEFAULT_PHASES: Omit<Phase, 'id' | 'sectionId'>[] = [
     isCollapsed: false,
     relativeStart: 0.85,
     relativeEnd: 1,
-    elements: [
+    tasks: [
       {
         id: '',
         phaseId: '',

@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import {
   PhaseEditor,
-  ElementEditor,
+  TaskEditor,
   MilestoneEditor,
   SectionEditor,
   BarMilestoneEditor,
@@ -94,8 +94,8 @@ export function EditorModal(): JSX.Element | null {
         return <SectionEditor />;
       case 'phase':
         return <PhaseEditor />;
-      case 'element':
-        return <ElementEditor />;
+      case 'task':
+        return <TaskEditor />;
       case 'milestone':
         return <MilestoneEditor />;
       case 'barMilestone':
