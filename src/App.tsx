@@ -1,4 +1,5 @@
 import { useEffect, useCallback, type DragEvent } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import Header from './components/layout/Header';
 import TimelineContainer from './components/layout/TimelineContainer';
 import { EditorModal } from './components/layout/EditorModal';
@@ -160,6 +161,7 @@ function App() {
           </div>
         </div>
       )}
+      <Analytics />
     </div>
   );
 }
