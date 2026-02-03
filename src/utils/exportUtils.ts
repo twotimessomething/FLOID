@@ -95,7 +95,7 @@ export const downloadProjectJson = async (project: Project, sections: Section[])
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
-  const filename = `${sanitizeFilename(project.name)}.floid-project`;
+  const filename = `${sanitizeFilename(project.name)}.floid`;
 
   const a = document.createElement('a');
   a.href = url;

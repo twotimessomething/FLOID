@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore, type ThemeMode } from '../../stores/uiStore';
-import { downloadJson, parseProjectJson, convertImportedProject } from '../../utils/exportUtils';
+import { parseProjectJson, convertImportedProject } from '../../utils/exportUtils';
 import { useScheduleImport } from '../../hooks/useScheduleImport';
 
 // Theme icons
@@ -61,13 +61,15 @@ export function Header() {
   // Use selective store subscriptions to prevent unnecessary re-renders
   const project = useProjectStore((state) => state.project);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
-  const { setProject, updateProject, saveCurrentProject, updateProjectIndex } = useProjectStore();
-
   const sections = useSectionStore((state) => state.sections);
-  const setSections = useSectionStore((state) => state.setSections);
+  const { updateProject, saveCurrentProject, importProject, selectProject } = useProjectStore();
+
+  const loadSectionsForProject = useSectionStore((state) => state.loadSectionsForProject);
 
   const theme = useUIStore((state) => state.theme);
   const setTheme = useUIStore((state) => state.setTheme);
+  const showToast = useUIStore((state) => state.showToast);
+  const openExportModal = useUIStore((state) => state.openExportModal);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(project?.name ?? '');
@@ -125,9 +127,9 @@ export function Header() {
     }
   }, [handleNameSave]);
 
-  const handleExport = () => {
-    downloadJson(project, sections);
-  };
+  const handleExport = useCallback(() => {
+    openExportModal();
+  }, [openExportModal]);
 
   const handleImport = () => {
     const input = document.createElement('input');
@@ -139,27 +141,39 @@ export function Header() {
 
       const text = await file.text();
 
-      // Check file extension to determine import type
-      if (file.name.endsWith('.floid')) {
-        handleScheduleImport(text);
-        return;
+      // Parse JSON and check format field to determine import type
+      try {
+        const parsed = JSON.parse(text);
+
+        // Single schedule import (format: 'floid')
+        if (parsed.format === 'floid') {
+          handleScheduleImport(text);
+          return;
+        }
+      } catch {
+        // Not valid JSON, fall through to project import
       }
 
-      // Full project import (.json or .floid-project)
+      // Full project import (format: 'floid-project' or legacy .json)
       const exportData = parseProjectJson(text);
 
       if (exportData) {
         // Convert export format back to runtime types
         const { project: importedProject, sections: importedSections } = convertImportedProject(exportData);
 
-        // Update the current project with imported data
-        setProject(importedProject);
-        setSections(importedSections);
-        // Save and update the project index
+        // Save current project before switching (if there is one)
         if (activeProjectId) {
-          saveCurrentProject(importedSections);
-          updateProjectIndex(activeProjectId, { name: importedProject.name });
+          await saveCurrentProject(sections);
         }
+
+        // Add the imported project to the project list
+        const newProjectId = await importProject(importedProject, importedSections);
+
+        // Switch to the imported project
+        await selectProject(newProjectId);
+        await loadSectionsForProject(newProjectId);
+
+        showToast('success', `Imported project "${importedProject.name}"`);
       }
     };
     input.click();

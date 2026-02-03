@@ -3,6 +3,8 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useConfirm } from '../../hooks';
+import { downloadProjectJson } from '../../utils/exportUtils';
+import { loadProjectFromStorage } from '../../utils/storageUtils';
 
 export function LeftSidebar() {
   const confirm = useConfirm();
@@ -10,6 +12,7 @@ export function LeftSidebar() {
   // Use selective store subscriptions to prevent unnecessary re-renders
   const projects = useProjectStore((state) => state.projects);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
+  const project = useProjectStore((state) => state.project);
   const { selectProject, deleteProject, saveCurrentProject, updateProjectIndex, updateProject } = useProjectStore();
 
   const sections = useSectionStore((state) => state.sections);
@@ -156,6 +159,23 @@ export function LeftSidebar() {
     openProjectEditModal(projectId);
   }, [activeProjectId, sections, saveCurrentProject, closeModal, selectProject, loadSectionsForProject, openProjectEditModal]);
 
+  const handleExportProject = useCallback(async (projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpenProjectId(null);
+
+    // If it's the active project, use current project and sections from store
+    if (projectId === activeProjectId) {
+      await downloadProjectJson(project, sections);
+      return;
+    }
+
+    // For non-active projects, load directly from storage without switching
+    const projectData = await loadProjectFromStorage(projectId);
+    if (projectData) {
+      await downloadProjectJson(projectData.project, projectData.sections);
+    }
+  }, [activeProjectId, project, sections]);
+
   // Sort projects by most recently updated - memoize to avoid recalculating on every render
   const sortedProjects = useMemo(
     () =>
@@ -279,6 +299,12 @@ export function LeftSidebar() {
                       className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
                     >
                       Edit project...
+                    </button>
+                    <button
+                      onClick={(e) => handleExportProject(proj.id, e)}
+                      className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
+                    >
+                      Export project...
                     </button>
                     <button
                       onClick={(e) => {

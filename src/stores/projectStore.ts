@@ -34,6 +34,7 @@ interface ProjectState {
   initializeProjects: () => Promise<void>;
   addProject: (config?: { name?: string }) => Promise<string>;
   createProject: (config: NewProjectConfig) => Promise<{ projectId: string; section: Section }>;
+  importProject: (project: Project, sections: Section[]) => Promise<string>;
   deleteProject: (projectId: string) => Promise<void>;
   selectProject: (projectId: string) => Promise<void>;
   updateProjectIndex: (projectId: string, updates: Partial<ProjectIndexEntry>) => Promise<void>;
@@ -215,6 +216,63 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ projects: updatedProjects });
 
     return { projectId: newProject.id, section: masterSection };
+  },
+
+  importProject: async (importedProject, importedSections) => {
+    // Generate new IDs to avoid collisions with existing projects
+    const newProjectId = Math.random().toString(36).substring(2, 11);
+    const now = new Date().toISOString();
+
+    // Create ID mapping for sections
+    const sectionIdMap = new Map<string, string>();
+    importedSections.forEach((section) => {
+      sectionIdMap.set(section.id, Math.random().toString(36).substring(2, 11));
+    });
+
+    // Update master section ID reference
+    const newMasterSectionId = sectionIdMap.get(importedProject.masterSectionId) ?? importedProject.masterSectionId;
+
+    // Create new project with new ID
+    const newProject: Project = {
+      ...importedProject,
+      id: newProjectId,
+      masterSectionId: newMasterSectionId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Update sections with new IDs
+    const newSections: Section[] = importedSections.map((section) => ({
+      ...section,
+      id: sectionIdMap.get(section.id) ?? section.id,
+      phases: section.phases.map((phase) => ({
+        ...phase,
+        sectionId: sectionIdMap.get(section.id) ?? section.id,
+      })),
+      milestones: section.milestones.map((milestone) => ({
+        ...milestone,
+        sectionId: sectionIdMap.get(section.id) ?? section.id,
+      })),
+    }));
+
+    const projectEntry: ProjectIndexEntry = {
+      id: newProjectId,
+      name: newProject.name,
+      updatedAt: newProject.updatedAt,
+    };
+
+    await saveProjectToStorage(newProjectId, {
+      project: newProject,
+      sections: newSections,
+    });
+
+    const state = get();
+    const updatedProjects = [...state.projects, projectEntry];
+    await saveProjectsIndex(updatedProjects);
+
+    set({ projects: updatedProjects });
+
+    return newProjectId;
   },
 
   deleteProject: async (projectId) => {

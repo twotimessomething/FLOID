@@ -10,6 +10,7 @@ import { ProjectEditModal } from './components/layout/ProjectEditModal';
 import { AddScheduleModal } from './components/layout/AddScheduleModal';
 import { ImportConfirmModal } from './components/layout/ImportConfirmModal';
 import { SettingsModal } from './components/layout/SettingsModal';
+import { ExportModal } from './components/layout/ExportModal';
 import { ContextMenu } from './components/timeline';
 import { Toast, ConfirmDialog } from './components/common';
 import { useAutoSave, useKeyboardShortcuts, useScheduleImport, useTheme } from './hooks';
@@ -18,14 +19,20 @@ import { useFileSystemAutoSave } from './hooks/useFileSystemAutoSave';
 import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
 import { useUIStore } from './stores/uiStore';
+import { parseProjectJson, convertImportedProject } from './utils/exportUtils';
 
 function App() {
   const { initializeFromProject, loadSectionsForProject } = useSectionStore();
+  const sections = useSectionStore((state) => state.sections);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const isStorageReady = useProjectStore((state) => state.isStorageReady);
+  const saveCurrentProject = useProjectStore((state) => state.saveCurrentProject);
+  const importProject = useProjectStore((state) => state.importProject);
+  const selectProject = useProjectStore((state) => state.selectProject);
   const closeContextMenu = useUIStore((state) => state.closeContextMenu);
   const isDraggingFile = useUIStore((state) => state.isDraggingFile);
   const setDraggingFile = useUIStore((state) => state.setDraggingFile);
+  const showToast = useUIStore((state) => state.showToast);
 
   const { handleImport: handleScheduleImport, handleConfirmAction } = useScheduleImport();
 
@@ -104,10 +111,39 @@ function App() {
 
       if (floidFile) {
         const text = await floidFile.text();
-        handleScheduleImport(text);
+        try {
+          const parsed = JSON.parse(text);
+
+          if (parsed.format === 'floid') {
+            // Schedule import
+            handleScheduleImport(text);
+          } else if (parsed.format === 'floid-project') {
+            // Project import
+            const exportData = parseProjectJson(text);
+            if (exportData) {
+              const { project: importedProject, sections: importedSections } = convertImportedProject(exportData);
+
+              // Save current project before switching (if there is one)
+              if (activeProjectId) {
+                await saveCurrentProject(sections);
+              }
+
+              // Add the imported project to the project list
+              const newProjectId = await importProject(importedProject, importedSections);
+
+              // Switch to the imported project
+              await selectProject(newProjectId);
+              await loadSectionsForProject(newProjectId);
+
+              showToast('success', `Imported project "${importedProject.name}"`);
+            }
+          }
+        } catch {
+          // Invalid JSON, ignore
+        }
       }
     },
-    [setDraggingFile, handleScheduleImport]
+    [setDraggingFile, handleScheduleImport, activeProjectId, sections, saveCurrentProject, importProject, selectProject, loadSectionsForProject, showToast]
   );
 
   // Show loading state while storage initializes
@@ -148,6 +184,7 @@ function App() {
       <AddScheduleModal />
       <ImportConfirmModal onConfirm={handleConfirmAction} />
       <SettingsModal />
+      <ExportModal />
       <ContextMenu />
       <Toast />
       <ConfirmDialog />
@@ -157,7 +194,7 @@ function App() {
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-focus)]/10 border-4 border-dashed border-[var(--color-focus)] pointer-events-none">
           <div className="bg-[var(--color-surface)] px-6 py-4 rounded-xl shadow-lg">
             <p className="text-lg font-medium text-[var(--color-focus)]">
-              Drop .floid file to import schedule
+              Drop .floid file to import
             </p>
           </div>
         </div>

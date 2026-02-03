@@ -158,6 +158,11 @@ interface UIState {
   openSettingsModal: () => void;
   closeSettingsModal: () => void;
 
+  // Export modal
+  isExportModalOpen: boolean;
+  openExportModal: () => void;
+  closeExportModal: () => void;
+
   // Theme
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
@@ -338,6 +343,11 @@ export const useUIStore = create<UIState>((set) => ({
   isSettingsModalOpen: false,
   openSettingsModal: () => set({ isSettingsModalOpen: true }),
   closeSettingsModal: () => set({ isSettingsModalOpen: false }),
+
+  // Export modal
+  isExportModalOpen: false,
+  openExportModal: () => set({ isExportModalOpen: true }),
+  closeExportModal: () => set({ isExportModalOpen: false }),
 
   // Theme
   theme: 'system',

@@ -7,3 +7,4 @@ export { NewProjectModal } from './NewProjectModal';
 export { ProjectEditModal } from './ProjectEditModal';
 export { AddScheduleModal } from './AddScheduleModal';
 export { SettingsModal } from './SettingsModal';
+export { ExportModal } from './ExportModal';

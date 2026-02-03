@@ -63,7 +63,7 @@ export async function writeProjectToFolder(
     throw new Error('Permission denied to write to folder');
   }
 
-  const filename = `${sanitizeFilename(project.name)}.floid-project`;
+  const filename = `${sanitizeFilename(project.name)}.floid`;
   const data = exportProjectToJson(project, sections);
   const content = JSON.stringify(data, null, 2);
 
