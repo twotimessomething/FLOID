@@ -195,6 +195,32 @@ export async function setFileHandle(handle: FileSystemDirectoryHandle | null): P
   }
 }
 
+// Validate that project data has required date fields
+function isValidStoredData(data: unknown): data is StoredData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+
+  // Check project exists and has required date fields
+  if (!d.project || typeof d.project !== 'object') return false;
+  const project = d.project as Record<string, unknown>;
+  if (typeof project.projectStartDate !== 'string' || typeof project.projectEndDate !== 'string') {
+    return false;
+  }
+
+  // Check sections array exists
+  if (!Array.isArray(d.sections)) return false;
+
+  // Validate each section has date fields
+  for (const section of d.sections) {
+    if (!section || typeof section !== 'object') return false;
+    if (typeof section.startDate !== 'string' || typeof section.endDate !== 'string') {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // Migration helper: Check if localStorage has data to migrate
 export async function migrateFromLocalStorage(): Promise<boolean> {
   const PROJECTS_INDEX_KEY = 'floid-projects-index';
@@ -218,21 +244,33 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
       return false;
     }
 
-    // Migrate each project
+    // Migrate each project (skip invalid ones)
+    const validEntries: ProjectIndexEntry[] = [];
     for (const entry of localIndex) {
       const projectKey = `${STORAGE_KEY}-${entry.id}`;
       const projectDataStr = localStorage.getItem(projectKey);
       if (projectDataStr) {
-        const projectData: StoredData = JSON.parse(projectDataStr);
-        await setProjectData(entry.id, projectData);
+        try {
+          const projectData = JSON.parse(projectDataStr);
+          if (isValidStoredData(projectData)) {
+            await setProjectData(entry.id, projectData);
+            validEntries.push(entry);
+          } else {
+            console.warn(`Skipping invalid project data for ${entry.id}`);
+          }
+        } catch {
+          console.warn(`Failed to parse project data for ${entry.id}`);
+        }
       }
     }
 
-    // Migrate projects index
-    await setProjectsIndex(localIndex);
+    // Only migrate valid entries
+    if (validEntries.length > 0) {
+      await setProjectsIndex(validEntries);
+      console.log(`Migrated ${validEntries.length} projects from localStorage to IndexedDB`);
+    }
 
-    console.log(`Migrated ${localIndex.length} projects from localStorage to IndexedDB`);
-    return true;
+    return validEntries.length > 0;
   } catch (error) {
     console.error('Migration from localStorage failed:', error);
     return false;

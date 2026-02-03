@@ -214,7 +214,7 @@ export default function BarMilestoneMarker({
       {/* Date bubble - shown while dragging */}
       {isDragActive && dragDate && (
         <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none"
           aria-hidden="true"
         >
           {dragDate}

@@ -186,7 +186,7 @@ export default function MilestoneMarker({
       {/* Drag date bubble - hidden when sticky */}
       {dragDate && !isHidden && (
         <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none"
           aria-hidden="true"
         >
           {dragDate}
