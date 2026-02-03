@@ -104,13 +104,13 @@ export function ProjectEditModal(): JSX.Element | null {
         role="document"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/20">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-row-border-strong)]">
           <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="project-edit-title">
             Edit Project
           </h2>
           <button
             onClick={closeProjectEditModal}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-[var(--color-hover)] focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg

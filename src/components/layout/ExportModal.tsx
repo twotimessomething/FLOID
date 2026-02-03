@@ -166,13 +166,13 @@ export function ExportModal(): JSX.Element | null {
         role="document"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/20">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-row-border-strong)]">
           <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="export-title">
             Export
           </h2>
           <button
             onClick={closeExportModal}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-black/5 focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-[var(--color-hover)] focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg
@@ -312,7 +312,7 @@ export function ExportModal(): JSX.Element | null {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-5 py-4 border-t border-white/20">
+        <div className="flex justify-end gap-3 px-5 py-4 border-t border-[var(--color-row-border-strong)]">
           <button
             onClick={closeExportModal}
             className="px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] rounded-lg transition-colors"

@@ -67,7 +67,7 @@ export function ConfirmDialog(): JSX.Element | null {
         aria-describedby="confirm-dialog-message"
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-white/20">
+        <div className="px-5 py-4 border-b border-[var(--color-row-border-strong)]">
           <h2
             id="confirm-dialog-title"
             className="text-base font-semibold text-[var(--color-text-primary)]"
@@ -87,7 +87,7 @@ export function ConfirmDialog(): JSX.Element | null {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-5 py-4 border-t border-white/20">
+        <div className="flex justify-end gap-3 px-5 py-4 border-t border-[var(--color-row-border-strong)]">
           <Button variant="ghost" onClick={handleCancel}>
             {cancelLabel}
           </Button>

@@ -93,7 +93,7 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
 
             {/* Info message when importing from same project */}
             {isFromSameProject && (
-              <div className="bg-blue-50 text-blue-700 rounded-lg p-3 mb-4 text-sm">
+              <div className="bg-[var(--color-selection)] text-[var(--color-focus)] rounded-lg p-3 mb-4 text-sm">
                 <p>This schedule originated from this project.</p>
               </div>
             )}
@@ -265,7 +265,7 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
 
       {/* Modal */}
       <div
-        className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6 modal-enter"
+        className="relative glass-bordered rounded-xl max-w-md w-full mx-4 p-6 modal-enter"
         role="dialog"
         aria-modal="true"
         aria-labelledby="import-modal-title"
