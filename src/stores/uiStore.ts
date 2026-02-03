@@ -50,7 +50,8 @@ interface UIState {
     id: string | null,
     sectionId: string | null,
     phaseId?: string | null,
-    position?: ModalPosition
+    position?: ModalPosition,
+    elementId?: string | null
   ) => void;
   clearSelection: () => void;
 
@@ -141,15 +142,15 @@ export const useUIStore = create<UIState>((set) => ({
   setZoomLevel: (level) => set({ zoomLevel: level }),
 
   // Selection
-  selection: { type: null, id: null, sectionId: null, phaseId: null },
-  selectItem: (type, id, sectionId, phaseId = null, position) =>
+  selection: { type: null, id: null, sectionId: null, phaseId: null, elementId: null },
+  selectItem: (type, id, sectionId, phaseId = null, position, elementId = null) =>
     set({
-      selection: { type, id, sectionId, phaseId, position },
+      selection: { type, id, sectionId, phaseId, position, elementId },
       isModalOpen: type !== null,
     }),
   clearSelection: () =>
     set({
-      selection: { type: null, id: null, sectionId: null, phaseId: null },
+      selection: { type: null, id: null, sectionId: null, phaseId: null, elementId: null },
     }),
 
   // Drag state
@@ -168,7 +169,7 @@ export const useUIStore = create<UIState>((set) => ({
   closeModal: () =>
     set({
       isModalOpen: false,
-      selection: { type: null, id: null, sectionId: null, phaseId: null },
+      selection: { type: null, id: null, sectionId: null, phaseId: null, elementId: null },
     }),
 
   // Left sidebar

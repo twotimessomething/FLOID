@@ -5,6 +5,7 @@ export type {
   Phase,
   Element,
   Milestone,
+  BarMilestone,
   ZoomLevel,
   SelectionState,
   ModalPosition,

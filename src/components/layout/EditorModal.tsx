@@ -5,6 +5,7 @@ import {
   ElementEditor,
   MilestoneEditor,
   SectionEditor,
+  BarMilestoneEditor,
 } from '../panels';
 
 const MODAL_WIDTH = 280;
@@ -97,6 +98,8 @@ export function EditorModal(): JSX.Element | null {
         return <ElementEditor />;
       case 'milestone':
         return <MilestoneEditor />;
+      case 'barMilestone':
+        return <BarMilestoneEditor />;
       default:
         return null;
     }

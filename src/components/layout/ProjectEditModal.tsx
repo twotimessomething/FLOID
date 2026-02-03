@@ -1,19 +1,27 @@
 import { useState, useCallback, useEffect } from 'react';
+import { parseISO, format } from 'date-fns';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
+import { useSectionStore } from '../../stores/sectionStore';
 import { Button, Input } from '../common';
 
 export function ProjectEditModal(): JSX.Element | null {
   const { editingProjectId, closeProjectEditModal } = useUIStore();
   const updateProject = useProjectStore((state) => state.updateProject);
+  const updateMasterDates = useSectionStore((state) => state.updateMasterDates);
 
   const [name, setName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Initialize form when modal opens with current project data
   useEffect(() => {
     if (editingProjectId) {
       const currentProject = useProjectStore.getState().project;
       setName(currentProject.name);
+      // Convert ISO dates to YYYY-MM-DD for date inputs
+      setStartDate(format(parseISO(currentProject.projectStartDate), 'yyyy-MM-dd'));
+      setEndDate(format(parseISO(currentProject.projectEndDate), 'yyyy-MM-dd'));
     }
   }, [editingProjectId]);
 
@@ -44,14 +52,35 @@ export function ProjectEditModal(): JSX.Element | null {
     setName(e.target.value);
   }, []);
 
+  const handleStartDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setStartDate(e.target.value);
+  }, []);
+
+  const handleEndDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEndDate(e.target.value);
+  }, []);
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
       const projectName = name.trim() || 'Untitled Project';
       updateProject({ name: projectName });
+
+      // Update dates if they've changed (convert YYYY-MM-DD to ISO)
+      const currentProject = useProjectStore.getState().project;
+      const newStartISO = new Date(startDate).toISOString();
+      const newEndISO = new Date(endDate).toISOString();
+
+      if (
+        newStartISO !== currentProject.projectStartDate ||
+        newEndISO !== currentProject.projectEndDate
+      ) {
+        updateMasterDates(newStartISO, newEndISO);
+      }
+
       closeProjectEditModal();
     },
-    [name, updateProject, closeProjectEditModal]
+    [name, startDate, endDate, updateProject, updateMasterDates, closeProjectEditModal]
   );
 
   if (!editingProjectId) {
@@ -112,6 +141,24 @@ export function ProjectEditModal(): JSX.Element | null {
               placeholder="Product Development"
               autoFocus
             />
+
+            {/* Project Dates */}
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Start Date"
+                type="date"
+                value={startDate}
+                onChange={handleStartDateChange}
+                max={endDate}
+              />
+              <Input
+                label="End Date"
+                type="date"
+                value={endDate}
+                onChange={handleEndDateChange}
+                min={startDate}
+              />
+            </div>
           </div>
 
           {/* Actions */}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { parseISO, differenceInDays, addDays, subDays } from 'date-fns';
-import type { Section, Phase, Element, Milestone } from '../types';
+import type { Section, Phase, Element, Milestone, BarMilestone } from '../types';
 import { createDefaultIDTimelineSection, createDefaultSectionDateRange } from '../data/defaultTemplate';
 import { useProjectStore } from './projectStore';
 import { useUIStore } from './uiStore';
@@ -96,6 +96,16 @@ interface SectionState {
   updateMilestone: (sectionId: string, milestoneId: string, updates: Partial<Milestone>) => void;
   deleteMilestone: (sectionId: string, milestoneId: string) => void;
 
+  // Phase bar milestone operations
+  addPhaseBarMilestone: (sectionId: string, phaseId: string, barMilestone: Omit<BarMilestone, 'id'>) => string;
+  updatePhaseBarMilestone: (sectionId: string, phaseId: string, barMilestoneId: string, updates: Partial<BarMilestone>) => void;
+  deletePhaseBarMilestone: (sectionId: string, phaseId: string, barMilestoneId: string) => void;
+
+  // Element bar milestone operations
+  addElementBarMilestone: (sectionId: string, phaseId: string, elementId: string, barMilestone: Omit<BarMilestone, 'id'>) => string;
+  updateElementBarMilestone: (sectionId: string, phaseId: string, elementId: string, barMilestoneId: string, updates: Partial<BarMilestone>) => void;
+  deleteElementBarMilestone: (sectionId: string, phaseId: string, elementId: string, barMilestoneId: string) => void;
+
   // Expansion tracking for viewport stability
   clearExpansion: () => void;
 
@@ -123,6 +133,21 @@ export const selectMilestone = (sectionId: string, milestoneId: string) => (stat
   const section = state.sections.find((s) => s.id === sectionId);
   return section?.milestones.find((m) => m.id === milestoneId);
 };
+
+export const selectPhaseBarMilestone =
+  (sectionId: string, phaseId: string, barMilestoneId: string) => (state: SectionState) => {
+    const section = state.sections.find((s) => s.id === sectionId);
+    const phase = section?.phases.find((p) => p.id === phaseId);
+    return phase?.barMilestones?.find((bm) => bm.id === barMilestoneId);
+  };
+
+export const selectElementBarMilestone =
+  (sectionId: string, phaseId: string, elementId: string, barMilestoneId: string) => (state: SectionState) => {
+    const section = state.sections.find((s) => s.id === sectionId);
+    const phase = section?.phases.find((p) => p.id === phaseId);
+    const element = phase?.elements.find((e) => e.id === elementId);
+    return element?.barMilestones?.find((bm) => bm.id === barMilestoneId);
+  };
 
 // Select master section (section whose ID matches project.masterSectionId)
 export const selectMasterSection = (state: SectionState) => {
@@ -897,6 +922,165 @@ export const useSectionStore = create<SectionState>((set, get) => ({
               lastModifiedAt: new Date().toISOString(),
               revision: section.revision + 1,
               milestones: section.milestones.filter((m) => m.id !== milestoneId),
+            }
+          : section
+      ),
+    })),
+
+  // Phase bar milestone operations
+  addPhaseBarMilestone: (sectionId, phaseId, barMilestone) => {
+    const newId = generateId();
+    set((state) => ({
+      sections: state.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              lastModifiedAt: new Date().toISOString(),
+              revision: section.revision + 1,
+              phases: section.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      barMilestones: [...(phase.barMilestones || []), { ...barMilestone, id: newId }],
+                    }
+                  : phase
+              ),
+            }
+          : section
+      ),
+    }));
+    return newId;
+  },
+
+  updatePhaseBarMilestone: (sectionId, phaseId, barMilestoneId, updates) =>
+    set((state) => ({
+      sections: state.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              lastModifiedAt: new Date().toISOString(),
+              revision: section.revision + 1,
+              phases: section.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      barMilestones: (phase.barMilestones || []).map((bm) =>
+                        bm.id === barMilestoneId ? { ...bm, ...updates } : bm
+                      ),
+                    }
+                  : phase
+              ),
+            }
+          : section
+      ),
+    })),
+
+  deletePhaseBarMilestone: (sectionId, phaseId, barMilestoneId) =>
+    set((state) => ({
+      sections: state.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              lastModifiedAt: new Date().toISOString(),
+              revision: section.revision + 1,
+              phases: section.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      barMilestones: (phase.barMilestones || []).filter((bm) => bm.id !== barMilestoneId),
+                    }
+                  : phase
+              ),
+            }
+          : section
+      ),
+    })),
+
+  // Element bar milestone operations
+  addElementBarMilestone: (sectionId, phaseId, elementId, barMilestone) => {
+    const newId = generateId();
+    set((state) => ({
+      sections: state.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              lastModifiedAt: new Date().toISOString(),
+              revision: section.revision + 1,
+              phases: section.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      elements: phase.elements.map((el) =>
+                        el.id === elementId
+                          ? {
+                              ...el,
+                              barMilestones: [...(el.barMilestones || []), { ...barMilestone, id: newId }],
+                            }
+                          : el
+                      ),
+                    }
+                  : phase
+              ),
+            }
+          : section
+      ),
+    }));
+    return newId;
+  },
+
+  updateElementBarMilestone: (sectionId, phaseId, elementId, barMilestoneId, updates) =>
+    set((state) => ({
+      sections: state.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              lastModifiedAt: new Date().toISOString(),
+              revision: section.revision + 1,
+              phases: section.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      elements: phase.elements.map((el) =>
+                        el.id === elementId
+                          ? {
+                              ...el,
+                              barMilestones: (el.barMilestones || []).map((bm) =>
+                                bm.id === barMilestoneId ? { ...bm, ...updates } : bm
+                              ),
+                            }
+                          : el
+                      ),
+                    }
+                  : phase
+              ),
+            }
+          : section
+      ),
+    })),
+
+  deleteElementBarMilestone: (sectionId, phaseId, elementId, barMilestoneId) =>
+    set((state) => ({
+      sections: state.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              lastModifiedAt: new Date().toISOString(),
+              revision: section.revision + 1,
+              phases: section.phases.map((phase) =>
+                phase.id === phaseId
+                  ? {
+                      ...phase,
+                      elements: phase.elements.map((el) =>
+                        el.id === elementId
+                          ? {
+                              ...el,
+                              barMilestones: (el.barMilestones || []).filter((bm) => bm.id !== barMilestoneId),
+                            }
+                          : el
+                      ),
+                    }
+                  : phase
+              ),
             }
           : section
       ),

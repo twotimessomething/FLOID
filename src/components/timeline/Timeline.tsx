@@ -269,7 +269,7 @@ export default function Timeline() {
   return (
     <div className="h-full flex flex-col relative" role="application" aria-label="Timeline editor">
       {/* Zoom controls - fixed position in top right */}
-      <div className="absolute top-2 right-3 z-20">
+      <div className="absolute top-2 right-3 z-[60]">
         <ZoomControls />
       </div>
 

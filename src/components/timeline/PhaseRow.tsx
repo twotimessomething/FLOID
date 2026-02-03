@@ -16,6 +16,7 @@ import {
 } from '../../utils/dateUtils';
 import ElementRow from './ElementRow';
 import DragHandle from './DragHandle';
+import BarMilestoneMarker from './BarMilestoneMarker';
 import { AddItemButton } from '../controls';
 
 interface PhaseRowProps {
@@ -35,7 +36,7 @@ export default function PhaseRow({
   viewportBounds,
   onCreatePhaseAfter,
 }: PhaseRowProps): JSX.Element {
-  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, updatePhaseWithRipple, addElement, clearExpansion } = useSectionStore();
+  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, updatePhaseWithRipple, addElement, addPhaseBarMilestone, clearExpansion } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
   const project = useProjectStore((state) => state.project);
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
@@ -96,13 +97,32 @@ export default function PhaseRow({
     clearExpansion();
   }, [section.id, timelineWidth, clearExpansion]);
 
+  // Track click timeout for distinguishing single vs double click
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingClickEvent = useRef<{ x: number; y: number } | null>(null);
+
   const handleClick = useCallback((e: React.MouseEvent): void => {
     // Don't trigger selection if we just finished dragging
     if (hasDragged.current) {
       hasDragged.current = false;
       return;
     }
-    selectItem('phase', phase.id, section.id, null, { x: e.clientX, y: e.clientY });
+
+    // Store click position and delay to allow double-click detection
+    pendingClickEvent.current = { x: e.clientX, y: e.clientY };
+
+    // Clear any existing timeout
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
+
+    // Wait briefly to see if this is a double-click
+    clickTimeoutRef.current = setTimeout(() => {
+      if (pendingClickEvent.current) {
+        selectItem('phase', phase.id, section.id, null, pendingClickEvent.current);
+        pendingClickEvent.current = null;
+      }
+    }, 200);
   }, [selectItem, phase.id, section.id]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent): void => {
@@ -111,10 +131,36 @@ export default function PhaseRow({
     openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id);
   }, [openContextMenu, phase.id, section.id]);
 
-  // Prevent double-click from propagating to parent (which would create a new element)
+  // Double-click on phase bar creates a bar milestone
   const handleBarDoubleClick = useCallback((e: React.MouseEvent): void => {
     e.stopPropagation();
-  }, []);
+    e.preventDefault();
+
+    // Cancel any pending single-click action
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
+    pendingClickEvent.current = null;
+
+    // Reset drag state to prevent interference
+    hasDragged.current = false;
+
+    // Calculate click position relative to the bar
+    const barElement = e.currentTarget as HTMLElement;
+    const barRect = barElement.getBoundingClientRect();
+    const clickX = e.clientX - barRect.left;
+    const relativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
+
+    // Create bar milestone
+    const newId = addPhaseBarMilestone(section.id, phase.id, {
+      name: '',
+      relativePosition,
+    });
+
+    // Select the new bar milestone to open editor
+    selectItem('barMilestone', newId, section.id, phase.id, { x: e.clientX, y: e.clientY });
+  }, [addPhaseBarMilestone, section.id, phase.id, selectItem]);
 
   // Double-click on the phase row creates a new phase below this one
   const handlePhaseRowDoubleClick = useCallback(
@@ -550,6 +596,18 @@ export default function PhaseRow({
               {phase.name}
             </span>
           </div>
+
+          {/* Bar milestones */}
+          {phase.barMilestones?.map((bm) => (
+            <BarMilestoneMarker
+              key={bm.id}
+              barMilestone={bm}
+              sectionId={section.id}
+              phaseId={phase.id}
+              barWidth={width}
+              color={effectiveColor}
+            />
+          ))}
         </div>
       </div>
 

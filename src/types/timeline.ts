@@ -34,6 +34,7 @@ export interface Phase {
   order: number;
   isCollapsed: boolean;
   elements: Element[];
+  barMilestones?: BarMilestone[]; // Optional - defaults to empty array
   relativeStart: number;
   relativeEnd: number;
 }
@@ -48,6 +49,7 @@ export interface Element {
   relativeStart: number;
   relativeEnd: number;
   order: number;
+  barMilestones?: BarMilestone[]; // Optional - defaults to empty array
 }
 
 // Milestone = single-point marker on timeline
@@ -60,6 +62,13 @@ export interface Milestone {
   order: number;
 }
 
+// Bar milestone = simple label marker on a phase or element bar
+export interface BarMilestone {
+  id: string;
+  name: string;
+  relativePosition: number; // 0-1 within parent bar
+}
+
 export type ZoomLevel = 'day' | 'week' | 'month' | 'quarter';
 
 export interface ModalPosition {
@@ -69,10 +78,11 @@ export interface ModalPosition {
 
 // Enhanced selection with parent context for O(1) lookups
 export interface SelectionState {
-  type: 'section' | 'phase' | 'element' | 'milestone' | null;
+  type: 'section' | 'phase' | 'element' | 'milestone' | 'barMilestone' | null;
   id: string | null;
   sectionId: string | null; // Always present for lookups
-  phaseId: string | null; // Present for elements
+  phaseId: string | null; // Present for elements and bar milestones
+  elementId?: string | null; // Present for bar milestones on elements
   position?: ModalPosition;
 }
 
