@@ -32,8 +32,8 @@ export function useBackupReminder(): void {
       }
     };
 
-    // Delay the check to avoid showing toast immediately on load
-    const timer = setTimeout(checkBackup, 3000);
+    // Delay the check to avoid interrupting the user's workflow
+    const timer = setTimeout(checkBackup, 15 * 60 * 1000);
     return () => clearTimeout(timer);
   }, [showToast, projects.length, isStorageReady]);
 }
