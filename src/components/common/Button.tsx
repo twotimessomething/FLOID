@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import { forwardRef, type ButtonHTMLAttributes } from 'react';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -19,19 +19,16 @@ const SIZE_STYLES = {
   md: 'px-3 py-1.5 text-sm',
 };
 
-export function Button({
-  variant = 'secondary',
-  size = 'md',
-  className = '',
-  disabled,
-  children,
-  ...props
-}: ButtonProps): JSX.Element {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = 'secondary', size = 'md', className = '', disabled, children, ...props },
+  ref
+) {
   const baseStyles = 'rounded-md font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] focus:ring-offset-1';
   const disabledStyles = disabled ? 'opacity-50 cursor-not-allowed' : '';
 
   return (
     <button
+      ref={ref}
       className={`${baseStyles} ${VARIANT_STYLES[variant]} ${SIZE_STYLES[size]} ${disabledStyles} ${className}`}
       disabled={disabled}
       {...props}
@@ -39,4 +36,4 @@ export function Button({
       {children}
     </button>
   );
-}
+});

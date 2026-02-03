@@ -33,7 +33,7 @@ function calculateSectionHeight(section: Section): number {
   return height;
 }
 
-export default function StickyMilestones({
+export function StickyMilestones({
   sections,
   scrollTop,
   timelineWidth,

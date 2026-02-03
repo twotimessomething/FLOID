@@ -57,7 +57,7 @@ function Logo(): JSX.Element {
 }
 
 
-export default function Header() {
+export function Header() {
   // Use selective store subscriptions to prevent unnecessary re-renders
   const project = useProjectStore((state) => state.project);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);

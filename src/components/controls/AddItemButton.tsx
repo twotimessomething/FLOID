@@ -4,7 +4,7 @@ interface AddItemButtonProps {
   readonly size?: 'sm' | 'md';
 }
 
-export default function AddItemButton({
+export function AddItemButton({
   onClick,
   label,
   size = 'sm',

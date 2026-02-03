@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
+import { useConfirm } from '../../hooks';
 import { downloadScheduleFloid } from '../../utils/exportUtils';
 import { PHASE_COLORS } from '../../constants/colors';
 
@@ -17,6 +18,7 @@ interface MenuItem {
 
 export function ContextMenu(): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
   const { contextMenu, closeContextMenu, selectItem } = useUIStore();
   const {
     deletePhase,
@@ -112,13 +114,21 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [targetType, targetId, sectionId, phaseId, elementId, position, selectItem, closeContextMenu]);
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!targetId || !sectionId) return;
 
     const confirmMessage = getDeleteConfirmMessage();
-    if (confirmMessage && !confirm(confirmMessage)) {
-      closeContextMenu();
-      return;
+    if (confirmMessage) {
+      const confirmed = await confirm({
+        title: 'Confirm Delete',
+        message: confirmMessage,
+        confirmLabel: 'Delete',
+        variant: 'danger',
+      });
+      if (!confirmed) {
+        closeContextMenu();
+        return;
+      }
     }
 
     switch (targetType) {
@@ -147,7 +157,7 @@ export function ContextMenu(): JSX.Element | null {
         break;
     }
     closeContextMenu();
-  }, [targetType, targetId, sectionId, phaseId, elementId, deletePhase, deleteElement, deleteMilestone, deleteSection, deletePhaseBarMilestone, deleteElementBarMilestone, closeContextMenu]);
+  }, [targetType, targetId, sectionId, phaseId, elementId, deletePhase, deleteElement, deleteMilestone, deleteSection, deletePhaseBarMilestone, deleteElementBarMilestone, closeContextMenu, confirm]);
 
   const handleAddPhase = useCallback(() => {
     if (!sectionId) return;
@@ -245,21 +255,24 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [sectionId, sections, project, closeContextMenu]);
 
-  const handleSetAsMaster = useCallback(() => {
+  const handleSetAsMaster = useCallback(async () => {
     if (!sectionId) return;
 
     const section = sections.find((s) => s.id === sectionId);
     if (!section) return;
 
-    const confirmed = confirm(
-      `Pin "${section.name}" as master schedule?\n\nThis will update the project dates to match this schedule's date range.`
-    );
+    const confirmed = await confirm({
+      title: 'Pin as Master Schedule',
+      message: `Pin "${section.name}" as master schedule?\n\nThis will update the project dates to match this schedule's date range.`,
+      confirmLabel: 'Pin as Master',
+      variant: 'warning',
+    });
 
     if (confirmed) {
       setAsMaster(sectionId);
     }
     closeContextMenu();
-  }, [sectionId, sections, setAsMaster, closeContextMenu]);
+  }, [sectionId, sections, setAsMaster, closeContextMenu, confirm]);
 
   // Toggle collapse for phases
   const handleTogglePhaseCollapse = useCallback(() => {

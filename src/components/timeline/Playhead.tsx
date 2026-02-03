@@ -8,7 +8,7 @@ interface PlayheadProps {
   readonly height: number;
 }
 
-export default function Playhead({ height }: PlayheadProps) {
+export function Playhead({ height }: PlayheadProps) {
   const { playheadPosition, playheadY } = useUIStore();
   const { viewportBounds, timelineWidth } = useViewport();
 

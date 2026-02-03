@@ -1,7 +1,7 @@
 import { useEffect, useCallback, type DragEvent } from 'react';
 import { Analytics } from '@vercel/analytics/react';
-import Header from './components/layout/Header';
-import TimelineContainer from './components/layout/TimelineContainer';
+import { Header } from './components/layout/Header';
+import { TimelineContainer } from './components/layout/TimelineContainer';
 import { EditorModal } from './components/layout/EditorModal';
 import { LeftSidebar } from './components/layout/LeftSidebar';
 import { InfoSidebar } from './components/layout/InfoSidebar';
@@ -11,7 +11,7 @@ import { AddScheduleModal } from './components/layout/AddScheduleModal';
 import { ImportConfirmModal } from './components/layout/ImportConfirmModal';
 import { SettingsModal } from './components/layout/SettingsModal';
 import { ContextMenu } from './components/timeline';
-import { Toast } from './components/common';
+import { Toast, ConfirmDialog } from './components/common';
 import { useAutoSave, useKeyboardShortcuts, useScheduleImport, useTheme } from './hooks';
 import { useBackupReminder } from './hooks/useBackupReminder';
 import { useFileSystemAutoSave } from './hooks/useFileSystemAutoSave';
@@ -150,6 +150,7 @@ function App() {
       <SettingsModal />
       <ContextMenu />
       <Toast />
+      <ConfirmDialog />
 
       {/* Drop zone overlay */}
       {isDraggingFile && (
@@ -166,4 +167,4 @@ function App() {
   );
 }
 
-export default App;
+export { App };

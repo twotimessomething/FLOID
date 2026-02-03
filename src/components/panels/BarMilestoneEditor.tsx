@@ -9,7 +9,7 @@ import {
 } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { Input, Button } from '../common';
+import { Input, ConfirmDeleteButton } from '../common';
 import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
 
 export function BarMilestoneEditor(): JSX.Element {
@@ -91,16 +91,13 @@ export function BarMilestoneEditor(): JSX.Element {
 
   const handleDelete = useCallback(() => {
     if (!sectionId || !phaseId || !barMilestoneId) return;
-    const name = barMilestone?.name || 'this milestone';
-    if (confirm(`Delete "${name}"?`)) {
-      if (isOnElement && elementId) {
-        deleteElementBarMilestone(sectionId, phaseId, elementId, barMilestoneId);
-      } else {
-        deletePhaseBarMilestone(sectionId, phaseId, barMilestoneId);
-      }
-      closeModal();
+    if (isOnElement && elementId) {
+      deleteElementBarMilestone(sectionId, phaseId, elementId, barMilestoneId);
+    } else {
+      deletePhaseBarMilestone(sectionId, phaseId, barMilestoneId);
     }
-  }, [sectionId, phaseId, elementId, barMilestoneId, barMilestone, isOnElement, deletePhaseBarMilestone, deleteElementBarMilestone, closeModal]);
+    closeModal();
+  }, [sectionId, phaseId, elementId, barMilestoneId, isOnElement, deletePhaseBarMilestone, deleteElementBarMilestone, closeModal]);
 
   if (!barMilestone || !phase || !section) {
     return <div className="text-sm text-[var(--color-text-secondary)]">Milestone not found</div>;
@@ -141,9 +138,7 @@ export function BarMilestoneEditor(): JSX.Element {
       )}
 
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <Button variant="danger" onClick={handleDelete} className="w-full">
-          Delete
-        </Button>
+        <ConfirmDeleteButton label="Delete" onConfirm={handleDelete} />
       </div>
     </div>
   );

@@ -14,9 +14,9 @@ import {
   viewportToSectionRelative,
   snapRelativeToBusinessDay,
 } from '../../utils/dateUtils';
-import ElementRow from './ElementRow';
-import DragHandle from './DragHandle';
-import BarMilestoneMarker from './BarMilestoneMarker';
+import { ElementRow } from './ElementRow';
+import { DragHandle } from './DragHandle';
+import { BarMilestoneMarker } from './BarMilestoneMarker';
 
 interface PhaseRowProps {
   readonly phase: Phase;
@@ -29,7 +29,7 @@ interface PhaseRowProps {
   readonly totalPhases?: number;
 }
 
-export default function PhaseRow({
+export function PhaseRow({
   phase,
   section,
   isLabel,
@@ -522,7 +522,7 @@ export default function PhaseRow({
         >
           <button
             onClick={handleToggleCollapse}
-            className="w-4 h-4 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded-md transition-colors duration-150"
+            className="w-6 h-6 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded-md transition-colors duration-150"
             aria-expanded={!phase.isCollapsed}
             aria-label={`${phase.isCollapsed ? 'Expand' : 'Collapse'} ${phase.name}`}
           >

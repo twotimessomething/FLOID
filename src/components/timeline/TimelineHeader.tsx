@@ -7,7 +7,7 @@ interface TimelineHeaderProps {
   readonly onPlayheadMouseDown?: (e: React.MouseEvent) => void;
 }
 
-export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderProps) {
+export function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderProps) {
   const { viewportBounds, timelineWidth } = useViewport();
   const { zoomLevel } = useUIStore();
 

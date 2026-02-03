@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection, selectPhase, selectElement } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { Input, TextArea, DateInput, Button } from '../common';
+import { Input, TextArea, DateInput, ConfirmDeleteButton } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../utils/dateUtils';
 
 export function ElementEditor(): JSX.Element {
@@ -116,12 +116,10 @@ export function ElementEditor(): JSX.Element {
   );
 
   const handleDelete = useCallback(() => {
-    if (!sectionId || !phaseId || !elementId || !element) return;
-    if (confirm(`Delete element "${element.name}"?`)) {
-      deleteElement(sectionId, phaseId, elementId);
-      closeModal();
-    }
-  }, [sectionId, phaseId, elementId, element, deleteElement, closeModal]);
+    if (!sectionId || !phaseId || !elementId) return;
+    deleteElement(sectionId, phaseId, elementId);
+    closeModal();
+  }, [sectionId, phaseId, elementId, deleteElement, closeModal]);
 
   if (!element || !phase || !section) {
     return <div className="text-sm text-[var(--color-text-secondary)]">Element not found</div>;
@@ -172,9 +170,7 @@ export function ElementEditor(): JSX.Element {
       </div>
 
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <Button variant="danger" onClick={handleDelete} className="w-full">
-          Delete Element
-        </Button>
+        <ConfirmDeleteButton label="Delete Element" onConfirm={handleDelete} />
       </div>
     </div>
   );

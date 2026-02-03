@@ -20,7 +20,7 @@ function calculateSectionHeight(section: Section): number {
   return height;
 }
 
-export default function TimelineGrid() {
+export function TimelineGrid() {
   const { viewportBounds, timelineWidth } = useViewport();
   const { zoomLevel } = useUIStore();
   const masterSection = useSectionStore(selectMasterSection);

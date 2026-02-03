@@ -7,8 +7,8 @@ import { ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getBarDimensions, getRelativeFromPositi
 import { sectionToViewportRelative, viewportToSectionRelative, getDaysBetween } from '../../utils/dateUtils';
 import { PHASE_COLORS } from '../../constants/colors';
 import { getPhaseColor } from '../../types';
-import PhaseRow from './PhaseRow';
-import MilestoneMarker from './MilestoneMarker';
+import { PhaseRow } from './PhaseRow';
+import { MilestoneMarker } from './MilestoneMarker';
 import { EmptyStateHint } from './EmptyStateHint';
 import { MasterBadge } from '../common';
 
@@ -28,7 +28,7 @@ interface SectionRowProps {
   readonly stickyMilestoneIds?: Set<string>;
 }
 
-export default function SectionRow({
+export function SectionRow({
   section,
   isLabel,
   timelineWidth,
@@ -290,7 +290,7 @@ export default function SectionRow({
           )}
           <button
             onClick={handleToggleCollapse}
-            className="w-4 h-4 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded-md transition-colors duration-150"
+            className="w-6 h-6 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded-md transition-colors duration-150"
             aria-expanded={!section.isCollapsed}
             aria-label={`${section.isCollapsed ? 'Expand' : 'Collapse'} ${section.name}`}
           >

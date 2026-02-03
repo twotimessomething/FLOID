@@ -1,6 +1,6 @@
 import { useUIStore } from '../../stores/uiStore';
 
-export default function AddScheduleButton(): JSX.Element {
+export function AddScheduleButton(): JSX.Element {
   const openAddScheduleModal = useUIStore((state) => state.openAddScheduleModal);
 
   const handleAddSchedule = (): void => {

@@ -10,7 +10,7 @@ const ZOOM_LABELS: Record<ZoomLevel, string> = {
   quarter: 'Quarter',
 };
 
-export default function ZoomControls() {
+export function ZoomControls() {
   const { zoomLevel, setZoomLevel, triggerScrollToToday } = useUIStore();
 
   const currentIndex = ZOOM_LEVELS.indexOf(zoomLevel);

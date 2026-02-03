@@ -5,17 +5,17 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useViewport } from '../../hooks/useViewport';
 import { usePlayhead } from '../../hooks/usePlayhead';
 import { useDragReorder } from '../../hooks/useDragReorder';
-import TimelineHeader from './TimelineHeader';
-import TimelineGrid from './TimelineGrid';
-import SectionRow from './SectionRow';
-import StickyMilestones from './StickyMilestones';
-import Playhead from './Playhead';
+import { TimelineHeader } from './TimelineHeader';
+import { TimelineGrid } from './TimelineGrid';
+import { SectionRow } from './SectionRow';
+import { StickyMilestones } from './StickyMilestones';
+import { Playhead } from './Playhead';
 import { AddScheduleButton, ZoomControls } from '../controls';
 import { HEADER_HEIGHT, ROW_HEIGHT, ELEMENT_ROW_HEIGHT, getPositionFromRelative } from '../../utils/timelineUtils';
 import { getTodayViewportPosition, isTodayInViewport } from '../../utils/dateUtils';
 import type { Section } from '../../types';
 
-export default function Timeline() {
+export function Timeline() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const labelsScrollRef = useRef<HTMLDivElement>(null);
   const isScrollSyncing = useRef(false);

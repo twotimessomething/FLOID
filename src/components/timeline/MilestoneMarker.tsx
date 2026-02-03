@@ -16,7 +16,7 @@ interface MilestoneMarkerProps {
   readonly isHidden?: boolean; // Hide when rendered as sticky
 }
 
-export default function MilestoneMarker({
+export function MilestoneMarker({
   milestone,
   section,
   timelineWidth,

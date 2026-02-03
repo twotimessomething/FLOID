@@ -14,7 +14,7 @@ interface BarMilestoneMarkerProps {
   readonly color: string;
 }
 
-export default function BarMilestoneMarker({
+export function BarMilestoneMarker({
   barMilestone,
   sectionId,
   phaseId,

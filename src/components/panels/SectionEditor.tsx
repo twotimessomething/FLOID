@@ -2,9 +2,11 @@ import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { Input, ColorPicker, Button, MasterBadge, DateInput } from '../common';
+import { useConfirm } from '../../hooks';
+import { Input, ColorPicker, Button, MasterBadge, DateInput, ConfirmDeleteButton } from '../common';
 
 export function SectionEditor(): JSX.Element {
+  const confirm = useConfirm();
   const { selection, closeModal } = useUIStore();
   const { updateSection, updateSectionDates, deleteSection, setAsMaster } = useSectionStore();
 
@@ -50,22 +52,23 @@ export function SectionEditor(): JSX.Element {
   );
 
   const handleDelete = useCallback(() => {
-    if (!sectionId || !section) return;
-    if (confirm(`Delete "${section.name}"? This will also delete all phases and elements within it.`)) {
-      deleteSection(sectionId);
-      closeModal();
-    }
-  }, [sectionId, section, deleteSection, closeModal]);
+    if (!sectionId) return;
+    deleteSection(sectionId);
+    closeModal();
+  }, [sectionId, deleteSection, closeModal]);
 
-  const handleSetAsMaster = useCallback(() => {
+  const handleSetAsMaster = useCallback(async () => {
     if (!sectionId || !section) return;
-    const confirmed = confirm(
-      `Pin "${section.name}" as master schedule?\n\nThis will update the project dates to match this schedule's date range.`
-    );
+    const confirmed = await confirm({
+      title: 'Pin as Master Schedule',
+      message: `Pin "${section.name}" as master schedule?\n\nThis will update the project dates to match this schedule's date range.`,
+      confirmLabel: 'Pin as Master',
+      variant: 'warning',
+    });
     if (confirmed) {
       setAsMaster(sectionId);
     }
-  }, [sectionId, section, setAsMaster]);
+  }, [sectionId, section, setAsMaster, confirm]);
 
   if (!section) {
     return <div className="text-sm text-[var(--color-text-secondary)]">Schedule not found</div>;
@@ -175,9 +178,7 @@ export function SectionEditor(): JSX.Element {
 
       {/* Delete section */}
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <Button variant="danger" onClick={handleDelete} className="w-full">
-          Delete Schedule
-        </Button>
+        <ConfirmDeleteButton label="Delete Schedule" onConfirm={handleDelete} />
       </div>
     </div>
   );

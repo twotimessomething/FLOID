@@ -7,8 +7,8 @@ import { useUIStore } from '../../stores/uiStore';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { getBarDimensions, ELEMENT_ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
 import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, viewportToSectionRelative, getDaysBetween, snapRelativeToBusinessDay } from '../../utils/dateUtils';
-import DragHandle from './DragHandle';
-import BarMilestoneMarker from './BarMilestoneMarker';
+import { DragHandle } from './DragHandle';
+import { BarMilestoneMarker } from './BarMilestoneMarker';
 
 interface ElementRowProps {
   readonly element: Element;
@@ -21,7 +21,7 @@ interface ElementRowProps {
   readonly totalPhases?: number;
 }
 
-export default function ElementRow({
+export function ElementRow({
   element,
   phase,
   section,

@@ -46,6 +46,18 @@ export interface UIImportModalState {
   analysis: ImportAnalysis | null;
 }
 
+// Confirm dialog state
+export interface ConfirmDialogState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  variant: 'danger' | 'warning' | 'default';
+  onConfirm: (() => void) | null;
+  onCancel: (() => void) | null;
+}
+
 interface UIState {
   // Zoom
   zoomLevel: ZoomLevel;
@@ -149,6 +161,19 @@ interface UIState {
   // Theme
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
+
+  // Confirm dialog
+  confirmDialog: ConfirmDialogState;
+  openConfirmDialog: (options: {
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    variant?: 'danger' | 'warning' | 'default';
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }) => void;
+  closeConfirmDialog: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -317,4 +342,38 @@ export const useUIStore = create<UIState>((set) => ({
   // Theme
   theme: 'system',
   setTheme: (theme) => set({ theme }),
+
+  // Confirm dialog
+  confirmDialog: {
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: 'Confirm',
+    cancelLabel: 'Cancel',
+    variant: 'default',
+    onConfirm: null,
+    onCancel: null,
+  },
+  openConfirmDialog: ({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', variant = 'default', onConfirm, onCancel }) =>
+    set({
+      confirmDialog: {
+        isOpen: true,
+        title,
+        message,
+        confirmLabel,
+        cancelLabel,
+        variant,
+        onConfirm,
+        onCancel: onCancel || null,
+      },
+    }),
+  closeConfirmDialog: () =>
+    set((state) => ({
+      confirmDialog: {
+        ...state.confirmDialog,
+        isOpen: false,
+        onConfirm: null,
+        onCancel: null,
+      },
+    })),
 }));

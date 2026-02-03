@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection, selectPhase } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { Input, TextArea, DateInput, ColorPicker, Button } from '../common';
+import { Input, TextArea, DateInput, ColorPicker, ConfirmDeleteButton } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate, parseDate } from '../../utils/dateUtils';
 
 export function PhaseEditor(): JSX.Element {
@@ -99,12 +99,10 @@ export function PhaseEditor(): JSX.Element {
   );
 
   const handleDelete = useCallback(() => {
-    if (!sectionId || !phaseId || !phase) return;
-    if (confirm(`Delete phase "${phase.name}"? This will also delete all elements within it.`)) {
-      deletePhase(sectionId, phaseId);
-      closeModal();
-    }
-  }, [sectionId, phaseId, phase, deletePhase, closeModal]);
+    if (!sectionId || !phaseId) return;
+    deletePhase(sectionId, phaseId);
+    closeModal();
+  }, [sectionId, phaseId, deletePhase, closeModal]);
 
   if (!phase || !section) {
     return <div className="text-sm text-[var(--color-text-secondary)]">Phase not found</div>;
@@ -161,9 +159,7 @@ export function PhaseEditor(): JSX.Element {
       </div>
 
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <Button variant="danger" onClick={handleDelete} className="w-full">
-          Delete Phase
-        </Button>
+        <ConfirmDeleteButton label="Delete Phase" onConfirm={handleDelete} />
       </div>
     </div>
   );

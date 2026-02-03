@@ -10,7 +10,7 @@ interface DragHandleProps {
   readonly color?: string;
 }
 
-export default function DragHandle({
+export function DragHandle({
   edge,
   onDragStart,
   onDrag,

@@ -2,8 +2,11 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useConfirm } from '../../hooks';
 
 export function LeftSidebar() {
+  const confirm = useConfirm();
+
   // Use selective store subscriptions to prevent unnecessary re-renders
   const projects = useProjectStore((state) => state.projects);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
@@ -51,13 +54,20 @@ export function LeftSidebar() {
   const clearSections = useSectionStore((state) => state.clearSections);
 
   const handleDeleteProject = useCallback(
-    (projectId: string, e: React.MouseEvent) => {
+    async (projectId: string, e: React.MouseEvent) => {
       e.stopPropagation();
 
       const projectToDelete = projects.find((p) => p.id === projectId);
       if (!projectToDelete) return;
 
-      if (window.confirm(`Delete "${projectToDelete.name}"? This cannot be undone.`)) {
+      const confirmed = await confirm({
+        title: 'Delete Project',
+        message: `Delete "${projectToDelete.name}"?\n\nThis cannot be undone.`,
+        confirmLabel: 'Delete',
+        variant: 'danger',
+      });
+
+      if (confirmed) {
         deleteProject(projectId);
 
         // If we deleted the active project, load the new active one (if any remain)
@@ -70,7 +80,7 @@ export function LeftSidebar() {
         }
       }
     },
-    [projects, deleteProject, loadSectionsForProject, clearSections]
+    [projects, deleteProject, loadSectionsForProject, clearSections, confirm]
   );
 
   // Focus edit input when editing starts

@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection, selectMilestone } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { Input, TextArea, DateInput, Button } from '../common';
+import { Input, TextArea, DateInput, ConfirmDeleteButton } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate, parseDate } from '../../utils/dateUtils';
 
 export function MilestoneEditor(): JSX.Element {
@@ -68,12 +68,10 @@ export function MilestoneEditor(): JSX.Element {
   );
 
   const handleDelete = useCallback(() => {
-    if (!sectionId || !milestoneId || !milestone) return;
-    if (confirm(`Delete milestone "${milestone.name}"?`)) {
-      deleteMilestone(sectionId, milestoneId);
-      closeModal();
-    }
-  }, [sectionId, milestoneId, milestone, deleteMilestone, closeModal]);
+    if (!sectionId || !milestoneId) return;
+    deleteMilestone(sectionId, milestoneId);
+    closeModal();
+  }, [sectionId, milestoneId, deleteMilestone, closeModal]);
 
   if (!milestone || !section) {
     return <div className="text-sm text-[var(--color-text-secondary)]">Milestone not found</div>;
@@ -115,9 +113,7 @@ export function MilestoneEditor(): JSX.Element {
       />
 
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <Button variant="danger" onClick={handleDelete} className="w-full">
-          Delete Milestone
-        </Button>
+        <ConfirmDeleteButton label="Delete Milestone" onConfirm={handleDelete} />
       </div>
     </div>
   );
