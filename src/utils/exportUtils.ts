@@ -2,6 +2,7 @@ import type { Project, Section } from '../types';
 import type { ScheduleExportData, ImportAnalysis, ExportPhase, ExportMilestone, ProjectExportData } from '../types/scheduleExport';
 import { getDateFromRelativePosition } from './dateUtils';
 import { format } from 'date-fns';
+import { setAppSettings } from './indexedDB';
 
 // Helper to sanitize filename
 const sanitizeFilename = (name: string): string =>
@@ -89,7 +90,7 @@ export const exportToJson = (project: Project, sections: Section[]): string => {
   return JSON.stringify(data, null, 2);
 };
 
-export const downloadProjectJson = (project: Project, sections: Section[]): void => {
+export const downloadProjectJson = async (project: Project, sections: Section[]): Promise<void> => {
   const json = exportToJson(project, sections);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -103,6 +104,9 @@ export const downloadProjectJson = (project: Project, sections: Section[]): void
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+
+  // Update last backup date
+  await setAppSettings({ lastBackupDate: new Date().toISOString() });
 };
 
 // Legacy alias for backwards compatibility
@@ -261,7 +265,7 @@ export const exportScheduleToFloid = (project: Project, section: Section): Sched
   };
 };
 
-export const downloadScheduleFloid = (project: Project, section: Section): void => {
+export const downloadScheduleFloid = async (project: Project, section: Section): Promise<void> => {
   const data = exportScheduleToFloid(project, section);
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
@@ -276,6 +280,9 @@ export const downloadScheduleFloid = (project: Project, section: Section): void 
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+
+  // Update last backup date
+  await setAppSettings({ lastBackupDate: new Date().toISOString() });
 };
 
 export const parseScheduleFloid = (json: string): ScheduleExportData | null => {

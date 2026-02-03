@@ -24,7 +24,7 @@ interface PhaseRowProps {
   readonly isLabel: boolean;
   readonly timelineWidth: number;
   readonly viewportBounds: ViewportBounds;
-  readonly onCreatePhaseAfter?: (afterOrder: number, clickX: number) => void;
+  readonly onCreatePhaseAfter?: (afterOrder: number, clickX: number, clickY: number) => void;
   readonly phaseIndex?: number;
   readonly totalPhases?: number;
 }
@@ -212,7 +212,7 @@ export default function PhaseRow({
     (e: React.MouseEvent): void => {
       if (onCreatePhaseAfter) {
         e.stopPropagation();
-        onCreatePhaseAfter(phase.order, e.clientX);
+        onCreatePhaseAfter(phase.order, e.clientX, e.clientY);
       }
     },
     [onCreatePhaseAfter, phase.order]

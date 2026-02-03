@@ -25,8 +25,8 @@ interface SectionState {
   lastExpansion: ExpansionInfo | null;
 
   // Initialization
-  initializeFromProject: () => void;
-  loadSectionsForProject: (projectId: string) => void;
+  initializeFromProject: () => Promise<void>;
+  loadSectionsForProject: (projectId: string) => Promise<void>;
   clearSections: () => void;
 
   // Section operations
@@ -166,13 +166,13 @@ export const useSectionStore = create<SectionState>((set, get) => ({
   isInitialized: false,
   lastExpansion: null,
 
-  initializeFromProject: () => {
+  initializeFromProject: async () => {
     const projectStore = useProjectStore.getState();
-    projectStore.initializeProjects();
+    await projectStore.initializeProjects();
 
     const activeProjectId = projectStore.activeProjectId;
     if (activeProjectId) {
-      const data = projectStore.loadProjectData(activeProjectId);
+      const data = await projectStore.loadProjectData(activeProjectId);
       if (data && data.sections && data.sections.length > 0) {
         set({
           sections: data.sections,
@@ -189,14 +189,14 @@ export const useSectionStore = create<SectionState>((set, get) => ({
     });
   },
 
-  loadSectionsForProject: (projectId: string) => {
+  loadSectionsForProject: async (projectId: string) => {
     if (!projectId) {
       set({ sections: [] });
       return;
     }
 
     const projectStore = useProjectStore.getState();
-    const data = projectStore.loadProjectData(projectId);
+    const data = await projectStore.loadProjectData(projectId);
 
     if (data && data.sections && data.sections.length > 0) {
       set({ sections: data.sections });

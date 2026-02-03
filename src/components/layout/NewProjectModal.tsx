@@ -195,12 +195,22 @@ export function NewProjectModal(): JSX.Element | null {
     }
   }, [step]);
 
+  const isDetailsValid = formData.startDate < formData.endDate;
+
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
 
+      // On details step, just advance to template step
+      if (step === 'details') {
+        if (isDetailsValid) {
+          setStep('template');
+        }
+        return;
+      }
+
       // Save current project before creating new one
-      saveCurrentProject(sections);
+      await saveCurrentProject(sections);
 
       const config: NewProjectConfig = {
         name: formData.name.trim() || 'New Project',
@@ -210,16 +220,18 @@ export function NewProjectModal(): JSX.Element | null {
       };
 
       // Create the new project with selected template as master
-      const { projectId, section } = createProject(config);
+      const { projectId, section } = await createProject(config);
 
       // Clear selection and switch to new project
       closeModal();
-      selectProject(projectId);
+      await selectProject(projectId);
       setSections([section]);
 
       closeProjectSetupModal();
     },
     [
+      step,
+      isDetailsValid,
       formData,
       sections,
       saveCurrentProject,
@@ -230,8 +242,6 @@ export function NewProjectModal(): JSX.Element | null {
       closeProjectSetupModal,
     ]
   );
-
-  const isDetailsValid = formData.startDate < formData.endDate;
 
   if (!isProjectSetupModalOpen) {
     return null;

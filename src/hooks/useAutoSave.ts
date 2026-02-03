@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useSectionStore } from '../stores/sectionStore';
 import { useProjectStore } from '../stores/projectStore';
+import { saveProjectToStorageSync, saveProjectsIndexSync } from '../utils/storageUtils';
 
 const DEBOUNCE_MS = 1000;
 
@@ -13,8 +14,8 @@ export function useAutoSave() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef(false);
 
-  // Immediate save function for use in event handlers
-  const saveImmediately = useCallback(() => {
+  // Async save function for normal operation
+  const saveImmediately = useCallback(async () => {
     if (!isInitialized || !activeProjectId) return;
 
     // Clear any pending debounced save
@@ -25,9 +26,32 @@ export function useAutoSave() {
 
     // Get latest state directly from stores to ensure we save current data
     const latestSections = useSectionStore.getState().sections;
-    useProjectStore.getState().saveCurrentProject(latestSections);
+    await useProjectStore.getState().saveCurrentProject(latestSections);
     pendingSaveRef.current = false;
   }, [isInitialized, activeProjectId]);
+
+  // Sync fallback for page unload (IndexedDB can't complete during unload)
+  const saveSync = useCallback(() => {
+    const state = useProjectStore.getState();
+    const sectionsState = useSectionStore.getState();
+
+    if (!state.activeProjectId || !state.project) return;
+
+    const updatedAt = new Date().toISOString();
+    const updatedProject = { ...state.project, updatedAt };
+
+    // Save project data synchronously to localStorage
+    saveProjectToStorageSync(state.activeProjectId, {
+      project: updatedProject,
+      sections: sectionsState.sections,
+    });
+
+    // Also save updated projects index
+    const updatedProjects = state.projects.map((p) =>
+      p.id === state.activeProjectId ? { ...p, updatedAt } : p
+    );
+    saveProjectsIndexSync(updatedProjects);
+  }, []);
 
   // Debounced save on state changes
   useEffect(() => {
@@ -41,9 +65,9 @@ export function useAutoSave() {
       clearTimeout(timeoutRef.current);
     }
 
-    timeoutRef.current = setTimeout(() => {
+    timeoutRef.current = setTimeout(async () => {
       // Use the proper per-project save function
-      saveCurrentProject(sections);
+      await saveCurrentProject(sections);
       pendingSaveRef.current = false;
     }, DEBOUNCE_MS);
 
@@ -58,13 +82,15 @@ export function useAutoSave() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && pendingSaveRef.current) {
-        saveImmediately();
+        // Try async save first when going hidden (not unloading)
+        saveImmediately().catch(console.error);
       }
     };
 
     const handleBeforeUnload = () => {
       if (pendingSaveRef.current) {
-        saveImmediately();
+        // Use sync fallback for beforeunload since IndexedDB can't complete
+        saveSync();
       }
     };
 
@@ -75,5 +101,5 @@ export function useAutoSave() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [saveImmediately]);
+  }, [saveImmediately, saveSync]);
 }

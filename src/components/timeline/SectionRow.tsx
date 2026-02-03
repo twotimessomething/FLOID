@@ -175,7 +175,7 @@ export default function SectionRow({
 
   // Create a phase at a specific position (called by PhaseRow or container double-click)
   const createPhaseAtPosition = useCallback(
-    (clientX: number, insertAtIndex: number): void => {
+    (clientX: number, clientY: number, insertAtIndex: number): void => {
       // Get the phases container to calculate position
       const phasesContainer = document.querySelector(`[aria-label="${section.name} phase bars"]`) as HTMLElement | null;
       if (!phasesContainer) return;
@@ -220,7 +220,7 @@ export default function SectionRow({
           useSectionStore.getState().reorderPhases(section.id, currentIndex, targetIndex);
         }
 
-        selectItem('phase', newPhase.id, section.id, null, { x: clientX, y: 0 });
+        selectItem('phase', newPhase.id, section.id, null, { x: clientX, y: clientY });
       }
     },
     [section, isMasterSection, timelineWidth, viewportBounds, addPhase, selectItem]
@@ -230,15 +230,15 @@ export default function SectionRow({
   const handleCreatePhase = useCallback(
     (e: React.MouseEvent): void => {
       e.stopPropagation();
-      createPhaseAtPosition(e.clientX, section.phases.length);
+      createPhaseAtPosition(e.clientX, e.clientY, section.phases.length);
     },
     [createPhaseAtPosition, section.phases.length]
   );
 
   // Handle creating a phase after a specific phase (called from PhaseRow)
   const handleCreatePhaseAfter = useCallback(
-    (afterOrder: number, clickX: number): void => {
-      createPhaseAtPosition(clickX, afterOrder + 1);
+    (afterOrder: number, clickX: number, clickY: number): void => {
+      createPhaseAtPosition(clickX, clickY, afterOrder + 1);
     },
     [createPhaseAtPosition]
   );

@@ -12,6 +12,8 @@ import { SettingsModal } from './components/layout/SettingsModal';
 import { ContextMenu } from './components/timeline';
 import { Toast } from './components/common';
 import { useAutoSave, useKeyboardShortcuts, useScheduleImport, useTheme } from './hooks';
+import { useBackupReminder } from './hooks/useBackupReminder';
+import { useFileSystemAutoSave } from './hooks/useFileSystemAutoSave';
 import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
 import { useUIStore } from './stores/uiStore';
@@ -19,6 +21,7 @@ import { useUIStore } from './stores/uiStore';
 function App() {
   const { initializeFromProject, loadSectionsForProject } = useSectionStore();
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
+  const isStorageReady = useProjectStore((state) => state.isStorageReady);
   const closeContextMenu = useUIStore((state) => state.closeContextMenu);
   const isDraggingFile = useUIStore((state) => state.isDraggingFile);
   const setDraggingFile = useUIStore((state) => state.setDraggingFile);
@@ -33,6 +36,12 @@ function App() {
 
   // Initialize theme handling
   useTheme();
+
+  // Initialize backup reminder
+  useBackupReminder();
+
+  // Initialize file system auto-save
+  useFileSystemAutoSave();
 
   useEffect(() => {
     initializeFromProject();
@@ -99,6 +108,15 @@ function App() {
     },
     [setDraggingFile, handleScheduleImport]
   );
+
+  // Show loading state while storage initializes
+  if (!isStorageReady) {
+    return (
+      <div className="h-full flex items-center justify-center bg-[var(--color-background)]">
+        <div className="text-[var(--color-text-secondary)]">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div

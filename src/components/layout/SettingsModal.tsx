@@ -1,8 +1,13 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { format } from 'date-fns';
 import { useUIStore, type ThemeMode } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { Toggle } from '../common/Toggle';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
+import type { AppSettings } from '../../types/storage';
+import { DEFAULT_APP_SETTINGS } from '../../types/storage';
+import { getAppSettings, setAppSettings, setFileHandle } from '../../utils/indexedDB';
+import { isFileSystemAccessSupported, requestDirectoryAccess } from '../../utils/fileSystemUtils';
 
 // Theme option type
 interface ThemeOption {
@@ -68,6 +73,16 @@ export function SettingsModal(): JSX.Element | null {
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const updateSettings = useProjectStore((state) => state.updateSettings);
 
+  // App settings state
+  const [appSettings, setLocalAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+
+  // Load app settings when modal opens
+  useEffect(() => {
+    if (isSettingsModalOpen) {
+      getAppSettings().then(setLocalAppSettings);
+    }
+  }, [isSettingsModalOpen]);
+
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget) {
@@ -90,6 +105,32 @@ export function SettingsModal(): JSX.Element | null {
     },
     [updateSettings]
   );
+
+  const handleBackupReminderToggle = useCallback(async (enabled: boolean) => {
+    await setAppSettings({ backupReminderEnabled: enabled });
+    setLocalAppSettings((s) => ({ ...s, backupReminderEnabled: enabled }));
+  }, []);
+
+  const handleBackupDaysChange = useCallback(async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const days = Number(e.target.value);
+    await setAppSettings({ backupReminderDays: days });
+    setLocalAppSettings((s) => ({ ...s, backupReminderDays: days }));
+  }, []);
+
+  const handleSelectFolder = useCallback(async () => {
+    const handle = await requestDirectoryAccess();
+    if (handle) {
+      await setFileHandle(handle);
+      await setAppSettings({ fileSystemFolderName: handle.name });
+      setLocalAppSettings((s) => ({ ...s, fileSystemFolderName: handle.name }));
+    }
+  }, []);
+
+  const handleDisableFs = useCallback(async () => {
+    await setFileHandle(null);
+    await setAppSettings({ fileSystemFolderName: null });
+    setLocalAppSettings((s) => ({ ...s, fileSystemFolderName: null }));
+  }, []);
 
   // Close on escape key
   useEffect(() => {
@@ -194,6 +235,71 @@ export function SettingsModal(): JSX.Element | null {
             checked={settings.milestoneSnap}
             onChange={handleMilestoneSnapChange}
           />
+
+          {/* Backup reminders section */}
+          <SettingRow
+            id="backup-reminder"
+            label="Backup reminders"
+            description="Get reminded to export backups periodically"
+            checked={appSettings.backupReminderEnabled}
+            onChange={handleBackupReminderToggle}
+          />
+
+          {appSettings.backupReminderEnabled && (
+            <div className="py-3 flex items-center justify-between">
+              <span className="text-sm text-[var(--color-text-primary)]">Remind every</span>
+              <select
+                value={appSettings.backupReminderDays}
+                onChange={handleBackupDaysChange}
+                className="text-sm bg-[var(--color-input-bg)] border border-[var(--color-border)] rounded px-2 py-1 focus-ring"
+              >
+                <option value={3}>3 days</option>
+                <option value={7}>7 days</option>
+                <option value={14}>14 days</option>
+                <option value={30}>30 days</option>
+              </select>
+            </div>
+          )}
+
+          {appSettings.lastBackupDate && (
+            <div className="py-3">
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Last backup: {format(new Date(appSettings.lastBackupDate), 'MMM d, yyyy')}
+              </p>
+            </div>
+          )}
+
+          {/* File System Access API section (Chrome/Edge only) */}
+          {isFileSystemAccessSupported() && (
+            <div className="py-3">
+              <label className="text-sm font-medium text-[var(--color-text-primary)]">
+                Auto-save to folder
+              </label>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 mb-3">
+                Save project files to a folder on your computer
+              </p>
+              {appSettings.fileSystemFolderName ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--color-text-primary)]">
+                    Saving to: <strong>{appSettings.fileSystemFolderName}</strong>
+                  </span>
+                  <button
+                    onClick={handleDisableFs}
+                    className="text-xs text-[var(--color-error)] hover:underline"
+                  >
+                    Disable
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleSelectFolder}
+                  className="text-sm text-[var(--color-focus)] hover:underline"
+                >
+                  Choose folder...
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

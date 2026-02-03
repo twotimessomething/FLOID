@@ -9,6 +9,7 @@ import {
   loadProjectFromStorage,
   saveProjectToStorage,
   deleteProjectFromStorage,
+  initializeStorage,
   type ProjectIndexEntry,
 } from '../utils/storageUtils';
 
@@ -24,17 +25,18 @@ interface ProjectState {
   project: Project;
   projects: ProjectIndexEntry[];
   activeProjectId: string | null;
+  isStorageReady: boolean;
 
   setProject: (project: Project) => void;
   updateProject: (updates: Partial<Project>) => void;
   resetProject: () => void;
 
-  initializeProjects: () => void;
-  addProject: (config?: { name?: string }) => string;
-  createProject: (config: NewProjectConfig) => { projectId: string; section: Section };
-  deleteProject: (projectId: string) => void;
-  selectProject: (projectId: string) => void;
-  updateProjectIndex: (projectId: string, updates: Partial<ProjectIndexEntry>) => void;
+  initializeProjects: () => Promise<void>;
+  addProject: (config?: { name?: string }) => Promise<string>;
+  createProject: (config: NewProjectConfig) => Promise<{ projectId: string; section: Section }>;
+  deleteProject: (projectId: string) => Promise<void>;
+  selectProject: (projectId: string) => Promise<void>;
+  updateProjectIndex: (projectId: string, updates: Partial<ProjectIndexEntry>) => Promise<void>;
 
   // Master section operations
   setMasterSection: (sectionId: string, startDate: string, endDate: string) => void;
@@ -44,8 +46,8 @@ interface ProjectState {
   getSettings: () => ProjectSettings;
   updateSettings: (updates: Partial<ProjectSettings>) => void;
 
-  saveCurrentProject: (sections: Section[]) => void;
-  loadProjectData: (projectId: string) => { sections: Section[] } | null;
+  saveCurrentProject: (sections: Section[]) => Promise<void>;
+  loadProjectData: (projectId: string) => Promise<{ sections: Section[] } | null>;
 }
 
 // Helper to create a default project with its master section
@@ -63,6 +65,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   })(),
   projects: [],
   activeProjectId: null,
+  isStorageReady: false,
 
   setProject: (project) => set({ project }),
 
@@ -79,7 +82,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           ? { ...p, name: updatedProject.name, updatedAt: updatedProject.updatedAt }
           : p
       );
-      saveProjectsIndex(updatedProjects);
+
+      // Save async but don't await
+      saveProjectsIndex(updatedProjects).catch(console.error);
 
       return {
         project: updatedProject,
@@ -92,8 +97,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ project });
   },
 
-  initializeProjects: () => {
-    const projects = loadProjectsIndex();
+  initializeProjects: async () => {
+    // Initialize storage (migrate from localStorage if needed)
+    await initializeStorage();
+
+    const projects = await loadProjectsIndex();
 
     // No projects - start with empty state
     if (projects.length === 0) {
@@ -101,6 +109,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projects: [],
         project: null as unknown as Project,
         activeProjectId: null,
+        isStorageReady: true,
       });
       return;
     }
@@ -110,35 +119,37 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
     const mostRecent = sortedProjects[0];
-    const projectData = loadProjectFromStorage(mostRecent.id);
+    const projectData = await loadProjectFromStorage(mostRecent.id);
 
     if (projectData?.project) {
       set({
         projects,
         project: projectData.project,
         activeProjectId: mostRecent.id,
+        isStorageReady: true,
       });
     } else {
       // Project data missing - remove from index and try next
       const remainingProjects = projects.filter(p => p.id !== mostRecent.id);
-      saveProjectsIndex(remainingProjects);
-      deleteProjectFromStorage(mostRecent.id);
+      await saveProjectsIndex(remainingProjects);
+      await deleteProjectFromStorage(mostRecent.id);
 
       if (remainingProjects.length === 0) {
         set({
           projects: [],
           project: null as unknown as Project,
           activeProjectId: null,
+          isStorageReady: true,
         });
       } else {
         // Recursively try to load remaining projects
         set({ projects: remainingProjects });
-        get().initializeProjects();
+        await get().initializeProjects();
       }
     }
   },
 
-  addProject: (config) => {
+  addProject: async (config) => {
     const { project: newProject, section: newSection } = createDefaultProjectWithSection(config?.name);
 
     const projectEntry: ProjectIndexEntry = {
@@ -147,21 +158,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       updatedAt: newProject.updatedAt,
     };
 
-    saveProjectToStorage(newProject.id, {
+    await saveProjectToStorage(newProject.id, {
       project: newProject,
       sections: [newSection],
     });
 
-    set((state) => {
-      const updatedProjects = [...state.projects, projectEntry];
-      saveProjectsIndex(updatedProjects);
-      return { projects: updatedProjects };
-    });
+    const state = get();
+    const updatedProjects = [...state.projects, projectEntry];
+    await saveProjectsIndex(updatedProjects);
+
+    set({ projects: updatedProjects });
 
     return newProject.id;
   },
 
-  createProject: (config) => {
+  createProject: async (config) => {
     const template = getTemplateById(config.masterTemplateId);
     if (!template) {
       throw new Error(`Template not found: ${config.masterTemplateId}`);
@@ -192,26 +203,26 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       updatedAt: newProject.updatedAt,
     };
 
-    saveProjectToStorage(newProject.id, {
+    await saveProjectToStorage(newProject.id, {
       project: newProject,
       sections: [masterSection],
     });
 
-    set((state) => {
-      const updatedProjects = [...state.projects, projectEntry];
-      saveProjectsIndex(updatedProjects);
-      return { projects: updatedProjects };
-    });
+    const state = get();
+    const updatedProjects = [...state.projects, projectEntry];
+    await saveProjectsIndex(updatedProjects);
+
+    set({ projects: updatedProjects });
 
     return { projectId: newProject.id, section: masterSection };
   },
 
-  deleteProject: (projectId) => {
+  deleteProject: async (projectId) => {
     const { projects, activeProjectId } = get();
 
     const updatedProjects = projects.filter((p) => p.id !== projectId);
-    saveProjectsIndex(updatedProjects);
-    deleteProjectFromStorage(projectId);
+    await saveProjectsIndex(updatedProjects);
+    await deleteProjectFromStorage(projectId);
 
     // If no projects remain, clear state entirely
     if (updatedProjects.length === 0) {
@@ -225,7 +236,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     if (activeProjectId === projectId) {
       const nextProject = updatedProjects[0];
-      const projectData = loadProjectFromStorage(nextProject.id);
+      const projectData = await loadProjectFromStorage(nextProject.id);
 
       if (projectData?.project) {
         set({
@@ -246,8 +257,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  selectProject: (projectId) => {
-    const projectData = loadProjectFromStorage(projectId);
+  selectProject: async (projectId) => {
+    const projectData = await loadProjectFromStorage(projectId);
 
     if (projectData?.project) {
       set({
@@ -257,14 +268,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  updateProjectIndex: (projectId, updates) => {
-    set((state) => {
-      const updatedProjects = state.projects.map((p) =>
-        p.id === projectId ? { ...p, ...updates } : p
-      );
-      saveProjectsIndex(updatedProjects);
-      return { projects: updatedProjects };
-    });
+  updateProjectIndex: async (projectId, updates) => {
+    const state = get();
+    const updatedProjects = state.projects.map((p) =>
+      p.id === projectId ? { ...p, ...updates } : p
+    );
+    await saveProjectsIndex(updatedProjects);
+    set({ projects: updatedProjects });
   },
 
   setMasterSection: (sectionId, startDate, endDate) =>
@@ -305,29 +315,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       },
     })),
 
-  saveCurrentProject: (sections) => {
+  saveCurrentProject: async (sections) => {
     const { project, activeProjectId } = get();
     if (!activeProjectId) return;
 
     const updatedAt = new Date().toISOString();
     const updatedProject = { ...project, updatedAt };
 
-    saveProjectToStorage(activeProjectId, {
+    await saveProjectToStorage(activeProjectId, {
       project: updatedProject,
       sections,
     });
 
-    set((state) => {
-      const updatedProjects = state.projects.map((p) =>
-        p.id === activeProjectId ? { ...p, updatedAt } : p
-      );
-      saveProjectsIndex(updatedProjects);
-      return { project: updatedProject, projects: updatedProjects };
-    });
+    const state = get();
+    const updatedProjects = state.projects.map((p) =>
+      p.id === activeProjectId ? { ...p, updatedAt } : p
+    );
+    await saveProjectsIndex(updatedProjects);
+
+    set({ project: updatedProject, projects: updatedProjects });
   },
 
-  loadProjectData: (projectId) => {
-    const data = loadProjectFromStorage(projectId);
+  loadProjectData: async (projectId) => {
+    const data = await loadProjectFromStorage(projectId);
     if (!data) return null;
     return { sections: data.sections || [] };
   },
