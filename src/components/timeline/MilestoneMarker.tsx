@@ -24,7 +24,7 @@ export function MilestoneMarker({
   lineHeight = 0,
   isHidden = false,
 }: MilestoneMarkerProps) {
-  const { updateMilestone } = useSectionStore();
+  const { updateMilestone, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
 
@@ -67,6 +67,8 @@ export function MilestoneMarker({
     (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
+      // Begin undo transaction before any state changes
+      beginDragTransaction();
       isDraggingRef.current = true;
       lastXRef.current = e.clientX;
       setDragging(true, 'move');
@@ -76,7 +78,7 @@ export function MilestoneMarker({
       const date = getDateFromRelativePosition(section.startDate, section.endDate, milestonePositionRef.current);
       setDragDate(formatDate(date, 'MMM d'));
     },
-    [setDragging, section.startDate, section.endDate]
+    [beginDragTransaction, setDragging, section.startDate, section.endDate]
   );
 
   // Memoize section viewport width for the effect
@@ -142,6 +144,9 @@ export function MilestoneMarker({
       if (finalPosition !== milestonePositionRef.current) {
         updateMilestone(section.id, milestone.id, { relativePosition: finalPosition });
       }
+
+      // Commit transaction to create single undo entry
+      commitDragTransaction();
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -151,7 +156,7 @@ export function MilestoneMarker({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, section.startDate, section.endDate, section.phases, milestone.id, sectionViewportWidth, updateMilestone, setDragging, settings.milestoneSnap, settings.skipWeekends]);
+  }, [section.id, section.startDate, section.endDate, section.phases, milestone.id, sectionViewportWidth, updateMilestone, setDragging, settings.milestoneSnap, settings.skipWeekends, commitDragTransaction]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(

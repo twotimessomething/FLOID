@@ -41,7 +41,7 @@ export function PhaseRow({
   phaseIndex,
   totalPhases,
 }: PhaseRowProps): JSX.Element {
-  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithTasks, updatePhaseWithRipple, addTask, addPhaseBarMilestone, clearExpansion, addPhase, reorderPhases } = useSectionStore();
+  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithTasks, updatePhaseWithRipple, addTask, addPhaseBarMilestone, clearExpansion, addPhase, reorderPhases, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
   const project = useProjectStore((state) => state.project);
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
@@ -315,6 +315,8 @@ export function PhaseRow({
   };
 
   const handleDragStart = (edge: 'start' | 'end', e?: React.MouseEvent): void => {
+    // Begin undo transaction before any state changes
+    beginDragTransaction();
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
 
     // Check for ripple mode: Shift+Cmd/Ctrl on end handle only
@@ -437,6 +439,9 @@ export function PhaseRow({
         }
       }
     }
+
+    // Commit transaction to create single undo entry
+    commitDragTransaction();
   };
 
   // Move handlers for dragging the entire bar
@@ -444,12 +449,14 @@ export function PhaseRow({
     (e: React.MouseEvent) => {
       // Don't start move if clicking on drag handles (they stopPropagation)
       e.preventDefault();
+      // Begin undo transaction before any state changes
+      beginDragTransaction();
       isMoving.current = true;
       moveLastX.current = e.clientX;
       setDragging(true, 'move');
       document.body.classList.add('no-select');
     },
-    [setDragging]
+    [beginDragTransaction, setDragging]
   );
 
   // Memoize sectionViewportWidth for the move handler
@@ -502,6 +509,9 @@ export function PhaseRow({
           updatePhasePosition(section.id, phase.id, snappedStart, snappedEnd);
         }
       }
+
+      // Commit transaction to create single undo entry
+      commitDragTransaction();
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -511,7 +521,7 @@ export function PhaseRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, section.startDate, section.endDate, phase.id, sectionViewportWidth, updatePhasePosition, setDragging, compensateExpansionScroll, settings.skipWeekends]);
+  }, [section.id, section.startDate, section.endDate, phase.id, sectionViewportWidth, updatePhasePosition, setDragging, compensateExpansionScroll, settings.skipWeekends, commitDragTransaction]);
 
   // Viewport stability: compensate scroll position after auto-expansion
   useEffect(() => {

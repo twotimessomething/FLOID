@@ -32,7 +32,7 @@ export function TaskRow({
   phaseIndex,
   totalPhases,
 }: TaskRowProps): JSX.Element {
-  const { updateTaskPosition, addTaskBarMilestone, addTask } = useSectionStore();
+  const { updateTaskPosition, addTaskBarMilestone, addTask, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const project = useProjectStore((state) => state.project);
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
 
@@ -201,6 +201,8 @@ export function TaskRow({
   );
 
   const handleDragStart = (edge: 'start' | 'end', _e?: React.MouseEvent): void => {
+    // Begin undo transaction before any state changes
+    beginDragTransaction();
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
     // Calculate section-relative position and set drag date using section dates
     const relativeInPhase = edge === 'start' ? task.relativeStart : task.relativeEnd;
@@ -274,18 +276,23 @@ export function TaskRow({
         }
       }
     }
+
+    // Commit transaction to create single undo entry
+    commitDragTransaction();
   };
 
   // Move handlers for dragging the entire bar
   const handleMoveStart = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
+      // Begin undo transaction before any state changes
+      beginDragTransaction();
       isMoving.current = true;
       moveLastX.current = e.clientX;
       setDragging(true, 'move');
       document.body.classList.add('no-select');
     },
-    [setDragging]
+    [beginDragTransaction, setDragging]
   );
 
   // Calculate the pixel width of the phase in viewport coordinates (memoized for effect)
@@ -359,6 +366,9 @@ export function TaskRow({
           );
         }
       }
+
+      // Commit transaction to create single undo entry
+      commitDragTransaction();
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -368,7 +378,7 @@ export function TaskRow({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [section.id, section.startDate, section.endDate, phase.id, task.id, phaseWidth, phasePixelWidth, updateTaskPosition, setDragging, settings.skipWeekends]);
+  }, [section.id, section.startDate, section.endDate, phase.id, task.id, phaseWidth, phasePixelWidth, updateTaskPosition, setDragging, settings.skipWeekends, commitDragTransaction]);
 
   // Handle keyboard interaction
   const handleKeyDown = useCallback(

@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useMemo } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSectionStore, selectMasterSection, selectNonMasterSections } from '../stores/sectionStore';
+import { useUndoRedo } from './useUndoRedo';
 import { SHORTCUTS } from '../constants/shortcuts';
 import type { SelectionState, Section } from '../types';
 
@@ -19,6 +20,7 @@ interface NavigableItem {
  */
 export function useKeyboardShortcuts(): void {
   const { selection, selectItem, closeModal, isModalOpen } = useUIStore();
+  const { undo, redo } = useUndoRedo();
 
   const masterSection = useSectionStore(selectMasterSection);
   const nonMasterSections = useSectionStore(selectNonMasterSections);
@@ -194,7 +196,24 @@ export function useKeyboardShortcuts(): void {
   // Main keyboard event handler
   const handleKeyDown = useCallback(
     (event: KeyboardEvent): void => {
-      // Ignore if user is typing in an input or textarea
+      // Undo: Cmd/Ctrl+Z (works even in inputs for consistency)
+      if ((event.metaKey || event.ctrlKey) && event.key === SHORTCUTS.UNDO && !event.shiftKey) {
+        undo();
+        event.preventDefault();
+        return;
+      }
+
+      // Redo: Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        ((event.key === SHORTCUTS.REDO_SHIFT && event.shiftKey) || event.key === SHORTCUTS.REDO_Y)
+      ) {
+        redo();
+        event.preventDefault();
+        return;
+      }
+
+      // Ignore other shortcuts if user is typing in an input or textarea
       const target = event.target as HTMLElement;
       if (
         target.tagName === 'INPUT' ||
@@ -251,6 +270,8 @@ export function useKeyboardShortcuts(): void {
       handleNavigation,
       handleToggleCollapse,
       handleDelete,
+      undo,
+      redo,
     ]
   );
 

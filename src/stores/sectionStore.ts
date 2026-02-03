@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { temporal } from 'zundo';
 import { parseISO, differenceInDays, addDays, subDays } from 'date-fns';
 import type { Section, Phase, Task, Milestone, BarMilestone } from '../types';
 import { createDefaultIDTimelineSection, createDefaultSectionDateRange } from '../data/defaultTemplate';
@@ -23,6 +24,10 @@ interface SectionState {
   sections: Section[];
   isInitialized: boolean;
   lastExpansion: ExpansionInfo | null;
+
+  // Drag transaction state (for undo coalescing)
+  _dragSnapshot: Section[] | null;
+  _dragHistoryIndex: number | null;
 
   // Initialization
   initializeFromProject: () => Promise<void>;
@@ -111,6 +116,11 @@ interface SectionState {
 
   // Save state
   saveState: () => void;
+
+  // Drag transaction methods (for undo coalescing)
+  beginDragTransaction: () => void;
+  commitDragTransaction: () => void;
+  rollbackDragTransaction: () => void;
 }
 
 // Selectors for O(1) lookups
@@ -161,10 +171,14 @@ export const selectNonMasterSections = (state: SectionState) => {
   return state.sections.filter((s) => s.id !== project?.masterSectionId);
 };
 
-export const useSectionStore = create<SectionState>((set, get) => ({
+export const useSectionStore = create<SectionState>()(
+  temporal(
+    (set, get) => ({
   sections: [],
   isInitialized: false,
   lastExpansion: null,
+  _dragSnapshot: null,
+  _dragHistoryIndex: null,
 
   initializeFromProject: async () => {
     const projectStore = useProjectStore.getState();
@@ -178,6 +192,8 @@ export const useSectionStore = create<SectionState>((set, get) => ({
           sections: data.sections,
           isInitialized: true,
         });
+        // Clear undo history after initialization so the loaded state is the base
+        useSectionStore.temporal.getState().clear();
         return;
       }
     }
@@ -187,11 +203,15 @@ export const useSectionStore = create<SectionState>((set, get) => ({
       sections: [],
       isInitialized: true,
     });
+    // Clear undo history after initialization
+    useSectionStore.temporal.getState().clear();
   },
 
   loadSectionsForProject: async (projectId: string) => {
     if (!projectId) {
       set({ sections: [] });
+      // Clear undo history when switching projects
+      useSectionStore.temporal.getState().clear();
       return;
     }
 
@@ -203,6 +223,8 @@ export const useSectionStore = create<SectionState>((set, get) => ({
     } else {
       set({ sections: [createDefaultIDTimelineSection()] });
     }
+    // Clear undo history when switching projects so the loaded state is the base
+    useSectionStore.temporal.getState().clear();
   },
 
   setSections: (sections) => set({ sections }),
@@ -1092,4 +1114,77 @@ export const useSectionStore = create<SectionState>((set, get) => ({
     const { sections } = get();
     useProjectStore.getState().saveCurrentProject(sections);
   },
-}));
+
+  beginDragTransaction: () => {
+    const { pastStates } = useSectionStore.temporal.getState();
+    const currentSections = get().sections;
+
+    // Save snapshot and history index before any drag changes
+    // We DON'T pause - let all intermediate states be recorded
+    // They'll be collapsed at commit time
+    set({
+      _dragSnapshot: structuredClone(currentSections),
+      _dragHistoryIndex: pastStates.length,
+    });
+  },
+
+  commitDragTransaction: () => {
+    const snapshot = get()._dragSnapshot;
+    const historyIndex = get()._dragHistoryIndex;
+    const currentSections = get().sections;
+
+    // Clear transaction state
+    set({ _dragSnapshot: null, _dragHistoryIndex: null });
+
+    // If no snapshot or index, nothing to do
+    if (snapshot === null || historyIndex === null) return;
+
+    // If no changes were made, just remove any intermediate history entries
+    const changed = JSON.stringify(snapshot) !== JSON.stringify(currentSections);
+    if (!changed) {
+      const { pastStates } = useSectionStore.temporal.getState();
+      // Remove any entries added during the drag (there shouldn't be any if unchanged)
+      if (pastStates.length > historyIndex) {
+        useSectionStore.temporal.setState({
+          pastStates: pastStates.slice(0, historyIndex),
+        });
+      }
+      return;
+    }
+
+    // Get current history
+    const { pastStates } = useSectionStore.temporal.getState();
+
+    // Remove all entries added during the drag, replace with just the pre-drag snapshot
+    // This collapses: [history..., drag1, drag2, drag3] -> [history..., snapshot]
+    const originalHistory = pastStates.slice(0, historyIndex);
+
+    useSectionStore.temporal.setState({
+      pastStates: [...originalHistory, { sections: snapshot }],
+      futureStates: [], // Clear redo since this is a new action
+    });
+  },
+
+  rollbackDragTransaction: () => {
+    const snapshot = get()._dragSnapshot;
+    const historyIndex = get()._dragHistoryIndex;
+
+    // Restore to snapshot if available
+    if (snapshot && historyIndex !== null) {
+      const { pastStates } = useSectionStore.temporal.getState();
+      // Remove any entries added during the drag
+      useSectionStore.temporal.setState({
+        pastStates: pastStates.slice(0, historyIndex),
+      });
+      set({ sections: snapshot, _dragSnapshot: null, _dragHistoryIndex: null });
+    } else {
+      set({ _dragSnapshot: null, _dragHistoryIndex: null });
+    }
+  },
+    }),
+    {
+      limit: 50,
+      partialize: (state) => ({ sections: state.sections }),
+    }
+  )
+);

@@ -17,6 +17,11 @@ export const SHORTCUTS = {
   // Zoom (with modifier)
   ZOOM_IN: '+',
   ZOOM_OUT: '-',
+
+  // Undo/Redo
+  UNDO: 'z',
+  REDO_SHIFT: 'z', // with shift modifier
+  REDO_Y: 'y', // alternative Windows shortcut
 } as const;
 
 // Shortcut descriptions for help display
@@ -28,4 +33,7 @@ export const SHORTCUT_DESCRIPTIONS: Record<string, string> = {
   [SHORTCUTS.SPACE]: 'Toggle collapse/expand',
   [SHORTCUTS.DELETE]: 'Delete selected item',
   [SHORTCUTS.BACKSPACE]: 'Delete selected item',
+  'Cmd/Ctrl+Z': 'Undo',
+  'Cmd/Ctrl+Shift+Z': 'Redo',
+  'Cmd/Ctrl+Y': 'Redo',
 };

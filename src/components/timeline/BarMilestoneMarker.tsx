@@ -22,7 +22,7 @@ export function BarMilestoneMarker({
   barWidth,
   color,
 }: BarMilestoneMarkerProps): JSX.Element {
-  const { updatePhaseBarMilestone, updateTaskBarMilestone } = useSectionStore();
+  const { updatePhaseBarMilestone, updateTaskBarMilestone, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
 
   // Get section, phase, and task data for date calculations
@@ -93,6 +93,8 @@ export function BarMilestoneMarker({
     (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
+      // Begin undo transaction before any state changes
+      beginDragTransaction();
       isDraggingRef.current = true;
       lastXRef.current = e.clientX;
       setDragging(true, 'move');
@@ -100,7 +102,7 @@ export function BarMilestoneMarker({
       setDragDate(calculateDate(positionRef.current));
       document.body.classList.add('no-select');
     },
-    [setDragging, calculateDate]
+    [beginDragTransaction, setDragging, calculateDate]
   );
 
   useEffect(() => {
@@ -135,6 +137,9 @@ export function BarMilestoneMarker({
       setIsDragActive(false);
       setDragDate(null);
       document.body.classList.remove('no-select');
+
+      // Commit transaction to create single undo entry
+      commitDragTransaction();
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -144,7 +149,7 @@ export function BarMilestoneMarker({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [sectionId, phaseId, taskId, barMilestone.id, barWidth, updatePhaseBarMilestone, updateTaskBarMilestone, setDragging, calculateDate]);
+  }, [sectionId, phaseId, taskId, barMilestone.id, barWidth, updatePhaseBarMilestone, updateTaskBarMilestone, setDragging, calculateDate, commitDragTransaction]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

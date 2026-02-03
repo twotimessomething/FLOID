@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { useSectionStore } from '../stores/sectionStore';
 
 interface UseDragResizeOptions {
   onDragStart?: () => void;
@@ -10,12 +11,19 @@ export function useDragResize({ onDragStart, onDrag, onDragEnd }: UseDragResizeO
   const [isDragging, setIsDragging] = useState(false);
   const lastX = useRef(0);
 
+  const beginDragTransaction = useSectionStore((state) => state.beginDragTransaction);
+  const commitDragTransaction = useSectionStore((state) => state.commitDragTransaction);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
       setIsDragging(true);
       lastX.current = e.clientX;
+
+      // Begin undo transaction before any state changes
+      beginDragTransaction();
+
       onDragStart?.();
       document.body.classList.add('no-select');
 
@@ -27,6 +35,10 @@ export function useDragResize({ onDragStart, onDrag, onDragEnd }: UseDragResizeO
 
       const handleMouseUp = () => {
         setIsDragging(false);
+
+        // Commit transaction to create single undo entry
+        commitDragTransaction();
+
         onDragEnd?.();
         document.body.classList.remove('no-select');
         document.removeEventListener('mousemove', handleMouseMove);
@@ -36,7 +48,7 @@ export function useDragResize({ onDragStart, onDrag, onDragEnd }: UseDragResizeO
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [onDragStart, onDrag, onDragEnd]
+    [beginDragTransaction, commitDragTransaction, onDragStart, onDrag, onDragEnd]
   );
 
   return {
