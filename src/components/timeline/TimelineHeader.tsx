@@ -44,7 +44,7 @@ export default function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderPr
         )}
 
         {/* Day/Week markers on bottom row */}
-        <div className="absolute bottom-0 left-0 right-0 h-1/2 flex items-center border-t border-[var(--color-border)]/50">
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 flex items-center border-t" style={{ borderColor: 'var(--color-row-border-strong)' }}>
           {markers.map((marker, index) => {
             const daysSinceStart = getDaysBetween(viewportBounds.startDate, marker.date);
             const relativePos = totalDays > 0 ? daysSinceStart / totalDays : 0;

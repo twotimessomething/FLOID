@@ -7,3 +7,4 @@ export { useKeyboardShortcuts } from './useKeyboardShortcuts';
 export { useTimelineStatus } from './useTimelineStatus';
 export type { StatusItem, MilestoneItem, TimelineStatus } from './useTimelineStatus';
 export { useScheduleImport } from './useScheduleImport';
+export { useTheme } from './useTheme';

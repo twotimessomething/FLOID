@@ -11,7 +11,7 @@ import { ImportConfirmModal } from './components/layout/ImportConfirmModal';
 import { SettingsModal } from './components/layout/SettingsModal';
 import { ContextMenu } from './components/timeline';
 import { Toast } from './components/common';
-import { useAutoSave, useKeyboardShortcuts, useScheduleImport } from './hooks';
+import { useAutoSave, useKeyboardShortcuts, useScheduleImport, useTheme } from './hooks';
 import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
 import { useUIStore } from './stores/uiStore';
@@ -30,6 +30,9 @@ function App() {
 
   // Initialize global keyboard shortcuts
   useKeyboardShortcuts();
+
+  // Initialize theme handling
+  useTheme();
 
   useEffect(() => {
     initializeFromProject();
@@ -131,9 +134,9 @@ function App() {
 
       {/* Drop zone overlay */}
       {isDraggingFile && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-blue-500/10 border-4 border-dashed border-blue-500 pointer-events-none">
-          <div className="bg-white px-6 py-4 rounded-xl shadow-lg">
-            <p className="text-lg font-medium text-blue-600">
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-focus)]/10 border-4 border-dashed border-[var(--color-focus)] pointer-events-none">
+          <div className="bg-[var(--color-surface)] px-6 py-4 rounded-xl shadow-lg">
+            <p className="text-lg font-medium text-[var(--color-focus)]">
               Drop .floid file to import schedule
             </p>
           </div>

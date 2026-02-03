@@ -7,7 +7,7 @@ export function MasterBadge({ size = 'sm' }: MasterBadgeProps): JSX.Element {
 
   return (
     <span
-      className="inline-flex items-center text-amber-500"
+      className="inline-flex items-center text-[var(--color-warning)]"
       title="Pinned as master schedule"
     >
       {/* Pin icon */}

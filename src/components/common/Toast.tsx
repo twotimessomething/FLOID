@@ -5,7 +5,7 @@ import { useUIStore, type ToastType } from '../../stores/uiStore';
 const ICONS: Record<ToastType, JSX.Element> = {
   success: (
     <svg
-      className="w-5 h-5 text-green-500"
+      className="w-5 h-5 text-[var(--color-success)]"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -20,7 +20,7 @@ const ICONS: Record<ToastType, JSX.Element> = {
   ),
   error: (
     <svg
-      className="w-5 h-5 text-red-500"
+      className="w-5 h-5 text-[var(--color-error)]"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -35,7 +35,7 @@ const ICONS: Record<ToastType, JSX.Element> = {
   ),
   warning: (
     <svg
-      className="w-5 h-5 text-amber-500"
+      className="w-5 h-5 text-[var(--color-warning)]"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -51,9 +51,9 @@ const ICONS: Record<ToastType, JSX.Element> = {
 };
 
 const BG_COLORS: Record<ToastType, string> = {
-  success: 'bg-green-50 border-green-200',
-  error: 'bg-red-50 border-red-200',
-  warning: 'bg-amber-50 border-amber-200',
+  success: 'bg-[var(--color-success-bg)] border-[var(--color-success)]',
+  error: 'bg-[var(--color-error-bg)] border-[var(--color-error)]',
+  warning: 'bg-[var(--color-warning-bg)] border-[var(--color-warning)]',
 };
 
 export function Toast(): JSX.Element | null {

@@ -352,10 +352,10 @@ export default function ElementRow({
   if (isLabel) {
     return (
       <div
-        className={`flex items-center ${isMasterSection ? 'pl-9' : 'pl-12'} pr-3 border-b border-[var(--color-border)]/15 cursor-pointer row-selectable focus-ring ${
+        className={`flex items-center ${isMasterSection ? 'pl-9' : 'pl-12'} pr-3 border-b cursor-pointer row-selectable focus-ring ${
           isSelected ? 'selected' : ''
         }`}
-        style={{ height: ELEMENT_ROW_HEIGHT }}
+        style={{ height: ELEMENT_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
         onClick={handleClick}
         onContextMenu={handleLabelContextMenu}
         onKeyDown={handleKeyDown}
@@ -375,8 +375,8 @@ export default function ElementRow({
 
   return (
     <div
-      className="relative border-b border-[var(--color-border)]/15 overflow-visible"
-      style={{ height: ELEMENT_ROW_HEIGHT }}
+      className="relative border-b overflow-visible"
+      style={{ height: ELEMENT_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
       role="listitem"
       onContextMenu={handleRowContextMenu}
     >

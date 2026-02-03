@@ -7,7 +7,7 @@ interface EmptyStateHintProps {
 export function EmptyStateHint({
   text,
   height,
-  borderClass = 'border-b border-[var(--color-border)]/15',
+  borderClass = 'border-b',
 }: EmptyStateHintProps): JSX.Element {
   // Uses sticky positioning to stay centered in the visible viewport area.
   // The outer div takes full timeline width, while the inner sticky div
@@ -16,7 +16,7 @@ export function EmptyStateHint({
   return (
     <div
       className={`relative w-full ${borderClass}`}
-      style={{ height }}
+      style={{ height, borderColor: 'var(--color-row-border-light)' }}
     >
       <div
         className="sticky left-0 right-0 h-full flex items-center justify-center pointer-events-none"

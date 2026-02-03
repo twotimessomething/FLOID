@@ -225,16 +225,13 @@ export default function BarMilestoneMarker({
 
       {/* Label - positioned above the bar, also draggable */}
       <div
-        className={`absolute bottom-full left-1/2 -translate-x-1/2 px-1.5 py-0.5 text-[10px] font-medium rounded whitespace-nowrap cursor-grab active:cursor-grabbing transition-all duration-150 ${
+        className={`absolute bottom-full left-1/2 -translate-x-1/2 px-1.5 py-0.5 text-[10px] font-medium rounded whitespace-nowrap cursor-grab active:cursor-grabbing transition-all duration-150 bg-[var(--color-surface)] text-[var(--color-text-primary)] border border-[var(--color-border)] ${
           isSelected
             ? 'ring-2 ring-[var(--color-focus)] ring-offset-1'
             : ''
         }`}
         style={{
           marginBottom: 1,
-          backgroundColor: isDragActive || isSelected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.85)',
-          color: 'var(--color-text-primary)',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
         }}
       >
         {barMilestone.name || 'Milestone'}

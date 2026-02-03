@@ -207,7 +207,7 @@ export default function MilestoneMarker({
           className={`w-3 h-3 rotate-45 ${
             isSelected
               ? 'bg-[var(--color-focus)] ring-2 ring-[var(--color-focus)]/40'
-              : 'bg-[var(--color-text-primary)] group-hover:bg-gray-800'
+              : 'bg-[var(--color-text-primary)]'
           }`}
         />
       </div>
@@ -215,7 +215,7 @@ export default function MilestoneMarker({
       {/* Short vertical line extending down from marker */}
       <div
         className={`absolute top-1/2 left-0 -translate-x-1/2 w-0.5 h-3 ${
-          isSelected ? 'bg-[var(--color-focus)]' : 'bg-[var(--color-text-primary)] group-hover:bg-gray-800'
+          isSelected ? 'bg-[var(--color-focus)]' : 'bg-[var(--color-text-primary)]'
         }`}
         aria-hidden="true"
       />
@@ -234,7 +234,7 @@ export default function MilestoneMarker({
 
       {/* Always visible title - below the marker */}
       <div
-        className="absolute top-full left-1/2 -translate-x-1/2 -mt-2 px-2 py-0.5 bg-white/70 backdrop-blur-[2px] text-[var(--color-text-primary)] text-xs rounded-md whitespace-nowrap pointer-events-none border border-white/50"
+        className="absolute top-full left-1/2 -translate-x-1/2 -mt-2 px-2 py-0.5 bg-[var(--color-surface)]/90 backdrop-blur-[2px] text-[var(--color-text-primary)] text-xs rounded-md whitespace-nowrap pointer-events-none border border-[var(--color-border)]"
         role="tooltip"
       >
         {milestone.name}

@@ -60,10 +60,12 @@ export default function TimelineGrid() {
         return (
           <div
             key={`col-${index}`}
-            className={`absolute top-0 border-l ${
-              marker.isMinor ? 'border-[var(--color-border)]/25' : 'border-[var(--color-border)]/50'
-            }`}
-            style={{ left, height: sectionHeight }}
+            className="absolute top-0 border-l"
+            style={{
+              left,
+              height: sectionHeight,
+              borderColor: marker.isMinor ? 'var(--color-gridline-minor)' : 'var(--color-gridline-major)'
+            }}
           />
         );
       })}

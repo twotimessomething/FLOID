@@ -635,7 +635,7 @@ export function ContextMenu(): JSX.Element | null {
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[100] min-w-[140px] py-1 bg-white rounded-lg shadow-lg border border-[var(--color-border)] animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-[100] min-w-[140px] py-1 bg-[var(--color-surface)] rounded-lg shadow-lg border border-[var(--color-border)] animate-in fade-in zoom-in-95 duration-100"
       style={{ left: position.x, top: position.y }}
       role="menu"
       aria-label="Context menu"
@@ -650,13 +650,13 @@ export function ContextMenu(): JSX.Element | null {
             item.disabled
               ? 'text-[var(--color-text-muted)] cursor-default'
               : item.danger
-                ? 'text-red-600 hover:bg-red-50'
-                : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)]'
+                ? 'text-[var(--color-error)] hover:bg-[var(--color-error-bg)]'
+                : 'text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
           } ${item.info ? 'flex items-center gap-1.5' : ''} ${item.hasSubmenu ? 'flex items-center justify-between' : ''}`}
           role="menuitem"
         >
           {item.info && (
-            <svg className="w-4 h-4 text-amber-500 rotate-45" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="w-4 h-4 text-[var(--color-warning)] rotate-45" viewBox="0 0 24 24" fill="currentColor">
               <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
             </svg>
           )}

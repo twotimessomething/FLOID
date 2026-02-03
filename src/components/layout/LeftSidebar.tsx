@@ -235,7 +235,7 @@ export function LeftSidebar() {
                     onBlur={handleSaveEdit}
                     onKeyDown={handleEditKeyDown}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)] min-w-0 flex-1"
+                    className="text-sm bg-[var(--color-input-bg)] text-[var(--color-text-primary)] border border-[var(--color-border)] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)] min-w-0 flex-1"
                   />
                 ) : (
                   <span

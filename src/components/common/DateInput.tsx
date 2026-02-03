@@ -55,7 +55,7 @@ export function DateInput({
         min={min ? formatForInput(min) : undefined}
         max={max ? formatForInput(max) : undefined}
         disabled={disabled}
-        className="px-2 py-1.5 text-sm border border-[var(--color-border)] rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] focus:border-transparent disabled:bg-[var(--color-background)] disabled:text-[var(--color-text-muted)]"
+        className="px-2 py-1.5 text-sm bg-[var(--color-input-bg)] text-[var(--color-text-primary)] border border-[var(--color-border)] rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] focus:border-transparent disabled:bg-[var(--color-background)] disabled:text-[var(--color-text-muted)]"
       />
     </div>
   );

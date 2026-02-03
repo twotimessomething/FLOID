@@ -253,10 +253,10 @@ export default function SectionRow({
       >
         {/* Section header label */}
         <div
-          className={`flex items-center gap-2 px-3 border-b ${isMasterSection ? 'border-[var(--color-border)]/50 bg-[var(--color-background)]' : 'border-[var(--color-border)]/25'} ${
+          className={`flex items-center gap-2 px-3 border-b ${isMasterSection ? 'bg-[var(--color-background)]' : ''} ${
             !isMasterSection ? 'cursor-pointer row-selectable focus-ring' : ''
           } ${isSelected ? 'selected' : ''}`}
-          style={{ height: ROW_HEIGHT }}
+          style={{ height: ROW_HEIGHT, borderColor: isMasterSection ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
           onClick={!isMasterSection ? handleClick : undefined}
           onContextMenu={handleLabelContextMenu}
           onKeyDown={!isMasterSection ? handleKeyDown : undefined}
@@ -328,8 +328,8 @@ export default function SectionRow({
           <div role="list" aria-label={`${section.name} phases`}>
             {sortedPhases.length === 0 ? (
               <div
-                className="border-b border-[var(--color-border)]/25"
-                style={{ height: ROW_HEIGHT }}
+                className="border-b"
+                style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
               />
             ) : (
               sortedPhases.map((phase, index) => (
@@ -361,8 +361,8 @@ export default function SectionRow({
       {/* Section header row with collapsed phase bars when collapsed */}
       <div
         ref={headerRowRef}
-        className={`relative border-b ${isMasterSection ? 'border-[var(--color-border)]/50' : 'border-[var(--color-border)]/25'}`}
-        style={{ height: ROW_HEIGHT }}
+        className="relative border-b"
+        style={{ height: ROW_HEIGHT, borderColor: isMasterSection ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
         onDoubleClick={handleHeaderDoubleClick}
         onContextMenu={handleHeaderContextMenu}
       >
@@ -436,7 +436,7 @@ export default function SectionRow({
             <EmptyStateHint
               text="Double-click to add phase"
               height={ROW_HEIGHT}
-              borderClass="border-b border-[var(--color-border)]/25"
+              borderClass="border-b"
             />
           ) : (
             sortedPhases.map((phase, index) => (

@@ -508,10 +508,10 @@ export default function PhaseRow({
       <div role="group" aria-label={`${phase.name} phase`}>
         {/* Phase label */}
         <div
-          className={`flex items-center gap-2 ${isMasterSection ? 'px-3' : 'pl-6 pr-3'} border-b border-[var(--color-border)]/25 cursor-pointer row-selectable focus-ring ${
+          className={`flex items-center gap-2 ${isMasterSection ? 'px-3' : 'pl-6 pr-3'} border-b cursor-pointer row-selectable focus-ring ${
             isSelected ? 'selected' : ''
           }`}
-          style={{ height: ROW_HEIGHT }}
+          style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
           onClick={handleClick}
           onContextMenu={handleLabelContextMenu}
           onKeyDown={handleKeyDown}
@@ -581,8 +581,8 @@ export default function PhaseRow({
       {/* Phase bar row - double-click creates a phase below this one */}
       <div
         ref={phaseRowRef}
-        className="relative border-b border-[var(--color-border)]/25 overflow-visible"
-        style={{ height: ROW_HEIGHT }}
+        className="relative border-b overflow-visible"
+        style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
         onDoubleClick={handlePhaseRowDoubleClick}
         onContextMenu={handleRowContextMenu}
       >

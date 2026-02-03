@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import type { ZoomLevel, SelectionState, ModalPosition, ImportAnalysis, ImportModalType } from '../types';
 
+// Theme mode
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 // Label column constraints
 const MIN_LABEL_WIDTH = 120;
 const MAX_LABEL_WIDTH = 400;
@@ -142,6 +145,10 @@ interface UIState {
   isSettingsModalOpen: boolean;
   openSettingsModal: () => void;
   closeSettingsModal: () => void;
+
+  // Theme
+  theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -306,4 +313,8 @@ export const useUIStore = create<UIState>((set) => ({
   isSettingsModalOpen: false,
   openSettingsModal: () => set({ isSettingsModalOpen: true }),
   closeSettingsModal: () => set({ isSettingsModalOpen: false }),
+
+  // Theme
+  theme: 'system',
+  setTheme: (theme) => set({ theme }),
 }));

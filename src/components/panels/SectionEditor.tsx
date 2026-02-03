@@ -76,9 +76,9 @@ export function SectionEditor(): JSX.Element {
     return (
       <div className="flex flex-col gap-4">
         {/* Master status indicator */}
-        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex items-center gap-2 p-3 bg-[var(--color-warning-bg)] border border-[var(--color-warning)] rounded-lg">
           <MasterBadge size="md" />
-          <span className="text-sm text-amber-800">
+          <span className="text-sm text-[var(--color-warning)]">
             This schedule drives the project timeline
           </span>
         </div>
