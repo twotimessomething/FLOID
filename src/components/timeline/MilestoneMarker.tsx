@@ -167,25 +167,24 @@ export default function MilestoneMarker({
 
   return (
     <div
-      className="absolute z-30 cursor-pointer group focus-ring"
+      className={`absolute z-30 group focus-ring ${isHidden ? 'pointer-events-none' : 'cursor-pointer'}`}
       style={{
         left: milestoneLeft,
         top: 0,
         height: ROW_HEIGHT,
-        visibility: isHidden ? 'hidden' : 'visible',
       }}
-      onClick={handleClick}
-      onContextMenu={handleContextMenu}
-      onDoubleClick={handleDoubleClick}
-      onMouseDown={handleMouseDown}
-      onKeyDown={handleKeyDown}
-      role="button"
-      tabIndex={0}
+      onClick={isHidden ? undefined : handleClick}
+      onContextMenu={isHidden ? undefined : handleContextMenu}
+      onDoubleClick={isHidden ? undefined : handleDoubleClick}
+      onMouseDown={isHidden ? undefined : handleMouseDown}
+      onKeyDown={isHidden ? undefined : handleKeyDown}
+      role={isHidden ? undefined : 'button'}
+      tabIndex={isHidden ? -1 : 0}
       aria-label={`${milestone.name} milestone at ${Math.round(milestone.relativePosition * 100)}%`}
       aria-selected={isSelected}
     >
-      {/* Drag date bubble */}
-      {dragDate && (
+      {/* Drag date bubble - hidden when sticky */}
+      {dragDate && !isHidden && (
         <div
           className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-white text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none"
           aria-hidden="true"
@@ -196,31 +195,35 @@ export default function MilestoneMarker({
         </div>
       )}
 
-      {/* Diamond marker */}
-      <div
-        className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform duration-150 ${
-          isSelected ? 'scale-125' : 'hover:scale-110'
-        }`}
-        aria-hidden="true"
-      >
+      {/* Diamond marker - hidden when sticky */}
+      {!isHidden && (
         <div
-          className={`w-3 h-3 rotate-45 ${
-            isSelected
-              ? 'bg-[var(--color-focus)] ring-2 ring-[var(--color-focus)]/40'
-              : 'bg-[var(--color-text-primary)]'
+          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform duration-150 ${
+            isSelected ? 'scale-125' : 'hover:scale-110'
           }`}
+          aria-hidden="true"
+        >
+          <div
+            className={`w-3 h-3 rotate-45 ${
+              isSelected
+                ? 'bg-[var(--color-focus)] ring-2 ring-[var(--color-focus)]/40'
+                : 'bg-[var(--color-text-primary)]'
+            }`}
+          />
+        </div>
+      )}
+
+      {/* Short vertical line extending down from marker - hidden when sticky */}
+      {!isHidden && (
+        <div
+          className={`absolute top-1/2 left-0 -translate-x-1/2 w-0.5 h-3 ${
+            isSelected ? 'bg-[var(--color-focus)]' : 'bg-[var(--color-text-primary)]'
+          }`}
+          aria-hidden="true"
         />
-      </div>
+      )}
 
-      {/* Short vertical line extending down from marker */}
-      <div
-        className={`absolute top-1/2 left-0 -translate-x-1/2 w-0.5 h-3 ${
-          isSelected ? 'bg-[var(--color-focus)]' : 'bg-[var(--color-text-primary)]'
-        }`}
-        aria-hidden="true"
-      />
-
-      {/* Extended vertical line through content rows */}
+      {/* Extended vertical line through content rows - ALWAYS visible */}
       {lineHeight > 0 && (
         <div
           className="absolute left-0 -translate-x-1/2 w-px bg-[var(--color-milestone-line)] pointer-events-none"
@@ -232,13 +235,15 @@ export default function MilestoneMarker({
         />
       )}
 
-      {/* Always visible title - below the marker */}
-      <div
-        className="absolute top-full left-1/2 -translate-x-1/2 -mt-2 px-2 py-0.5 bg-[var(--color-surface)]/90 backdrop-blur-[2px] text-[var(--color-text-primary)] text-xs rounded-md whitespace-nowrap pointer-events-none border border-[var(--color-border)]"
-        role="tooltip"
-      >
-        {milestone.name}
-      </div>
+      {/* Always visible title - below the marker - hidden when sticky */}
+      {!isHidden && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 -mt-2 px-2 py-0.5 bg-[var(--color-surface)]/90 backdrop-blur-[2px] text-[var(--color-text-primary)] text-xs rounded-md whitespace-nowrap pointer-events-none border border-[var(--color-border)]"
+          role="tooltip"
+        >
+          {milestone.name}
+        </div>
+      )}
     </div>
   );
 }

@@ -37,6 +37,25 @@ const THEME_LABELS: Record<ThemeMode, string> = {
   system: 'System preference',
 };
 
+function Logo(): JSX.Element {
+  const theme = useUIStore((state) => state.theme);
+  const [systemIsDark, setSystemIsDark] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent): void => setSystemIsDark(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
+  const isDark = theme === 'dark' || (theme === 'system' && systemIsDark);
+  const src = isDark ? '/FLOID_logo_dark.svg' : '/FLOID_logo.svg';
+
+  return <img src={src} alt="FLOID" className="h-8" />;
+}
+
 
 export default function Header() {
   // Use selective store subscriptions to prevent unnecessary re-renders
@@ -150,10 +169,7 @@ export default function Header() {
     <header className="h-14 border-b border-[var(--color-border)] px-4 flex items-center justify-between bg-[var(--color-surface)] flex-shrink-0">
       <div className="flex items-center gap-3">
         {/* Logo with wordmark */}
-        <>
-          <img src="/FLOID_logo.svg" alt="FLOID" className="h-8 dark:hidden" />
-          <img src="/FLOID_logo_dark.svg" alt="FLOID" className="h-8 hidden dark:block" />
-        </>
+        <Logo />
         {/* Project name - only show when a project exists */}
         {project && (
           <>
