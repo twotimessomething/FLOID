@@ -223,7 +223,7 @@ export default function MilestoneMarker({
       {/* Extended vertical line through content rows */}
       {lineHeight > 0 && (
         <div
-          className="absolute left-0 -translate-x-1/2 w-px bg-[var(--color-gridline)] pointer-events-none"
+          className="absolute left-0 -translate-x-1/2 w-px bg-[var(--color-milestone-line)] pointer-events-none"
           style={{
             top: ROW_HEIGHT,
             height: lineHeight,

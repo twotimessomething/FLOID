@@ -27,6 +27,7 @@
   --color-row-border-light: rgba(229, 231, 235, 0.15);
   --color-row-border: rgba(229, 231, 235, 0.25);
   --color-row-border-strong: rgba(229, 231, 235, 0.5);
+  --color-milestone-line: rgba(0, 0, 0, 0.15);
   --color-today: #ef4444;
   --color-danger: #ef4444;
   --color-danger-hover: #fef2f2;
@@ -87,6 +88,7 @@
   --color-row-border-light: rgba(255, 255, 255, 0.04);
   --color-row-border: rgba(255, 255, 255, 0.06);
   --color-row-border-strong: rgba(255, 255, 255, 0.1);
+  --color-milestone-line: rgba(255, 255, 255, 0.25);
   --color-today: #f87171;
   --color-danger: #f87171;
   --color-danger-hover: #3b1515;
