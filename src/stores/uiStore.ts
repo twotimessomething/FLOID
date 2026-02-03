@@ -12,6 +12,8 @@ const MAX_INFO_SIDEBAR_WIDTH = 400;
 const DEFAULT_INFO_SIDEBAR_WIDTH = 224; // w-56 = 14rem = 224px
 
 // Context menu state
+export type ContextMenuLocation = 'label' | 'bar' | 'empty' | 'header';
+
 export interface ContextMenuState {
   isOpen: boolean;
   position: ModalPosition;
@@ -19,6 +21,9 @@ export interface ContextMenuState {
   targetId: string | null;
   sectionId: string | null;
   phaseId: string | null;
+  elementId: string | null;
+  location: ContextMenuLocation;
+  clickRelativePosition?: number;
 }
 
 // Toast state
@@ -109,7 +114,10 @@ interface UIState {
     targetType: SelectionState['type'],
     targetId: string | null,
     sectionId: string | null,
-    phaseId?: string | null
+    phaseId?: string | null,
+    elementId?: string | null,
+    location?: ContextMenuLocation,
+    clickRelativePosition?: number
   ) => void;
   closeContextMenu: () => void;
 
@@ -218,8 +226,10 @@ export const useUIStore = create<UIState>((set) => ({
     targetId: null,
     sectionId: null,
     phaseId: null,
+    elementId: null,
+    location: 'label',
   },
-  openContextMenu: (position, targetType, targetId, sectionId, phaseId = null) =>
+  openContextMenu: (position, targetType, targetId, sectionId, phaseId = null, elementId = null, location = 'label', clickRelativePosition) =>
     set({
       contextMenu: {
         isOpen: true,
@@ -228,6 +238,9 @@ export const useUIStore = create<UIState>((set) => ({
         targetId,
         sectionId,
         phaseId,
+        elementId,
+        location,
+        clickRelativePosition,
       },
     }),
   closeContextMenu: () =>

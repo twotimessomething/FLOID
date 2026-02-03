@@ -9,7 +9,7 @@ import { PHASE_COLORS } from '../../constants/colors';
 import { getPhaseColor } from '../../types';
 import PhaseRow from './PhaseRow';
 import MilestoneMarker from './MilestoneMarker';
-import { AddItemButton } from '../controls';
+import { EmptyStateHint } from './EmptyStateHint';
 import { MasterBadge } from '../common';
 
 interface DragHandleProps {
@@ -44,6 +44,13 @@ export default function SectionRow({
   const headerRowRef = useRef<HTMLDivElement>(null);
 
   const isMasterSection = section.id === project?.masterSectionId;
+
+  // Sort phases by order for consistent rendering and gradient coloring
+  const sortedPhases = useMemo(
+    () => [...section.phases].sort((a, b) => a.order - b.order),
+    [section.phases]
+  );
+  const totalPhases = sortedPhases.length;
 
   // Calculate the height of content below header for milestone line
   const milestoneLineHeight = useMemo(() => {
@@ -111,28 +118,29 @@ export default function SectionRow({
     }
   };
 
-  const handleContextMenu = useCallback((e: React.MouseEvent): void => {
+  // Context menu for label area (section header label)
+  const handleLabelContextMenu = useCallback((e: React.MouseEvent): void => {
     e.preventDefault();
     e.stopPropagation();
-    openContextMenu({ x: e.clientX, y: e.clientY }, 'section', section.id, section.id);
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'section', section.id, section.id, null, null, 'label');
   }, [openContextMenu, section.id]);
+
+  // Context menu for header row (timeline side) - includes click position for "Add Milestone Here"
+  const handleHeaderContextMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = headerRowRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const clickX = e.clientX - rect.left;
+    // Convert viewport-relative position to section-relative
+    const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
+    const clickRelativePosition = viewportToSectionRelative(viewportRelative, section, viewportBounds);
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'section', section.id, section.id, null, null, 'header', Math.max(0, Math.min(1, clickRelativePosition)));
+  }, [openContextMenu, section.id, section, timelineWidth, viewportBounds]);
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
     e.stopPropagation();
     toggleSectionCollapse(section.id);
-  };
-
-  const handleAddPhase = (): void => {
-    addPhase(section.id, {
-      name: '',
-      description: '',
-      color: isMasterSection ? getNextPhaseColor(section.phases.length) : null,
-      relativeStart: 0.1,
-      relativeEnd: 0.4,
-      order: section.phases.length,
-      isCollapsed: false,
-      elements: [],
-    });
   };
 
   // Double-click on header row creates a milestone
@@ -250,7 +258,7 @@ export default function SectionRow({
           } ${isSelected ? 'selected' : ''}`}
           style={{ height: ROW_HEIGHT }}
           onClick={!isMasterSection ? handleClick : undefined}
-          onContextMenu={handleContextMenu}
+          onContextMenu={handleLabelContextMenu}
           onKeyDown={!isMasterSection ? handleKeyDown : undefined}
           role={!isMasterSection ? 'button' : undefined}
           tabIndex={!isMasterSection ? 0 : undefined}
@@ -313,22 +321,30 @@ export default function SectionRow({
           </span>
           <span className="flex-1" />
           {isMasterSection && <MasterBadge size="sm" />}
-          {!isMasterSection && <AddItemButton onClick={handleAddPhase} label="Add phase" />}
         </div>
 
         {/* Phase labels (when expanded) */}
         {!section.isCollapsed && (
           <div role="list" aria-label={`${section.name} phases`}>
-            {section.phases.map((phase) => (
-              <PhaseRow
-                key={phase.id}
-                phase={phase}
-                section={section}
-                isLabel
-                timelineWidth={timelineWidth}
-                viewportBounds={viewportBounds}
+            {sortedPhases.length === 0 ? (
+              <div
+                className="border-b border-[var(--color-border)]/25"
+                style={{ height: ROW_HEIGHT }}
               />
-            ))}
+            ) : (
+              sortedPhases.map((phase, index) => (
+                <PhaseRow
+                  key={phase.id}
+                  phase={phase}
+                  section={section}
+                  isLabel
+                  timelineWidth={timelineWidth}
+                  viewportBounds={viewportBounds}
+                  phaseIndex={index}
+                  totalPhases={totalPhases}
+                />
+              ))
+            )}
           </div>
         )}
       </div>
@@ -348,10 +364,11 @@ export default function SectionRow({
         className={`relative border-b ${isMasterSection ? 'border-[var(--color-border)]/50' : 'border-[var(--color-border)]/25'}`}
         style={{ height: ROW_HEIGHT }}
         onDoubleClick={handleHeaderDoubleClick}
+        onContextMenu={handleHeaderContextMenu}
       >
         {section.isCollapsed && (
           <>
-            {section.phases.map((phase) => {
+            {sortedPhases.map((phase, index) => {
               // Convert section-relative positions to viewport-relative
               const viewportStart = sectionToViewportRelative(phase.relativeStart, section, viewportBounds);
               const viewportEnd = sectionToViewportRelative(phase.relativeEnd, section, viewportBounds);
@@ -361,7 +378,7 @@ export default function SectionRow({
                 timelineWidth
               );
               const isPhaseSelected = selection.type === 'phase' && selection.id === phase.id;
-              const effectiveColor = getPhaseColor(phase, section);
+              const effectiveColor = getPhaseColor(phase, section, index, totalPhases);
 
               return (
                 <div
@@ -415,17 +432,27 @@ export default function SectionRow({
           aria-label={`${section.name} phase bars`}
           onDoubleClick={handleCreatePhase}
         >
-          {section.phases.map((phase) => (
-            <PhaseRow
-              key={phase.id}
-              phase={phase}
-              section={section}
-              isLabel={false}
-              timelineWidth={timelineWidth}
-              viewportBounds={viewportBounds}
-              onCreatePhaseAfter={handleCreatePhaseAfter}
+          {sortedPhases.length === 0 ? (
+            <EmptyStateHint
+              text="Double-click to add phase"
+              height={ROW_HEIGHT}
+              borderClass="border-b border-[var(--color-border)]/25"
             />
-          ))}
+          ) : (
+            sortedPhases.map((phase, index) => (
+              <PhaseRow
+                key={phase.id}
+                phase={phase}
+                section={section}
+                isLabel={false}
+                timelineWidth={timelineWidth}
+                viewportBounds={viewportBounds}
+                onCreatePhaseAfter={handleCreatePhaseAfter}
+                phaseIndex={index}
+                totalPhases={totalPhases}
+              />
+            ))
+          )}
         </div>
       )}
     </div>

@@ -10,3 +10,4 @@ export { default as StickyMilestones } from './StickyMilestones';
 export { default as DragHandle } from './DragHandle';
 export { default as Playhead } from './Playhead';
 export { ContextMenu } from './ContextMenu';
+export { EmptyStateHint } from './EmptyStateHint';

@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
 import type { BarMilestone } from '../../types';
 import { useSectionStore, selectSection, selectPhase, selectElement } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
+import type { ContextMenuLocation } from '../../stores/uiStore';
 import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
 
 interface BarMilestoneMarkerProps {
@@ -22,7 +23,7 @@ export default function BarMilestoneMarker({
   color,
 }: BarMilestoneMarkerProps): JSX.Element {
   const { updatePhaseBarMilestone, updateElementBarMilestone } = useSectionStore();
-  const { selection, selectItem, setDragging } = useUIStore();
+  const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
 
   // Get section, phase, and element data for date calculations
   const sectionSelector = useMemo(() => selectSection(sectionId), [sectionId]);
@@ -157,6 +158,24 @@ export default function BarMilestoneMarker({
     [selectItem, barMilestone.id, sectionId, phaseId, elementId]
   );
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const location: ContextMenuLocation = 'bar';
+      openContextMenu(
+        { x: e.clientX, y: e.clientY },
+        'barMilestone',
+        barMilestone.id,
+        sectionId,
+        phaseId,
+        elementId,
+        location
+      );
+    },
+    [openContextMenu, barMilestone.id, sectionId, phaseId, elementId]
+  );
+
   // Calculate contrasting text color (simple luminance check)
   const getContrastColor = (hexColor: string): string => {
     const hex = hexColor.replace('#', '').slice(0, 6);
@@ -179,6 +198,7 @@ export default function BarMilestoneMarker({
       onDoubleClick={handleDoubleClick}
       onMouseDown={handleMouseDown}
       onKeyDown={handleKeyDown}
+      onContextMenu={handleContextMenu}
       role="button"
       tabIndex={0}
       aria-label={`${barMilestone.name} bar milestone at ${Math.round(barMilestone.relativePosition * 100)}%`}
@@ -203,14 +223,15 @@ export default function BarMilestoneMarker({
         </div>
       )}
 
-      {/* Label - positioned above the bar */}
+      {/* Label - positioned above the bar, also draggable */}
       <div
-        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 text-[10px] font-medium rounded whitespace-nowrap pointer-events-none transition-all duration-150 ${
+        className={`absolute bottom-full left-1/2 -translate-x-1/2 px-1.5 py-0.5 text-[10px] font-medium rounded whitespace-nowrap cursor-grab active:cursor-grabbing transition-all duration-150 ${
           isSelected
             ? 'ring-2 ring-[var(--color-focus)] ring-offset-1'
             : ''
         }`}
         style={{
+          marginBottom: 1,
           backgroundColor: isDragActive || isSelected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.85)',
           color: 'var(--color-text-primary)',
           boxShadow: '0 1px 2px rgba(0,0,0,0.1)',

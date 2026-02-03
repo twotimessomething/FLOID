@@ -1,9 +1,10 @@
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { downloadScheduleFloid } from '../../utils/exportUtils';
+import { PHASE_COLORS } from '../../constants/colors';
 
 interface MenuItem {
   label: string;
@@ -11,6 +12,7 @@ interface MenuItem {
   danger?: boolean;
   disabled?: boolean;
   info?: boolean;
+  hasSubmenu?: boolean;
 }
 
 export function ContextMenu(): JSX.Element | null {
@@ -21,14 +23,34 @@ export function ContextMenu(): JSX.Element | null {
     deleteElement,
     deleteMilestone,
     deleteSection,
+    addPhase,
     addElement,
+    addMilestone,
     setAsMaster,
     reorderPhases,
     sections,
+    togglePhaseCollapse,
+    toggleSectionCollapse,
+    addPhaseBarMilestone,
+    addElementBarMilestone,
+    deletePhaseBarMilestone,
+    deleteElementBarMilestone,
+    updatePhase,
   } = useSectionStore();
   const project = useProjectStore((state) => state.project);
 
-  const { isOpen, position, targetType, targetId, sectionId, phaseId } = contextMenu;
+  const { isOpen, position, targetType, targetId, sectionId, phaseId, elementId, location, clickRelativePosition } = contextMenu;
+
+  // Color submenu state
+  const [showColorSubmenu, setShowColorSubmenu] = useState(false);
+  const colorButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Reset color submenu when menu closes
+  useEffect(() => {
+    if (!isOpen) {
+      setShowColorSubmenu(false);
+    }
+  }, [isOpen]);
 
   // Close on click outside
   useEffect(() => {
@@ -86,9 +108,9 @@ export function ContextMenu(): JSX.Element | null {
 
   const handleEdit = useCallback(() => {
     if (!targetId || !sectionId) return;
-    selectItem(targetType, targetId, sectionId, phaseId, position);
+    selectItem(targetType, targetId, sectionId, phaseId, position, elementId);
     closeContextMenu();
-  }, [targetType, targetId, sectionId, phaseId, position, selectItem, closeContextMenu]);
+  }, [targetType, targetId, sectionId, phaseId, elementId, position, selectItem, closeContextMenu]);
 
   const handleDelete = useCallback(() => {
     if (!targetId || !sectionId) return;
@@ -114,9 +136,52 @@ export function ContextMenu(): JSX.Element | null {
       case 'section':
         deleteSection(targetId);
         break;
+      case 'barMilestone':
+        if (phaseId) {
+          if (elementId) {
+            deleteElementBarMilestone(sectionId, phaseId, elementId, targetId);
+          } else {
+            deletePhaseBarMilestone(sectionId, phaseId, targetId);
+          }
+        }
+        break;
     }
     closeContextMenu();
-  }, [targetType, targetId, sectionId, phaseId, deletePhase, deleteElement, deleteMilestone, deleteSection, closeContextMenu]);
+  }, [targetType, targetId, sectionId, phaseId, elementId, deletePhase, deleteElement, deleteMilestone, deleteSection, deletePhaseBarMilestone, deleteElementBarMilestone, closeContextMenu]);
+
+  const handleAddPhase = useCallback(() => {
+    if (!sectionId) return;
+
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    const isMasterSection = section.id === project?.masterSectionId;
+    const colorKeys = Object.keys(PHASE_COLORS) as (keyof typeof PHASE_COLORS)[];
+    const colorIndex = section.phases.length % colorKeys.length;
+    const phaseColor = isMasterSection ? PHASE_COLORS[colorKeys[colorIndex]] : null;
+
+    addPhase(sectionId, {
+      name: '',
+      description: '',
+      color: phaseColor,
+      relativeStart: 0.1,
+      relativeEnd: 0.4,
+      order: section.phases.length,
+      isCollapsed: false,
+      elements: [],
+    });
+
+    // Select the newly created phase
+    const updatedSections = useSectionStore.getState().sections;
+    const updatedSection = updatedSections.find((s) => s.id === sectionId);
+    const newPhase = updatedSection?.phases[updatedSection.phases.length - 1];
+
+    if (newPhase) {
+      selectItem('phase', newPhase.id, sectionId, null, position);
+    }
+
+    closeContextMenu();
+  }, [sectionId, sections, project?.masterSectionId, addPhase, selectItem, position, closeContextMenu]);
 
   const handleAddElement = useCallback(() => {
     if (!sectionId || !targetId) return;
@@ -196,6 +261,163 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [sectionId, sections, setAsMaster, closeContextMenu]);
 
+  // Toggle collapse for phases
+  const handleTogglePhaseCollapse = useCallback(() => {
+    if (!sectionId || !targetId) return;
+    togglePhaseCollapse(sectionId, targetId);
+    closeContextMenu();
+  }, [sectionId, targetId, togglePhaseCollapse, closeContextMenu]);
+
+  // Toggle collapse for sections
+  const handleToggleSectionCollapse = useCallback(() => {
+    if (!sectionId) return;
+    toggleSectionCollapse(sectionId);
+    closeContextMenu();
+  }, [sectionId, toggleSectionCollapse, closeContextMenu]);
+
+  // Add bar milestone at click position (for phase bar)
+  const handleAddBarMilestoneHere = useCallback(() => {
+    if (!sectionId || !phaseId || clickRelativePosition === undefined) return;
+
+    const newMilestone = { name: '', relativePosition: clickRelativePosition };
+    let newId: string;
+
+    if (elementId) {
+      newId = addElementBarMilestone(sectionId, phaseId, elementId, newMilestone);
+      selectItem('barMilestone', newId, sectionId, phaseId, position, elementId);
+    } else {
+      newId = addPhaseBarMilestone(sectionId, phaseId, newMilestone);
+      selectItem('barMilestone', newId, sectionId, phaseId, position);
+    }
+
+    closeContextMenu();
+  }, [sectionId, phaseId, elementId, clickRelativePosition, addPhaseBarMilestone, addElementBarMilestone, selectItem, position, closeContextMenu]);
+
+  // Add section milestone at click position (for section header)
+  const handleAddMilestoneHere = useCallback(() => {
+    if (!sectionId || clickRelativePosition === undefined) return;
+
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    addMilestone(sectionId, {
+      name: '',
+      description: '',
+      relativePosition: clickRelativePosition,
+      order: section.milestones.length,
+    });
+
+    // Select the newly created milestone
+    const updatedSections = useSectionStore.getState().sections;
+    const updatedSection = updatedSections.find((s) => s.id === sectionId);
+    const newMilestone = updatedSection?.milestones[updatedSection.milestones.length - 1];
+
+    if (newMilestone) {
+      selectItem('milestone', newMilestone.id, sectionId, null, position);
+    }
+
+    closeContextMenu();
+  }, [sectionId, clickRelativePosition, sections, addMilestone, selectItem, position, closeContextMenu]);
+
+  // Change phase color
+  const handleColorChange = useCallback((color: string) => {
+    if (!sectionId || !targetId) return;
+    updatePhase(sectionId, targetId, { color });
+    closeContextMenu();
+  }, [sectionId, targetId, updatePhase, closeContextMenu]);
+
+  // Add phase at click position (for empty row area)
+  const handleAddPhaseHere = useCallback(() => {
+    if (!sectionId || clickRelativePosition === undefined) return;
+
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    const isMasterSection = section.id === project?.masterSectionId;
+    const colorKeys = Object.keys(PHASE_COLORS) as (keyof typeof PHASE_COLORS)[];
+    const colorIndex = section.phases.length % colorKeys.length;
+    const phaseColor = isMasterSection ? PHASE_COLORS[colorKeys[colorIndex]] : null;
+
+    // Create phase starting at click position with ~20% width
+    const phaseWidth = 0.2;
+    const relativeStart = Math.max(0, Math.min(1 - phaseWidth, clickRelativePosition));
+    const relativeEnd = Math.min(1, relativeStart + phaseWidth);
+
+    // Find the order for insertion (after the phase we clicked near, if any)
+    // phaseId contains the context phase when clicking in phase row area
+    const contextPhase = phaseId ? section.phases.find((p) => p.id === phaseId) : null;
+    const insertOrder = contextPhase ? contextPhase.order + 1 : section.phases.length;
+
+    addPhase(sectionId, {
+      name: '',
+      description: '',
+      color: phaseColor,
+      relativeStart,
+      relativeEnd,
+      order: insertOrder,
+      isCollapsed: false,
+      elements: [],
+    });
+
+    // Reorder if needed
+    const updatedSections = useSectionStore.getState().sections;
+    const updatedSection = updatedSections.find((s) => s.id === sectionId);
+    const newPhase = updatedSection?.phases[updatedSection.phases.length - 1];
+
+    if (newPhase && contextPhase) {
+      const currentIndex = updatedSection.phases.length - 1;
+      const targetIndex = Math.min(insertOrder, updatedSection.phases.length - 1);
+      if (currentIndex !== targetIndex) {
+        reorderPhases(sectionId, currentIndex, targetIndex);
+      }
+    }
+
+    // Get the final state and select the new phase
+    const finalSections = useSectionStore.getState().sections;
+    const finalSection = finalSections.find((s) => s.id === sectionId);
+    const finalPhase = finalSection?.phases.find((p) => p.id === newPhase?.id);
+
+    if (finalPhase) {
+      selectItem('phase', finalPhase.id, sectionId, null, position);
+    }
+
+    closeContextMenu();
+  }, [sectionId, phaseId, clickRelativePosition, sections, project?.masterSectionId, addPhase, reorderPhases, selectItem, position, closeContextMenu]);
+
+  // Add element at click position (for empty element area)
+  const handleAddElementHere = useCallback(() => {
+    if (!sectionId || !phaseId || clickRelativePosition === undefined) return;
+
+    const section = sections.find((s) => s.id === sectionId);
+    const phase = section?.phases.find((p) => p.id === phaseId);
+    if (!phase) return;
+
+    // Create element starting at click position with ~20% width (phase-relative)
+    const elementWidth = 0.2;
+    const relativeStart = Math.max(0, Math.min(1 - elementWidth, clickRelativePosition));
+    const relativeEnd = Math.min(1, relativeStart + elementWidth);
+
+    addElement(sectionId, phaseId, {
+      name: '',
+      description: '',
+      relativeStart,
+      relativeEnd,
+      order: phase.elements.length,
+    });
+
+    // Select the newly created element
+    const updatedSections = useSectionStore.getState().sections;
+    const updatedSection = updatedSections.find((s) => s.id === sectionId);
+    const updatedPhase = updatedSection?.phases.find((p) => p.id === phaseId);
+    const newElement = updatedPhase?.elements[updatedPhase.elements.length - 1];
+
+    if (newElement) {
+      selectItem('element', newElement.id, sectionId, phaseId, position);
+    }
+
+    closeContextMenu();
+  }, [sectionId, phaseId, clickRelativePosition, sections, addElement, selectItem, position, closeContextMenu]);
+
   const getDeleteConfirmMessage = (): string | null => {
     if (!targetId || !sectionId) return null;
 
@@ -222,6 +444,21 @@ export function ContextMenu(): JSX.Element | null {
       case 'section': {
         return `Delete "${section.name}"? This will delete all phases and milestones within it.`;
       }
+      case 'barMilestone': {
+        // Find the bar milestone
+        if (phaseId) {
+          const phase = section.phases.find((p) => p.id === phaseId);
+          if (elementId) {
+            const element = phase?.elements.find((e) => e.id === elementId);
+            const bm = element?.barMilestones?.find((b) => b.id === targetId);
+            return `Delete "${bm?.name || 'this milestone'}"?`;
+          } else {
+            const bm = phase?.barMilestones?.find((b) => b.id === targetId);
+            return `Delete "${bm?.name || 'this milestone'}"?`;
+          }
+        }
+        return 'Delete this milestone?';
+      }
       default:
         return null;
     }
@@ -233,33 +470,125 @@ export function ContextMenu(): JSX.Element | null {
     const section = sections.find((s) => s.id === sectionId);
     const isMasterSection = section?.id === project?.masterSectionId;
 
-    // Edit is available for all types (except master section at section level)
-    if (targetType !== 'section' || !isMasterSection) {
+    // Bar milestone context menu
+    if (targetType === 'barMilestone') {
       items.push({ label: 'Edit', action: handleEdit });
+      items.push({ label: 'Delete', action: handleDelete, danger: true });
+      return items;
     }
 
-    // Phase-specific options
+    // Phase context menu
     if (targetType === 'phase' && section) {
-      items.push({ label: 'Add Element', action: handleAddElement });
+      const phase = section.phases.find((p) => p.id === targetId);
 
-      const phaseIndex = section.phases.findIndex((p) => p.id === targetId);
-      const isFirstPhase = phaseIndex === 0;
-      const isLastPhase = phaseIndex === section.phases.length - 1;
+      if (location === 'label') {
+        // Label area: Edit, Collapse/Expand, Add Element, Move Up/Down, Delete
+        items.push({ label: 'Edit', action: handleEdit });
 
-      items.push({
-        label: 'Move Up',
-        action: handleMovePhaseUp,
-        disabled: isFirstPhase,
-      });
-      items.push({
-        label: 'Move Down',
-        action: handleMovePhaseDown,
-        disabled: isLastPhase,
-      });
+        // Collapse/Expand toggle with dynamic label
+        if (phase) {
+          items.push({
+            label: phase.isCollapsed ? 'Expand' : 'Collapse',
+            action: handleTogglePhaseCollapse,
+          });
+        }
+
+        items.push({ label: 'Add Element', action: handleAddElement });
+
+        const phaseIndex = section.phases.findIndex((p) => p.id === targetId);
+        const isFirstPhase = phaseIndex === 0;
+        const isLastPhase = phaseIndex === section.phases.length - 1;
+
+        items.push({
+          label: 'Move Up',
+          action: handleMovePhaseUp,
+          disabled: isFirstPhase,
+        });
+        items.push({
+          label: 'Move Down',
+          action: handleMovePhaseDown,
+          disabled: isLastPhase,
+        });
+
+        items.push({ label: 'Delete', action: handleDelete, danger: true });
+      } else if (location === 'bar') {
+        // Bar area: Edit, Add Milestone Here, Color, Delete
+        items.push({ label: 'Edit', action: handleEdit });
+
+        if (clickRelativePosition !== undefined) {
+          items.push({ label: 'Add Milestone Here', action: handleAddBarMilestoneHere });
+        }
+
+        // Color submenu (only for master section phases)
+        if (isMasterSection) {
+          items.push({ label: 'Color', action: () => setShowColorSubmenu(!showColorSubmenu), hasSubmenu: true });
+        }
+
+        items.push({ label: 'Delete', action: handleDelete, danger: true });
+      } else if (location === 'empty') {
+        // Empty area (element container): Add Element Here
+        if (clickRelativePosition !== undefined) {
+          items.push({ label: 'Add Element Here', action: handleAddElementHere });
+        }
+      }
+
+      return items;
     }
 
-    // Section-specific options
+    // Element context menu
+    if (targetType === 'element') {
+      if (location === 'label') {
+        // Label area: Edit, Delete
+        items.push({ label: 'Edit', action: handleEdit });
+        items.push({ label: 'Delete', action: handleDelete, danger: true });
+      } else if (location === 'bar') {
+        // Bar area: Edit, Add Milestone Here, Delete
+        items.push({ label: 'Edit', action: handleEdit });
+
+        if (clickRelativePosition !== undefined) {
+          items.push({ label: 'Add Milestone Here', action: handleAddBarMilestoneHere });
+        }
+
+        items.push({ label: 'Delete', action: handleDelete, danger: true });
+      }
+
+      return items;
+    }
+
+    // Section context menu
     if (targetType === 'section' && section) {
+      if (location === 'header') {
+        // Header area (timeline side): Add Milestone Here only
+        if (clickRelativePosition !== undefined) {
+          items.push({ label: 'Add Milestone Here', action: handleAddMilestoneHere });
+        }
+        return items;
+      }
+
+      if (location === 'empty') {
+        // Empty area (phase row background): Add Phase Here, Add Milestone Here
+        if (clickRelativePosition !== undefined) {
+          items.push({ label: 'Add Phase Here', action: handleAddPhaseHere });
+          items.push({ label: 'Add Milestone Here', action: handleAddMilestoneHere });
+        }
+        return items;
+      }
+
+      // Label area: Full section menu
+      // Edit is available for non-master sections
+      if (!isMasterSection) {
+        items.push({ label: 'Edit', action: handleEdit });
+      }
+
+      // Collapse/Expand toggle with dynamic label
+      items.push({
+        label: section.isCollapsed ? 'Expand' : 'Collapse',
+        action: handleToggleSectionCollapse,
+      });
+
+      // Add Phase is available for all sections
+      items.push({ label: 'Add Phase', action: handleAddPhase });
+
       // Master status indicator or set as master option
       if (isMasterSection) {
         items.push({
@@ -277,19 +606,31 @@ export function ContextMenu(): JSX.Element | null {
 
       // Export Schedule is available for all sections
       items.push({ label: 'Export Schedule', action: handleExportSchedule });
+
+      // Delete is available for non-master sections
+      if (!isMasterSection) {
+        items.push({ label: 'Delete', action: handleDelete, danger: true });
+      }
+
+      return items;
     }
 
-    // Delete is available for all types (except master section)
-    const canDelete = targetType !== 'section' || !isMasterSection;
-
-    if (canDelete) {
+    // Milestone context menu (regular section milestones)
+    if (targetType === 'milestone') {
+      items.push({ label: 'Edit', action: handleEdit });
       items.push({ label: 'Delete', action: handleDelete, danger: true });
+      return items;
     }
 
     return items;
-  }, [sections, sectionId, targetId, project?.masterSectionId, targetType, handleEdit, handleAddElement, handleMovePhaseUp, handleMovePhaseDown, handleSetAsMaster, handleExportSchedule, handleDelete]);
+  }, [sections, sectionId, targetId, phaseId, elementId, project?.masterSectionId, targetType, location, clickRelativePosition, showColorSubmenu, handleEdit, handleAddPhase, handleAddElement, handleMovePhaseUp, handleMovePhaseDown, handleSetAsMaster, handleExportSchedule, handleDelete, handleTogglePhaseCollapse, handleToggleSectionCollapse, handleAddBarMilestoneHere, handleAddMilestoneHere, handleAddPhaseHere, handleAddElementHere]);
 
   if (!isOpen) return null;
+
+  // Get current phase color for highlighting in submenu
+  const section = sections.find((s) => s.id === sectionId);
+  const currentPhase = section?.phases.find((p) => p.id === targetId);
+  const currentPhaseColor = currentPhase?.color;
 
   return createPortal(
     <div
@@ -302,6 +643,7 @@ export function ContextMenu(): JSX.Element | null {
       {menuItems.map((item, index) => (
         <button
           key={index}
+          ref={item.hasSubmenu ? colorButtonRef : undefined}
           onClick={item.disabled ? undefined : item.action}
           disabled={item.disabled}
           className={`w-full px-3 py-1.5 text-left text-sm transition-colors ${
@@ -310,7 +652,7 @@ export function ContextMenu(): JSX.Element | null {
               : item.danger
                 ? 'text-red-600 hover:bg-red-50'
                 : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)]'
-          } ${item.info ? 'flex items-center gap-1.5' : ''}`}
+          } ${item.info ? 'flex items-center gap-1.5' : ''} ${item.hasSubmenu ? 'flex items-center justify-between' : ''}`}
           role="menuitem"
         >
           {item.info && (
@@ -319,8 +661,33 @@ export function ContextMenu(): JSX.Element | null {
             </svg>
           )}
           {item.label}
+          {item.hasSubmenu && (
+            <svg className="w-4 h-4 text-[var(--color-text-muted)]" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          )}
         </button>
       ))}
+
+      {/* Color submenu */}
+      {showColorSubmenu && targetType === 'phase' && (
+        <div className="px-2 py-1.5 border-t border-[var(--color-border)]">
+          <div className="flex gap-1.5 flex-wrap">
+            {Object.entries(PHASE_COLORS).map(([name, color]) => (
+              <button
+                key={name}
+                onClick={() => handleColorChange(color)}
+                className={`w-6 h-6 rounded-full transition-transform hover:scale-110 ${
+                  currentPhaseColor === color ? 'ring-2 ring-offset-1 ring-[var(--color-focus)]' : ''
+                }`}
+                style={{ backgroundColor: color }}
+                title={name.charAt(0).toUpperCase() + name.slice(1)}
+                aria-label={`Set color to ${name}`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );

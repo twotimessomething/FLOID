@@ -5,8 +5,8 @@ import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
-import { getBarDimensions, ELEMENT_ROW_HEIGHT } from '../../utils/timelineUtils';
-import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, getDaysBetween, snapRelativeToBusinessDay } from '../../utils/dateUtils';
+import { getBarDimensions, ELEMENT_ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
+import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, viewportToSectionRelative, getDaysBetween, snapRelativeToBusinessDay } from '../../utils/dateUtils';
 import DragHandle from './DragHandle';
 import BarMilestoneMarker from './BarMilestoneMarker';
 
@@ -17,6 +17,8 @@ interface ElementRowProps {
   readonly isLabel: boolean;
   readonly timelineWidth: number;
   readonly viewportBounds: ViewportBounds;
+  readonly phaseIndex?: number;
+  readonly totalPhases?: number;
 }
 
 export default function ElementRow({
@@ -26,6 +28,8 @@ export default function ElementRow({
   isLabel,
   timelineWidth,
   viewportBounds,
+  phaseIndex,
+  totalPhases,
 }: ElementRowProps): JSX.Element {
   const { updateElementPosition, addElementBarMilestone } = useSectionStore();
   const project = useProjectStore((state) => state.project);
@@ -98,11 +102,39 @@ export default function ElementRow({
     }, 200);
   }, [selectItem, element.id, section.id, phase.id]);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent): void => {
+  // Context menu for label area
+  const handleLabelContextMenu = useCallback((e: React.MouseEvent): void => {
     e.preventDefault();
     e.stopPropagation();
-    openContextMenu({ x: e.clientX, y: e.clientY }, 'element', element.id, section.id, phase.id);
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'element', element.id, section.id, phase.id, null, 'label');
   }, [openContextMenu, element.id, section.id, phase.id]);
+
+  // Context menu for bar area - includes click position for "Add Milestone Here"
+  const handleBarContextMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    const barElement = e.currentTarget as HTMLElement;
+    const barRect = barElement.getBoundingClientRect();
+    const clickX = e.clientX - barRect.left;
+    const clickRelativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'element', element.id, section.id, phase.id, element.id, 'bar', clickRelativePosition);
+  }, [openContextMenu, element.id, section.id, phase.id]);
+
+  // Context menu for element row empty area - for adding elements
+  const handleRowContextMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Calculate phase-relative position from click
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
+    const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
+    // Convert to phase-relative
+    const phaseRelative = phaseWidth > 0 ? (sectionRelative - phase.relativeStart) / phaseWidth : 0.5;
+    const clickRelativePosition = Math.max(0, Math.min(1, phaseRelative));
+    // Use 'empty' location with phase as target for "Add Element Here"
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id, phase.id, null, 'empty', clickRelativePosition);
+  }, [openContextMenu, section, phase.id, phase.relativeStart, phaseWidth, timelineWidth, viewportBounds]);
 
   // Double-click on element bar creates a bar milestone
   const handleDoubleClick = useCallback((e: React.MouseEvent): void => {
@@ -325,7 +357,7 @@ export default function ElementRow({
         }`}
         style={{ height: ELEMENT_ROW_HEIGHT }}
         onClick={handleClick}
-        onContextMenu={handleContextMenu}
+        onContextMenu={handleLabelContextMenu}
         onKeyDown={handleKeyDown}
         role="listitem"
         tabIndex={0}
@@ -338,7 +370,7 @@ export default function ElementRow({
   }
 
   // Get effective color for element (80% opacity)
-  const effectiveColor = getPhaseColor(phase, section);
+  const effectiveColor = getPhaseColor(phase, section, phaseIndex, totalPhases);
   const elementColor = effectiveColor + 'CC';
 
   return (
@@ -346,6 +378,7 @@ export default function ElementRow({
       className="relative border-b border-[var(--color-border)]/15 overflow-visible"
       style={{ height: ELEMENT_ROW_HEIGHT }}
       role="listitem"
+      onContextMenu={handleRowContextMenu}
     >
       <div
         className={`absolute top-1 bottom-1 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group overflow-visible ${
@@ -357,7 +390,7 @@ export default function ElementRow({
           backgroundColor: elementColor,
         }}
         onClick={handleClick}
-        onContextMenu={handleContextMenu}
+        onContextMenu={handleBarContextMenu}
         onDoubleClick={handleDoubleClick}
         onMouseDown={handleMoveStart}
         onKeyDown={handleKeyDown}

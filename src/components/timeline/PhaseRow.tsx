@@ -17,7 +17,6 @@ import {
 import ElementRow from './ElementRow';
 import DragHandle from './DragHandle';
 import BarMilestoneMarker from './BarMilestoneMarker';
-import { AddItemButton } from '../controls';
 
 interface PhaseRowProps {
   readonly phase: Phase;
@@ -26,6 +25,8 @@ interface PhaseRowProps {
   readonly timelineWidth: number;
   readonly viewportBounds: ViewportBounds;
   readonly onCreatePhaseAfter?: (afterOrder: number, clickX: number) => void;
+  readonly phaseIndex?: number;
+  readonly totalPhases?: number;
 }
 
 export default function PhaseRow({
@@ -35,6 +36,8 @@ export default function PhaseRow({
   timelineWidth,
   viewportBounds,
   onCreatePhaseAfter,
+  phaseIndex,
+  totalPhases,
 }: PhaseRowProps): JSX.Element {
   const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithElements, updatePhaseWithRipple, addElement, addPhaseBarMilestone, clearExpansion } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
@@ -44,7 +47,7 @@ export default function PhaseRow({
   const phaseRowRef = useRef<HTMLDivElement>(null);
 
   const isMasterSection = section.id === project?.masterSectionId;
-  const effectiveColor = getPhaseColor(phase, section);
+  const effectiveColor = getPhaseColor(phase, section, phaseIndex, totalPhases);
   const isSelected = selection.type === 'phase' && selection.id === phase.id;
 
   // Convert section-relative positions to viewport-relative for rendering
@@ -125,11 +128,53 @@ export default function PhaseRow({
     }, 200);
   }, [selectItem, phase.id, section.id]);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent): void => {
+  // Context menu for label area
+  const handleLabelContextMenu = useCallback((e: React.MouseEvent): void => {
     e.preventDefault();
     e.stopPropagation();
-    openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id);
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id, null, null, 'label');
   }, [openContextMenu, phase.id, section.id]);
+
+  // Context menu for bar area - includes click position for "Add Milestone Here"
+  const handleBarContextMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    const barElement = e.currentTarget as HTMLElement;
+    const barRect = barElement.getBoundingClientRect();
+    const clickX = e.clientX - barRect.left;
+    const clickRelativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id, null, null, 'bar', clickRelativePosition);
+  }, [openContextMenu, phase.id, section.id]);
+
+  // Context menu for phase row empty area (not on bar) - for adding phases/milestones
+  const handleRowContextMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Calculate section-relative position from click
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
+    const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
+    const clickRelativePosition = Math.max(0, Math.min(1, sectionRelative));
+    // Use 'empty' location with phase context for "Add Phase After" positioning
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'section', section.id, section.id, phase.id, null, 'empty', clickRelativePosition);
+  }, [openContextMenu, section, phase.id, timelineWidth, viewportBounds]);
+
+  // Context menu for element container empty area - for adding elements
+  const handleElementContainerContextMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Calculate phase-relative position from click
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
+    const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
+    // Convert to phase-relative
+    const phaseRelative = phaseWidth > 0 ? (sectionRelative - phase.relativeStart) / phaseWidth : 0.5;
+    const clickRelativePosition = Math.max(0, Math.min(1, phaseRelative));
+    // Use 'empty' location with phase as target for "Add Element Here"
+    openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id, phase.id, null, 'empty', clickRelativePosition);
+  }, [openContextMenu, section, phase.id, phase.relativeStart, phaseWidth, timelineWidth, viewportBounds]);
 
   // Double-click on phase bar creates a bar milestone
   const handleBarDoubleClick = useCallback((e: React.MouseEvent): void => {
@@ -224,16 +269,6 @@ export default function PhaseRow({
   const handleToggleCollapse = (e: React.MouseEvent): void => {
     e.stopPropagation();
     togglePhaseCollapse(section.id, phase.id);
-  };
-
-  const handleAddElement = (): void => {
-    addElement(section.id, phase.id, {
-      name: '',
-      description: '',
-      relativeStart: 0,
-      relativeEnd: 0.3,
-      order: phase.elements.length,
-    });
   };
 
   const handleDragStart = (edge: 'start' | 'end', e?: React.MouseEvent): void => {
@@ -478,7 +513,7 @@ export default function PhaseRow({
           }`}
           style={{ height: ROW_HEIGHT }}
           onClick={handleClick}
-          onContextMenu={handleContextMenu}
+          onContextMenu={handleLabelContextMenu}
           onKeyDown={handleKeyDown}
           role="button"
           tabIndex={0}
@@ -516,7 +551,6 @@ export default function PhaseRow({
           <span className={`text-sm ${isMasterSection ? 'font-medium' : ''} text-[var(--color-text-primary)] truncate flex-1`}>
             {phase.name}
           </span>
-          {!isMasterSection && <AddItemButton onClick={handleAddElement} label="Add element" />}
         </div>
 
         {/* Element labels */}
@@ -531,6 +565,8 @@ export default function PhaseRow({
                 isLabel
                 timelineWidth={timelineWidth}
                 viewportBounds={viewportBounds}
+                phaseIndex={phaseIndex}
+                totalPhases={totalPhases}
               />
             ))}
           </div>
@@ -548,6 +584,7 @@ export default function PhaseRow({
         className="relative border-b border-[var(--color-border)]/25 overflow-visible"
         style={{ height: ROW_HEIGHT }}
         onDoubleClick={handlePhaseRowDoubleClick}
+        onContextMenu={handleRowContextMenu}
       >
         <div
           className={`absolute top-2 bottom-2 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group overflow-visible ${
@@ -559,7 +596,7 @@ export default function PhaseRow({
             backgroundColor: effectiveColor,
           }}
           onClick={handleClick}
-          onContextMenu={handleContextMenu}
+          onContextMenu={handleBarContextMenu}
           onDoubleClick={handleBarDoubleClick}
           onMouseDown={handleMoveStart}
           role="button"
@@ -612,11 +649,12 @@ export default function PhaseRow({
       </div>
 
       {/* Element bars */}
-      {!phase.isCollapsed && (
+      {!phase.isCollapsed && phase.elements.length > 0 && (
         <div
           role="list"
           aria-label={`${phase.name} element bars`}
           onDoubleClick={handleCreateElement}
+          onContextMenu={handleElementContainerContextMenu}
         >
           {phase.elements.map((element) => (
             <ElementRow
@@ -627,6 +665,8 @@ export default function PhaseRow({
               isLabel={false}
               timelineWidth={timelineWidth}
               viewportBounds={viewportBounds}
+              phaseIndex={phaseIndex}
+              totalPhases={totalPhases}
             />
           ))}
         </div>
