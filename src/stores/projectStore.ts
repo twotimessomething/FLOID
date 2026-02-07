@@ -2,7 +2,12 @@ import { create } from 'zustand';
 import type { Project, Section, ProjectSettings } from '../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../types';
 import { createDefaultProject, createDefaultIDTimelineSection } from '../data/defaultTemplate';
-import { createSectionFromTemplate, getTemplateById } from '../data/scheduleTemplates';
+import {
+  createSectionFromTemplate,
+  getTemplateById,
+  getProjectTemplateById,
+  createSectionsFromProjectTemplate,
+} from '../data/scheduleTemplates';
 import {
   loadProjectsIndex,
   saveProjectsIndex,
@@ -19,6 +24,7 @@ export interface NewProjectConfig {
   startDate: Date;
   endDate: Date;
   masterTemplateId: string;
+  projectTemplateId?: string; // For multi-section projects
 }
 
 interface ProjectState {
@@ -33,7 +39,7 @@ interface ProjectState {
 
   initializeProjects: () => Promise<void>;
   addProject: (config?: { name?: string }) => Promise<string>;
-  createProject: (config: NewProjectConfig) => Promise<{ projectId: string; section: Section }>;
+  createProject: (config: NewProjectConfig) => Promise<{ projectId: string; sections: Section[] }>;
   importProject: (project: Project, sections: Section[]) => Promise<string>;
   deleteProject: (projectId: string) => Promise<void>;
   selectProject: (projectId: string) => Promise<void>;
@@ -174,24 +180,40 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   createProject: async (config) => {
-    const template = getTemplateById(config.masterTemplateId);
-    if (!template) {
-      throw new Error(`Template not found: ${config.masterTemplateId}`);
-    }
-
     const startDateStr = config.startDate.toISOString();
     const endDateStr = config.endDate.toISOString();
+    const dateRange = { startDate: startDateStr, endDate: endDateStr };
 
-    // Create master section from template
-    const masterSection = createSectionFromTemplate(template, 0, {
-      dateRange: { startDate: startDateStr, endDate: endDateStr },
-    });
+    let projectSections: Section[];
+    let masterSectionId: string;
+
+    // Check if using a project template (multi-section)
+    if (config.projectTemplateId) {
+      const projectTemplate = getProjectTemplateById(config.projectTemplateId);
+      if (!projectTemplate) {
+        throw new Error(`Project template not found: ${config.projectTemplateId}`);
+      }
+
+      const result = createSectionsFromProjectTemplate(projectTemplate, { dateRange });
+      projectSections = result.sections;
+      masterSectionId = result.masterSectionId;
+    } else {
+      // Single section from schedule template
+      const template = getTemplateById(config.masterTemplateId);
+      if (!template) {
+        throw new Error(`Template not found: ${config.masterTemplateId}`);
+      }
+
+      const masterSection = createSectionFromTemplate(template, 0, { dateRange });
+      projectSections = [masterSection];
+      masterSectionId = masterSection.id;
+    }
 
     const now = new Date();
     const newProject: Project = {
       id: Math.random().toString(36).substring(2, 11),
       name: config.name.trim() || 'New Project',
-      masterSectionId: masterSection.id,
+      masterSectionId,
       projectStartDate: startDateStr,
       projectEndDate: endDateStr,
       createdAt: now.toISOString(),
@@ -206,7 +228,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     await saveProjectToStorage(newProject.id, {
       project: newProject,
-      sections: [masterSection],
+      sections: projectSections,
     });
 
     const state = get();
@@ -215,7 +237,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     set({ projects: updatedProjects });
 
-    return { projectId: newProject.id, section: masterSection };
+    return { projectId: newProject.id, sections: projectSections };
   },
 
   importProject: async (importedProject, importedSections) => {

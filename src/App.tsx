@@ -11,6 +11,7 @@ import { AddScheduleModal } from './components/layout/AddScheduleModal';
 import { ImportConfirmModal } from './components/layout/ImportConfirmModal';
 import { SettingsModal } from './components/layout/SettingsModal';
 import { ExportModal } from './components/layout/ExportModal';
+import { KeyboardHelpModal } from './components/layout/KeyboardHelpModal';
 import { ContextMenu } from './components/timeline';
 import { Toast, ConfirmDialog } from './components/common';
 import { useAutoSave, useKeyboardShortcuts, useScheduleImport, useTheme } from './hooks';
@@ -185,6 +186,7 @@ function App() {
       <ImportConfirmModal onConfirm={handleConfirmAction} />
       <SettingsModal />
       <ExportModal />
+      <KeyboardHelpModal />
       <ContextMenu />
       <Toast />
       <ConfirmDialog />

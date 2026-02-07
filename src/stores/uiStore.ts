@@ -163,6 +163,11 @@ interface UIState {
   openExportModal: () => void;
   closeExportModal: () => void;
 
+  // Keyboard help modal
+  isKeyboardHelpModalOpen: boolean;
+  openKeyboardHelpModal: () => void;
+  closeKeyboardHelpModal: () => void;
+
   // Theme
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
@@ -348,6 +353,11 @@ export const useUIStore = create<UIState>((set) => ({
   isExportModalOpen: false,
   openExportModal: () => set({ isExportModalOpen: true }),
   closeExportModal: () => set({ isExportModalOpen: false }),
+
+  // Keyboard help modal
+  isKeyboardHelpModalOpen: false,
+  openKeyboardHelpModal: () => set({ isKeyboardHelpModalOpen: true }),
+  closeKeyboardHelpModal: () => set({ isKeyboardHelpModalOpen: false }),
 
   // Theme
   theme: 'system',

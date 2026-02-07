@@ -95,11 +95,6 @@ function TemplateCard({ template, isSelected, onSelect }: TemplateCardProps): JS
         }
       `}
     >
-      {template.suggestedAsMaster && (
-        <span className="absolute top-2 right-2 px-1.5 py-0.5 text-[10px] font-medium bg-[var(--color-warning-bg)] text-[var(--color-warning)] rounded">
-          Recommended
-        </span>
-      )}
       <div
         className="p-2 rounded-lg mb-2"
         style={{ backgroundColor: `${template.defaultColor}15`, color: template.defaultColor }}
@@ -219,13 +214,13 @@ export function NewProjectModal(): JSX.Element | null {
         masterTemplateId: formData.masterTemplateId,
       };
 
-      // Create the new project with selected template as master
-      const { projectId, section } = await createProject(config);
+      // Create the new project with selected template
+      const { projectId, sections: newSections } = await createProject(config);
 
       // Clear selection and switch to new project
       closeModal();
       await selectProject(projectId);
-      setSections([section]);
+      setSections(newSections);
 
       closeProjectSetupModal();
     },

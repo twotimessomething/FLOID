@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore, type ThemeMode } from '../../stores/uiStore';
-import { parseProjectJson, convertImportedProject } from '../../utils/exportUtils';
+import { parseProjectJson, convertImportedProject, exportTimelineAsImage } from '../../utils/exportUtils';
 import { useScheduleImport } from '../../hooks/useScheduleImport';
 
 // Theme icons
@@ -73,6 +73,24 @@ export function Header() {
 
   const { handleImport: handleScheduleImport } = useScheduleImport();
 
+  // Export dropdown state
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!isExportDropdownOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
+        setIsExportDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isExportDropdownOpen]);
+
   const handleThemeToggle = useCallback(() => {
     const currentIndex = THEME_CYCLE.indexOf(theme);
     const nextIndex = (currentIndex + 1) % THEME_CYCLE.length;
@@ -81,9 +99,25 @@ export function Header() {
 
   const ThemeIcon = theme === 'light' ? SunIcon : theme === 'dark' ? MoonIcon : MonitorIcon;
 
-  const handleExport = useCallback(() => {
+  const handleExportProject = useCallback(() => {
     openExportModal();
+    setIsExportDropdownOpen(false);
   }, [openExportModal]);
+
+  const handleExportAsImage = useCallback(async () => {
+    if (!project || sections.length === 0) return;
+
+    setIsExportDropdownOpen(false);
+    showToast('success', 'Exporting timeline...');
+
+    try {
+      await exportTimelineAsImage(project, sections);
+      showToast('success', 'Timeline exported as image');
+    } catch (error) {
+      console.error('Failed to export timeline as image:', error);
+      showToast('error', 'Failed to export timeline as image');
+    }
+  }, [project, sections, showToast]);
 
   const handleImport = () => {
     const input = document.createElement('input');
@@ -165,12 +199,33 @@ export function Header() {
           Import
         </button>
         {project && (
-          <button
-            onClick={handleExport}
-            className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
-          >
-            Export
-          </button>
+          <div ref={exportDropdownRef} className="relative">
+            <button
+              onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+              className="flex items-center gap-1 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
+            >
+              Export
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {isExportDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 py-1 min-w-[160px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-50">
+                <button
+                  onClick={handleExportProject}
+                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
+                >
+                  Export Project
+                </button>
+                <button
+                  onClick={handleExportAsImage}
+                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
+                >
+                  Export as Image
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </header>

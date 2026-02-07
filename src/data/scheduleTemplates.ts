@@ -3,7 +3,14 @@ import type { Section, Phase, Milestone } from '../types';
 import { getScheduleColor } from '../constants/colors';
 
 // Re-export types and individual templates
-export type { ScheduleTemplate, TemplatePhase, TemplateMilestone, TemplateTask } from './templates';
+export type {
+  ScheduleTemplate,
+  TemplatePhase,
+  TemplateMilestone,
+  TemplateTask,
+  ProjectTemplate,
+  ProjectTemplateSection,
+} from './templates';
 export {
   industrialDesignTemplate,
   engineeringTemplate,
@@ -11,6 +18,13 @@ export {
   softwareTemplate,
   pdpTemplate,
   blankTemplate,
+  completeProductDevelopmentTemplate,
+  // Aligned templates
+  pdpAlignedTemplate,
+  industrialDesignAlignedTemplate,
+  engineeringAlignedTemplate,
+  softwareAlignedTemplate,
+  marketingAlignedTemplate,
 } from './templates';
 
 // Import templates for aggregation
@@ -21,8 +35,15 @@ import {
   softwareTemplate,
   pdpTemplate,
   blankTemplate,
+  completeProductDevelopmentTemplate,
+  // Aligned templates
+  pdpAlignedTemplate,
+  industrialDesignAlignedTemplate,
+  engineeringAlignedTemplate,
+  softwareAlignedTemplate,
+  marketingAlignedTemplate,
 } from './templates';
-import type { ScheduleTemplate } from './templates';
+import type { ScheduleTemplate, ProjectTemplate } from './templates';
 
 /**
  * Create default section date range: 1st of current month to 12 months later.
@@ -55,10 +76,27 @@ export const SCHEDULE_TEMPLATES: readonly ScheduleTemplate[] = [
 ];
 
 /**
+ * Aligned templates for Complete Product Development.
+ * These templates have phases aligned to PDP stage-gate milestones.
+ */
+export const ALIGNED_TEMPLATES: readonly ScheduleTemplate[] = [
+  pdpAlignedTemplate,
+  industrialDesignAlignedTemplate,
+  engineeringAlignedTemplate,
+  softwareAlignedTemplate,
+  marketingAlignedTemplate,
+];
+
+/**
+ * All templates combined (regular + aligned).
+ */
+const ALL_TEMPLATES: readonly ScheduleTemplate[] = [...SCHEDULE_TEMPLATES, ...ALIGNED_TEMPLATES];
+
+/**
  * Get a template by its ID.
  */
 export function getTemplateById(templateId: string): ScheduleTemplate | undefined {
-  return SCHEDULE_TEMPLATES.find((t) => t.id === templateId);
+  return ALL_TEMPLATES.find((t) => t.id === templateId);
 }
 
 /**
@@ -142,4 +180,55 @@ export function createSectionFromTemplate(
     startDate,
     endDate,
   };
+}
+
+/**
+ * Aggregated list of all project templates.
+ */
+export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [completeProductDevelopmentTemplate];
+
+/**
+ * Get a project template by its ID.
+ */
+export function getProjectTemplateById(templateId: string): ProjectTemplate | undefined {
+  return PROJECT_TEMPLATES.find((t) => t.id === templateId);
+}
+
+/**
+ * Create multiple sections from a project template.
+ * Returns sections with the master section first.
+ */
+export function createSectionsFromProjectTemplate(
+  projectTemplate: ProjectTemplate,
+  options: {
+    dateRange: { startDate: string; endDate: string };
+  }
+): { sections: Section[]; masterSectionId: string } {
+  const sections: Section[] = [];
+  let masterSectionId = '';
+
+  for (const sectionDef of projectTemplate.sections) {
+    const template = getTemplateById(sectionDef.templateId);
+    if (!template) {
+      console.warn(`Template not found: ${sectionDef.templateId}`);
+      continue;
+    }
+
+    const section = createSectionFromTemplate(template, sectionDef.order, {
+      dateRange: options.dateRange,
+      colorOverride: template.defaultColor,
+      nameOverride: sectionDef.nameOverride,
+    });
+
+    sections.push(section);
+
+    if (sectionDef.isMaster) {
+      masterSectionId = section.id;
+    }
+  }
+
+  // Sort by order
+  sections.sort((a, b) => a.order - b.order);
+
+  return { sections, masterSectionId };
 }

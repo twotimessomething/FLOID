@@ -525,8 +525,9 @@ export function ContextMenu(): JSX.Element | null {
 
         items.push({ label: 'Delete', action: handleDelete, danger: true });
       } else if (location === 'bar') {
-        // Bar area: Edit, Add Milestone Here, Color, Delete
+        // Bar area: Edit, Add Task, Add Milestone Here, Color, Delete
         items.push({ label: 'Edit', action: handleEdit });
+        items.push({ label: 'Add Task', action: handleAddTask });
 
         if (clickRelativePosition !== undefined) {
           items.push({ label: 'Add Milestone Here', action: handleAddBarMilestoneHere });
