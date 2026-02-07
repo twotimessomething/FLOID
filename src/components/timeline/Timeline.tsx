@@ -290,12 +290,13 @@ export function Timeline() {
             aria-label="Resize labels column"
             role="separator"
           />
-          {/* Header spacer */}
+          {/* Header spacer with add schedule button */}
           <div
-            className="flex-shrink-0 border-b border-[var(--color-border)]"
+            className="flex-shrink-0 border-b border-[var(--color-border)] flex items-center px-3"
             style={{ height: HEADER_HEIGHT }}
-            aria-hidden="true"
-          />
+          >
+            <AddScheduleButton />
+          </div>
 
           {/* Section and Phase labels */}
           <div
@@ -339,10 +340,6 @@ export function Timeline() {
             <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
           </div>
 
-          {/* Add Schedule button - fixed at bottom of labels column */}
-          <div className="absolute bottom-3 left-3 z-10">
-            <AddScheduleButton />
-          </div>
         </nav>
 
         {/* Scrollable Timeline Column */}

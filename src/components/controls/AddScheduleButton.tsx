@@ -10,10 +10,11 @@ export function AddScheduleButton(): JSX.Element {
   return (
     <button
       onClick={handleAddSchedule}
-      className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] glass-bordered rounded-md transition-colors duration-150"
+      title="Add Schedule"
+      className="w-5 h-5 flex items-center justify-center rounded-full border border-current text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
     >
       <svg
-        className="w-4 h-4"
+        className="w-3 h-3"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -25,7 +26,6 @@ export function AddScheduleButton(): JSX.Element {
           d="M12 4v16m8-8H4"
         />
       </svg>
-      <span>Add Schedule</span>
     </button>
   );
 }

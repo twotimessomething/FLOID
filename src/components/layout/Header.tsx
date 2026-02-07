@@ -229,7 +229,7 @@ export function Header() {
               </svg>
             </button>
             {isExportDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 py-1 min-w-[160px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-50">
+              <div className="absolute right-0 top-full mt-1 py-1 min-w-[160px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-[70]">
                 <button
                   onClick={handleExportProject}
                   className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
