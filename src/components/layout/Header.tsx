@@ -4,6 +4,9 @@ import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore, type ThemeMode } from '../../stores/uiStore';
 import { parseProjectJson, convertImportedProject, exportTimelineAsImage } from '../../utils/exportUtils';
 import { useScheduleImport } from '../../hooks/useScheduleImport';
+import { useFileSystemAutoSave } from '../../hooks/useFileSystemAutoSave';
+import { isFileSystemAccessSupported } from '../../utils/fileSystemUtils';
+import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 
 // Theme icons
 function SunIcon(): JSX.Element {
@@ -72,6 +75,7 @@ export function Header() {
   const openExportModal = useUIStore((state) => state.openExportModal);
 
   const { handleImport: handleScheduleImport } = useScheduleImport();
+  const { saveToFolder } = useFileSystemAutoSave();
 
   // Export dropdown state
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
@@ -118,6 +122,20 @@ export function Header() {
       showToast('error', 'Failed to export timeline as image');
     }
   }, [project, sections, showToast]);
+
+  const handleSaveToFolder = useCallback(async () => {
+    setIsExportDropdownOpen(false);
+
+    try {
+      const success = await saveToFolder();
+      if (success) {
+        showToast('success', 'Saved to folder');
+      }
+    } catch (error) {
+      console.error('Failed to save to folder:', error);
+      showToast('error', 'Failed to save to folder');
+    }
+  }, [saveToFolder, showToast]);
 
   const handleImport = () => {
     const input = document.createElement('input');
@@ -184,6 +202,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-4">
+        <SyncStatusIndicator />
         <button
           onClick={handleThemeToggle}
           className="p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] rounded-md transition-colors duration-150"
@@ -223,6 +242,14 @@ export function Header() {
                 >
                   Export as Image
                 </button>
+                {isFileSystemAccessSupported() && (
+                  <button
+                    onClick={handleSaveToFolder}
+                    className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
+                  >
+                    Save to Folder
+                  </button>
+                )}
               </div>
             )}
           </div>

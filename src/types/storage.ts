@@ -3,6 +3,8 @@ export interface AppSettings {
   backupReminderDays: number;
   backupReminderEnabled: boolean;
   fileSystemFolderName: string | null;
+  fileSystemAutoSyncEnabled: boolean;
+  lastFileSystemSyncDate: string | null;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -10,4 +12,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   backupReminderDays: 7,
   backupReminderEnabled: true,
   fileSystemFolderName: null,
+  fileSystemAutoSyncEnabled: true,
+  lastFileSystemSyncDate: null,
 };

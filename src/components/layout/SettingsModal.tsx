@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { format } from 'date-fns';
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { format, formatDistanceToNow } from 'date-fns';
 import { useUIStore, type ThemeMode } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
+import { useSyncStore } from '../../stores/syncStore';
 import { Toggle } from '../common/Toggle';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import type { AppSettings } from '../../types/storage';
@@ -73,6 +74,12 @@ export function SettingsModal(): JSX.Element | null {
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const updateSettings = useProjectStore((state) => state.updateSettings);
 
+  // Sync store
+  const syncStatus = useSyncStore((state) => state.syncStatus);
+  const lastSyncedAt = useSyncStore((state) => state.lastSyncedAt);
+  const setFolderName = useSyncStore((state) => state.setFolderName);
+  const setDisabled = useSyncStore((state) => state.setDisabled);
+
   // App settings state
   const [appSettings, setLocalAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
 
@@ -82,6 +89,16 @@ export function SettingsModal(): JSX.Element | null {
       getAppSettings().then(setLocalAppSettings);
     }
   }, [isSettingsModalOpen]);
+
+  // Relative time for last sync
+  const lastSyncRelativeTime = useMemo(() => {
+    if (!lastSyncedAt) return null;
+    try {
+      return formatDistanceToNow(new Date(lastSyncedAt), { addSuffix: true });
+    } catch {
+      return null;
+    }
+  }, [lastSyncedAt]);
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
@@ -123,14 +140,16 @@ export function SettingsModal(): JSX.Element | null {
       await setFileHandle(handle);
       await setAppSettings({ fileSystemFolderName: handle.name });
       setLocalAppSettings((s) => ({ ...s, fileSystemFolderName: handle.name }));
+      setFolderName(handle.name);
     }
-  }, []);
+  }, [setFolderName]);
 
   const handleDisableFs = useCallback(async () => {
     await setFileHandle(null);
-    await setAppSettings({ fileSystemFolderName: null });
-    setLocalAppSettings((s) => ({ ...s, fileSystemFolderName: null }));
-  }, []);
+    await setAppSettings({ fileSystemFolderName: null, lastFileSystemSyncDate: null });
+    setLocalAppSettings((s) => ({ ...s, fileSystemFolderName: null, lastFileSystemSyncDate: null }));
+    setDisabled();
+  }, [setDisabled]);
 
   // Close on escape key
   useEffect(() => {
@@ -279,16 +298,49 @@ export function SettingsModal(): JSX.Element | null {
                 Save project files to a folder on your computer
               </p>
               {appSettings.fileSystemFolderName ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[var(--color-text-primary)]">
-                    Saving to: <strong>{appSettings.fileSystemFolderName}</strong>
-                  </span>
-                  <button
-                    onClick={handleDisableFs}
-                    className="text-xs text-[var(--color-error)] hover:underline"
-                  >
-                    Disable
-                  </button>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-[var(--color-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                    </svg>
+                    <span className="text-sm text-[var(--color-text-primary)] font-medium">
+                      {appSettings.fileSystemFolderName}
+                    </span>
+                    {syncStatus === 'syncing' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-[var(--color-focus)]/10 text-[var(--color-focus)]">
+                        Saving...
+                      </span>
+                    )}
+                    {syncStatus === 'synced' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-[var(--color-success)]/10 text-[var(--color-success)]">
+                        Saved
+                      </span>
+                    )}
+                    {syncStatus === 'error' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-[var(--color-error)]/10 text-[var(--color-error)]">
+                        Error
+                      </span>
+                    )}
+                  </div>
+                  {lastSyncRelativeTime && syncStatus !== 'error' && (
+                    <p className="text-xs text-[var(--color-text-muted)] ml-6">
+                      Last saved {lastSyncRelativeTime}
+                    </p>
+                  )}
+                  <div className="flex gap-3 ml-6">
+                    <button
+                      onClick={handleSelectFolder}
+                      className="text-xs text-[var(--color-focus)] hover:underline"
+                    >
+                      Change folder
+                    </button>
+                    <button
+                      onClick={handleDisableFs}
+                      className="text-xs text-[var(--color-error)] hover:underline"
+                    >
+                      Disable
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button
