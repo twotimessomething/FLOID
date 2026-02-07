@@ -15,6 +15,7 @@ export interface Section {
   milestones: Milestone[];
   color: string;
   isCollapsed: boolean;
+  isLocked?: boolean;           // Prevents moving/resizing all phases in this section
 }
 
 // Computed viewport bounds derived from all sections
@@ -33,6 +34,7 @@ export interface Phase {
   color: string | null; // null = inherit from section
   order: number;
   isCollapsed: boolean;
+  isLocked?: boolean;   // Prevents moving/resizing this phase and its tasks
   tasks: Task[];
   barMilestones?: BarMilestone[]; // Optional - defaults to empty array
   relativeStart: number;

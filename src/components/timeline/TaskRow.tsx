@@ -39,6 +39,7 @@ export function TaskRow({
   const isMasterSection = section.id === project?.masterSectionId;
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const isSelected = selection.type === 'task' && selection.id === task.id;
+  const isLocked = section.isLocked || phase.isLocked;
 
   // Memoize phaseWidth (section-relative) to prevent unnecessary effect re-runs
   const phaseWidth = useMemo(
@@ -201,6 +202,7 @@ export function TaskRow({
   );
 
   const handleDragStart = (edge: 'start' | 'end', _e?: React.MouseEvent): void => {
+    if (isLocked) return;
     // Begin undo transaction before any state changes
     beginDragTransaction();
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
@@ -284,6 +286,7 @@ export function TaskRow({
   // Move handlers for dragging the entire bar
   const handleMoveStart = useCallback(
     (e: React.MouseEvent) => {
+      if (isLocked) return;
       e.preventDefault();
       // Begin undo transaction before any state changes
       beginDragTransaction();
@@ -292,7 +295,7 @@ export function TaskRow({
       setDragging(true, 'move');
       document.body.classList.add('no-select');
     },
-    [beginDragTransaction, setDragging]
+    [isLocked, beginDragTransaction, setDragging]
   );
 
   // Calculate the pixel width of the phase in viewport coordinates (memoized for effect)
@@ -424,9 +427,9 @@ export function TaskRow({
       onContextMenu={handleRowContextMenu}
     >
       <div
-        className={`absolute top-1 bottom-1 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group overflow-visible ${
-          isSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''
-        }`}
+        className={`absolute top-1 bottom-1 rounded-[10px] timeline-bar group overflow-visible ${
+          isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
+        } ${isSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''}`}
         style={{
           left,
           width,

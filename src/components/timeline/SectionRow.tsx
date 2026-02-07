@@ -320,6 +320,15 @@ export function SectionRow({
             {section.name || (isMasterSection ? 'Industrial Design' : 'Untitled Team')}
           </span>
           <span className="flex-1" />
+          {section.isLocked && (
+            <svg className="w-3 h-3 text-[var(--color-text-muted)] flex-shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-label="Locked">
+              <path
+                fillRule="evenodd"
+                d="M4 6V4a4 4 0 1 1 8 0v2h.5A1.5 1.5 0 0 1 14 7.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 13.5v-6A1.5 1.5 0 0 1 3.5 6H4zm2-2a2 2 0 1 1 4 0v2H6V4z"
+                clipRule="evenodd"
+              />
+            </svg>
+          )}
           {isMasterSection && <MasterBadge size="sm" />}
         </div>
 

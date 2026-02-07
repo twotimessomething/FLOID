@@ -43,6 +43,7 @@ interface SectionState {
   updateMasterDates: (startDate: string, endDate: string) => void;
   deleteSection: (sectionId: string) => void;
   toggleSectionCollapse: (sectionId: string) => void;
+  toggleSectionLock: (sectionId: string) => void;
   reorderSections: (fromIndex: number, toIndex: number) => void;
 
   // Master operations
@@ -55,6 +56,7 @@ interface SectionState {
   updatePhase: (sectionId: string, phaseId: string, updates: Partial<Phase>) => void;
   deletePhase: (sectionId: string, phaseId: string) => void;
   togglePhaseCollapse: (sectionId: string, phaseId: string) => void;
+  togglePhaseLock: (sectionId: string, phaseId: string) => void;
   reorderPhases: (sectionId: string, fromIndex: number, toIndex: number) => void;
   updatePhasePosition: (
     sectionId: string,
@@ -356,6 +358,15 @@ export const useSectionStore = create<SectionState>()(
       ),
     })),
 
+  toggleSectionLock: (sectionId) =>
+    set((state) => ({
+      sections: state.sections.map((section) =>
+        section.id === sectionId
+          ? { ...section, isLocked: !section.isLocked }
+          : section
+      ),
+    })),
+
   reorderSections: (fromIndex, toIndex) =>
     set((state) => {
       const sections = [...state.sections];
@@ -458,6 +469,22 @@ export const useSectionStore = create<SectionState>()(
               phases: section.phases.map((phase) =>
                 phase.id === phaseId
                   ? { ...phase, isCollapsed: !phase.isCollapsed }
+                  : phase
+              ),
+            }
+          : section
+      ),
+    })),
+
+  togglePhaseLock: (sectionId, phaseId) =>
+    set((state) => ({
+      sections: state.sections.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              phases: section.phases.map((phase) =>
+                phase.id === phaseId
+                  ? { ...phase, isLocked: !phase.isLocked }
                   : phase
               ),
             }

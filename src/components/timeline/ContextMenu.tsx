@@ -32,7 +32,9 @@ export function ContextMenu(): JSX.Element | null {
     reorderPhases,
     sections,
     togglePhaseCollapse,
+    togglePhaseLock,
     toggleSectionCollapse,
+    toggleSectionLock,
     addPhaseBarMilestone,
     addTaskBarMilestone,
     deletePhaseBarMilestone,
@@ -288,6 +290,20 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [sectionId, toggleSectionCollapse, closeContextMenu]);
 
+  // Toggle lock for phases
+  const handleTogglePhaseLock = useCallback(() => {
+    if (!sectionId || !targetId) return;
+    togglePhaseLock(sectionId, targetId);
+    closeContextMenu();
+  }, [sectionId, targetId, togglePhaseLock, closeContextMenu]);
+
+  // Toggle lock for sections
+  const handleToggleSectionLock = useCallback(() => {
+    if (!sectionId) return;
+    toggleSectionLock(sectionId);
+    closeContextMenu();
+  }, [sectionId, toggleSectionLock, closeContextMenu]);
+
   // Add bar milestone at click position (for phase bar)
   const handleAddBarMilestoneHere = useCallback(() => {
     if (!sectionId || !phaseId || clickRelativePosition === undefined) return;
@@ -495,7 +511,7 @@ export function ContextMenu(): JSX.Element | null {
       const phase = section.phases.find((p) => p.id === targetId);
 
       if (location === 'label') {
-        // Label area: Edit, Collapse/Expand, Add Task, Move Up/Down, Delete
+        // Label area: Edit, Collapse/Expand, Lock/Unlock, Add Task, Move Up/Down, Delete
         items.push({ label: 'Edit', action: handleEdit });
 
         // Collapse/Expand toggle with dynamic label
@@ -503,6 +519,15 @@ export function ContextMenu(): JSX.Element | null {
           items.push({
             label: phase.isCollapsed ? 'Expand' : 'Collapse',
             action: handleTogglePhaseCollapse,
+          });
+        }
+
+        // Lock/Unlock toggle (disabled if section is locked)
+        if (phase) {
+          items.push({
+            label: phase.isLocked ? 'Unlock' : 'Lock',
+            action: handleTogglePhaseLock,
+            disabled: section.isLocked,
           });
         }
 
@@ -600,6 +625,12 @@ export function ContextMenu(): JSX.Element | null {
         action: handleToggleSectionCollapse,
       });
 
+      // Lock/Unlock toggle
+      items.push({
+        label: section.isLocked ? 'Unlock Schedule' : 'Lock Schedule',
+        action: handleToggleSectionLock,
+      });
+
       // Add Phase is available for all sections
       items.push({ label: 'Add Phase', action: handleAddPhase });
 
@@ -637,7 +668,7 @@ export function ContextMenu(): JSX.Element | null {
     }
 
     return items;
-  }, [sections, sectionId, targetId, phaseId, taskId, project?.masterSectionId, targetType, location, clickRelativePosition, showColorSubmenu, handleEdit, handleAddPhase, handleAddTask, handleMovePhaseUp, handleMovePhaseDown, handleSetAsMaster, handleExportSchedule, handleDelete, handleTogglePhaseCollapse, handleToggleSectionCollapse, handleAddBarMilestoneHere, handleAddMilestoneHere, handleAddPhaseHere, handleAddTaskHere]);
+  }, [sections, sectionId, targetId, phaseId, taskId, project?.masterSectionId, targetType, location, clickRelativePosition, showColorSubmenu, handleEdit, handleAddPhase, handleAddTask, handleMovePhaseUp, handleMovePhaseDown, handleSetAsMaster, handleExportSchedule, handleDelete, handleTogglePhaseCollapse, handleTogglePhaseLock, handleToggleSectionCollapse, handleToggleSectionLock, handleAddBarMilestoneHere, handleAddMilestoneHere, handleAddPhaseHere, handleAddTaskHere]);
 
   if (!isOpen) return null;
 

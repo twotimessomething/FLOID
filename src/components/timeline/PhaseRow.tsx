@@ -51,6 +51,7 @@ export function PhaseRow({
   const isMasterSection = section.id === project?.masterSectionId;
   const effectiveColor = getPhaseColor(phase, section, phaseIndex, totalPhases);
   const isSelected = selection.type === 'phase' && selection.id === phase.id;
+  const isLocked = section.isLocked || phase.isLocked;
 
   // Convert section-relative positions to viewport-relative for rendering
   const viewportStart = sectionToViewportRelative(phase.relativeStart, section, viewportBounds);
@@ -315,6 +316,7 @@ export function PhaseRow({
   };
 
   const handleDragStart = (edge: 'start' | 'end', e?: React.MouseEvent): void => {
+    if (isLocked) return;
     // Begin undo transaction before any state changes
     beginDragTransaction();
     setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
@@ -447,6 +449,7 @@ export function PhaseRow({
   // Move handlers for dragging the entire bar
   const handleMoveStart = useCallback(
     (e: React.MouseEvent) => {
+      if (isLocked) return;
       // Don't start move if clicking on drag handles (they stopPropagation)
       e.preventDefault();
       // Begin undo transaction before any state changes
@@ -456,7 +459,7 @@ export function PhaseRow({
       setDragging(true, 'move');
       document.body.classList.add('no-select');
     },
-    [beginDragTransaction, setDragging]
+    [isLocked, beginDragTransaction, setDragging]
   );
 
   // Memoize sectionViewportWidth for the move handler
@@ -561,7 +564,7 @@ export function PhaseRow({
       <div role="group" aria-label={`${phase.name} phase`}>
         {/* Phase label */}
         <div
-          className={`flex items-center gap-2 ${isMasterSection ? 'px-3' : 'pl-6 pr-3'} border-b cursor-pointer row-selectable focus-ring ${
+          className={`group flex items-center gap-2 ${isMasterSection ? 'px-3' : 'pl-6 pr-3'} border-b cursor-pointer row-selectable focus-ring ${
             isSelected ? 'selected' : ''
           }`}
           style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
@@ -571,7 +574,7 @@ export function PhaseRow({
           role="button"
           tabIndex={0}
           aria-selected={isSelected}
-          aria-label={`${phase.name} phase${isSelected ? ', selected' : ''}`}
+          aria-label={`${phase.name} phase${isSelected ? ', selected' : ''}${isLocked ? ', locked' : ''}`}
         >
           <button
             onClick={handleToggleCollapse}
@@ -604,6 +607,15 @@ export function PhaseRow({
           <span className={`text-sm ${isMasterSection ? 'font-medium' : ''} text-[var(--color-text-primary)] truncate flex-1`}>
             {phase.name}
           </span>
+          {isLocked && (
+            <svg className="w-3 h-3 text-[var(--color-text-muted)] flex-shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-label="Locked">
+              <path
+                fillRule="evenodd"
+                d="M4 6V4a4 4 0 1 1 8 0v2h.5A1.5 1.5 0 0 1 14 7.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 13.5v-6A1.5 1.5 0 0 1 3.5 6H4zm2-2a2 2 0 1 1 4 0v2H6V4z"
+                clipRule="evenodd"
+              />
+            </svg>
+          )}
         </div>
 
         {/* Task labels */}
@@ -640,9 +652,9 @@ export function PhaseRow({
         onContextMenu={handleRowContextMenu}
       >
         <div
-          className={`absolute top-2 bottom-2 rounded-[10px] cursor-grab active:cursor-grabbing timeline-bar group overflow-visible ${
-            isSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''
-          }`}
+          className={`absolute top-2 bottom-2 rounded-[10px] timeline-bar group overflow-visible ${
+            isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
+          } ${isSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''}`}
           style={{
             left,
             width,
@@ -655,7 +667,7 @@ export function PhaseRow({
           role="button"
           tabIndex={0}
           onKeyDown={handleKeyDown}
-          aria-label={`${phase.name} phase bar, from ${Math.round(phase.relativeStart * 100)}% to ${Math.round(phase.relativeEnd * 100)}%`}
+          aria-label={`${phase.name} phase bar, from ${Math.round(phase.relativeStart * 100)}% to ${Math.round(phase.relativeEnd * 100)}%${isLocked ? ', locked' : ''}`}
           aria-selected={isSelected}
         >
           {/* Left drag handle */}
