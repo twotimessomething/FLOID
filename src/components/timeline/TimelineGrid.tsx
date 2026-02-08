@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useViewport } from '../../hooks/useViewport';
 import { useUIStore } from '../../stores/uiStore';
-import { useSectionStore, selectMasterSection, selectNonMasterSections } from '../../stores/sectionStore';
 import { getTimeMarkers, getDaysBetween } from '../../utils/dateUtils';
 import { getPositionFromRelative, ROW_HEIGHT, TASK_ROW_HEIGHT } from '../../utils/timelineUtils';
+import { useMasterSection } from '../../hooks/useMasterSection';
 import type { Section } from '../../types';
 
 // Pure function hoisted outside component to avoid recreation on each render
@@ -23,8 +23,7 @@ function calculateSectionHeight(section: Section): number {
 export function TimelineGrid() {
   const { viewportBounds, timelineWidth } = useViewport();
   const { zoomLevel } = useUIStore();
-  const masterSection = useSectionStore(selectMasterSection);
-  const nonMasterSections = useSectionStore(selectNonMasterSections);
+  const { masterSection, nonMasterSections } = useMasterSection();
 
   const markers = getTimeMarkers(viewportBounds.startDate, viewportBounds.endDate, zoomLevel);
   const totalDays = viewportBounds.totalDays;

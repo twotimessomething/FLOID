@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
+import { useCallback, useRef, useEffect, useState, useMemo, memo } from 'react';
 import type { Phase, Task, Section, ViewportBounds } from '../../types';
 import { getPhaseColor } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
@@ -10,6 +10,8 @@ import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, vie
 import { DragHandle } from './DragHandle';
 import { BarMilestoneMarker } from './BarMilestoneMarker';
 import { AddItemButton } from './AddItemButton';
+import { useDoubleClick } from '../../hooks/useDoubleClick';
+import { useContextMenu } from '../../hooks/useContextMenu';
 
 interface TaskRowProps {
   readonly task: Task;
@@ -22,7 +24,7 @@ interface TaskRowProps {
   readonly totalPhases?: number;
 }
 
-export function TaskRow({
+export const TaskRow = memo(function TaskRow({
   task,
   phase,
   section,
@@ -34,7 +36,10 @@ export function TaskRow({
 }: TaskRowProps): JSX.Element {
   const { updateTaskPosition, addTaskBarMilestone, addTask, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const project = useProjectStore((state) => state.project);
-  const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
+  const selection = useUIStore((s) => s.selection);
+  const selectItem = useUIStore((s) => s.selectItem);
+  const setDragging = useUIStore((s) => s.setDragging);
+  const openContextMenu = useUIStore((s) => s.openContextMenu);
 
   const isMasterSection = section.id === project?.masterSectionId;
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
@@ -64,7 +69,6 @@ export function TaskRow({
   // Move drag state
   const isMoving = useRef(false);
   const moveLastX = useRef(0);
-  const hasDragged = useRef(false);
 
   // Refs to avoid effect re-runs during drag (store latest values for use in event handlers)
   const taskRef = useRef({ relativeStart: task.relativeStart, relativeEnd: task.relativeEnd });
@@ -76,51 +80,30 @@ export function TaskRow({
   const [startDragDate, setStartDragDate] = useState<string | undefined>(undefined);
   const [endDragDate, setEndDragDate] = useState<string | undefined>(undefined);
 
-  // Track click timeout for distinguishing single vs double click
-  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingClickEvent = useRef<{ x: number; y: number } | null>(null);
-
-  const handleClick = useCallback((e: React.MouseEvent): void => {
-    // Don't trigger selection if we just finished dragging
-    if (hasDragged.current) {
-      hasDragged.current = false;
-      return;
-    }
-
-    // Store click position and delay to allow double-click detection
-    pendingClickEvent.current = { x: e.clientX, y: e.clientY };
-
-    // Clear any existing timeout
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-    }
-
-    // Wait briefly to see if this is a double-click
-    clickTimeoutRef.current = setTimeout(() => {
-      if (pendingClickEvent.current) {
-        selectItem('task', task.id, section.id, phase.id, pendingClickEvent.current);
-        pendingClickEvent.current = null;
-      }
-    }, 200);
-  }, [selectItem, task.id, section.id, phase.id]);
-
-  // Context menu for label area
-  const handleLabelContextMenu = useCallback((e: React.MouseEvent): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    openContextMenu({ x: e.clientX, y: e.clientY }, 'task', task.id, section.id, phase.id, null, 'label');
-  }, [openContextMenu, task.id, section.id, phase.id]);
-
-  // Context menu for bar area - includes click position for "Add Milestone Here"
-  const handleBarContextMenu = useCallback((e: React.MouseEvent): void => {
-    e.preventDefault();
-    e.stopPropagation();
+  // Double-click on task bar creates a bar milestone
+  const onBarDoubleClick = useCallback((e: React.MouseEvent): void => {
     const barElement = e.currentTarget as HTMLElement;
     const barRect = barElement.getBoundingClientRect();
     const clickX = e.clientX - barRect.left;
-    const clickRelativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
-    openContextMenu({ x: e.clientX, y: e.clientY }, 'task', task.id, section.id, phase.id, task.id, 'bar', clickRelativePosition);
-  }, [openContextMenu, task.id, section.id, phase.id]);
+    const relativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
+
+    const newId = addTaskBarMilestone(section.id, phase.id, task.id, {
+      name: '',
+      relativePosition,
+    });
+
+    selectItem('barMilestone', newId, section.id, phase.id, { x: e.clientX, y: e.clientY }, task.id);
+  }, [addTaskBarMilestone, section.id, phase.id, task.id, selectItem]);
+
+  // Single click selects task
+  const onTaskClick = useCallback((e: React.MouseEvent): void => {
+    selectItem('task', task.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
+  }, [selectItem, task.id, section.id, phase.id]);
+
+  const { handleClick, handleDoubleClick, hasDragged } = useDoubleClick(onTaskClick, onBarDoubleClick);
+
+  // Context menus via shared hook
+  const { handleLabelContextMenu, handleBarContextMenu } = useContextMenu('task', task.id, section.id, phase.id, task.id);
 
   // Context menu for task row empty area - for adding tasks
   const handleRowContextMenu = useCallback((e: React.MouseEvent): void => {
@@ -138,36 +121,6 @@ export function TaskRow({
     openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id, phase.id, null, 'empty', clickRelativePosition);
   }, [openContextMenu, section, phase.id, phase.relativeStart, phaseWidth, timelineWidth, viewportBounds]);
 
-  // Double-click on task bar creates a bar milestone
-  const handleDoubleClick = useCallback((e: React.MouseEvent): void => {
-    e.stopPropagation();
-    e.preventDefault();
-
-    // Cancel any pending single-click action
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
-    }
-    pendingClickEvent.current = null;
-
-    // Reset drag state to prevent interference
-    hasDragged.current = false;
-
-    // Calculate click position relative to the bar
-    const barElement = e.currentTarget as HTMLElement;
-    const barRect = barElement.getBoundingClientRect();
-    const clickX = e.clientX - barRect.left;
-    const relativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
-
-    // Create bar milestone
-    const newId = addTaskBarMilestone(section.id, phase.id, task.id, {
-      name: '',
-      relativePosition,
-    });
-
-    // Select the new bar milestone to open editor
-    selectItem('barMilestone', newId, section.id, phase.id, { x: e.clientX, y: e.clientY }, task.id);
-  }, [addTaskBarMilestone, section.id, phase.id, task.id, selectItem]);
 
   // Click on "+" button creates a new task starting at the end of this task
   const handleAddTaskAfter = useCallback(
@@ -495,4 +448,4 @@ export function TaskRow({
       </div>
     </div>
   );
-}
+});

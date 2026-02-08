@@ -5,8 +5,6 @@ export {
   selectPhase,
   selectTask,
   selectMilestone,
-  selectMasterSection,
-  selectNonMasterSections,
   selectPhaseBarMilestone,
   selectTaskBarMilestone,
 } from './sectionStore';

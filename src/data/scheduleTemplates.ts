@@ -1,4 +1,3 @@
-import { addMonths } from 'date-fns';
 import type { Section, Phase, Milestone } from '../types';
 import { getScheduleColor } from '../constants/colors';
 
@@ -45,22 +44,8 @@ import {
 } from './templates';
 import type { ScheduleTemplate, ProjectTemplate } from './templates';
 
-/**
- * Create default section date range: 1st of current month to 12 months later.
- */
-const createDefaultSectionDateRange = (): { startDate: string; endDate: string } => {
-  const now = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endDate = addMonths(startDate, 12);
-  return {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-  };
-};
-
-const generateId = (): string => {
-  return Math.random().toString(36).substring(2, 11);
-};
+import { generateId } from '../utils/idUtils';
+import { createDefaultSectionDateRange } from '../utils/dateRangeUtils';
 
 /**
  * Aggregated list of all schedule templates.

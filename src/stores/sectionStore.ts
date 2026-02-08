@@ -4,12 +4,8 @@ import { parseISO, differenceInDays, addDays, subDays } from 'date-fns';
 import type { Section, Phase, Task, Milestone, BarMilestone } from '../types';
 import { createDefaultIDTimelineSection, createDefaultSectionDateRange } from '../data/defaultTemplate';
 import { useProjectStore } from './projectStore';
-import { useUIStore } from './uiStore';
 import { getScheduleColor } from '../constants/colors';
-
-const generateId = (): string => {
-  return Math.random().toString(36).substring(2, 11);
-};
+import { generateId } from '../utils/idUtils';
 
 // Tracks auto-expansion for scroll compensation
 export interface ExpansionInfo {
@@ -41,7 +37,7 @@ interface SectionState {
   updateSection: (sectionId: string, updates: Partial<Omit<Section, 'id' | 'type'>>) => void;
   updateSectionDates: (sectionId: string, startDate: string, endDate: string) => void;
   updateMasterDates: (startDate: string, endDate: string) => void;
-  deleteSection: (sectionId: string) => void;
+  deleteSection: (sectionId: string) => { success: boolean; reason?: string };
   toggleSectionCollapse: (sectionId: string) => void;
   toggleSectionLock: (sectionId: string) => void;
   reorderSections: (fromIndex: number, toIndex: number) => void;
@@ -161,17 +157,6 @@ export const selectTaskBarMilestone =
     return task?.barMilestones?.find((bm) => bm.id === barMilestoneId);
   };
 
-// Select master section (section whose ID matches project.masterSectionId)
-export const selectMasterSection = (state: SectionState) => {
-  const project = useProjectStore.getState().project;
-  return state.sections.find((s) => s.id === project?.masterSectionId);
-};
-
-// Select all non-master sections
-export const selectNonMasterSections = (state: SectionState) => {
-  const project = useProjectStore.getState().project;
-  return state.sections.filter((s) => s.id !== project?.masterSectionId);
-};
 
 export const useSectionStore = create<SectionState>()(
   temporal(
@@ -332,21 +317,18 @@ export const useSectionStore = create<SectionState>()(
 
     // Prevent deleting the master section
     if (project && project.masterSectionId === sectionId) {
-      const { showToast } = useUIStore.getState();
-      showToast('warning', 'Cannot delete master schedule. Pin another schedule as master first.');
-      return;
+      return { success: false, reason: 'Cannot delete master schedule. Pin another schedule as master first.' };
     }
 
     // Prevent deleting if only one section
     if (state.sections.length <= 1) {
-      const { showToast } = useUIStore.getState();
-      showToast('warning', 'Cannot delete the only schedule.');
-      return;
+      return { success: false, reason: 'Cannot delete the only schedule.' };
     }
 
     set({
       sections: state.sections.filter((s) => s.id !== sectionId),
     });
+    return { success: true };
   },
 
   toggleSectionCollapse: (sectionId) =>

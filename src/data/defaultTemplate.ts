@@ -1,23 +1,9 @@
-import { addMonths } from 'date-fns';
 import type { Project, Section } from '../types';
 import { getTemplateById, createSectionFromTemplate } from './scheduleTemplates';
+import { generateId } from '../utils/idUtils';
+import { createDefaultSectionDateRange } from '../utils/dateRangeUtils';
 
-const generateId = (): string => {
-  return Math.random().toString(36).substring(2, 11);
-};
-
-/**
- * Create default section date range: 1st of current month to 12 months later.
- */
-export const createDefaultSectionDateRange = (): { startDate: string; endDate: string } => {
-  const now = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endDate = addMonths(startDate, 12);
-  return {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-  };
-};
+export { createDefaultSectionDateRange } from '../utils/dateRangeUtils';
 
 export const createDefaultProject = (masterSectionId: string, startDate: string, endDate: string): Project => {
   const now = new Date();

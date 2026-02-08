@@ -14,6 +14,7 @@ import { ExportModal } from './components/layout/ExportModal';
 import { KeyboardHelpModal } from './components/layout/KeyboardHelpModal';
 import { ContextMenu } from './components/timeline';
 import { Toast, ConfirmDialog } from './components/common';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useAutoSave, useKeyboardShortcuts, useScheduleImport, useTheme } from './hooks';
 import { useBackupReminder } from './hooks/useBackupReminder';
 import { useFileSystemAutoSave } from './hooks/useFileSystemAutoSave';
@@ -169,16 +170,18 @@ function App() {
         Skip to timeline
       </a>
       <Header />
-      <main
-        id="main-timeline"
-        className="flex-1 flex min-h-0"
-        role="main"
-        aria-label="Project timeline"
-      >
-        <LeftSidebar />
-        <TimelineContainer />
-        <InfoSidebar />
-      </main>
+      <ErrorBoundary>
+        <main
+          id="main-timeline"
+          className="flex-1 flex min-h-0"
+          role="main"
+          aria-label="Project timeline"
+        >
+          <LeftSidebar />
+          <TimelineContainer />
+          <InfoSidebar />
+        </main>
+      </ErrorBoundary>
       <EditorModal />
       <NewProjectModal />
       <ProjectEditModal />

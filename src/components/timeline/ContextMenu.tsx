@@ -19,7 +19,7 @@ interface MenuItem {
 export function ContextMenu(): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement>(null);
   const confirm = useConfirm();
-  const { contextMenu, closeContextMenu, selectItem } = useUIStore();
+  const { contextMenu, closeContextMenu, selectItem, showToast } = useUIStore();
   const {
     deletePhase,
     deleteTask,
@@ -145,9 +145,13 @@ export function ContextMenu(): JSX.Element | null {
       case 'milestone':
         deleteMilestone(sectionId, targetId);
         break;
-      case 'section':
-        deleteSection(targetId);
+      case 'section': {
+        const result = deleteSection(targetId);
+        if (!result.success && result.reason) {
+          showToast('warning', result.reason);
+        }
         break;
+      }
       case 'barMilestone':
         if (phaseId) {
           if (taskId) {

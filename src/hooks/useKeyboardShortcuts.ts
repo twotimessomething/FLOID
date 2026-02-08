@@ -1,7 +1,8 @@
 import { useEffect, useCallback, useMemo } from 'react';
 import { useUIStore } from '../stores/uiStore';
-import { useSectionStore, selectMasterSection, selectNonMasterSections } from '../stores/sectionStore';
+import { useSectionStore } from '../stores/sectionStore';
 import { useUndoRedo } from './useUndoRedo';
+import { useMasterSection } from './useMasterSection';
 import { SHORTCUTS } from '../constants/shortcuts';
 import type { SelectionState, Section } from '../types';
 
@@ -19,11 +20,10 @@ interface NavigableItem {
  * Supports navigation, collapse/expand, deletion, and sidebar interactions.
  */
 export function useKeyboardShortcuts(): void {
-  const { selection, selectItem, closeModal, isModalOpen } = useUIStore();
+  const { selection, selectItem, closeModal, isModalOpen, showToast } = useUIStore();
   const { undo, redo } = useUndoRedo();
 
-  const masterSection = useSectionStore(selectMasterSection);
-  const nonMasterSections = useSectionStore(selectNonMasterSections);
+  const { masterSection, nonMasterSections } = useMasterSection();
   const {
     toggleSectionCollapse,
     togglePhaseCollapse,
@@ -166,9 +166,13 @@ export function useKeyboardShortcuts(): void {
     if (!selection.id || !selection.type || !selection.sectionId) return;
 
     switch (selection.type) {
-      case 'section':
-        deleteSection(selection.sectionId);
+      case 'section': {
+        const result = deleteSection(selection.sectionId);
+        if (!result.success && result.reason) {
+          showToast('warning', result.reason);
+        }
         break;
+      }
       case 'phase':
         deletePhase(selection.sectionId, selection.id);
         break;

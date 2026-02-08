@@ -12,3 +12,6 @@ export { useBackupReminder } from './useBackupReminder';
 export { useFileSystemAutoSave } from './useFileSystemAutoSave';
 export { useConfirm } from './useConfirm';
 export { useUndoRedo } from './useUndoRedo';
+export { useDoubleClick } from './useDoubleClick';
+export { useContextMenu } from './useContextMenu';
+export { useMasterSection } from './useMasterSection';

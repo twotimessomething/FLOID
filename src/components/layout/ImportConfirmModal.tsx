@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore } from '../../stores/uiStore';
-import { useSectionStore, selectMasterSection } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
+import { useMasterSection } from '../../hooks/useMasterSection';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { formatDate } from '../../utils/dateUtils';
@@ -14,7 +14,7 @@ interface ImportConfirmModalProps {
 
 export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.Element | null {
   const { importModal, closeImportModal } = useUIStore();
-  const masterSection = useSectionStore(selectMasterSection);
+  const { masterSection } = useMasterSection();
   const project = useProjectStore((state) => state.project);
   const { isOpen, type, analysis } = importModal;
 

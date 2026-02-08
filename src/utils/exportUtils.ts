@@ -4,10 +4,19 @@ import type { ScheduleExportData, ImportAnalysis, ExportPhase, ExportMilestone, 
 import { getDateFromRelativePosition, computeViewportBounds, sectionToViewportRelative, getMonthMarkers } from './dateUtils';
 import { format, differenceInDays } from 'date-fns';
 import { setAppSettings } from './indexedDB';
-
-// Helper to sanitize filename
-const sanitizeFilename = (name: string): string =>
-  name.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
+import { sanitizeFilename } from './stringUtils';
+import {
+  IMAGE_WIDTH,
+  IMAGE_HEIGHT,
+  IMAGE_PADDING,
+  LABEL_WIDTH,
+  HEADER_HEIGHT,
+  ROW_HEIGHT,
+  TASK_ROW_HEIGHT,
+  BAR_HEIGHT,
+  TASK_BAR_HEIGHT,
+  BAR_RADIUS,
+} from '../constants/exportDimensions';
 
 // Helper to compute absolute dates for phases
 const computePhaseAbsoluteDates = (phase: Section['phases'][0], section: Section): ExportPhase => {
@@ -110,8 +119,6 @@ export const downloadProjectJson = async (project: Project, sections: Section[])
   await setAppSettings({ lastBackupDate: new Date().toISOString() });
 };
 
-// Legacy alias for backwards compatibility
-export const downloadJson = downloadProjectJson;
 
 export const parseProjectJson = (json: string): ProjectExportData | null => {
   try {
@@ -233,8 +240,6 @@ export const convertImportedProject = (data: ProjectExportData): { project: Proj
   return { project, sections };
 };
 
-// Legacy alias for backwards compatibility
-export const parseImportedJson = parseProjectJson;
 
 // Schedule-specific export/import functions for .floid files
 
@@ -380,16 +385,9 @@ export const exportTimelineAsImage = async (
   project: Project,
   sections: Section[]
 ): Promise<void> => {
-  const WIDTH = 1920;
-  const HEIGHT = 1080;
-  const PADDING = 40;
-  const LABEL_WIDTH = 200;
-  const HEADER_HEIGHT = 50;
-  const ROW_HEIGHT = 32;
-  const TASK_ROW_HEIGHT = 24;
-  const BAR_HEIGHT = 20;
-  const TASK_BAR_HEIGHT = 16;
-  const BAR_RADIUS = 4;
+  const WIDTH = IMAGE_WIDTH;
+  const HEIGHT = IMAGE_HEIGHT;
+  const PADDING = IMAGE_PADDING;
 
   // Get CSS variable colors or use defaults
   const getColor = (varName: string, fallback: string): string => {

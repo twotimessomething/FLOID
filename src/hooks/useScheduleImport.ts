@@ -1,16 +1,14 @@
 import { useCallback } from 'react';
 import { parseISO } from 'date-fns';
 import { useUIStore } from '../stores/uiStore';
-import { useSectionStore, selectMasterSection } from '../stores/sectionStore';
+import { useSectionStore } from '../stores/sectionStore';
 import { useProjectStore } from '../stores/projectStore';
+import { useMasterSection } from './useMasterSection';
 import { parseScheduleFloid, analyzeScheduleImport } from '../utils/exportUtils';
 import { getRelativePositionFromDate } from '../utils/dateUtils';
 import type { Section, Phase, Milestone, ImportOptions } from '../types';
 import type { ScheduleExportData, ExportPhase, ExportMilestone } from '../types/scheduleExport';
-
-const generateId = (): string => {
-  return Math.random().toString(36).substring(2, 11);
-};
+import { generateId } from '../utils/idUtils';
 
 interface UseScheduleImportReturn {
   handleImport: (jsonText: string) => void;
@@ -20,7 +18,7 @@ interface UseScheduleImportReturn {
 export function useScheduleImport(): UseScheduleImportReturn {
   const { showToast, openImportModal, importModal, closeImportModal } = useUIStore();
   const { sections, setSections } = useSectionStore();
-  const masterSection = useSectionStore(selectMasterSection);
+  const { masterSection } = useMasterSection();
   const project = useProjectStore((state) => state.project);
 
   // Get the date range to use for new sections (from master section or project)

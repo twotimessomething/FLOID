@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { useSectionStore, selectMasterSection } from '../stores/sectionStore';
+import { useSectionStore } from '../stores/sectionStore';
+import { useMasterSection } from './useMasterSection';
 import type { Section, Phase, Task, Milestone } from '../types';
 import { getPhaseColor } from '../types';
 import { parseISO, differenceInDays, addDays } from 'date-fns';
@@ -54,7 +55,7 @@ function sectionPositionToDate(position: number, section: Section): Date {
 
 export function useTimelineStatus(): TimelineStatus {
   const sections = useSectionStore((state) => state.sections);
-  const masterSection = useSectionStore(selectMasterSection);
+  const { masterSection } = useMasterSection();
 
   return useMemo(() => {
     // Get today's position relative to the master section

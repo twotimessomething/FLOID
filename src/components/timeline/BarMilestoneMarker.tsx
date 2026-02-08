@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
+import { useRef, useCallback, useEffect, useState, useMemo, memo } from 'react';
 import type { BarMilestone } from '../../types';
 import { useSectionStore, selectSection, selectPhase, selectTask } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -14,7 +14,7 @@ interface BarMilestoneMarkerProps {
   readonly color: string;
 }
 
-export function BarMilestoneMarker({
+export const BarMilestoneMarker = memo(function BarMilestoneMarker({
   barMilestone,
   sectionId,
   phaseId,
@@ -22,8 +22,14 @@ export function BarMilestoneMarker({
   barWidth,
   color,
 }: BarMilestoneMarkerProps): JSX.Element {
-  const { updatePhaseBarMilestone, updateTaskBarMilestone, beginDragTransaction, commitDragTransaction } = useSectionStore();
-  const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
+  const updatePhaseBarMilestone = useSectionStore((s) => s.updatePhaseBarMilestone);
+  const updateTaskBarMilestone = useSectionStore((s) => s.updateTaskBarMilestone);
+  const beginDragTransaction = useSectionStore((s) => s.beginDragTransaction);
+  const commitDragTransaction = useSectionStore((s) => s.commitDragTransaction);
+  const selection = useUIStore((s) => s.selection);
+  const selectItem = useUIStore((s) => s.selectItem);
+  const setDragging = useUIStore((s) => s.setDragging);
+  const openContextMenu = useUIStore((s) => s.openContextMenu);
 
   // Get section, phase, and task data for date calculations
   const sectionSelector = useMemo(() => selectSection(sectionId), [sectionId]);
@@ -243,4 +249,4 @@ export function BarMilestoneMarker({
       </div>
     </div>
   );
-}
+});

@@ -1,9 +1,6 @@
 import type { Project, Section } from '../types';
 import { exportProjectToJson } from './exportUtils';
-
-// Helper to sanitize filename
-const sanitizeFilename = (name: string): string =>
-  name.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
+import { sanitizeFilename } from './stringUtils';
 
 // Check if the File System Access API is supported
 export const isFileSystemAccessSupported = (): boolean => {

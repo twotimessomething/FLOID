@@ -15,6 +15,7 @@ import {
   getDay,
 } from 'date-fns';
 import type { ZoomLevel, Section, ViewportBounds, Phase } from '../types';
+import { MILESTONE_SNAP_THRESHOLD } from '../constants/app';
 
 export const parseDate = (dateString: string): Date => {
   return parseISO(dateString);
@@ -255,17 +256,6 @@ export const snapToNextBusinessDay = (date: Date): Date => {
 };
 
 /**
- * Snap a date to the previous business day if it falls on a weekend.
- * Saturday → Friday, Sunday → Friday.
- */
-export const snapToPreviousBusinessDay = (date: Date): Date => {
-  const day = getDay(date);
-  if (day === 6) return addDays(date, -1); // Saturday → Friday
-  if (day === 0) return addDays(date, -2); // Sunday → Friday
-  return date;
-};
-
-/**
  * Snap a section-relative position to the next business day if it lands on a weekend.
  * Returns the original position if no snap is needed.
  */
@@ -291,7 +281,7 @@ export const snapRelativeToBusinessDay = (
 export const findNearestPhaseBoundary = (
   relativePosition: number,
   phases: readonly Phase[],
-  threshold: number = 0.05
+  threshold: number = MILESTONE_SNAP_THRESHOLD
 ): number | null => {
   let nearestBoundary: number | null = null;
   let nearestDistance = threshold;
@@ -407,64 +397,3 @@ export const rescaleMilestones = <T extends { relativePosition: number }>(
   });
 };
 
-/**
- * Calculate the content bounds (min/max relative positions) of all phases and milestones in a section.
- * Returns { minRelative, maxRelative } where both are in [0, 1].
- * Returns null if section has no content.
- */
-export const getContentBounds = (
-  phases: readonly Phase[],
-  milestones: readonly { relativePosition: number }[]
-): { minRelative: number; maxRelative: number } | null => {
-  const positions: number[] = [];
-
-  // Collect phase bounds
-  for (const phase of phases) {
-    positions.push(phase.relativeStart, phase.relativeEnd);
-  }
-
-  // Collect milestone positions
-  for (const milestone of milestones) {
-    positions.push(milestone.relativePosition);
-  }
-
-  if (positions.length === 0) {
-    return null;
-  }
-
-  return {
-    minRelative: Math.min(...positions),
-    maxRelative: Math.max(...positions),
-  };
-};
-
-/**
- * Rescale positions to fill the 0-1 range based on current content bounds.
- * Used when contracting a section to fit its content.
- */
-export const normalizePositions = <T extends { relativePosition: number }>(
-  phases: readonly Phase[],
-  milestones: readonly T[],
-  minRelative: number,
-  maxRelative: number
-): { phases: Phase[]; milestones: T[] } => {
-  const range = maxRelative - minRelative;
-  if (range <= 0) {
-    return { phases: phases as Phase[], milestones: milestones as T[] };
-  }
-
-  const normalize = (value: number): number => (value - minRelative) / range;
-
-  const normalizedPhases = phases.map((phase) => ({
-    ...phase,
-    relativeStart: normalize(phase.relativeStart),
-    relativeEnd: normalize(phase.relativeEnd),
-  }));
-
-  const normalizedMilestones = milestones.map((milestone) => ({
-    ...milestone,
-    relativePosition: normalize(milestone.relativePosition),
-  }));
-
-  return { phases: normalizedPhases, milestones: normalizedMilestones };
-};

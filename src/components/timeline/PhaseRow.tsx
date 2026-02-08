@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
+import { useCallback, useRef, useEffect, useState, useMemo, memo } from 'react';
 import type { Phase, Section, ViewportBounds } from '../../types';
 import { getPhaseColor } from '../../types';
 import { getNextPhaseColor } from '../../constants/colors';
@@ -19,6 +19,8 @@ import { TaskRow } from './TaskRow';
 import { DragHandle } from './DragHandle';
 import { BarMilestoneMarker } from './BarMilestoneMarker';
 import { AddItemButton } from './AddItemButton';
+import { useDoubleClick } from '../../hooks/useDoubleClick';
+import { useContextMenu } from '../../hooks/useContextMenu';
 
 interface PhaseRowProps {
   readonly phase: Phase;
@@ -31,7 +33,7 @@ interface PhaseRowProps {
   readonly totalPhases?: number;
 }
 
-export function PhaseRow({
+export const PhaseRow = memo(function PhaseRow({
   phase,
   section,
   isLabel,
@@ -45,7 +47,10 @@ export function PhaseRow({
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
   const project = useProjectStore((state) => state.project);
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
-  const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
+  const selection = useUIStore((s) => s.selection);
+  const selectItem = useUIStore((s) => s.selectItem);
+  const setDragging = useUIStore((s) => s.setDragging);
+  const openContextMenu = useUIStore((s) => s.openContextMenu);
   const phaseRowRef = useRef<HTMLDivElement>(null);
 
   const isMasterSection = section.id === project?.masterSectionId;
@@ -71,7 +76,6 @@ export function PhaseRow({
   // Move drag state
   const isMoving = useRef(false);
   const moveLastX = useRef(0);
-  const hasDragged = useRef(false);
 
   // Refs to avoid effect re-runs during drag
   const phasePositionRef = useRef({ relativeStart: phase.relativeStart, relativeEnd: phase.relativeEnd });
@@ -103,51 +107,30 @@ export function PhaseRow({
     clearExpansion();
   }, [section.id, timelineWidth, clearExpansion]);
 
-  // Track click timeout for distinguishing single vs double click
-  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingClickEvent = useRef<{ x: number; y: number } | null>(null);
-
-  const handleClick = useCallback((e: React.MouseEvent): void => {
-    // Don't trigger selection if we just finished dragging
-    if (hasDragged.current) {
-      hasDragged.current = false;
-      return;
-    }
-
-    // Store click position and delay to allow double-click detection
-    pendingClickEvent.current = { x: e.clientX, y: e.clientY };
-
-    // Clear any existing timeout
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-    }
-
-    // Wait briefly to see if this is a double-click
-    clickTimeoutRef.current = setTimeout(() => {
-      if (pendingClickEvent.current) {
-        selectItem('phase', phase.id, section.id, null, pendingClickEvent.current);
-        pendingClickEvent.current = null;
-      }
-    }, 200);
-  }, [selectItem, phase.id, section.id]);
-
-  // Context menu for label area
-  const handleLabelContextMenu = useCallback((e: React.MouseEvent): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id, null, null, 'label');
-  }, [openContextMenu, phase.id, section.id]);
-
-  // Context menu for bar area - includes click position for "Add Milestone Here"
-  const handleBarContextMenu = useCallback((e: React.MouseEvent): void => {
-    e.preventDefault();
-    e.stopPropagation();
+  // Double-click on bar creates a bar milestone
+  const onBarDoubleClick = useCallback((e: React.MouseEvent): void => {
     const barElement = e.currentTarget as HTMLElement;
     const barRect = barElement.getBoundingClientRect();
     const clickX = e.clientX - barRect.left;
-    const clickRelativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
-    openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id, null, null, 'bar', clickRelativePosition);
-  }, [openContextMenu, phase.id, section.id]);
+    const relativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
+
+    const newId = addPhaseBarMilestone(section.id, phase.id, {
+      name: '',
+      relativePosition,
+    });
+
+    selectItem('barMilestone', newId, section.id, phase.id, { x: e.clientX, y: e.clientY });
+  }, [addPhaseBarMilestone, section.id, phase.id, selectItem]);
+
+  // Single click selects phase
+  const onPhaseClick = useCallback((e: React.MouseEvent): void => {
+    selectItem('phase', phase.id, section.id, null, { x: e.clientX, y: e.clientY });
+  }, [selectItem, phase.id, section.id]);
+
+  const { handleClick, handleDoubleClick: handleBarDoubleClick, hasDragged } = useDoubleClick(onPhaseClick, onBarDoubleClick);
+
+  // Context menus via shared hook
+  const { handleLabelContextMenu, handleBarContextMenu } = useContextMenu('phase', phase.id, section.id);
 
   // Context menu for phase row empty area (not on bar) - for adding phases/milestones
   const handleRowContextMenu = useCallback((e: React.MouseEvent): void => {
@@ -179,36 +162,6 @@ export function PhaseRow({
     openContextMenu({ x: e.clientX, y: e.clientY }, 'phase', phase.id, section.id, phase.id, null, 'empty', clickRelativePosition);
   }, [openContextMenu, section, phase.id, phase.relativeStart, phaseWidth, timelineWidth, viewportBounds]);
 
-  // Double-click on phase bar creates a bar milestone
-  const handleBarDoubleClick = useCallback((e: React.MouseEvent): void => {
-    e.stopPropagation();
-    e.preventDefault();
-
-    // Cancel any pending single-click action
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
-    }
-    pendingClickEvent.current = null;
-
-    // Reset drag state to prevent interference
-    hasDragged.current = false;
-
-    // Calculate click position relative to the bar
-    const barElement = e.currentTarget as HTMLElement;
-    const barRect = barElement.getBoundingClientRect();
-    const clickX = e.clientX - barRect.left;
-    const relativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
-
-    // Create bar milestone
-    const newId = addPhaseBarMilestone(section.id, phase.id, {
-      name: '',
-      relativePosition,
-    });
-
-    // Select the new bar milestone to open editor
-    selectItem('barMilestone', newId, section.id, phase.id, { x: e.clientX, y: e.clientY });
-  }, [addPhaseBarMilestone, section.id, phase.id, selectItem]);
 
   // Click on "+" button creates a new phase starting at the end of this phase
   const handleAddPhaseAfter = useCallback(
@@ -744,4 +697,4 @@ export function PhaseRow({
       )}
     </div>
   );
-}
+});

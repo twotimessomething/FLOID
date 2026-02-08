@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState, useMemo } from 'react';
+import { useRef, useCallback, useEffect, useState, useMemo, memo } from 'react';
 import type { Milestone, Section, ViewportBounds } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -6,6 +6,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { ROW_HEIGHT } from '../../utils/timelineUtils';
 import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, getDaysBetween, snapRelativeToBusinessDay, findNearestPhaseBoundary } from '../../utils/dateUtils';
+import { useContextMenu } from '../../hooks/useContextMenu';
 
 interface MilestoneMarkerProps {
   readonly milestone: Milestone;
@@ -16,7 +17,7 @@ interface MilestoneMarkerProps {
   readonly isHidden?: boolean; // Hide when rendered as sticky
 }
 
-export function MilestoneMarker({
+export const MilestoneMarker = memo(function MilestoneMarker({
   milestone,
   section,
   timelineWidth,
@@ -25,7 +26,9 @@ export function MilestoneMarker({
   isHidden = false,
 }: MilestoneMarkerProps) {
   const { updateMilestone, beginDragTransaction, commitDragTransaction } = useSectionStore();
-  const { selection, selectItem, setDragging, openContextMenu } = useUIStore();
+  const selection = useUIStore((s) => s.selection);
+  const selectItem = useUIStore((s) => s.selectItem);
+  const setDragging = useUIStore((s) => s.setDragging);
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
 
   const isSelected = selection.type === 'milestone' && selection.id === milestone.id;
@@ -52,11 +55,7 @@ export function MilestoneMarker({
     selectItem('milestone', milestone.id, section.id, null, { x: e.clientX, y: e.clientY });
   };
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    openContextMenu({ x: e.clientX, y: e.clientY }, 'milestone', milestone.id, section.id);
-  }, [openContextMenu, milestone.id, section.id]);
+  const { handleLabelContextMenu: handleContextMenu } = useContextMenu('milestone', milestone.id, section.id);
 
   // Prevent double-click from propagating to parent
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
@@ -251,4 +250,4 @@ export function MilestoneMarker({
       )}
     </div>
   );
-}
+});

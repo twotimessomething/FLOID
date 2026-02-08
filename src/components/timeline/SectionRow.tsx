@@ -1,4 +1,4 @@
-import { useCallback, useRef, useMemo } from 'react';
+import { useCallback, useRef, useMemo, memo } from 'react';
 import type { Section, ViewportBounds } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
@@ -28,7 +28,7 @@ interface SectionRowProps {
   readonly stickyMilestoneIds?: Set<string>;
 }
 
-export function SectionRow({
+export const SectionRow = memo(function SectionRow({
   section,
   isLabel,
   timelineWidth,
@@ -38,9 +38,13 @@ export function SectionRow({
   isDragging,
   stickyMilestoneIds,
 }: SectionRowProps): JSX.Element {
-  const { toggleSectionCollapse, addPhase, addMilestone } = useSectionStore();
+  const toggleSectionCollapse = useSectionStore((s) => s.toggleSectionCollapse);
+  const addPhase = useSectionStore((s) => s.addPhase);
+  const addMilestone = useSectionStore((s) => s.addMilestone);
   const project = useProjectStore((state) => state.project);
-  const { selection, selectItem, openContextMenu } = useUIStore();
+  const selection = useUIStore((s) => s.selection);
+  const selectItem = useUIStore((s) => s.selectItem);
+  const openContextMenu = useUIStore((s) => s.openContextMenu);
   const headerRowRef = useRef<HTMLDivElement>(null);
 
   const isMasterSection = section.id === project?.masterSectionId;
@@ -466,4 +470,4 @@ export function SectionRow({
       )}
     </div>
   );
-}
+});

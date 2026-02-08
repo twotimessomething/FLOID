@@ -101,9 +101,7 @@ export function hslToHex(h: number, s: number, l: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-// Color range configuration
-const HUE_SHIFT = 15; // Degrees to shift hue across range
-const LIGHTNESS_SHIFT = -12; // Percentage to adjust lightness
+import { HUE_SHIFT, LIGHTNESS_SHIFT } from '../constants/colors';
 
 /**
  * Get phase color based on position within the phase list.

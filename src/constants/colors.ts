@@ -1,3 +1,7 @@
+// Phase color gradient configuration
+export const HUE_SHIFT = 15; // Degrees to shift hue across range
+export const LIGHTNESS_SHIFT = -12; // Percentage to adjust lightness
+
 // Phase colors for the industrial design process
 export const PHASE_COLORS = {
   discovery: '#6366F1', // Indigo

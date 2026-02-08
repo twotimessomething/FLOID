@@ -1,5 +1,5 @@
 import { useRef, useMemo, useCallback, useEffect, useState } from 'react';
-import { useSectionStore, selectMasterSection, selectNonMasterSections } from '../../stores/sectionStore';
+import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useViewport } from '../../hooks/useViewport';
@@ -13,6 +13,7 @@ import { Playhead } from './Playhead';
 import { AddScheduleButton, ZoomControls } from '../controls';
 import { HEADER_HEIGHT, ROW_HEIGHT, TASK_ROW_HEIGHT, getPositionFromRelative } from '../../utils/timelineUtils';
 import { getTodayViewportPosition, isTodayInViewport } from '../../utils/dateUtils';
+import { useMasterSection } from '../../hooks/useMasterSection';
 import type { Section } from '../../types';
 
 export function Timeline() {
@@ -23,9 +24,8 @@ export function Timeline() {
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const openProjectSetupModal = useUIStore((state) => state.openProjectSetupModal);
 
-  const masterSection = useSectionStore(selectMasterSection);
-  const nonMasterSections = useSectionStore(selectNonMasterSections);
-  const { reorderSections } = useSectionStore();
+  const { masterSection, nonMasterSections } = useMasterSection();
+  const reorderSections = useSectionStore((s) => s.reorderSections);
 
   const labelColumnWidth = useUIStore((state) => state.labelColumnWidth);
   const setLabelColumnWidth = useUIStore((state) => state.setLabelColumnWidth);

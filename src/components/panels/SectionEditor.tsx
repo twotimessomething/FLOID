@@ -7,7 +7,7 @@ import { Input, ColorPicker, Button, MasterBadge, DateInput, ConfirmDeleteButton
 
 export function SectionEditor(): JSX.Element {
   const confirm = useConfirm();
-  const { selection, closeModal } = useUIStore();
+  const { selection, closeModal, showToast } = useUIStore();
   const { updateSection, updateSectionDates, deleteSection, setAsMaster } = useSectionStore();
 
   const sectionId = selection.sectionId;
@@ -53,9 +53,13 @@ export function SectionEditor(): JSX.Element {
 
   const handleDelete = useCallback(() => {
     if (!sectionId) return;
-    deleteSection(sectionId);
+    const result = deleteSection(sectionId);
+    if (!result.success && result.reason) {
+      showToast('warning', result.reason);
+      return;
+    }
     closeModal();
-  }, [sectionId, deleteSection, closeModal]);
+  }, [sectionId, deleteSection, closeModal, showToast]);
 
   const handleSetAsMaster = useCallback(async () => {
     if (!sectionId || !section) return;
