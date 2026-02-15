@@ -186,7 +186,7 @@ export function Header() {
   };
 
   return (
-    <header className="h-14 border-b border-[var(--color-border)] px-4 flex items-center justify-between bg-[var(--color-surface)] flex-shrink-0">
+    <header className="h-14 border-b border-[var(--color-border)] px-4 flex items-center justify-between bg-[var(--color-surface)] flex-shrink-0" aria-label="FLOID application header">
       <div className="flex items-center gap-3">
         {/* Logo with wordmark */}
         <Logo />

@@ -2,15 +2,87 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>FLOID | Design Process Scheduling Software for Industrial Designers</title>
+    <meta name="description" content="FLOID is a free design process scheduling tool for industrial designers. Plan product development timelines with drag-and-drop phases, master schedule sync, milestones, and dark mode." />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://floid.design/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FLOID" />
+    <meta property="og:title" content="FLOID | Design Process Scheduling Software for Industrial Designers" />
+    <meta property="og:description" content="Free timeline scheduling tool for industrial designers. Plan product development with drag-and-drop phases, master schedule sync, milestones, and export options." />
+    <meta property="og:url" content="https://floid.design/" />
+    <meta property="og:image" content="https://floid.design/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FLOID | Design Process Scheduling Software" />
+    <meta name="twitter:description" content="Free timeline scheduling tool for industrial designers. Drag-and-drop phases, master schedule sync, milestones, and dark mode." />
+    <meta name="twitter:image" content="https://floid.design/og-image.png" />
+
+    <!-- Theme color -->
+    <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-    <title>FLOID - Industrial Design Scheduling</title>
+
+    <!-- DNS prefetch for analytics -->
+    <link rel="dns-prefetch" href="https://va.vercel-scripts.com" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "FLOID",
+        "url": "https://floid.design/",
+        "description": "A free design process scheduling tool for industrial designers. Plan product development timelines with drag-and-drop phases, master schedule sync, milestones, and multiple export formats.",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web Browser",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "featureList": [
+          "Drag-and-drop timeline scheduling",
+          "Master schedule sync with locked sections",
+          "Milestone tracking",
+          "Export as .floid, .floid-project, or image",
+          "Dark mode support",
+          "Independent and locked binding modes",
+          "Keyboard shortcuts"
+        ],
+        "screenshot": "https://floid.design/og-image.png"
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Fallback content for crawlers that don't execute JavaScript -->
+    <noscript>
+      <div>
+        <h1>FLOID — Design Process Scheduling Software for Industrial Designers</h1>
+        <p>FLOID is a free, browser-based timeline scheduling tool built for industrial designers and product development teams. Create and manage project timelines with drag-and-drop phases, tasks, and milestones. Sync schedules with a master timeline using locked or independent binding modes. Export your projects as .floid files, full project backups, or timeline images. Features dark mode, keyboard shortcuts, and a clean, minimal interface designed to get out of your way.</p>
+      </div>
+    </noscript>
   </body>
 </html>

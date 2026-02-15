@@ -169,6 +169,9 @@ function App() {
       <a href="#main-timeline" className="skip-link">
         Skip to timeline
       </a>
+      {/* SEO: visually hidden heading for crawlers */}
+      <h1 className="sr-only">FLOID — Design Process Scheduling Software for Industrial Designers</h1>
+      <p className="sr-only">Plan product development timelines with drag-and-drop phases, master schedule sync, milestone tracking, and multiple export formats. Free browser-based scheduling tool for industrial design teams.</p>
       <Header />
       <ErrorBoundary>
         <main

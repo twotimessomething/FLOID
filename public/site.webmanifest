@@ -1,0 +1,27 @@
+{
+  "name": "FLOID — Design Process Scheduling Software",
+  "short_name": "FLOID",
+  "description": "Free timeline scheduling tool for industrial designers. Plan product development with drag-and-drop phases, master schedule sync, and milestones.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#6466f1",
+  "categories": ["productivity", "business"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
