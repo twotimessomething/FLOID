@@ -15,6 +15,7 @@ interface UseDragReorderOptions {
 interface UseDragReorderReturn {
   state: DragReorderState;
   handleDragStart: (index: number, e: React.MouseEvent) => void;
+  startReorder: (index: number, clientY: number) => void;
   getDragHandleProps: (index: number) => {
     onMouseDown: (e: React.MouseEvent) => void;
     style: React.CSSProperties;
@@ -97,6 +98,19 @@ export function useDragReorder({
     };
   }, [state.isDragging, state.dragIndex, state.dropIndex, itemCount, rowHeight, onReorder]);
 
+  const startReorder = useCallback(
+    (index: number, clientY: number) => {
+      startY.current = clientY;
+      setState({
+        isDragging: true,
+        dragIndex: index,
+        dropIndex: index,
+      });
+      document.body.classList.add('no-select');
+    },
+    []
+  );
+
   const getDragHandleProps = useCallback(
     (index: number) => ({
       onMouseDown: (e: React.MouseEvent) => handleDragStart(index, e),
@@ -129,6 +143,7 @@ export function useDragReorder({
   return {
     state,
     handleDragStart,
+    startReorder,
     getDragHandleProps,
     getDropIndicatorStyle,
   };

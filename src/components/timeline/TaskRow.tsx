@@ -12,6 +12,13 @@ import { BarMilestoneMarker } from './BarMilestoneMarker';
 import { AddItemButton } from './AddItemButton';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useContextMenu } from '../../hooks/useContextMenu';
+import { useInlineEdit } from '../../hooks/useInlineEdit';
+import { useDragAxis } from '../../hooks/useDragAxis';
+
+interface DragHandleRowProps {
+  readonly onMouseDown: (e: React.MouseEvent) => void;
+  readonly style: React.CSSProperties;
+}
 
 interface TaskRowProps {
   readonly task: Task;
@@ -22,6 +29,10 @@ interface TaskRowProps {
   readonly viewportBounds: ViewportBounds;
   readonly phaseIndex?: number;
   readonly totalPhases?: number;
+  readonly dragHandleProps?: DragHandleRowProps;
+  readonly isDragTarget?: boolean;
+  readonly onTimelineReorder?: (index: number, startY: number) => void;
+  readonly taskIndex?: number;
 }
 
 export const TaskRow = memo(function TaskRow({
@@ -33,8 +44,12 @@ export const TaskRow = memo(function TaskRow({
   viewportBounds,
   phaseIndex,
   totalPhases,
+  dragHandleProps: taskDragHandleProps,
+  isDragTarget,
+  onTimelineReorder,
+  taskIndex,
 }: TaskRowProps): JSX.Element {
-  const { updateTaskPosition, addTaskBarMilestone, addTask, beginDragTransaction, commitDragTransaction } = useSectionStore();
+  const { updateTaskPosition, updateTask, addTaskBarMilestone, addTask, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const project = useProjectStore((state) => state.project);
   const selection = useUIStore((s) => s.selection);
   const selectItem = useUIStore((s) => s.selectItem);
@@ -45,6 +60,17 @@ export const TaskRow = memo(function TaskRow({
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const isSelected = selection.type === 'task' && selection.id === task.id;
   const isLocked = section.isLocked || phase.isLocked;
+
+  // Inline edit for task name
+  const inlineEdit = useInlineEdit();
+  const isEditingName = inlineEdit.editingId === task.id;
+
+  const handleSaveTaskEdit = useCallback(
+    (trimmedName: string) => {
+      updateTask(section.id, phase.id, task.id, { name: trimmedName });
+    },
+    [updateTask, section.id, phase.id, task.id]
+  );
 
   // Memoize phaseWidth (section-relative) to prevent unnecessary effect re-runs
   const phaseWidth = useMemo(
@@ -101,6 +127,19 @@ export const TaskRow = memo(function TaskRow({
   }, [selectItem, task.id, section.id, phase.id]);
 
   const { handleClick, handleDoubleClick, hasDragged } = useDoubleClick(onTaskClick, onBarDoubleClick);
+
+  // Label inline edit: double-click starts editing
+  const onLabelDoubleClick = useCallback(
+    (_e: React.MouseEvent) => {
+      inlineEdit.startEditing(task.id, task.name || '');
+    },
+    [inlineEdit, task.id, task.name]
+  );
+
+  const { handleClick: handleLabelClick, handleDoubleClick: handleLabelDoubleClick } = useDoubleClick(
+    onTaskClick,
+    onLabelDoubleClick
+  );
 
   // Context menus via shared hook
   const { handleLabelContextMenu, handleBarContextMenu } = useContextMenu('task', task.id, section.id, phase.id, task.id);
@@ -251,6 +290,34 @@ export const TaskRow = memo(function TaskRow({
     [isLocked, beginDragTransaction, setDragging]
   );
 
+  // Axis-detecting mousedown for timeline bar: horizontal = move, vertical = reorder
+  const handleHorizontalDrag = useCallback(
+    (startX: number) => {
+      beginDragTransaction();
+      isMoving.current = true;
+      moveLastX.current = startX;
+      setDragging(true, 'move');
+      hasDragged.current = true;
+    },
+    [beginDragTransaction, setDragging]
+  );
+
+  const handleVerticalDrag = useCallback(
+    (startY: number) => {
+      hasDragged.current = true;
+      if (onTimelineReorder && taskIndex !== undefined) {
+        onTimelineReorder(taskIndex, startY);
+      }
+    },
+    [onTimelineReorder, taskIndex]
+  );
+
+  const handleBarMouseDown = useDragAxis({
+    onHorizontalDrag: handleHorizontalDrag,
+    onVerticalDrag: handleVerticalDrag,
+    disabled: isLocked,
+  });
+
   // Calculate the pixel width of the phase in viewport coordinates (memoized for effect)
   const sectionDays = useMemo(() => getDaysBetween(section.startDate, section.endDate), [section.startDate, section.endDate]);
   const phasePixelWidth = useMemo(() => {
@@ -351,19 +418,55 @@ export const TaskRow = memo(function TaskRow({
   if (isLabel) {
     return (
       <div
-        className={`flex items-center ${isMasterSection ? 'pl-9' : 'pl-12'} pr-3 border-b cursor-pointer row-selectable focus-ring ${
+        className={`group flex items-center gap-1 ${isMasterSection ? 'pl-9' : 'pl-12'} pr-3 border-b cursor-pointer row-selectable focus-ring ${
           isSelected ? 'selected' : ''
-        }`}
+        } ${isDragTarget ? 'opacity-50' : ''}`}
         style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
-        onClick={handleClick}
+        onClick={isEditingName ? undefined : handleLabelClick}
+        onDoubleClick={isEditingName ? undefined : handleLabelDoubleClick}
         onContextMenu={handleLabelContextMenu}
-        onKeyDown={handleKeyDown}
+        onKeyDown={!isEditingName ? handleKeyDown : undefined}
         role="listitem"
         tabIndex={0}
         aria-selected={isSelected}
         aria-label={`${task.name} task${isSelected ? ', selected' : ''}`}
       >
-        <span className="text-sm text-[var(--color-text-secondary)] truncate">{task.name}</span>
+        {/* Drag handle for reordering tasks */}
+        {taskDragHandleProps && (
+          <div
+            {...taskDragHandleProps}
+            className="flex items-center justify-center w-3 h-3 text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-text-secondary)] rounded transition-opacity duration-150"
+            title="Drag to reorder"
+            aria-label={`Drag to reorder ${task.name}`}
+          >
+            <svg
+              className="w-2.5 h-2.5"
+              viewBox="0 0 10 16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <circle cx="2" cy="2" r="1.5" />
+              <circle cx="8" cy="2" r="1.5" />
+              <circle cx="2" cy="8" r="1.5" />
+              <circle cx="8" cy="8" r="1.5" />
+              <circle cx="2" cy="14" r="1.5" />
+              <circle cx="8" cy="14" r="1.5" />
+            </svg>
+          </div>
+        )}
+        {isEditingName ? (
+          <input
+            ref={inlineEdit.inputRef}
+            className="text-sm text-[var(--color-text-secondary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1"
+            value={inlineEdit.editedName}
+            onChange={inlineEdit.handleChange}
+            onKeyDown={(e) => inlineEdit.handleKeyDown(e, handleSaveTaskEdit)}
+            onBlur={() => inlineEdit.saveEdit(handleSaveTaskEdit)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span className="text-sm text-[var(--color-text-secondary)] truncate">{task.name}</span>
+        )}
       </div>
     );
   }
@@ -374,7 +477,7 @@ export const TaskRow = memo(function TaskRow({
 
   return (
     <div
-      className="relative border-b overflow-visible"
+      className={`relative border-b overflow-visible ${isDragTarget ? 'opacity-50' : ''}`}
       style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
       role="listitem"
       onContextMenu={handleRowContextMenu}
@@ -391,7 +494,7 @@ export const TaskRow = memo(function TaskRow({
         onClick={handleClick}
         onContextMenu={handleBarContextMenu}
         onDoubleClick={handleDoubleClick}
-        onMouseDown={handleMoveStart}
+        onMouseDown={onTimelineReorder ? handleBarMouseDown : handleMoveStart}
         onKeyDown={handleKeyDown}
         role="button"
         tabIndex={0}

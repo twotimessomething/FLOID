@@ -73,6 +73,8 @@ interface SectionState {
     newRelativeEnd: number
   ) => void;
 
+  reorderTasks: (sectionId: string, phaseId: string, fromIndex: number, toIndex: number) => void;
+
   // Task operations
   addTask: (
     sectionId: string,
@@ -490,6 +492,28 @@ export const useSectionStore = create<SectionState>()(
           ...section,
           phases: reorderedPhases,
           lastModifiedAt: new Date().toISOString(),
+        };
+      }),
+    })),
+
+  reorderTasks: (sectionId, phaseId, fromIndex, toIndex) =>
+    set((state) => ({
+      sections: state.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        return {
+          ...section,
+          lastModifiedAt: new Date().toISOString(),
+          phases: section.phases.map((phase) => {
+            if (phase.id !== phaseId) return phase;
+            const tasks = [...phase.tasks];
+            const [removed] = tasks.splice(fromIndex, 1);
+            tasks.splice(toIndex, 0, removed);
+            const reorderedTasks = tasks.map((task, index) => ({
+              ...task,
+              order: index,
+            }));
+            return { ...phase, tasks: reorderedTasks };
+          }),
         };
       }),
     })),

@@ -6,7 +6,7 @@ import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
-import { getBarDimensions, ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
+import { getBarDimensions, ROW_HEIGHT, TASK_ROW_HEIGHT, getRelativeFromPosition } from '../../utils/timelineUtils';
 import {
   getDateFromRelativePosition,
   formatDate,
@@ -21,6 +21,14 @@ import { BarMilestoneMarker } from './BarMilestoneMarker';
 import { AddItemButton } from './AddItemButton';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useContextMenu } from '../../hooks/useContextMenu';
+import { useInlineEdit } from '../../hooks/useInlineEdit';
+import { useDragReorder } from '../../hooks/useDragReorder';
+import { useDragAxis } from '../../hooks/useDragAxis';
+
+interface DragHandleRowProps {
+  readonly onMouseDown: (e: React.MouseEvent) => void;
+  readonly style: React.CSSProperties;
+}
 
 interface PhaseRowProps {
   readonly phase: Phase;
@@ -31,6 +39,9 @@ interface PhaseRowProps {
   readonly onCreatePhaseAfter?: (afterOrder: number, clickX: number, clickY: number) => void;
   readonly phaseIndex?: number;
   readonly totalPhases?: number;
+  readonly dragHandleProps?: DragHandleRowProps;
+  readonly isDragTarget?: boolean;
+  readonly onTimelineReorder?: (index: number, startY: number) => void;
 }
 
 export const PhaseRow = memo(function PhaseRow({
@@ -42,8 +53,11 @@ export const PhaseRow = memo(function PhaseRow({
   onCreatePhaseAfter,
   phaseIndex,
   totalPhases,
+  dragHandleProps: phaseDragHandleProps,
+  isDragTarget,
+  onTimelineReorder,
 }: PhaseRowProps): JSX.Element {
-  const { togglePhaseCollapse, updatePhasePosition, updatePhaseWithTasks, updatePhaseWithRipple, addTask, addPhaseBarMilestone, clearExpansion, addPhase, reorderPhases, beginDragTransaction, commitDragTransaction } = useSectionStore();
+  const { togglePhaseCollapse, updatePhase, updatePhasePosition, updatePhaseWithTasks, updatePhaseWithRipple, addTask, addPhaseBarMilestone, clearExpansion, addPhase, reorderPhases, reorderTasks, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
   const project = useProjectStore((state) => state.project);
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
@@ -57,6 +71,31 @@ export const PhaseRow = memo(function PhaseRow({
   const effectiveColor = getPhaseColor(phase, section, phaseIndex, totalPhases);
   const isSelected = selection.type === 'phase' && selection.id === phase.id;
   const isLocked = section.isLocked || phase.isLocked;
+
+  // Inline edit for phase name
+  const inlineEdit = useInlineEdit();
+  const isEditingName = inlineEdit.editingId === phase.id;
+
+  const handleSavePhaseEdit = useCallback(
+    (trimmedName: string) => {
+      updatePhase(section.id, phase.id, { name: trimmedName });
+    },
+    [updatePhase, section.id, phase.id]
+  );
+
+  // Task drag reorder
+  const handleTaskReorder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      reorderTasks(section.id, phase.id, fromIndex, toIndex);
+    },
+    [reorderTasks, section.id, phase.id]
+  );
+
+  const taskDragReorder = useDragReorder({
+    onReorder: handleTaskReorder,
+    itemCount: phase.tasks.length,
+    rowHeight: TASK_ROW_HEIGHT,
+  });
 
   // Convert section-relative positions to viewport-relative for rendering
   const viewportStart = sectionToViewportRelative(phase.relativeStart, section, viewportBounds);
@@ -128,6 +167,19 @@ export const PhaseRow = memo(function PhaseRow({
   }, [selectItem, phase.id, section.id]);
 
   const { handleClick, handleDoubleClick: handleBarDoubleClick, hasDragged } = useDoubleClick(onPhaseClick, onBarDoubleClick);
+
+  // Label inline edit: double-click starts editing
+  const onLabelDoubleClick = useCallback(
+    (_e: React.MouseEvent) => {
+      inlineEdit.startEditing(phase.id, phase.name || '');
+    },
+    [inlineEdit, phase.id, phase.name]
+  );
+
+  const { handleClick: handleLabelClick, handleDoubleClick: handleLabelDoubleClick } = useDoubleClick(
+    onPhaseClick,
+    onLabelDoubleClick
+  );
 
   // Context menus via shared hook
   const { handleLabelContextMenu, handleBarContextMenu } = useContextMenu('phase', phase.id, section.id);
@@ -415,6 +467,34 @@ export const PhaseRow = memo(function PhaseRow({
     [isLocked, beginDragTransaction, setDragging]
   );
 
+  // Axis-detecting mousedown for timeline bar: horizontal = move, vertical = reorder
+  const handleHorizontalDrag = useCallback(
+    (startX: number) => {
+      beginDragTransaction();
+      isMoving.current = true;
+      moveLastX.current = startX;
+      setDragging(true, 'move');
+      hasDragged.current = true;
+    },
+    [beginDragTransaction, setDragging]
+  );
+
+  const handleVerticalDrag = useCallback(
+    (startY: number) => {
+      hasDragged.current = true;
+      if (onTimelineReorder && phaseIndex !== undefined) {
+        onTimelineReorder(phaseIndex, startY);
+      }
+    },
+    [onTimelineReorder, phaseIndex]
+  );
+
+  const handleBarMouseDown = useDragAxis({
+    onHorizontalDrag: handleHorizontalDrag,
+    onVerticalDrag: handleVerticalDrag,
+    disabled: isLocked,
+  });
+
   // Memoize sectionViewportWidth for the move handler
   const sectionDays = useMemo(() => getDaysBetween(section.startDate, section.endDate), [section.startDate, section.endDate]);
   const sectionViewportWidth = useMemo(
@@ -514,21 +594,45 @@ export const PhaseRow = memo(function PhaseRow({
   if (isLabel) {
     // Render label column content
     return (
-      <div role="group" aria-label={`${phase.name} phase`}>
+      <div role="group" aria-label={`${phase.name} phase`} className={isDragTarget ? 'opacity-50' : ''}>
         {/* Phase label */}
         <div
           className={`group flex items-center gap-2 ${isMasterSection ? 'px-3' : 'pl-6 pr-3'} border-b cursor-pointer row-selectable focus-ring ${
             isSelected ? 'selected' : ''
           }`}
           style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
-          onClick={handleClick}
+          onClick={isEditingName ? undefined : handleLabelClick}
+          onDoubleClick={isEditingName ? undefined : handleLabelDoubleClick}
           onContextMenu={handleLabelContextMenu}
-          onKeyDown={handleKeyDown}
+          onKeyDown={!isEditingName ? handleKeyDown : undefined}
           role="button"
           tabIndex={0}
           aria-selected={isSelected}
           aria-label={`${phase.name} phase${isSelected ? ', selected' : ''}${isLocked ? ', locked' : ''}`}
         >
+          {/* Drag handle for reordering phases */}
+          {phaseDragHandleProps && (
+            <div
+              {...phaseDragHandleProps}
+              className="flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-text-secondary)] rounded transition-opacity duration-150"
+              title="Drag to reorder"
+              aria-label={`Drag to reorder ${phase.name}`}
+            >
+              <svg
+                className="w-3 h-3"
+                viewBox="0 0 10 16"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <circle cx="2" cy="2" r="1.5" />
+                <circle cx="8" cy="2" r="1.5" />
+                <circle cx="2" cy="8" r="1.5" />
+                <circle cx="8" cy="8" r="1.5" />
+                <circle cx="2" cy="14" r="1.5" />
+                <circle cx="8" cy="14" r="1.5" />
+              </svg>
+            </div>
+          )}
           <button
             onClick={handleToggleCollapse}
             className="w-6 h-6 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded-md transition-colors duration-150"
@@ -557,9 +661,21 @@ export const PhaseRow = memo(function PhaseRow({
               aria-hidden="true"
             />
           )}
-          <span className={`text-sm ${isMasterSection ? 'font-medium' : ''} text-[var(--color-text-primary)] truncate flex-1`}>
-            {phase.name}
-          </span>
+          {isEditingName ? (
+            <input
+              ref={inlineEdit.inputRef}
+              className={`text-sm ${isMasterSection ? 'font-medium' : ''} text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1`}
+              value={inlineEdit.editedName}
+              onChange={inlineEdit.handleChange}
+              onKeyDown={(e) => inlineEdit.handleKeyDown(e, handleSavePhaseEdit)}
+              onBlur={() => inlineEdit.saveEdit(handleSavePhaseEdit)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span className={`text-sm ${isMasterSection ? 'font-medium' : ''} text-[var(--color-text-primary)] truncate flex-1`}>
+              {phase.name}
+            </span>
+          )}
           {isLocked && (
             <svg className="w-3 h-3 text-[var(--color-text-muted)] flex-shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-label="Locked">
               <path
@@ -573,8 +689,8 @@ export const PhaseRow = memo(function PhaseRow({
 
         {/* Task labels */}
         {!phase.isCollapsed && phase.tasks.length > 0 && (
-          <div role="list" aria-label={`${phase.name} tasks`}>
-            {phase.tasks.map((task) => (
+          <div role="list" aria-label={`${phase.name} tasks`} data-drag-container className="relative">
+            {phase.tasks.map((task, index) => (
               <TaskRow
                 key={task.id}
                 task={task}
@@ -585,8 +701,13 @@ export const PhaseRow = memo(function PhaseRow({
                 viewportBounds={viewportBounds}
                 phaseIndex={phaseIndex}
                 totalPhases={totalPhases}
+                dragHandleProps={taskDragReorder.getDragHandleProps(index)}
+                isDragTarget={taskDragReorder.state.isDragging && taskDragReorder.state.dragIndex === index}
               />
             ))}
+            {taskDragReorder.getDropIndicatorStyle() && (
+              <div style={taskDragReorder.getDropIndicatorStyle()!} />
+            )}
           </div>
         )}
       </div>
@@ -595,7 +716,7 @@ export const PhaseRow = memo(function PhaseRow({
 
   // Render timeline content
   return (
-    <div role="group" aria-label={`${phase.name} timeline`}>
+    <div role="group" aria-label={`${phase.name} timeline`} className={isDragTarget ? 'opacity-50' : ''}>
       {/* Phase bar row - double-click creates a phase below this one */}
       <div
         ref={phaseRowRef}
@@ -616,7 +737,7 @@ export const PhaseRow = memo(function PhaseRow({
           onClick={handleClick}
           onContextMenu={handleBarContextMenu}
           onDoubleClick={handleBarDoubleClick}
-          onMouseDown={handleMoveStart}
+          onMouseDown={onTimelineReorder ? handleBarMouseDown : handleMoveStart}
           role="button"
           tabIndex={0}
           onKeyDown={handleKeyDown}
@@ -677,10 +798,11 @@ export const PhaseRow = memo(function PhaseRow({
         <div
           role="list"
           aria-label={`${phase.name} task bars`}
+          className="relative"
           onDoubleClick={handleCreateTask}
           onContextMenu={handleTaskContainerContextMenu}
         >
-          {phase.tasks.map((task) => (
+          {phase.tasks.map((task, index) => (
             <TaskRow
               key={task.id}
               task={task}
@@ -691,8 +813,14 @@ export const PhaseRow = memo(function PhaseRow({
               viewportBounds={viewportBounds}
               phaseIndex={phaseIndex}
               totalPhases={totalPhases}
+              taskIndex={index}
+              onTimelineReorder={taskDragReorder.startReorder}
+              isDragTarget={taskDragReorder.state.isDragging && taskDragReorder.state.dragIndex === index}
             />
           ))}
+          {taskDragReorder.getDropIndicatorStyle() && (
+            <div style={taskDragReorder.getDropIndicatorStyle()!} />
+          )}
         </div>
       )}
     </div>

@@ -11,6 +11,9 @@ import { PhaseRow } from './PhaseRow';
 import { MilestoneMarker } from './MilestoneMarker';
 import { EmptyStateHint } from './EmptyStateHint';
 import { MasterBadge } from '../common';
+import { useInlineEdit } from '../../hooks/useInlineEdit';
+import { useDoubleClick } from '../../hooks/useDoubleClick';
+import { useDragReorder } from '../../hooks/useDragReorder';
 
 interface DragHandleProps {
   readonly onMouseDown: (e: React.MouseEvent) => void;
@@ -39,13 +42,19 @@ export const SectionRow = memo(function SectionRow({
   stickyMilestoneIds,
 }: SectionRowProps): JSX.Element {
   const toggleSectionCollapse = useSectionStore((s) => s.toggleSectionCollapse);
+  const updateSection = useSectionStore((s) => s.updateSection);
   const addPhase = useSectionStore((s) => s.addPhase);
   const addMilestone = useSectionStore((s) => s.addMilestone);
+  const reorderPhases = useSectionStore((s) => s.reorderPhases);
   const project = useProjectStore((state) => state.project);
   const selection = useUIStore((s) => s.selection);
   const selectItem = useUIStore((s) => s.selectItem);
   const openContextMenu = useUIStore((s) => s.openContextMenu);
   const headerRowRef = useRef<HTMLDivElement>(null);
+
+  // Inline edit for section name
+  const inlineEdit = useInlineEdit();
+  const isEditingName = inlineEdit.editingId === section.id;
 
   const isMasterSection = section.id === project?.masterSectionId;
 
@@ -83,6 +92,50 @@ export const SectionRow = memo(function SectionRow({
 
   const isSelected = selection.type === 'section' && selection.id === section.id;
 
+  // Inline edit callbacks
+  const handleSaveEdit = useCallback(
+    (trimmedName: string) => {
+      updateSection(section.id, { name: trimmedName });
+    },
+    [updateSection, section.id]
+  );
+
+  // Double-click on section label starts inline edit
+  const onLabelDoubleClick = useCallback(
+    (_e: React.MouseEvent) => {
+      inlineEdit.startEditing(section.id, section.name || '');
+    },
+    [inlineEdit, section.id, section.name]
+  );
+
+  const onLabelSingleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isMasterSection) {
+        selectItem('section', section.id, section.id, null, { x: e.clientX, y: e.clientY });
+      }
+    },
+    [isMasterSection, selectItem, section.id]
+  );
+
+  const { handleClick: handleLabelClick, handleDoubleClick: handleLabelDoubleClick } = useDoubleClick(
+    onLabelSingleClick,
+    onLabelDoubleClick
+  );
+
+  // Phase drag reorder
+  const handlePhaseReorder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      reorderPhases(section.id, fromIndex, toIndex);
+    },
+    [reorderPhases, section.id]
+  );
+
+  const phaseDragReorder = useDragReorder({
+    onReorder: handlePhaseReorder,
+    itemCount: sortedPhases.length,
+    rowHeight: ROW_HEIGHT,
+  });
+
   // Handle click on collapsed phase bar - use data-attributes to avoid creating new functions per phase
   const handleCollapsedPhaseClick = useCallback(
     (e: React.MouseEvent): void => {
@@ -115,12 +168,6 @@ export const SectionRow = memo(function SectionRow({
     e.stopPropagation();
   }, []);
 
-  const handleClick = (e: React.MouseEvent): void => {
-    // Only teams are clickable as sections
-    if (!isMasterSection) {
-      selectItem('section', section.id, section.id, null, { x: e.clientX, y: e.clientY });
-    }
-  };
 
   // Context menu for label area (section header label)
   const handleLabelContextMenu = useCallback((e: React.MouseEvent): void => {
@@ -261,9 +308,10 @@ export const SectionRow = memo(function SectionRow({
             !isMasterSection ? 'cursor-pointer row-selectable focus-ring' : ''
           } ${isSelected ? 'selected' : ''}`}
           style={{ height: ROW_HEIGHT, borderColor: isMasterSection ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
-          onClick={!isMasterSection ? handleClick : undefined}
+          onClick={isEditingName ? undefined : handleLabelClick}
+          onDoubleClick={isEditingName ? undefined : handleLabelDoubleClick}
           onContextMenu={handleLabelContextMenu}
-          onKeyDown={!isMasterSection ? handleKeyDown : undefined}
+          onKeyDown={!isMasterSection && !isEditingName ? handleKeyDown : undefined}
           role={!isMasterSection ? 'button' : undefined}
           tabIndex={!isMasterSection ? 0 : undefined}
           aria-selected={!isMasterSection ? isSelected : undefined}
@@ -320,9 +368,21 @@ export const SectionRow = memo(function SectionRow({
               aria-hidden="true"
             />
           )}
-          <span className={`text-sm ${isMasterSection ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] truncate`}>
-            {section.name || (isMasterSection ? 'Industrial Design' : 'Untitled Team')}
-          </span>
+          {isEditingName ? (
+            <input
+              ref={inlineEdit.inputRef}
+              className={`text-sm ${isMasterSection ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1`}
+              value={inlineEdit.editedName}
+              onChange={inlineEdit.handleChange}
+              onKeyDown={(e) => inlineEdit.handleKeyDown(e, handleSaveEdit)}
+              onBlur={() => inlineEdit.saveEdit(handleSaveEdit)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span className={`text-sm ${isMasterSection ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] truncate`}>
+              {section.name || (isMasterSection ? 'Industrial Design' : 'Untitled Team')}
+            </span>
+          )}
           <span className="flex-1" />
           {section.isLocked && (
             <svg className="w-3 h-3 text-[var(--color-text-muted)] flex-shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-label="Locked">
@@ -338,7 +398,7 @@ export const SectionRow = memo(function SectionRow({
 
         {/* Phase labels (when expanded) */}
         {!section.isCollapsed && (
-          <div role="list" aria-label={`${section.name} phases`}>
+          <div role="list" aria-label={`${section.name} phases`} data-drag-container className="relative">
             {sortedPhases.length === 0 ? (
               <div
                 className="border-b"
@@ -355,8 +415,13 @@ export const SectionRow = memo(function SectionRow({
                   viewportBounds={viewportBounds}
                   phaseIndex={index}
                   totalPhases={totalPhases}
+                  dragHandleProps={phaseDragReorder.getDragHandleProps(index)}
+                  isDragTarget={phaseDragReorder.state.isDragging && phaseDragReorder.state.dragIndex === index}
                 />
               ))
+            )}
+            {phaseDragReorder.getDropIndicatorStyle() && (
+              <div style={phaseDragReorder.getDropIndicatorStyle()!} />
             )}
           </div>
         )}
@@ -443,6 +508,7 @@ export const SectionRow = memo(function SectionRow({
         <div
           role="list"
           aria-label={`${section.name} phase bars`}
+          className="relative"
           onDoubleClick={handleCreatePhase}
         >
           {sortedPhases.length === 0 ? (
@@ -463,8 +529,13 @@ export const SectionRow = memo(function SectionRow({
                 onCreatePhaseAfter={handleCreatePhaseAfter}
                 phaseIndex={index}
                 totalPhases={totalPhases}
+                onTimelineReorder={phaseDragReorder.startReorder}
+                isDragTarget={phaseDragReorder.state.isDragging && phaseDragReorder.state.dragIndex === index}
               />
             ))
+          )}
+          {phaseDragReorder.getDropIndicatorStyle() && (
+            <div style={phaseDragReorder.getDropIndicatorStyle()!} />
           )}
         </div>
       )}
