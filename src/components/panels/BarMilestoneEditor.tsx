@@ -9,7 +9,7 @@ import {
 } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { Input, ConfirmDeleteButton } from '../common';
+import { Input, Button } from '../common';
 import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
 
 export function BarMilestoneEditor(): JSX.Element {
@@ -138,7 +138,7 @@ export function BarMilestoneEditor(): JSX.Element {
       )}
 
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <ConfirmDeleteButton label="Delete" onConfirm={handleDelete} />
+        <Button variant="danger" onClick={handleDelete} className="w-full">Delete</Button>
       </div>
     </div>
   );

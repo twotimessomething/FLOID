@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection, selectPhase, selectTask } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { Input, TextArea, DateInput, ConfirmDeleteButton } from '../common';
+import { Input, TextArea, DateInput, Button } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../utils/dateUtils';
 
 export function TaskEditor(): JSX.Element {
@@ -170,7 +170,7 @@ export function TaskEditor(): JSX.Element {
       </div>
 
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <ConfirmDeleteButton label="Delete Task" onConfirm={handleDelete} />
+        <Button variant="danger" onClick={handleDelete} className="w-full">Delete Task</Button>
       </div>
     </div>
   );

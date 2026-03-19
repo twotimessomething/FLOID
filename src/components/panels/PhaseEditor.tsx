@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection, selectPhase } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { Input, TextArea, DateInput, ColorPicker, ConfirmDeleteButton } from '../common';
+import { Input, TextArea, DateInput, ColorPicker, Button } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate, parseDate } from '../../utils/dateUtils';
 
 export function PhaseEditor(): JSX.Element {
@@ -159,7 +159,7 @@ export function PhaseEditor(): JSX.Element {
       </div>
 
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <ConfirmDeleteButton label="Delete Phase" onConfirm={handleDelete} />
+        <Button variant="danger" onClick={handleDelete} className="w-full">Delete Phase</Button>
       </div>
     </div>
   );

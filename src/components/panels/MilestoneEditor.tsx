@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection, selectMilestone } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { Input, TextArea, DateInput, ConfirmDeleteButton } from '../common';
+import { Input, TextArea, DateInput, Button } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate, parseDate } from '../../utils/dateUtils';
 
 export function MilestoneEditor(): JSX.Element {
@@ -113,7 +113,7 @@ export function MilestoneEditor(): JSX.Element {
       />
 
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <ConfirmDeleteButton label="Delete Milestone" onConfirm={handleDelete} />
+        <Button variant="danger" onClick={handleDelete} className="w-full">Delete Milestone</Button>
       </div>
     </div>
   );

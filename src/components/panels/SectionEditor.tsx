@@ -3,7 +3,7 @@ import { useSectionStore, selectSection } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useConfirm } from '../../hooks';
-import { Input, ColorPicker, Button, MasterBadge, DateInput, ConfirmDeleteButton } from '../common';
+import { Input, ColorPicker, Button, MasterBadge, DateInput } from '../common';
 
 export function SectionEditor(): JSX.Element {
   const confirm = useConfirm();
@@ -182,7 +182,7 @@ export function SectionEditor(): JSX.Element {
 
       {/* Delete section */}
       <div className="pt-4 border-t border-[var(--color-border)]">
-        <ConfirmDeleteButton label="Delete Schedule" onConfirm={handleDelete} />
+        <Button variant="danger" onClick={handleDelete} className="w-full">Delete Schedule</Button>
       </div>
     </div>
   );

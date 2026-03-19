@@ -116,22 +116,8 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [targetType, targetId, sectionId, phaseId, taskId, position, selectItem, closeContextMenu]);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (!targetId || !sectionId) return;
-
-    const confirmMessage = getDeleteConfirmMessage();
-    if (confirmMessage) {
-      const confirmed = await confirm({
-        title: 'Confirm Delete',
-        message: confirmMessage,
-        confirmLabel: 'Delete',
-        variant: 'danger',
-      });
-      if (!confirmed) {
-        closeContextMenu();
-        return;
-      }
-    }
 
     switch (targetType) {
       case 'phase':
@@ -163,7 +149,7 @@ export function ContextMenu(): JSX.Element | null {
         break;
     }
     closeContextMenu();
-  }, [targetType, targetId, sectionId, phaseId, taskId, deletePhase, deleteTask, deleteMilestone, deleteSection, deletePhaseBarMilestone, deleteTaskBarMilestone, closeContextMenu, confirm]);
+  }, [targetType, targetId, sectionId, phaseId, taskId, deletePhase, deleteTask, deleteMilestone, deleteSection, deletePhaseBarMilestone, deleteTaskBarMilestone, closeContextMenu]);
 
   const handleAddPhase = useCallback(() => {
     if (!sectionId) return;
@@ -450,52 +436,6 @@ export function ContextMenu(): JSX.Element | null {
 
     closeContextMenu();
   }, [sectionId, phaseId, clickRelativePosition, sections, addTask, selectItem, position, closeContextMenu]);
-
-  const getDeleteConfirmMessage = (): string | null => {
-    if (!targetId || !sectionId) return null;
-
-    const section = sections.find((s) => s.id === sectionId);
-    if (!section) return null;
-
-    switch (targetType) {
-      case 'phase': {
-        const phase = section.phases.find((p) => p.id === targetId);
-        if (phase && phase.tasks.length > 0) {
-          return `Delete "${phase.name}"? This will also delete ${phase.tasks.length} task(s).`;
-        }
-        return `Delete "${phase?.name}"?`;
-      }
-      case 'task': {
-        const phase = section.phases.find((p) => p.id === phaseId);
-        const task = phase?.tasks.find((t) => t.id === targetId);
-        return `Delete "${task?.name || 'this task'}"?`;
-      }
-      case 'milestone': {
-        const milestone = section.milestones.find((m) => m.id === targetId);
-        return `Delete "${milestone?.name || 'this milestone'}"?`;
-      }
-      case 'section': {
-        return `Delete "${section.name}"? This will delete all phases and milestones within it.`;
-      }
-      case 'barMilestone': {
-        // Find the bar milestone
-        if (phaseId) {
-          const phase = section.phases.find((p) => p.id === phaseId);
-          if (taskId) {
-            const task = phase?.tasks.find((t) => t.id === taskId);
-            const bm = task?.barMilestones?.find((b) => b.id === targetId);
-            return `Delete "${bm?.name || 'this milestone'}"?`;
-          } else {
-            const bm = phase?.barMilestones?.find((b) => b.id === targetId);
-            return `Delete "${bm?.name || 'this milestone'}"?`;
-          }
-        }
-        return 'Delete this milestone?';
-      }
-      default:
-        return null;
-    }
-  };
 
   // Memoize menu items to avoid recalculating on every render
   const menuItems = useMemo((): MenuItem[] => {

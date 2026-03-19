@@ -1,5 +1,4 @@
 export { Button } from './Button';
-export { ConfirmDeleteButton } from './ConfirmDeleteButton';
 export { ConfirmDialog } from './ConfirmDialog';
 export { Input } from './Input';
 export { TextArea } from './TextArea';
