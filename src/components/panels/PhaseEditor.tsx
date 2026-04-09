@@ -132,11 +132,11 @@ export function PhaseEditor(): JSX.Element {
         placeholder="Add a description..."
       />
 
-      {/* Color picker only for master section phases (that have individual colors) */}
-      {isMasterSection && phase.color && (
+      {/* Color picker for master section phases */}
+      {isMasterSection && (
         <ColorPicker
           label="Color"
-          value={phase.color}
+          value={phase.color || section.color}
           onChange={handleColorChange}
         />
       )}
