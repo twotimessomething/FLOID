@@ -33,7 +33,7 @@ export function Playhead({ height }: PlayheadProps) {
 
       {/* Date label following mouse - glass effect */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 bg-white/70 backdrop-blur-md text-[var(--color-text-primary)] text-xs font-medium rounded-lg whitespace-nowrap shadow-lg ring-1 ring-black/5"
+        className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 bg-white/70 dark:bg-black/70 backdrop-blur-md text-[var(--color-text-primary)] text-xs font-medium rounded-lg whitespace-nowrap shadow-lg ring-1 ring-black/5 dark:ring-white/10"
         style={{ top: labelY }}
       >
         {dateLabel}
