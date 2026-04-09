@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import type { Section, ViewportBounds } from '../../types';
 import { useUIStore } from '../../stores/uiStore';
-import { ROW_HEIGHT, TASK_ROW_HEIGHT, HEADER_HEIGHT } from '../../utils/timelineUtils';
+import { HEADER_HEIGHT, ROW_HEIGHT } from '../../utils/timelineUtils';
 import { sectionToViewportRelative } from '../../utils/dateUtils';
 
 interface StickyMilestonesProps {
   readonly sections: Section[];
-  readonly scrollTop: number;
+  readonly stickyMilestoneIds: ReadonlySet<string>;
   readonly timelineWidth: number;
   readonly viewportBounds: ViewportBounds;
 }
@@ -19,67 +19,42 @@ interface StickyMilestoneData {
   readonly isSelected: boolean;
 }
 
-// Calculate the height of a section (header + expanded phases/tasks)
-function calculateSectionHeight(section: Section): number {
-  let height = ROW_HEIGHT; // Section header
-  if (!section.isCollapsed) {
-    section.phases.forEach((phase) => {
-      height += ROW_HEIGHT; // Phase row
-      if (!phase.isCollapsed) {
-        height += phase.tasks.length * TASK_ROW_HEIGHT;
-      }
-    });
-  }
-  return height;
-}
-
 export function StickyMilestones({
   sections,
-  scrollTop,
+  stickyMilestoneIds,
   timelineWidth,
   viewportBounds,
 }: StickyMilestonesProps) {
   const { selection, selectItem, openContextMenu } = useUIStore();
 
-  // Calculate which milestones should be sticky
+  // Collect milestone render data for those that are currently sticky
   const stickyMilestones = useMemo(() => {
+    if (stickyMilestoneIds.size === 0) return [];
+
     const result: StickyMilestoneData[] = [];
-    let cumulativeY = 0;
-
     for (const section of sections) {
-      const sectionY = cumulativeY;
-      const sectionHeight = calculateSectionHeight(section);
+      for (const milestone of section.milestones) {
+        if (!stickyMilestoneIds.has(milestone.id)) continue;
 
-      // A section's milestones become sticky when the section header scrolls past the top
-      // They stop being sticky when the entire section has scrolled past
-      const headerScrolledPast = scrollTop > sectionY;
-      const sectionFullyScrolledPast = scrollTop > sectionY + sectionHeight - ROW_HEIGHT;
+        const viewportPosition = sectionToViewportRelative(
+          milestone.relativePosition,
+          section,
+          viewportBounds
+        );
+        const left = viewportPosition * timelineWidth;
 
-      if (headerScrolledPast && !sectionFullyScrolledPast) {
-        // This section's milestones should be sticky
-        for (const milestone of section.milestones) {
-          const viewportPosition = sectionToViewportRelative(
-            milestone.relativePosition,
-            section,
-            viewportBounds
-          );
-          const left = viewportPosition * timelineWidth;
-
-          result.push({
-            milestoneId: milestone.id,
-            milestoneName: milestone.name,
-            sectionId: section.id,
-            left,
-            isSelected: selection.type === 'milestone' && selection.id === milestone.id,
-          });
-        }
+        result.push({
+          milestoneId: milestone.id,
+          milestoneName: milestone.name,
+          sectionId: section.id,
+          left,
+          isSelected: selection.type === 'milestone' && selection.id === milestone.id,
+        });
       }
-
-      cumulativeY += sectionHeight;
     }
 
     return result;
-  }, [sections, scrollTop, timelineWidth, viewportBounds, selection.type, selection.id]);
+  }, [sections, stickyMilestoneIds, timelineWidth, viewportBounds, selection.type, selection.id]);
 
   // Don't render anything if no sticky milestones
   if (stickyMilestones.length === 0) {

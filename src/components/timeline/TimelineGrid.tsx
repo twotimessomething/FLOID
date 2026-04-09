@@ -2,23 +2,8 @@ import { useMemo } from 'react';
 import { useViewport } from '../../hooks/useViewport';
 import { useUIStore } from '../../stores/uiStore';
 import { getTimeMarkers, getDaysBetween } from '../../utils/dateUtils';
-import { getPositionFromRelative, ROW_HEIGHT, TASK_ROW_HEIGHT } from '../../utils/timelineUtils';
+import { getPositionFromRelative, calculateSectionHeight } from '../../utils/timelineUtils';
 import { useMasterSection } from '../../hooks/useMasterSection';
-import type { Section } from '../../types';
-
-// Pure function hoisted outside component to avoid recreation on each render
-function calculateSectionHeight(section: Section): number {
-  let height = ROW_HEIGHT;
-  if (!section.isCollapsed) {
-    section.phases.forEach((phase) => {
-      height += ROW_HEIGHT;
-      if (!phase.isCollapsed && phase.tasks.length > 0) {
-        height += phase.tasks.length * TASK_ROW_HEIGHT;
-      }
-    });
-  }
-  return height;
-}
 
 export function TimelineGrid() {
   const { viewportBounds, timelineWidth } = useViewport();

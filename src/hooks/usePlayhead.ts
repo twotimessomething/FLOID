@@ -11,6 +11,7 @@ interface UsePlayheadReturn {
   isActive: boolean;
   playheadPosition: number | null;
   handleMouseDown: (e: React.MouseEvent) => void;
+  startPlayhead: (clientX: number, clientY: number) => void;
 }
 
 const PLAYHEAD_DELAY_MS = 300;
@@ -116,9 +117,27 @@ export function usePlayhead({
     };
   }, [getRelativePosition, getYPosition, setPlayheadPosition]);
 
+  // Activate playhead immediately (used by pan hook after delay)
+  const startPlayhead = useCallback(
+    (clientX: number, clientY: number) => {
+      if (delayTimeoutRef.current !== null) {
+        window.clearTimeout(delayTimeoutRef.current);
+        delayTimeoutRef.current = null;
+      }
+      pendingPositionRef.current = null;
+      isActiveRef.current = true;
+      document.body.classList.add('no-select');
+      const position = getRelativePosition(clientX);
+      const y = getYPosition(clientY);
+      setPlayheadPosition(position, y);
+    },
+    [getRelativePosition, getYPosition, setPlayheadPosition]
+  );
+
   return {
     isActive: isActiveRef.current,
     playheadPosition,
     handleMouseDown,
+    startPlayhead,
   };
 }

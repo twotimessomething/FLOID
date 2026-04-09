@@ -48,6 +48,7 @@
   /* Form elements */
   --color-input-bg: #ffffff;
   --color-toggle-off: #d1d5db;
+  --color-toggle-on: var(--color-logo-primary);
   --color-toggle-knob: #ffffff;
 
   /* Logo accent colors */
@@ -111,6 +112,7 @@
   /* Form elements */
   --color-input-bg: #262626;
   --color-toggle-off: #525252;
+  --color-toggle-on: var(--color-logo-primary);
   --color-toggle-knob: #f5f5f5;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -177,6 +179,12 @@ body {
 .no-select {
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* Timeline pan cursor */
+.timeline-scroll-container.panning,
+.timeline-scroll-container.panning * {
+  cursor: grabbing !important;
 }
 
 /* Custom scrollbar */

@@ -4,6 +4,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useViewport } from '../../hooks/useViewport';
 import { usePlayhead } from '../../hooks/usePlayhead';
+import { useTimelinePan } from '../../hooks/useTimelinePan';
 import { useDragReorder } from '../../hooks/useDragReorder';
 import { TimelineHeader } from './TimelineHeader';
 import { TimelineGrid } from './TimelineGrid';
@@ -11,15 +12,15 @@ import { SectionRow } from './SectionRow';
 import { StickyMilestones } from './StickyMilestones';
 import { Playhead } from './Playhead';
 import { AddScheduleButton, ZoomControls } from '../controls';
-import { HEADER_HEIGHT, ROW_HEIGHT, TASK_ROW_HEIGHT, getPositionFromRelative } from '../../utils/timelineUtils';
+import { HEADER_HEIGHT, ROW_HEIGHT, getPositionFromRelative, calculateSectionHeight } from '../../utils/timelineUtils';
 import { getTodayViewportPosition, isTodayInViewport } from '../../utils/dateUtils';
 import { useMasterSection } from '../../hooks/useMasterSection';
 import type { Section } from '../../types';
 
 export function Timeline() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const labelsScrollRef = useRef<HTMLDivElement>(null);
-  const isScrollSyncing = useRef(false);
+  const labelsColumnRef = useRef<HTMLDivElement>(null);
+  const labelsContentRef = useRef<HTMLDivElement>(null);
 
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const openProjectSetupModal = useUIStore((state) => state.openProjectSetupModal);
@@ -31,9 +32,13 @@ export function Timeline() {
   const setLabelColumnWidth = useUIStore((state) => state.setLabelColumnWidth);
   const scrollToTodayTrigger = useUIStore((state) => state.scrollToTodayTrigger);
   const { viewportBounds, timelineWidth } = useViewport();
-  const { handleMouseDown: handlePlayheadMouseDown } = usePlayhead({
+  const { handleMouseDown: handlePlayheadMouseDown, startPlayhead } = usePlayhead({
     timelineWidth,
     containerRef: scrollContainerRef,
+  });
+  const { isPanning, handleContentMouseDown } = useTimelinePan({
+    containerRef: scrollContainerRef,
+    startPlayhead,
   });
 
   // Label column resize state
@@ -41,8 +46,10 @@ export function Timeline() {
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
 
-  // Scroll position for sticky milestones
-  const [scrollTop, setScrollTop] = useState(0);
+  // Scroll position ref for sticky milestone computation (avoids re-renders on every scroll)
+  const scrollTopRef = useRef(0);
+  const stickyIdsRef = useRef<ReadonlySet<string>>(new Set());
+  const [stickyMilestoneIds, setStickyMilestoneIds] = useState<ReadonlySet<string>>(() => new Set());
 
   // Handle label column resize
   const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
@@ -91,20 +98,6 @@ export function Timeline() {
     });
   }, [scrollToTodayTrigger, viewportBounds, timelineWidth]);
 
-  // Calculate section height for a given section
-  const calculateSectionHeight = (section: Section): number => {
-    let height = ROW_HEIGHT; // Section header row
-    if (!section.isCollapsed) {
-      section.phases.forEach((phase) => {
-        height += ROW_HEIGHT; // Phase row
-        if (!phase.isCollapsed) {
-          height += phase.tasks.length * TASK_ROW_HEIGHT;
-        }
-      });
-    }
-    return height;
-  };
-
   // Calculate individual non-master section heights for proper drop indicator positioning
   const sectionHeights = useMemo(() => {
     return nonMasterSections.map((section) => calculateSectionHeight(section));
@@ -151,27 +144,7 @@ export function Timeline() {
     };
   }, [dragState.isDragging, dragState.dropIndex, dragState.dragIndex, sectionHeights]);
 
-  // Sync vertical scroll between labels column and timeline content
-  const handleLabelsScroll = useCallback(() => {
-    if (isScrollSyncing.current) return;
-    if (!labelsScrollRef.current || !scrollContainerRef.current) return;
-    isScrollSyncing.current = true;
-    scrollContainerRef.current.scrollTop = labelsScrollRef.current.scrollTop;
-    isScrollSyncing.current = false;
-  }, []);
-
-  const handleTimelineScroll = useCallback(() => {
-    if (!scrollContainerRef.current) return;
-
-    // Track scroll position for sticky milestones
-    setScrollTop(scrollContainerRef.current.scrollTop);
-
-    if (isScrollSyncing.current) return;
-    if (!labelsScrollRef.current) return;
-    isScrollSyncing.current = true;
-    labelsScrollRef.current.scrollTop = scrollContainerRef.current.scrollTop;
-    isScrollSyncing.current = false;
-  }, []);
+  const dropIndicatorStyle = getDropIndicatorStyle();
 
   // Combine all sections in order for sticky milestones
   const allSections = useMemo(() => {
@@ -181,48 +154,83 @@ export function Timeline() {
     return sections;
   }, [masterSection, nonMasterSections]);
 
-  // Calculate which milestone IDs are currently sticky (to hide originals)
-  const stickyMilestoneIds = useMemo(() => {
-    const ids = new Set<string>();
+  // Precompute scroll thresholds so the scroll handler only does cheap comparisons
+  const sectionThresholds = useMemo(() => {
     let cumulativeY = 0;
+    return allSections.map((section) => {
+      const enterY = cumulativeY;
+      const height = calculateSectionHeight(section);
+      const exitY = cumulativeY + height - ROW_HEIGHT;
+      const milestoneIds = section.milestones.map((m) => m.id);
+      cumulativeY += height;
+      return { enterY, exitY, milestoneIds };
+    });
+  }, [allSections]);
 
-    for (const section of allSections) {
-      const sectionY = cumulativeY;
-      const sectionHeight = calculateSectionHeight(section);
-
-      // Section's milestones are sticky when header scrolled past but section not fully gone
-      const headerScrolledPast = scrollTop > sectionY;
-      const sectionFullyScrolledPast = scrollTop > sectionY + sectionHeight - ROW_HEIGHT;
-
-      if (headerScrolledPast && !sectionFullyScrolledPast) {
-        for (const milestone of section.milestones) {
-          ids.add(milestone.id);
-        }
+  const computeStickyIds = useCallback((scrollTop: number): ReadonlySet<string> => {
+    const ids = new Set<string>();
+    for (const { enterY, exitY, milestoneIds } of sectionThresholds) {
+      if (scrollTop > enterY && scrollTop <= exitY) {
+        for (const id of milestoneIds) ids.add(id);
       }
+    }
+    return ids;
+  }, [sectionThresholds]);
 
-      cumulativeY += sectionHeight;
+  // Recompute when sections change
+  useEffect(() => {
+    const newIds = computeStickyIds(scrollTopRef.current);
+    stickyIdsRef.current = newIds;
+    setStickyMilestoneIds(newIds);
+  }, [computeStickyIds]);
+
+  useEffect(() => {
+    const labelsEl = labelsColumnRef.current;
+    if (!labelsEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop += e.deltaY;
+        scrollContainerRef.current.scrollLeft += e.deltaX;
+      }
+    };
+
+    labelsEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => labelsEl.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  const handleTimelineScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+
+    const newScrollTop = scrollContainerRef.current.scrollTop;
+    scrollTopRef.current = newScrollTop;
+
+    if (labelsContentRef.current) {
+      labelsContentRef.current.style.transform = `translateY(-${newScrollTop}px)`;
     }
 
-    return ids;
-  }, [allSections, scrollTop]);
+    const newIds = computeStickyIds(newScrollTop);
+    const prev = stickyIdsRef.current;
+    let changed = newIds.size !== prev.size;
+    if (!changed) {
+      for (const id of newIds) {
+        if (!prev.has(id)) { changed = true; break; }
+      }
+    }
+    if (changed) {
+      stickyIdsRef.current = newIds;
+      setStickyMilestoneIds(newIds);
+    }
+  }, [computeStickyIds]);
 
-  // Calculate content height for playhead (includes all sections)
   const contentHeight = useMemo(() => {
     let height = 0;
-
-    // Master section
-    if (masterSection) {
-      height += calculateSectionHeight(masterSection);
-    }
-
-    // Non-master sections
+    if (masterSection) height += calculateSectionHeight(masterSection);
     nonMasterSections.forEach((section) => {
       height += calculateSectionHeight(section);
     });
-
-    // Bottom spacer row
     height += ROW_HEIGHT;
-
     return Math.max(height, 200);
   }, [masterSection, nonMasterSections]);
 
@@ -300,44 +308,39 @@ export function Timeline() {
 
           {/* Section and Phase labels */}
           <div
-            ref={labelsScrollRef}
-            className="flex-1 min-h-0 overflow-y-auto"
-            onScroll={handleLabelsScroll}
+            ref={labelsColumnRef}
+            className="flex-1 min-h-0 overflow-hidden"
             role="list"
             aria-label="Sections and phases"
           >
-            {/* Master section */}
-            {masterSection && (
-              <SectionRow
-                section={masterSection}
-                isLabel
-                timelineWidth={timelineWidth}
-                viewportBounds={viewportBounds}
-              />
-            )}
-
-            {/* Non-master sections */}
-            <div className="relative" data-drag-container>
-              {nonMasterSections.map((section, index) => (
+            <div ref={labelsContentRef} style={{ willChange: 'transform' }}>
+              {masterSection && (
                 <SectionRow
-                  key={section.id}
-                  section={section}
+                  section={masterSection}
                   isLabel
                   timelineWidth={timelineWidth}
                   viewportBounds={viewportBounds}
-                  sectionIndex={index}
-                  dragHandleProps={getDragHandleProps(index)}
-                  isDragging={dragState.isDragging && dragState.dragIndex === index}
                 />
-              ))}
-              {/* Drop indicator for section reordering */}
-              {getDropIndicatorStyle() && (
-                <div style={getDropIndicatorStyle()!} />
               )}
-            </div>
 
-            {/* Spacer row to keep last item accessible above floating button */}
-            <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
+              <div className="relative" data-drag-container>
+                {nonMasterSections.map((section, index) => (
+                  <SectionRow
+                    key={section.id}
+                    section={section}
+                    isLabel
+                    timelineWidth={timelineWidth}
+                    viewportBounds={viewportBounds}
+                    sectionIndex={index}
+                    dragHandleProps={getDragHandleProps(index)}
+                    isDragging={dragState.isDragging && dragState.dragIndex === index}
+                  />
+                ))}
+                {dropIndicatorStyle && <div style={dropIndicatorStyle} />}
+              </div>
+
+              <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
+            </div>
           </div>
 
         </nav>
@@ -345,7 +348,7 @@ export function Timeline() {
         {/* Scrollable Timeline Column */}
         <div
           ref={scrollContainerRef}
-          className="flex-1 overflow-auto timeline-scroll-container"
+          className={`flex-1 overflow-auto timeline-scroll-container${isPanning ? ' panning' : ''}`}
           onScroll={handleTimelineScroll}
           role="region"
           aria-label="Timeline content"
@@ -357,7 +360,7 @@ export function Timeline() {
             {/* Sticky milestones that stay visible when scrolling */}
             <StickyMilestones
               sections={allSections}
-              scrollTop={scrollTop}
+              stickyMilestoneIds={stickyMilestoneIds}
               timelineWidth={timelineWidth}
               viewportBounds={viewportBounds}
             />
@@ -367,7 +370,7 @@ export function Timeline() {
               className="relative cursor-crosshair"
               role="list"
               aria-label="Timeline bars"
-              onMouseDown={handlePlayheadMouseDown}
+              onMouseDown={handleContentMouseDown}
             >
               {/* Background grid */}
               <TimelineGrid />

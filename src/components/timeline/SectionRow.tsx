@@ -1,5 +1,6 @@
 import { useCallback, useRef, useMemo, memo } from 'react';
 import type { Section, ViewportBounds } from '../../types';
+import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -28,7 +29,7 @@ interface SectionRowProps {
   readonly sectionIndex?: number;
   readonly dragHandleProps?: DragHandleProps;
   readonly isDragging?: boolean;
-  readonly stickyMilestoneIds?: Set<string>;
+  readonly stickyMilestoneIds?: ReadonlySet<string>;
 }
 
 export const SectionRow = memo(function SectionRow({
@@ -47,6 +48,7 @@ export const SectionRow = memo(function SectionRow({
   const addMilestone = useSectionStore((s) => s.addMilestone);
   const reorderPhases = useSectionStore((s) => s.reorderPhases);
   const project = useProjectStore((state) => state.project);
+  const coloredRows = useProjectStore((state) => state.project?.settings?.coloredRows ?? DEFAULT_PROJECT_SETTINGS.coloredRows);
   const selection = useUIStore((s) => s.selection);
   const selectItem = useUIStore((s) => s.selectItem);
   const openContextMenu = useUIStore((s) => s.openContextMenu);
@@ -299,6 +301,7 @@ export const SectionRow = memo(function SectionRow({
     return (
       <div
         className={`${!isMasterSection ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''} ${isMasterSection ? 'border-l-2 border-l-amber-400' : ''}`}
+        style={!isMasterSection && coloredRows ? { backgroundColor: section.color + '0D' } : undefined}
         role="group"
         aria-label={`${section.name} ${isMasterSection ? 'timeline' : 'team'}`}
       >
@@ -433,6 +436,7 @@ export const SectionRow = memo(function SectionRow({
   return (
     <div
       className={`${!isMasterSection ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''}`}
+      style={!isMasterSection && coloredRows ? { backgroundColor: section.color + '0D' } : undefined}
       role="group"
       aria-label={`${section.name} ${isMasterSection ? 'timeline bars' : 'team timeline'}`}
     >

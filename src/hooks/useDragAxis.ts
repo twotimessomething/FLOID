@@ -20,6 +20,7 @@ export function useDragAxis({
     (e: React.MouseEvent) => {
       if (disabled) return;
       e.preventDefault();
+      e.stopPropagation();
       pendingRef.current = true;
       startRef.current = { x: e.clientX, y: e.clientY };
       document.body.classList.add('no-select');

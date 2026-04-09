@@ -17,3 +17,4 @@ export { useDoubleClick } from './useDoubleClick';
 export { useContextMenu } from './useContextMenu';
 export { useMasterSection } from './useMasterSection';
 export { useInlineEdit } from './useInlineEdit';
+export { useTimelinePan } from './useTimelinePan';

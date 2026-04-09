@@ -1,4 +1,4 @@
-import type { ZoomLevel } from '../types';
+import type { Section, ZoomLevel } from '../types';
 
 // Pixels per day at each zoom level
 export const ZOOM_PIXELS_PER_DAY: Record<ZoomLevel, number> = {
@@ -56,3 +56,16 @@ export const clampRelativePosition = (
 ): number => {
   return Math.max(min, Math.min(max, value));
 };
+
+export function calculateSectionHeight(section: Section): number {
+  let height = ROW_HEIGHT;
+  if (!section.isCollapsed) {
+    section.phases.forEach((phase) => {
+      height += ROW_HEIGHT;
+      if (!phase.isCollapsed) {
+        height += phase.tasks.length * TASK_ROW_HEIGHT;
+      }
+    });
+  }
+  return height;
+}

@@ -208,7 +208,18 @@ export function LeftSidebar() {
     <aside className="flex-shrink-0 w-56 border-r border-[var(--color-border)] bg-[var(--color-background)] flex flex-col">
       {/* Header with collapse button */}
       <div className="flex items-center justify-between p-3 border-b border-[var(--color-border)]">
-        <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Projects</h2>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={handleNewProject}
+            title="New Project"
+            className="w-5 h-5 flex items-center justify-center rounded-full border border-current text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Projects</h2>
+        </div>
         <button
           onClick={toggleLeftSidebar}
           className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-active)] rounded-md transition-colors duration-150"
@@ -324,18 +335,6 @@ export function LeftSidebar() {
         )}
       </div>
 
-      {/* New project button - padded to align with Add Schedule button */}
-      <div className="pb-7 pt-3 flex justify-center">
-        <button
-          onClick={handleNewProject}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] glass-bordered rounded-md transition-colors duration-150"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span>New Project</span>
-        </button>
-      </div>
     </aside>
   );
 }
