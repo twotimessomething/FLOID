@@ -1,0 +1,39 @@
+# FLOID
+
+> Free design process scheduling software for industrial designers and product development teams.
+
+FLOID is a browser-based timeline scheduling tool purpose-built for industrial designers. It helps teams plan and visualize product development timelines using drag-and-drop phases, tasks, and milestones.
+
+## Key Details
+
+- Website: https://floid.design/
+- Pricing: Free
+- Platform: Web browser (no install required)
+- Category: Project scheduling, timeline management, product development planning
+
+## What FLOID Does
+
+FLOID lets you create project timelines with multiple schedule tracks (called sections). Each section contains phases, tasks, and milestones arranged on a visual timeline. A master schedule drives the overall project dates, and other sections can be locked to sync with it or run independently.
+
+## Core Features
+
+- Drag-and-drop timeline scheduling
+- Master schedule sync with locked and independent binding modes
+- Phases, tasks, and milestone tracking
+- Multiple schedule sections per project
+- Color-coded schedule rows
+- Export as .floid file, full project backup, or timeline image
+- Dark mode
+- Keyboard shortcuts
+- No account required
+
+## Who It's For
+
+- Industrial designers planning product development timelines
+- Product development teams managing multi-track schedules
+- Design managers coordinating parallel workstreams
+- Anyone who needs a free, visual timeline scheduling tool
+
+## Full Documentation
+
+For detailed features, use cases, and FAQs, see: https://floid.design/llms-full.txt

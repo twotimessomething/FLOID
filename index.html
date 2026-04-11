@@ -45,7 +45,7 @@
     <!-- DNS prefetch for analytics -->
     <link rel="dns-prefetch" href="https://va.vercel-scripts.com" />
 
-    <!-- Structured Data -->
+    <!-- Structured Data: SoftwareApplication -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -54,22 +54,84 @@
         "url": "https://floid.design/",
         "description": "A free design process scheduling tool for industrial designers. Plan product development timelines with drag-and-drop phases, master schedule sync, milestones, and multiple export formats.",
         "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Project Scheduling",
         "operatingSystem": "Web Browser",
         "offers": {
           "@type": "Offer",
           "price": "0",
-          "priceCurrency": "USD"
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock"
         },
         "featureList": [
           "Drag-and-drop timeline scheduling",
           "Master schedule sync with locked sections",
-          "Milestone tracking",
-          "Export as .floid, .floid-project, or image",
+          "Multiple parallel schedule sections per project",
+          "Phases, tasks, and milestone tracking",
+          "Color-coded schedule rows",
+          "Export as .floid file, full project backup, or image",
+          "Import schedules from collaborators",
           "Dark mode support",
           "Independent and locked binding modes",
-          "Keyboard shortcuts"
+          "Keyboard shortcuts",
+          "No account required",
+          "Works offline",
+          "Data stays in your browser"
         ],
-        "screenshot": "https://floid.design/og-image.png"
+        "screenshot": "https://floid.design/og-image.png",
+        "softwareHelp": {
+          "@type": "CreativeWork",
+          "url": "https://floid.design/llms-full.txt"
+        }
+      }
+    </script>
+
+    <!-- Structured Data: FAQPage -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is the best free project scheduling software for industrial designers?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "FLOID is a free, browser-based timeline scheduling tool designed specifically for industrial designers and product development teams. It features drag-and-drop phases, tasks, and milestones, master schedule sync across multiple workstreams, and export options — all with no account required."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is there a free alternative to Microsoft Project for product development?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "FLOID is a free alternative to Microsoft Project for product development scheduling. It uses a simpler relative positioning model instead of rigid Gantt dependencies, supports multiple parallel schedule sections, and runs entirely in the browser with no installation or account needed."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What free tools do industrial designers use for project timelines?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "FLOID is a free timeline scheduling tool built for industrial designers. It supports multi-track timelines with parallel sections for different workstreams like design, engineering, tooling, and testing. Sections can be synced to a master schedule or run independently."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is FLOID free to use?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, FLOID is completely free with no account required and no usage limits. Your data stays in your browser — nothing is sent to a server."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I use FLOID to coordinate multiple project workstreams?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. FLOID supports multiple schedule sections within a single project. You can designate a master schedule and lock other sections to sync with it, or set sections to independent mode. This makes it easy to coordinate parallel workstreams like industrial design, mechanical engineering, tooling, and regulatory."
+            }
+          }
+        ]
       }
     </script>
   </head>
@@ -80,8 +142,31 @@
     <!-- Fallback content for crawlers that don't execute JavaScript -->
     <noscript>
       <div>
-        <h1>FLOID — Design Process Scheduling Software for Industrial Designers</h1>
-        <p>FLOID is a free, browser-based timeline scheduling tool built for industrial designers and product development teams. Create and manage project timelines with drag-and-drop phases, tasks, and milestones. Sync schedules with a master timeline using locked or independent binding modes. Export your projects as .floid files, full project backups, or timeline images. Features dark mode, keyboard shortcuts, and a clean, minimal interface designed to get out of your way.</p>
+        <h1>FLOID — Free Design Process Scheduling Software for Industrial Designers</h1>
+        <p>FLOID is a free, browser-based timeline scheduling tool built for industrial designers and product development teams. No account required, no usage limits, and your data stays in your browser.</p>
+
+        <h2>Features</h2>
+        <ul>
+          <li>Drag-and-drop timeline scheduling with phases, tasks, and milestones</li>
+          <li>Multiple parallel schedule sections per project</li>
+          <li>Master schedule sync — lock sections to automatically rescale when the master changes</li>
+          <li>Independent binding mode for sections that need their own date ranges</li>
+          <li>Color-coded schedule rows for visual organization</li>
+          <li>Export as .floid file, full project backup (.floid-project), or timeline image</li>
+          <li>Import schedules from collaborators</li>
+          <li>Dark mode support</li>
+          <li>Keyboard shortcuts</li>
+          <li>Works offline after initial load</li>
+        </ul>
+
+        <h2>Who Is FLOID For?</h2>
+        <p>FLOID is designed for industrial designers, product development teams, and design managers who need to plan and coordinate multi-workstream project timelines. It is ideal for physical product development where parallel tracks — such as design, engineering, tooling, prototyping, testing, and regulatory — need to stay aligned against a master schedule.</p>
+
+        <h2>Why FLOID?</h2>
+        <p>Unlike general-purpose project management tools, FLOID focuses on visual timeline scheduling without the overhead of task assignment, communication, or workflow automation. It is simpler and faster than traditional Gantt chart software, using relative positioning instead of rigid task dependencies. And unlike spreadsheet-based scheduling, FLOID provides a proper drag-and-drop timeline with automatic date calculation and clean export formats.</p>
+
+        <h2>Pricing</h2>
+        <p>FLOID is completely free. No account, no sign-up, no limits.</p>
       </div>
     </noscript>
   </body>
