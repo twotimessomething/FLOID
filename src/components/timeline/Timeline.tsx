@@ -12,6 +12,7 @@ import { SectionRow } from './SectionRow';
 import { StickyMilestones } from './StickyMilestones';
 import { Playhead } from './Playhead';
 import { AddScheduleButton, ZoomControls } from '../controls';
+import { WelcomeWalkthrough } from '../layout/WelcomeWalkthrough';
 import { HEADER_HEIGHT, ROW_HEIGHT, getPositionFromRelative, calculateSectionHeight } from '../../utils/timelineUtils';
 import { getTodayViewportPosition, isTodayInViewport } from '../../utils/dateUtils';
 import { useMasterSection } from '../../hooks/useMasterSection';
@@ -23,7 +24,6 @@ export function Timeline() {
   const labelsContentRef = useRef<HTMLDivElement>(null);
 
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
-  const openProjectSetupModal = useUIStore((state) => state.openProjectSetupModal);
 
   const { masterSection, nonMasterSections } = useMasterSection();
   const reorderSections = useSectionStore((s) => s.reorderSections);
@@ -32,13 +32,12 @@ export function Timeline() {
   const setLabelColumnWidth = useUIStore((state) => state.setLabelColumnWidth);
   const scrollToTodayTrigger = useUIStore((state) => state.scrollToTodayTrigger);
   const { viewportBounds, timelineWidth } = useViewport();
-  const { handleMouseDown: handlePlayheadMouseDown, startPlayhead } = usePlayhead({
+  const { handleMouseDown: handlePlayheadMouseDown } = usePlayhead({
     timelineWidth,
     containerRef: scrollContainerRef,
   });
-  const { isPanning, handleContentMouseDown } = useTimelinePan({
+  const { isPanning } = useTimelinePan({
     containerRef: scrollContainerRef,
-    startPlayhead,
   });
 
   // Label column resize state
@@ -234,44 +233,9 @@ export function Timeline() {
     return Math.max(height, 200);
   }, [masterSection, nonMasterSections]);
 
-  // Empty state when no projects exist
+  // Welcome walkthrough when no active project exists
   if (!activeProjectId) {
-    return (
-      <div className="h-full flex items-center justify-center bg-[var(--color-surface)]">
-        <div className="text-center max-w-sm mx-auto px-6">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-[var(--color-hover)] flex items-center justify-center">
-            <svg
-              className="w-8 h-8 text-[var(--color-text-muted)]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-              />
-            </svg>
-          </div>
-          <h2 className="text-lg font-medium text-[var(--color-text-primary)] mb-2">
-            No projects yet
-          </h2>
-          <p className="text-sm text-[var(--color-text-muted)] mb-6">
-            Create a project to start planning your timeline.
-          </p>
-          <button
-            onClick={openProjectSetupModal}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-[var(--color-focus)] rounded-lg hover:opacity-90 transition-opacity duration-150"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create Project
-          </button>
-        </div>
-      </div>
-    );
+    return <WelcomeWalkthrough />;
   }
 
   return (
@@ -355,7 +319,7 @@ export function Timeline() {
         >
           <div style={{ minWidth: timelineWidth }}>
             {/* Timeline Header with date markers */}
-            <TimelineHeader onPlayheadMouseDown={handlePlayheadMouseDown} />
+            <TimelineHeader />
 
             {/* Sticky milestones that stay visible when scrolling */}
             <StickyMilestones
@@ -370,7 +334,7 @@ export function Timeline() {
               className="relative cursor-crosshair"
               role="list"
               aria-label="Timeline bars"
-              onMouseDown={handleContentMouseDown}
+              onMouseDown={handlePlayheadMouseDown}
             >
               {/* Background grid */}
               <TimelineGrid />

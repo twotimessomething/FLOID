@@ -3,11 +3,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { getTimeMarkers, getMonthMarkers, getDaysBetween } from '../../utils/dateUtils';
 import { getPositionFromRelative, HEADER_HEIGHT } from '../../utils/timelineUtils';
 
-interface TimelineHeaderProps {
-  readonly onPlayheadMouseDown?: (e: React.MouseEvent) => void;
-}
-
-export function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderProps) {
+export function TimelineHeader() {
   const { viewportBounds, timelineWidth } = useViewport();
   const { zoomLevel } = useUIStore();
 
@@ -17,9 +13,8 @@ export function TimelineHeader({ onPlayheadMouseDown }: TimelineHeaderProps) {
 
   return (
     <div
-      className="sticky top-0 bg-[var(--color-surface)] border-b border-[var(--color-border)] z-50 cursor-crosshair select-none"
+      className="sticky top-0 bg-[var(--color-surface)] border-b border-[var(--color-border)] z-50 select-none"
       style={{ height: HEADER_HEIGHT }}
-      onMouseDown={onPlayheadMouseDown}
     >
       <div className="relative h-full flex items-end pointer-events-none">
         {/* Month labels on top row */}

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useMemo, memo } from 'react';
+import { useCallback, useRef, useMemo, useState, memo } from 'react';
 import type { Section, ViewportBounds } from '../../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
@@ -53,6 +53,9 @@ export const SectionRow = memo(function SectionRow({
   const selectItem = useUIStore((s) => s.selectItem);
   const openContextMenu = useUIStore((s) => s.openContextMenu);
   const headerRowRef = useRef<HTMLDivElement>(null);
+  const phasesContainerRef = useRef<HTMLDivElement>(null);
+  const [ghostX, setGhostX] = useState<number | null>(null);
+  const [phaseGhostX, setPhaseGhostX] = useState<number | null>(null);
 
   // Inline edit for section name
   const inlineEdit = useInlineEdit();
@@ -196,6 +199,23 @@ export const SectionRow = memo(function SectionRow({
     toggleSectionCollapse(section.id);
   };
 
+  // Ghost milestone preview while hovering free space of the header row.
+  // Only tracks when the cursor is on the row itself — not over phase bars or
+  // existing milestones, where double-click would do something different.
+  const handleHeaderMouseMove = useCallback((e: React.MouseEvent): void => {
+    if (e.target !== e.currentTarget) {
+      setGhostX((prev) => (prev !== null ? null : prev));
+      return;
+    }
+    const rect = headerRowRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setGhostX(e.clientX - rect.left);
+  }, []);
+
+  const handleHeaderMouseLeave = useCallback((): void => {
+    setGhostX(null);
+  }, []);
+
   // Double-click on header row creates a milestone
   const handleHeaderDoubleClick = useCallback(
     (e: React.MouseEvent): void => {
@@ -287,6 +307,27 @@ export const SectionRow = memo(function SectionRow({
     },
     [createPhaseAtPosition, section.phases.length]
   );
+
+  // Ghost preview for empty phase row — mirrors what double-click will create.
+  const handlePhasesMouseMove = useCallback((e: React.MouseEvent): void => {
+    const rect = phasesContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPhaseGhostX(e.clientX - rect.left);
+  }, []);
+
+  const handlePhasesMouseLeave = useCallback((): void => {
+    setPhaseGhostX(null);
+  }, []);
+
+  // Width matches createPhaseAtPosition (30 days, fallback 0.15 of timeline)
+  const ghostPhaseWidth = useMemo(() => {
+    if (viewportBounds.totalDays > 0) {
+      return (30 / viewportBounds.totalDays) * timelineWidth;
+    }
+    return 0.15 * timelineWidth;
+  }, [viewportBounds.totalDays, timelineWidth]);
+
+  const ghostPhaseColor = isMasterSection ? getNextPhaseColor(0) : section.color;
 
   // Handle creating a phase after a specific phase (called from PhaseRow)
   const handleCreatePhaseAfter = useCallback(
@@ -443,11 +484,37 @@ export const SectionRow = memo(function SectionRow({
       {/* Section header row with collapsed phase bars when collapsed */}
       <div
         ref={headerRowRef}
-        className="relative border-b"
+        className={`relative border-b ${ghostX !== null ? 'cursor-copy' : ''}`}
         style={{ height: ROW_HEIGHT, borderColor: isMasterSection ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
         onDoubleClick={handleHeaderDoubleClick}
         onContextMenu={handleHeaderContextMenu}
+        onMouseMove={handleHeaderMouseMove}
+        onMouseLeave={handleHeaderMouseLeave}
       >
+        {ghostX !== null && (
+          <div
+            className="absolute top-0 pointer-events-none z-20"
+            style={{ left: ghostX, height: ROW_HEIGHT }}
+            aria-hidden="true"
+          >
+            <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rotate-45 bg-[var(--color-text-primary)] opacity-25" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)] whitespace-nowrap opacity-70">
+              Double-click
+            </div>
+            {milestoneLineHeight > 0 && (
+              <div
+                className="absolute -translate-x-1/2"
+                style={{
+                  left: 0,
+                  top: ROW_HEIGHT,
+                  height: milestoneLineHeight,
+                  borderLeft: '1px dashed var(--color-milestone-line)',
+                  opacity: 0.6,
+                }}
+              />
+            )}
+          </div>
+        )}
         {section.isCollapsed && (
           <>
             {sortedPhases.map((phase, index) => {
@@ -510,17 +577,46 @@ export const SectionRow = memo(function SectionRow({
       {/* Phase bars (when expanded) */}
       {!section.isCollapsed && (
         <div
+          ref={phasesContainerRef}
           role="list"
           aria-label={`${section.name} phase bars`}
-          className="relative"
+          className={`relative ${sortedPhases.length === 0 && phaseGhostX !== null ? 'cursor-copy' : ''}`}
           onDoubleClick={handleCreatePhase}
+          onMouseMove={sortedPhases.length === 0 ? handlePhasesMouseMove : undefined}
+          onMouseLeave={sortedPhases.length === 0 ? handlePhasesMouseLeave : undefined}
         >
           {sortedPhases.length === 0 ? (
-            <EmptyStateHint
-              text="Double-click to add phase"
-              height={ROW_HEIGHT}
-              borderClass="border-b"
-            />
+            <>
+              {phaseGhostX === null && (
+                <EmptyStateHint
+                  text="Double-click to add phase"
+                  height={ROW_HEIGHT}
+                  borderClass="border-b"
+                />
+              )}
+              {phaseGhostX !== null && (
+                <>
+                  <div
+                    className="border-b"
+                    style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
+                  />
+                  <div
+                    className="absolute top-2 bottom-2 rounded-[10px] pointer-events-none flex items-center justify-center px-2 overflow-hidden"
+                    style={{
+                      left: phaseGhostX - ghostPhaseWidth / 2,
+                      width: ghostPhaseWidth,
+                      backgroundColor: ghostPhaseColor,
+                      opacity: 0.3,
+                    }}
+                    aria-hidden="true"
+                  >
+                    <span className="text-xs font-medium text-white truncate drop-shadow-sm">
+                      Double-click
+                    </span>
+                  </div>
+                </>
+              )}
+            </>
           ) : (
             sortedPhases.map((phase, index) => (
               <PhaseRow

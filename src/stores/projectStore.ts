@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Project, Section, ProjectSettings } from '../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../types';
 import { createDefaultProject, createDefaultIDTimelineSection } from '../data/defaultTemplate';
+import { generateId } from '../utils/idUtils';
 import {
   createSectionFromTemplate,
   getTemplateById,
@@ -57,9 +58,32 @@ interface ProjectState {
   loadProjectData: (projectId: string) => Promise<{ sections: Section[] } | null>;
 }
 
+// Inject a "Start" milestone at relativePosition 0 to seed the milestone affordance.
+// Skips if a milestone already exists at that position (e.g. from a template).
+const seedStartMilestone = (section: Section): Section => {
+  if (section.milestones.some((m) => m.relativePosition === 0)) {
+    return section;
+  }
+  const startMilestone = {
+    id: generateId(),
+    sectionId: section.id,
+    name: 'Start',
+    description: '',
+    relativePosition: 0,
+    order: 0,
+  };
+  return {
+    ...section,
+    milestones: [
+      startMilestone,
+      ...section.milestones.map((m) => ({ ...m, order: m.order + 1 })),
+    ],
+  };
+};
+
 // Helper to create a default project with its master section
 const createDefaultProjectWithSection = (name?: string): { project: Project; section: Section } => {
-  const section = createDefaultIDTimelineSection();
+  const section = seedStartMilestone(createDefaultIDTimelineSection());
   const project = createDefaultProject(section.id, section.startDate, section.endDate);
   if (name) project.name = name;
   return { project, section };
@@ -208,6 +232,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       projectSections = [masterSection];
       masterSectionId = masterSection.id;
     }
+
+    // Seed a "Start" milestone on the master section so users see the affordance.
+    projectSections = projectSections.map((s) =>
+      s.id === masterSectionId ? seedStartMilestone(s) : s
+    );
 
     const now = new Date();
     const newProject: Project = {
