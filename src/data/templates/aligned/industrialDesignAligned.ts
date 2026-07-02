@@ -19,7 +19,6 @@ export const industrialDesignAlignedTemplate: ScheduleTemplate = {
   description: 'Realistic ID process with early intensity and long-tail support',
   icon: 'palette',
   category: 'core',
-  suggestedAsMaster: false,
   defaultColor: '#6366F1', // Indigo
   phases: [
     {

@@ -6,7 +6,6 @@ export const marketingTemplate: ScheduleTemplate = {
   description: 'Go-to-market strategy with research, positioning, and launch campaign phases',
   icon: 'megaphone',
   category: 'team',
-  suggestedAsMaster: false,
   defaultColor: '#EC4899', // Pink
   phases: [
     {

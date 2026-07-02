@@ -2,7 +2,7 @@ import { useEffect, useCallback, useMemo } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSectionStore } from '../stores/sectionStore';
 import { useUndoRedo } from './useUndoRedo';
-import { useMasterSection } from './useMasterSection';
+import { usePinnedSection } from './usePinnedSection';
 import { SHORTCUTS } from '../constants/shortcuts';
 import type { SelectionState, Section } from '../types';
 
@@ -23,7 +23,7 @@ export function useKeyboardShortcuts(): void {
   const { selection, selectItem, closeModal, isModalOpen, showToast } = useUIStore();
   const { undo, redo } = useUndoRedo();
 
-  const { masterSection, nonMasterSections } = useMasterSection();
+  const { pinnedSection, unpinnedSections } = usePinnedSection();
   const {
     toggleSectionCollapse,
     togglePhaseCollapse,
@@ -35,7 +35,6 @@ export function useKeyboardShortcuts(): void {
 
   // Helper to add section items to navigable list
   const addSectionItems = (section: Section, items: NavigableItem[], includeSectionHeader: boolean) => {
-    // Optionally include section header (for non-master sections)
     if (includeSectionHeader) {
       items.push({
         id: section.id,
@@ -91,13 +90,12 @@ export function useKeyboardShortcuts(): void {
   const { items: navigableItems, indexMap } = useMemo(() => {
     const items: NavigableItem[] = [];
 
-    // Add master section (without header - it's always visible)
-    if (masterSection) {
-      addSectionItems(masterSection, items, false);
+    // Pinned section first, matching the rendered order
+    if (pinnedSection) {
+      addSectionItems(pinnedSection, items, true);
     }
 
-    // Add non-master sections (with headers)
-    nonMasterSections.forEach((section) => {
+    unpinnedSections.forEach((section) => {
       addSectionItems(section, items, true);
     });
 
@@ -108,7 +106,7 @@ export function useKeyboardShortcuts(): void {
     });
 
     return { items, indexMap };
-  }, [masterSection, nonMasterSections]);
+  }, [pinnedSection, unpinnedSections]);
 
   // Find current selection index using O(1) Map lookup
   const getCurrentIndex = useCallback((): number => {

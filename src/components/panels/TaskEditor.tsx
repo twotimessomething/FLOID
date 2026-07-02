@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection, selectPhase, selectTask } from '../../stores/sectionStore';
-import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, Button } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../utils/dateUtils';
@@ -8,7 +7,6 @@ import { getDateFromRelativePosition, getRelativePositionFromDate } from '../../
 export function TaskEditor(): JSX.Element {
   const { selection, closeModal } = useUIStore();
   const { updateTask, updateTaskPosition, deleteTask } = useSectionStore();
-  const project = useProjectStore((state) => state.project);
 
   const sectionId = selection.sectionId;
   const phaseId = selection.phaseId;
@@ -22,8 +20,6 @@ export function TaskEditor(): JSX.Element {
   const section = useSectionStore(sectionSelector);
   const phase = useSectionStore(phaseSelector);
   const task = useSectionStore(taskSelector);
-
-  const isMasterSection = section?.id === project?.masterSectionId;
 
   // Calculate absolute dates for the task
   // Tasks are positioned relative to their parent phase
@@ -129,12 +125,8 @@ export function TaskEditor(): JSX.Element {
     <div className="flex flex-col gap-4">
       <div className="text-xs text-[var(--color-text-secondary)]">
         Part of <span className="font-medium text-[var(--color-text-primary)]">{phase.name}</span>
-        {!isMasterSection && (
-          <>
-            {' in '}
-            <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>
-          </>
-        )}
+        {' in '}
+        <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>
       </div>
 
       <Input

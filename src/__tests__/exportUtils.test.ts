@@ -19,7 +19,7 @@ function makeProject(overrides: Partial<Project> = {}): Project {
   return {
     id: 'proj-1',
     name: 'Test Project',
-    masterSectionId: 'sec-1',
+    pinnedSectionId: 'sec-1',
     projectStartDate: '2025-01-01T00:00:00.000Z',
     projectEndDate: '2025-07-01T00:00:00.000Z',
     createdAt: '2025-01-01T00:00:00.000Z',
@@ -92,7 +92,7 @@ describe('exportProjectToJson', () => {
     const result = exportProjectToJson(project, [makeSection()]);
     expect(result.project.id).toBe(project.id);
     expect(result.project.name).toBe(project.name);
-    expect(result.project.masterSectionId).toBe(project.masterSectionId);
+    expect(result.project.pinnedSectionId).toBe(project.pinnedSectionId);
   });
 
   it('computes absolute dates for phases', () => {
@@ -142,6 +142,18 @@ describe('parseProjectJson', () => {
 
   it('returns null for unknown format', () => {
     expect(parseProjectJson(JSON.stringify({ foo: 'bar' }))).toBeNull();
+  });
+
+  it('maps legacy masterSectionId to pinnedSectionId and marks the section multicolor', () => {
+    const exported = exportProjectToJson(makeProject(), [makeSection()]);
+    const raw = JSON.parse(JSON.stringify(exported));
+    delete raw.project.pinnedSectionId;
+    raw.project.masterSectionId = 'sec-1';
+    delete raw.sections[0].isMulticolor;
+
+    const parsed = parseProjectJson(JSON.stringify(raw));
+    expect(parsed!.project.pinnedSectionId).toBe('sec-1');
+    expect(parsed!.sections[0].isMulticolor).toBe(true);
   });
 
   it('defaults isCollapsed to false', () => {

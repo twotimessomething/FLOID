@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection, selectMilestone } from '../../stores/sectionStore';
-import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, Button } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate, parseDate } from '../../utils/dateUtils';
@@ -18,7 +17,6 @@ export function MilestoneEditor(): JSX.Element {
 
   const section = useSectionStore(sectionSelector);
   const milestone = useSectionStore(milestoneSelector);
-  const project = useProjectStore((state) => state.project);
 
   // Calculate milestone date using section dates (milestones are section-relative)
   const date = useMemo(() => {
@@ -77,11 +75,7 @@ export function MilestoneEditor(): JSX.Element {
     return <div className="text-sm text-[var(--color-text-secondary)]">Milestone not found</div>;
   }
 
-  // Determine context label
-  const isMasterSection = section.id === project?.masterSectionId;
-  const contextLabel = isMasterSection
-    ? section.name
-    : section.name;
+  const contextLabel = section.name;
 
   return (
     <div className="flex flex-col gap-4">

@@ -4,8 +4,9 @@ import { parseISO, differenceInDays, addDays, subDays } from 'date-fns';
 import type { Section, Phase, Task, Milestone, BarMilestone } from '../types';
 import { createDefaultIDTimelineSection, createDefaultSectionDateRange } from '../data/defaultTemplate';
 import { useProjectStore } from './projectStore';
-import { getScheduleColor } from '../constants/colors';
+import { getScheduleColor, getNextPhaseColor } from '../constants/colors';
 import { generateId } from '../utils/idUtils';
+import { getSectionsDateRange, remapSectionToDateRange } from '../utils/dateUtils';
 
 // Tracks auto-expansion for scroll compensation
 export interface ExpansionInfo {
@@ -36,15 +37,12 @@ interface SectionState {
   addCompleteSection: (section: Section) => void;
   updateSection: (sectionId: string, updates: Partial<Omit<Section, 'id' | 'type'>>) => void;
   updateSectionDates: (sectionId: string, startDate: string, endDate: string) => void;
-  updateMasterDates: (startDate: string, endDate: string) => void;
+  setSectionMulticolor: (sectionId: string, isMulticolor: boolean) => void;
   deleteSection: (sectionId: string) => { success: boolean; reason?: string };
   toggleSectionCollapse: (sectionId: string) => void;
   toggleSectionLock: (sectionId: string) => void;
   reorderSections: (fromIndex: number, toIndex: number) => void;
 
-  // Master operations
-  setAsMaster: (sectionId: string) => void;
-  isMaster: (sectionId: string) => boolean;
   incrementRevision: (sectionId: string) => void;
 
   // Phase operations
@@ -228,14 +226,9 @@ export const useSectionStore = create<SectionState>()(
   addSection: (name) =>
     set((state) => {
       const sectionCount = state.sections.length;
-      // Use master section's date range if available, otherwise use default
-      const project = useProjectStore.getState().project;
-      const masterSection = project?.masterSectionId
-        ? state.sections.find((s) => s.id === project.masterSectionId)
-        : null;
-      const { startDate, endDate } = masterSection
-        ? { startDate: masterSection.startDate, endDate: masterSection.endDate }
-        : createDefaultSectionDateRange();
+      // Align with the existing schedules' combined date range, or use default
+      const { startDate, endDate } =
+        getSectionsDateRange(state.sections) ?? createDefaultSectionDateRange();
 
       const now = new Date().toISOString();
       const newSection: Section = {
@@ -265,66 +258,58 @@ export const useSectionStore = create<SectionState>()(
       ),
     })),
 
-  updateSectionDates: (sectionId, startDate, endDate) => {
-    const project = useProjectStore.getState().project;
-    const isMaster = project?.masterSectionId === sectionId;
+  updateSectionDates: (sectionId, startDate, endDate) =>
+    set((state) => ({
+      sections: state.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        // Remap positions so phases and milestones keep their absolute dates
+        const { phases, milestones } = remapSectionToDateRange(section, startDate, endDate);
+        return {
+          ...section,
+          startDate,
+          endDate,
+          phases,
+          milestones,
+          lastModifiedAt: new Date().toISOString(),
+          revision: section.revision + 1,
+        };
+      }),
+    })),
 
-    if (isMaster) {
-      // Use updateMasterDates for master section to cascade changes
-      get().updateMasterDates(startDate, endDate);
-    } else {
-      set((state) => ({
-        sections: state.sections.map((section) =>
-          section.id === sectionId
-            ? { ...section, startDate, endDate, lastModifiedAt: new Date().toISOString(), revision: section.revision + 1 }
-            : section
-        ),
-      }));
-    }
-  },
-
-  updateMasterDates: (startDate, endDate) =>
-    set((state) => {
-      const project = useProjectStore.getState().project;
-      if (!project) return state;
-
-      const masterSection = state.sections.find((s) => s.id === project.masterSectionId);
-      if (!masterSection) return state;
-
-      const now = new Date().toISOString();
-
-      // Update project dates
-      useProjectStore.getState().updateProjectDates(startDate, endDate);
-
-      // Update only the master section
-      const updatedSections = state.sections.map((section) => {
-        if (section.id === project.masterSectionId) {
-          return {
-            ...section,
-            startDate,
-            endDate,
-            lastModifiedAt: now,
-            revision: section.revision + 1,
-          };
-        }
-        return section;
-      });
-
-      return { sections: updatedSections };
-    }),
+  setSectionMulticolor: (sectionId, isMulticolor) =>
+    set((state) => ({
+      sections: state.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        // Enabling assigns palette colors by phase order; disabling resets
+        // phases to inherit the schedule color
+        const sortedIds = [...section.phases]
+          .sort((a, b) => a.order - b.order)
+          .map((p) => p.id);
+        return {
+          ...section,
+          isMulticolor,
+          phases: section.phases.map((phase) => ({
+            ...phase,
+            color: isMulticolor ? getNextPhaseColor(sortedIds.indexOf(phase.id)) : null,
+          })),
+          lastModifiedAt: new Date().toISOString(),
+          revision: section.revision + 1,
+        };
+      }),
+    })),
 
   deleteSection: (sectionId) => {
-    const project = useProjectStore.getState().project;
     const state = get();
-
-    // Prevent deleting the master section
-    if (project && project.masterSectionId === sectionId) {
-      return { success: false, reason: 'Cannot delete master schedule. Pin another schedule as master first.' };
-    }
 
     // Prevent deleting if only one section
     if (state.sections.length <= 1) {
       return { success: false, reason: 'Cannot delete the only schedule.' };
+    }
+
+    // Deleting a pinned schedule simply unpins it
+    const projectStore = useProjectStore.getState();
+    if (projectStore.project?.pinnedSectionId === sectionId) {
+      projectStore.setPinnedSection(null);
     }
 
     set({
@@ -365,24 +350,6 @@ export const useSectionStore = create<SectionState>()(
 
       return { sections: reorderedSections };
     }),
-
-  setAsMaster: (sectionId) => {
-    const { sections } = get();
-    const section = sections.find((s) => s.id === sectionId);
-    if (!section) return;
-
-    // Update project's master section and dates
-    useProjectStore.getState().setMasterSection(
-      sectionId,
-      section.startDate,
-      section.endDate
-    );
-  },
-
-  isMaster: (sectionId) => {
-    const project = useProjectStore.getState().project;
-    return project?.masterSectionId === sectionId;
-  },
 
   incrementRevision: (sectionId) =>
     set((state) => ({
@@ -523,62 +490,6 @@ export const useSectionStore = create<SectionState>()(
       const section = state.sections.find((s) => s.id === sectionId);
       if (!section) return state;
 
-      const project = useProjectStore.getState().project;
-      const isMasterSection = section.id === project?.masterSectionId;
-
-      let finalStart = relativeStart;
-      let finalEnd = relativeEnd;
-
-      // Master section: clamp phases to [0, 1] - no auto-expansion allowed
-      if (isMasterSection) {
-        const phase = section.phases.find((p) => p.id === phaseId);
-        if (phase) {
-          // Detect if we're moving (both edges change) or resizing (one edge changes)
-          const startDelta = Math.abs(relativeStart - phase.relativeStart);
-          const endDelta = Math.abs(relativeEnd - phase.relativeEnd);
-          const isMoving = startDelta > 0.0001 && endDelta > 0.0001;
-
-          if (isMoving) {
-            // Moving - maintain bar width, stop at edges
-            const barWidth = relativeEnd - relativeStart;
-            if (relativeEnd > 1) {
-              finalEnd = 1;
-              finalStart = Math.max(0, 1 - barWidth);
-            } else if (relativeStart < 0) {
-              finalStart = 0;
-              finalEnd = Math.min(1, barWidth);
-            }
-          } else {
-            // Resizing - just clamp the edge being dragged
-            finalStart = Math.max(0, relativeStart);
-            finalEnd = Math.min(1, relativeEnd);
-          }
-        } else {
-          // Fallback: simple clamp
-          finalStart = Math.max(0, relativeStart);
-          finalEnd = Math.min(1, relativeEnd);
-        }
-
-        // Simple update for master - no expansion
-        return {
-          sections: state.sections.map((s) =>
-            s.id === sectionId
-              ? {
-                  ...s,
-                  phases: s.phases.map((phase) =>
-                    phase.id === phaseId
-                      ? { ...phase, relativeStart: finalStart, relativeEnd: finalEnd }
-                      : phase
-                  ),
-                  lastModifiedAt: new Date().toISOString(),
-                  revision: s.revision + 1,
-                }
-              : s
-          ),
-        };
-      }
-
-      // Non-master section: allow auto-expansion
       const needsExpansion = relativeStart < 0 || relativeEnd > 1;
 
       if (!needsExpansion) {
@@ -601,7 +512,7 @@ export const useSectionStore = create<SectionState>()(
         };
       }
 
-      // Auto-expansion logic for non-master sections
+      // Auto-expansion: extend the section's date range to fit the phase
       const sectionStart = parseISO(section.startDate);
       const sectionEnd = parseISO(section.endDate);
       const sectionDays = differenceInDays(sectionEnd, sectionStart);
@@ -698,39 +609,6 @@ export const useSectionStore = create<SectionState>()(
       const section = state.sections.find((s) => s.id === sectionId);
       if (!section) return state;
 
-      const project = useProjectStore.getState().project;
-      const isMasterSection = section.id === project?.masterSectionId;
-
-      let finalStart = relativeStart;
-      let finalEnd = relativeEnd;
-
-      // Master section: clamp phases to [0, 1]
-      if (isMasterSection) {
-        const phase = section.phases.find((p) => p.id === phaseId);
-        if (phase) {
-          const startDelta = Math.abs(relativeStart - phase.relativeStart);
-          const endDelta = Math.abs(relativeEnd - phase.relativeEnd);
-          const isMoving = startDelta > 0.0001 && endDelta > 0.0001;
-
-          if (isMoving) {
-            const barWidth = relativeEnd - relativeStart;
-            if (relativeEnd > 1) {
-              finalEnd = 1;
-              finalStart = Math.max(0, 1 - barWidth);
-            } else if (relativeStart < 0) {
-              finalStart = 0;
-              finalEnd = Math.min(1, barWidth);
-            }
-          } else {
-            finalStart = Math.max(0, relativeStart);
-            finalEnd = Math.min(1, relativeEnd);
-          }
-        } else {
-          finalStart = Math.max(0, relativeStart);
-          finalEnd = Math.min(1, relativeEnd);
-        }
-      }
-
       return {
         sections: state.sections.map((s) =>
           s.id === sectionId
@@ -742,8 +620,8 @@ export const useSectionStore = create<SectionState>()(
                   phase.id === phaseId
                     ? {
                         ...phase,
-                        relativeStart: finalStart,
-                        relativeEnd: finalEnd,
+                        relativeStart,
+                        relativeEnd,
                         tasks: phase.tasks.map((task) => {
                           const update = taskUpdates.find((u) => u.id === task.id);
                           return update
@@ -767,16 +645,9 @@ export const useSectionStore = create<SectionState>()(
       const phase = section.phases.find((p) => p.id === phaseId);
       if (!phase) return state;
 
-      const project = useProjectStore.getState().project;
-      const isMasterSection = section.id === project?.masterSectionId;
-
       // Calculate delta from current end to new end
       const delta = newRelativeEnd - phase.relativeEnd;
       if (Math.abs(delta) < 0.0001) return state; // No meaningful change
-
-      // For master section, clamp the new end to 1
-      const clampedNewEnd = isMasterSection ? Math.min(1, newRelativeEnd) : newRelativeEnd;
-      const actualDelta = clampedNewEnd - phase.relativeEnd;
 
       // Find phases that start at or after the current phase's end (downstream phases)
       const downstreamPhases = section.phases.filter(
@@ -787,20 +658,6 @@ export const useSectionStore = create<SectionState>()(
       const downstreamMilestones = section.milestones.filter(
         (m) => m.relativePosition >= phase.relativeEnd - 0.0001
       );
-
-      // For master section, check if ripple would push anything past 1
-      if (isMasterSection) {
-        const maxDownstreamEnd = Math.max(
-          ...downstreamPhases.map((p) => p.relativeEnd),
-          ...downstreamMilestones.map((m) => m.relativePosition),
-          0
-        );
-        if (maxDownstreamEnd + actualDelta > 1) {
-          // Reduce delta to prevent overflow
-          const allowedDelta = Math.max(0, 1 - maxDownstreamEnd);
-          if (allowedDelta < 0.0001) return state; // Can't ripple further
-        }
-      }
 
       const now = new Date().toISOString();
 
@@ -815,14 +672,14 @@ export const useSectionStore = create<SectionState>()(
             phases: s.phases.map((p) => {
               if (p.id === phaseId) {
                 // Update the dragged phase's end
-                return { ...p, relativeEnd: clampedNewEnd };
+                return { ...p, relativeEnd: newRelativeEnd };
               }
               if (downstreamPhases.some((dp) => dp.id === p.id)) {
                 // Shift downstream phases by delta
                 return {
                   ...p,
-                  relativeStart: p.relativeStart + actualDelta,
-                  relativeEnd: p.relativeEnd + actualDelta,
+                  relativeStart: p.relativeStart + delta,
+                  relativeEnd: p.relativeEnd + delta,
                 };
               }
               return p;
@@ -832,7 +689,7 @@ export const useSectionStore = create<SectionState>()(
                 // Shift downstream milestones by delta
                 return {
                   ...m,
-                  relativePosition: m.relativePosition + actualDelta,
+                  relativePosition: m.relativePosition + delta,
                 };
               }
               return m;

@@ -92,13 +92,6 @@ export function getTemplatesByCategory(category: ScheduleTemplate['category']): 
 }
 
 /**
- * Get templates suggested as master schedules.
- */
-export function getMasterSuggestedTemplates(): readonly ScheduleTemplate[] {
-  return SCHEDULE_TEMPLATES.filter((t) => t.suggestedAsMaster);
-}
-
-/**
  * Create a section from a template.
  */
 export function createSectionFromTemplate(
@@ -158,6 +151,8 @@ export function createSectionFromTemplate(
     revision: 1,
     lastModifiedAt: now,
     color: options?.colorOverride ?? (sectionIndex === 0 ? template.defaultColor : getScheduleColor(sectionIndex - 1)),
+    // Templates with per-phase colors use the multicolor palette
+    isMulticolor: template.phases.some((p) => p.color != null),
     order: sectionIndex,
     isCollapsed: false,
     phases,
@@ -181,16 +176,16 @@ export function getProjectTemplateById(templateId: string): ProjectTemplate | un
 
 /**
  * Create multiple sections from a project template.
- * Returns sections with the master section first.
+ * Returns sections along with the section to pin to the top.
  */
 export function createSectionsFromProjectTemplate(
   projectTemplate: ProjectTemplate,
   options: {
     dateRange: { startDate: string; endDate: string };
   }
-): { sections: Section[]; masterSectionId: string } {
+): { sections: Section[]; pinnedSectionId: string } {
   const sections: Section[] = [];
-  let masterSectionId = '';
+  let pinnedSectionId = '';
 
   for (const sectionDef of projectTemplate.sections) {
     const template = getTemplateById(sectionDef.templateId);
@@ -207,13 +202,13 @@ export function createSectionsFromProjectTemplate(
 
     sections.push(section);
 
-    if (sectionDef.isMaster) {
-      masterSectionId = section.id;
+    if (sectionDef.isPinned) {
+      pinnedSectionId = section.id;
     }
   }
 
   // Sort by order
   sections.sort((a, b) => a.order - b.order);
 
-  return { sections, masterSectionId };
+  return { sections, pinnedSectionId };
 }

@@ -50,13 +50,11 @@ export const TaskRow = memo(function TaskRow({
   taskIndex,
 }: TaskRowProps): JSX.Element {
   const { updateTaskPosition, updateTask, addTaskBarMilestone, addTask, beginDragTransaction, commitDragTransaction } = useSectionStore();
-  const project = useProjectStore((state) => state.project);
   const selection = useUIStore((s) => s.selection);
   const selectItem = useUIStore((s) => s.selectItem);
   const setDragging = useUIStore((s) => s.setDragging);
   const openContextMenu = useUIStore((s) => s.openContextMenu);
 
-  const isMasterSection = section.id === project?.masterSectionId;
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const isSelected = selection.type === 'task' && selection.id === task.id;
   const isLocked = section.isLocked || phase.isLocked;
@@ -418,7 +416,7 @@ export const TaskRow = memo(function TaskRow({
   if (isLabel) {
     return (
       <div
-        className={`group flex items-center gap-1 ${isMasterSection ? 'pl-9' : 'pl-12'} pr-3 border-b cursor-pointer row-selectable focus-ring ${
+        className={`group flex items-center gap-1 pl-12 pr-3 border-b cursor-pointer row-selectable focus-ring ${
           isSelected ? 'selected' : ''
         } ${isDragTarget ? 'opacity-50' : ''}`}
         style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}

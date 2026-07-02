@@ -34,8 +34,8 @@ npm run typecheck # TypeScript check
 | Term | Description |
 |------|-------------|
 | Section | A schedule track on the timeline. Projects have multiple sections. |
-| Master Schedule | The section that drives project dates. Locked sections sync to it. |
-| Binding Mode | `locked` (syncs with master) or `independent` (own dates). |
+| Pinned Schedule | Optional (0 or 1). Renders on top; its milestone lines extend through all schedules. Purely visual — never moves or rescales other schedules. |
+| Multicolor | Per-schedule color option. Phases get individual palette colors instead of the schedule color. |
 | Phase | Top-level timeline block within a section. Has duration. |
 | Task | Sub-item within a phase. Has duration. |
 | Milestone | Single-point marker. No duration. |
@@ -48,19 +48,19 @@ npm run typecheck # TypeScript check
 
 Three stores, one per domain:
 
-- `projectStore` — Project metadata, master section ID
+- `projectStore` — Project metadata, pinned section ID
 - `sectionStore` — Sections, phases, tasks, milestones
 - `uiStore` — Selection, zoom, collapse, modals
 
 ### Key Patterns
 
-**Relative positioning:** All items store 0-1 positions. Enables cascading on resize.
+**Relative positioning:** All items store 0-1 positions within their schedule's date range. Editing a schedule's date range remaps positions so items keep their absolute dates (`remapSectionToDateRange`).
 
 **Single selection:** One item selected at a time. Opens sidebar editor.
 
-**Master schedule:** One section designated master via `project.masterSectionId`. Drives project date range. Cannot be deleted.
+**Pinned schedule:** At most one section pinned via `project.pinnedSectionId` (nullable). Renders at the top with a badge, and its milestones draw full-height reference lines through every schedule. Deleting a pinned schedule unpins it.
 
-**Binding modes:** Locked sections rescale when master changes. Independent sections maintain own dates.
+**Project dates:** `projectStartDate/EndDate` are derived from the union of all schedules' date ranges at save time; the timeline viewport is computed the same way.
 
 **Export formats:**
 - `.floid` — Single schedule for sharing

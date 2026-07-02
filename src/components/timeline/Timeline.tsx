@@ -11,11 +11,12 @@ import { TimelineGrid } from './TimelineGrid';
 import { SectionRow } from './SectionRow';
 import { StickyMilestones } from './StickyMilestones';
 import { Playhead } from './Playhead';
+import { PinnedMilestoneLines } from './PinnedMilestoneLines';
 import { AddScheduleButton, ZoomControls } from '../controls';
 import { WelcomeWalkthrough } from '../layout/WelcomeWalkthrough';
 import { HEADER_HEIGHT, ROW_HEIGHT, getPositionFromRelative, calculateSectionHeight } from '../../utils/timelineUtils';
 import { getTodayViewportPosition, isTodayInViewport } from '../../utils/dateUtils';
-import { useMasterSection } from '../../hooks/useMasterSection';
+import { usePinnedSection } from '../../hooks/usePinnedSection';
 import type { Section } from '../../types';
 
 export function Timeline() {
@@ -25,7 +26,7 @@ export function Timeline() {
 
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
 
-  const { masterSection, nonMasterSections } = useMasterSection();
+  const { pinnedSection, unpinnedSections } = usePinnedSection();
   const reorderSections = useSectionStore((s) => s.reorderSections);
 
   const labelColumnWidth = useUIStore((state) => state.labelColumnWidth);
@@ -97,21 +98,30 @@ export function Timeline() {
     });
   }, [scrollToTodayTrigger, viewportBounds, timelineWidth]);
 
-  // Calculate individual non-master section heights for proper drop indicator positioning
+  // Calculate individual unpinned section heights for proper drop indicator positioning
   const sectionHeights = useMemo(() => {
-    return nonMasterSections.map((section) => calculateSectionHeight(section));
-  }, [nonMasterSections]);
+    return unpinnedSections.map((section) => calculateSectionHeight(section));
+  }, [unpinnedSections]);
 
-  // Use drag reorder for non-master sections
+  // Use drag reorder for unpinned sections
   const {
     state: dragState,
     getDragHandleProps,
   } = useDragReorder({
     onReorder: (from, to) => {
-      // Adjust indices to account for master section at index 0
-      reorderSections(from + 1, to + 1);
+      // Map visible (unpinned) indices back to indices in the sections array
+      const allSections = useSectionStore.getState().sections;
+      const pinnedId = useProjectStore.getState().project?.pinnedSectionId;
+      const visible = allSections.filter((s) => s.id !== pinnedId);
+      const fromSection = visible[from];
+      const toSection = visible[to];
+      if (!fromSection || !toSection) return;
+      reorderSections(
+        allSections.findIndex((s) => s.id === fromSection.id),
+        allSections.findIndex((s) => s.id === toSection.id)
+      );
     },
-    itemCount: nonMasterSections.length,
+    itemCount: unpinnedSections.length,
     rowHeight: ROW_HEIGHT, // Movement threshold
   });
 
@@ -148,10 +158,10 @@ export function Timeline() {
   // Combine all sections in order for sticky milestones
   const allSections = useMemo(() => {
     const sections: Section[] = [];
-    if (masterSection) sections.push(masterSection);
-    sections.push(...nonMasterSections);
+    if (pinnedSection) sections.push(pinnedSection);
+    sections.push(...unpinnedSections);
     return sections;
-  }, [masterSection, nonMasterSections]);
+  }, [pinnedSection, unpinnedSections]);
 
   // Precompute scroll thresholds so the scroll handler only does cheap comparisons
   const sectionThresholds = useMemo(() => {
@@ -225,13 +235,13 @@ export function Timeline() {
 
   const contentHeight = useMemo(() => {
     let height = 0;
-    if (masterSection) height += calculateSectionHeight(masterSection);
-    nonMasterSections.forEach((section) => {
+    if (pinnedSection) height += calculateSectionHeight(pinnedSection);
+    unpinnedSections.forEach((section) => {
       height += calculateSectionHeight(section);
     });
     height += ROW_HEIGHT;
     return Math.max(height, 200);
-  }, [masterSection, nonMasterSections]);
+  }, [pinnedSection, unpinnedSections]);
 
   // Welcome walkthrough when no active project exists
   if (!activeProjectId) {
@@ -278,9 +288,9 @@ export function Timeline() {
             aria-label="Sections and phases"
           >
             <div ref={labelsContentRef} style={{ willChange: 'transform' }}>
-              {masterSection && (
+              {pinnedSection && (
                 <SectionRow
-                  section={masterSection}
+                  section={pinnedSection}
                   isLabel
                   timelineWidth={timelineWidth}
                   viewportBounds={viewportBounds}
@@ -288,7 +298,7 @@ export function Timeline() {
               )}
 
               <div className="relative" data-drag-container>
-                {nonMasterSections.map((section, index) => (
+                {unpinnedSections.map((section, index) => (
                   <SectionRow
                     key={section.id}
                     section={section}
@@ -339,6 +349,16 @@ export function Timeline() {
               {/* Background grid */}
               <TimelineGrid />
 
+              {/* Pinned schedule milestone lines through all schedules */}
+              {pinnedSection && (
+                <PinnedMilestoneLines
+                  section={pinnedSection}
+                  timelineWidth={timelineWidth}
+                  viewportBounds={viewportBounds}
+                  height={contentHeight - ROW_HEIGHT}
+                />
+              )}
+
               {/* Today line - extends full content height */}
               {isTodayInViewport(viewportBounds) && (
                 <div
@@ -355,10 +375,10 @@ export function Timeline() {
               {/* Playhead (scrubber) */}
               <Playhead height={contentHeight} />
 
-              {/* Master section bars */}
-              {masterSection && (
+              {/* Pinned section bars */}
+              {pinnedSection && (
                 <SectionRow
-                  section={masterSection}
+                  section={pinnedSection}
                   isLabel={false}
                   timelineWidth={timelineWidth}
                   viewportBounds={viewportBounds}
@@ -366,8 +386,8 @@ export function Timeline() {
                 />
               )}
 
-              {/* Non-master section bars */}
-              {nonMasterSections.map((section, index) => (
+              {/* Unpinned section bars */}
+              {unpinnedSections.map((section, index) => (
                 <SectionRow
                   key={section.id}
                   section={section}

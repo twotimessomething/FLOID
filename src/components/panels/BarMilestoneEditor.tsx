@@ -7,7 +7,6 @@ import {
   selectPhaseBarMilestone,
   selectTaskBarMilestone,
 } from '../../stores/sectionStore';
-import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, Button } from '../common';
 import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
@@ -20,7 +19,6 @@ export function BarMilestoneEditor(): JSX.Element {
     deletePhaseBarMilestone,
     deleteTaskBarMilestone,
   } = useSectionStore();
-  const project = useProjectStore((state) => state.project);
 
   const sectionId = selection.sectionId;
   const phaseId = selection.phaseId;
@@ -54,8 +52,6 @@ export function BarMilestoneEditor(): JSX.Element {
   // Determine which bar milestone we're editing
   const barMilestone = taskId ? taskBarMilestone : phaseBarMilestone;
   const isOnTask = !!taskId;
-
-  const isMasterSection = section?.id === project?.masterSectionId;
 
   // Calculate the date for this bar milestone
   const milestoneDate = useMemo(() => {
@@ -112,12 +108,8 @@ export function BarMilestoneEditor(): JSX.Element {
     <div className="flex flex-col gap-4">
       <div className="text-xs text-[var(--color-text-secondary)]">
         Marker on <span className="font-medium text-[var(--color-text-primary)]">{contextLabel}</span>
-        {!isMasterSection && (
-          <>
-            {' in '}
-            <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>
-          </>
-        )}
+        {' in '}
+        <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>
       </div>
 
       <Input

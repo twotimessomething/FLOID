@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
-import { useConfirm } from '../../hooks';
 import { downloadScheduleFloid } from '../../utils/exportUtils';
 import { PHASE_COLORS } from '../../constants/colors';
 
@@ -12,13 +11,11 @@ interface MenuItem {
   action: () => void;
   danger?: boolean;
   disabled?: boolean;
-  info?: boolean;
   hasSubmenu?: boolean;
 }
 
 export function ContextMenu(): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement>(null);
-  const confirm = useConfirm();
   const { contextMenu, closeContextMenu, selectItem, showToast } = useUIStore();
   const {
     deletePhase,
@@ -28,7 +25,6 @@ export function ContextMenu(): JSX.Element | null {
     addPhase,
     addTask,
     addMilestone,
-    setAsMaster,
     reorderPhases,
     sections,
     togglePhaseCollapse,
@@ -42,6 +38,7 @@ export function ContextMenu(): JSX.Element | null {
     updatePhase,
   } = useSectionStore();
   const project = useProjectStore((state) => state.project);
+  const setPinnedSection = useProjectStore((state) => state.setPinnedSection);
 
   const { isOpen, position, targetType, targetId, sectionId, phaseId, taskId, location, clickRelativePosition } = contextMenu;
 
@@ -157,10 +154,9 @@ export function ContextMenu(): JSX.Element | null {
     const section = sections.find((s) => s.id === sectionId);
     if (!section) return;
 
-    const isMasterSection = section.id === project?.masterSectionId;
     const colorKeys = Object.keys(PHASE_COLORS) as (keyof typeof PHASE_COLORS)[];
     const colorIndex = section.phases.length % colorKeys.length;
-    const phaseColor = isMasterSection ? PHASE_COLORS[colorKeys[colorIndex]] : null;
+    const phaseColor = section.isMulticolor ? PHASE_COLORS[colorKeys[colorIndex]] : null;
 
     addPhase(sectionId, {
       name: '',
@@ -183,7 +179,7 @@ export function ContextMenu(): JSX.Element | null {
     }
 
     closeContextMenu();
-  }, [sectionId, sections, project?.masterSectionId, addPhase, selectItem, position, closeContextMenu]);
+  }, [sectionId, sections, addPhase, selectItem, position, closeContextMenu]);
 
   const handleAddTask = useCallback(() => {
     if (!sectionId || !targetId) return;
@@ -247,24 +243,12 @@ export function ContextMenu(): JSX.Element | null {
     closeContextMenu();
   }, [sectionId, sections, project, closeContextMenu]);
 
-  const handleSetAsMaster = useCallback(async () => {
+  const handleTogglePin = useCallback(() => {
     if (!sectionId) return;
-
-    const section = sections.find((s) => s.id === sectionId);
-    if (!section) return;
-
-    const confirmed = await confirm({
-      title: 'Pin as Master Schedule',
-      message: `Pin "${section.name}" as master schedule?\n\nThis will update the project dates to match this schedule's date range.`,
-      confirmLabel: 'Pin as Master',
-      variant: 'warning',
-    });
-
-    if (confirmed) {
-      setAsMaster(sectionId);
-    }
+    const isPinned = project?.pinnedSectionId === sectionId;
+    setPinnedSection(isPinned ? null : sectionId);
     closeContextMenu();
-  }, [sectionId, sections, setAsMaster, closeContextMenu, confirm]);
+  }, [sectionId, project?.pinnedSectionId, setPinnedSection, closeContextMenu]);
 
   // Toggle collapse for phases
   const handleTogglePhaseCollapse = useCallback(() => {
@@ -352,10 +336,9 @@ export function ContextMenu(): JSX.Element | null {
     const section = sections.find((s) => s.id === sectionId);
     if (!section) return;
 
-    const isMasterSection = section.id === project?.masterSectionId;
     const colorKeys = Object.keys(PHASE_COLORS) as (keyof typeof PHASE_COLORS)[];
     const colorIndex = section.phases.length % colorKeys.length;
-    const phaseColor = isMasterSection ? PHASE_COLORS[colorKeys[colorIndex]] : null;
+    const phaseColor = section.isMulticolor ? PHASE_COLORS[colorKeys[colorIndex]] : null;
 
     // Create phase starting at click position with ~20% width
     const phaseWidth = 0.2;
@@ -401,7 +384,7 @@ export function ContextMenu(): JSX.Element | null {
     }
 
     closeContextMenu();
-  }, [sectionId, phaseId, clickRelativePosition, sections, project?.masterSectionId, addPhase, reorderPhases, selectItem, position, closeContextMenu]);
+  }, [sectionId, phaseId, clickRelativePosition, sections, addPhase, reorderPhases, selectItem, position, closeContextMenu]);
 
   // Add task at click position (for empty task area)
   const handleAddTaskHere = useCallback(() => {
@@ -441,7 +424,7 @@ export function ContextMenu(): JSX.Element | null {
   const menuItems = useMemo((): MenuItem[] => {
     const items: MenuItem[] = [];
     const section = sections.find((s) => s.id === sectionId);
-    const isMasterSection = section?.id === project?.masterSectionId;
+    const isPinnedSection = section?.id === project?.pinnedSectionId;
 
     // Bar milestone context menu
     if (targetType === 'barMilestone') {
@@ -502,8 +485,8 @@ export function ContextMenu(): JSX.Element | null {
           items.push({ label: 'Add Milestone Here', action: handleAddBarMilestoneHere });
         }
 
-        // Color submenu (only for master section phases)
-        if (isMasterSection) {
+        // Color submenu (only for multicolor schedule phases)
+        if (section.isMulticolor) {
           items.push({ label: 'Color', action: () => setShowColorSubmenu(!showColorSubmenu), hasSubmenu: true });
         }
 
@@ -558,10 +541,7 @@ export function ContextMenu(): JSX.Element | null {
       }
 
       // Label area: Full section menu
-      // Edit is available for non-master sections
-      if (!isMasterSection) {
-        items.push({ label: 'Edit', action: handleEdit });
-      }
+      items.push({ label: 'Edit', action: handleEdit });
 
       // Collapse/Expand toggle with dynamic label
       items.push({
@@ -578,28 +558,16 @@ export function ContextMenu(): JSX.Element | null {
       // Add Phase is available for all sections
       items.push({ label: 'Add Phase', action: handleAddPhase });
 
-      // Master status indicator or set as master option
-      if (isMasterSection) {
-        items.push({
-          label: 'Pinned as Master',
-          action: () => {},
-          disabled: true,
-          info: true,
-        });
-      } else {
-        items.push({
-          label: 'Pin as Master Schedule',
-          action: handleSetAsMaster,
-        });
-      }
+      // Pin the schedule to the top of the timeline
+      items.push({
+        label: isPinnedSection ? 'Unpin' : 'Pin to Top',
+        action: handleTogglePin,
+      });
 
       // Export Schedule is available for all sections
       items.push({ label: 'Export Schedule', action: handleExportSchedule });
 
-      // Delete is available for non-master sections
-      if (!isMasterSection) {
-        items.push({ label: 'Delete', action: handleDelete, danger: true });
-      }
+      items.push({ label: 'Delete', action: handleDelete, danger: true });
 
       return items;
     }
@@ -612,7 +580,7 @@ export function ContextMenu(): JSX.Element | null {
     }
 
     return items;
-  }, [sections, sectionId, targetId, phaseId, taskId, project?.masterSectionId, targetType, location, clickRelativePosition, showColorSubmenu, handleEdit, handleAddPhase, handleAddTask, handleMovePhaseUp, handleMovePhaseDown, handleSetAsMaster, handleExportSchedule, handleDelete, handleTogglePhaseCollapse, handleTogglePhaseLock, handleToggleSectionCollapse, handleToggleSectionLock, handleAddBarMilestoneHere, handleAddMilestoneHere, handleAddPhaseHere, handleAddTaskHere]);
+  }, [sections, sectionId, targetId, phaseId, taskId, project?.pinnedSectionId, targetType, location, clickRelativePosition, showColorSubmenu, handleEdit, handleAddPhase, handleAddTask, handleMovePhaseUp, handleMovePhaseDown, handleTogglePin, handleExportSchedule, handleDelete, handleTogglePhaseCollapse, handleTogglePhaseLock, handleToggleSectionCollapse, handleToggleSectionLock, handleAddBarMilestoneHere, handleAddMilestoneHere, handleAddPhaseHere, handleAddTaskHere]);
 
   if (!isOpen) return null;
 
@@ -641,14 +609,9 @@ export function ContextMenu(): JSX.Element | null {
               : item.danger
                 ? 'text-[var(--color-error)] hover:bg-[var(--color-error-bg)]'
                 : 'text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
-          } ${item.info ? 'flex items-center gap-1.5' : ''} ${item.hasSubmenu ? 'flex items-center justify-between' : ''}`}
+          } ${item.hasSubmenu ? 'flex items-center justify-between' : ''}`}
           role="menuitem"
         >
-          {item.info && (
-            <svg className="w-4 h-4 text-[var(--color-warning)] rotate-45" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
-            </svg>
-          )}
           {item.label}
           {item.hasSubmenu && (
             <svg className="w-4 h-4 text-[var(--color-text-muted)]" viewBox="0 0 20 20" fill="currentColor">

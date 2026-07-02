@@ -15,6 +15,6 @@ export { useConfirm } from './useConfirm';
 export { useUndoRedo } from './useUndoRedo';
 export { useDoubleClick } from './useDoubleClick';
 export { useContextMenu } from './useContextMenu';
-export { useMasterSection } from './useMasterSection';
+export { usePinnedSection } from './usePinnedSection';
 export { useInlineEdit } from './useInlineEdit';
 export { useTimelinePan } from './useTimelinePan';

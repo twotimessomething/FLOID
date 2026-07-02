@@ -17,7 +17,6 @@ export const softwareAlignedTemplate: ScheduleTemplate = {
   description: 'Embedded and App development cycle aligned with hardware validation',
   icon: 'code',
   category: 'team',
-  suggestedAsMaster: false,
   defaultColor: '#3B82F6', // Blue
   phases: [
     {

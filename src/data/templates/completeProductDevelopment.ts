@@ -2,8 +2,8 @@ import type { ProjectTemplate } from './projectTemplates';
 
 /**
  * Complete Product Development template.
- * Uses aligned templates that sync to PDP stage-gate milestones.
- * PDP is the master schedule that drives all dates.
+ * Uses aligned templates that share PDP stage-gate milestones.
+ * PDP is pinned to the top of the timeline.
  */
 export const completeProductDevelopmentTemplate: ProjectTemplate = {
   id: 'complete-product-development',
@@ -14,10 +14,10 @@ export const completeProductDevelopmentTemplate: ProjectTemplate = {
   category: 'featured',
   featured: true,
   sections: [
-    { templateId: 'pdp-aligned', order: 0, isMaster: true },
-    { templateId: 'id-timeline-aligned', order: 1, isMaster: false },
-    { templateId: 'engineering-aligned', order: 2, isMaster: false },
-    { templateId: 'software-aligned', order: 3, isMaster: false },
-    { templateId: 'marketing-aligned', order: 4, isMaster: false },
+    { templateId: 'pdp-aligned', order: 0, isPinned: true },
+    { templateId: 'id-timeline-aligned', order: 1, isPinned: false },
+    { templateId: 'engineering-aligned', order: 2, isPinned: false },
+    { templateId: 'software-aligned', order: 3, isPinned: false },
+    { templateId: 'marketing-aligned', order: 4, isPinned: false },
   ],
 };

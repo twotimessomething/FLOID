@@ -2,10 +2,10 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
-import { useMasterSection } from '../../hooks/useMasterSection';
+import { useSectionStore } from '../../stores/sectionStore';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
-import { formatDate } from '../../utils/dateUtils';
+import { formatDate, getSectionsDateRange } from '../../utils/dateUtils';
 import type { ImportOptions } from '../../types';
 
 interface ImportConfirmModalProps {
@@ -14,28 +14,20 @@ interface ImportConfirmModalProps {
 
 export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.Element | null {
   const { importModal, closeImportModal } = useUIStore();
-  const { masterSection } = useMasterSection();
+  const sections = useSectionStore((state) => state.sections);
   const project = useProjectStore((state) => state.project);
   const { isOpen, type, analysis } = importModal;
 
-  // Use master section's date range as the "current project" dates for comparison
-  const currentDateRange = useMemo(() => {
-    if (masterSection) {
-      return { startDate: masterSection.startDate, endDate: masterSection.endDate };
-    }
-    return null;
-  }, [masterSection]);
+  // Combined range of existing schedules, for the date comparison
+  const currentDateRange = useMemo(() => getSectionsDateRange(sections), [sections]);
 
   const [newName, setNewName] = useState('');
-  const [rescaleToMaster, setRescaleToMaster] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen && type === 'name-collision' && analysis) {
       setNewName(`${analysis.importData.schedule.name} (Imported)`);
     }
-    // Reset rescale option when modal opens
-    setRescaleToMaster(false);
   }, [isOpen, type, analysis]);
 
   useEffect(() => {
@@ -50,16 +42,16 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
   }, [closeImportModal]);
 
   const handleImport = useCallback(() => {
-    onConfirm({ rescaleToMaster });
+    onConfirm({});
     closeImportModal();
-  }, [onConfirm, rescaleToMaster, closeImportModal]);
+  }, [onConfirm, closeImportModal]);
 
   const handleRename = useCallback(() => {
     if (newName.trim()) {
-      onConfirm({ rescaleToMaster, newName: newName.trim() });
+      onConfirm({ newName: newName.trim() });
       closeImportModal();
     }
-  }, [onConfirm, rescaleToMaster, newName, closeImportModal]);
+  }, [onConfirm, newName, closeImportModal]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -121,24 +113,6 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
               </div>
             )}
 
-            {/* Rescale option */}
-            <label className="flex items-start gap-3 p-3 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-hover)] transition-colors cursor-pointer mb-4">
-              <input
-                type="checkbox"
-                checked={rescaleToMaster}
-                onChange={(e) => setRescaleToMaster(e.target.checked)}
-                className="mt-0.5"
-              />
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                  Rescale to fit master schedule
-                </p>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  Scale the schedule to match your master schedule's date range and lock it.
-                </p>
-              </div>
-            </label>
-
             <div className="flex justify-end gap-3">
               <Button variant="ghost" onClick={handleCancel}>
                 Cancel
@@ -163,24 +137,6 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
                 ? `Warning: This is an older version (r${existingSection?.revision} → r${importData.schedule.revision}).`
                 : `The imported schedule has the same revision (r${importData.schedule.revision}).`}
             </p>
-
-            {/* Rescale option */}
-            <label className="flex items-start gap-3 p-3 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-hover)] transition-colors cursor-pointer mb-4">
-              <input
-                type="checkbox"
-                checked={rescaleToMaster}
-                onChange={(e) => setRescaleToMaster(e.target.checked)}
-                className="mt-0.5"
-              />
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                  Rescale to fit master schedule
-                </p>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  Scale the schedule to match your master schedule's date range.
-                </p>
-              </div>
-            </label>
 
             <div className="flex justify-end gap-3">
               <Button variant="ghost" onClick={handleCancel}>
@@ -212,24 +168,6 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
                 onKeyDown={handleKeyDown}
               />
             </div>
-
-            {/* Rescale option */}
-            <label className="flex items-start gap-3 p-3 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-hover)] transition-colors cursor-pointer mb-4">
-              <input
-                type="checkbox"
-                checked={rescaleToMaster}
-                onChange={(e) => setRescaleToMaster(e.target.checked)}
-                className="mt-0.5"
-              />
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                  Rescale to fit master schedule
-                </p>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  Scale the schedule to match your master schedule's date range.
-                </p>
-              </div>
-            </label>
 
             <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={handleCancel}>

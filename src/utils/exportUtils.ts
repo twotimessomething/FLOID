@@ -61,7 +61,7 @@ export const exportProjectToJson = (project: Project, sections: Section[]): Proj
     project: {
       id: project.id,
       name: project.name,
-      masterSectionId: project.masterSectionId,
+      pinnedSectionId: project.pinnedSectionId,
       projectStartDate: project.projectStartDate,
       projectEndDate: project.projectEndDate,
       createdAt: project.createdAt,
@@ -80,6 +80,7 @@ export const exportProjectToJson = (project: Project, sections: Section[]): Proj
       startDate: section.startDate,
       endDate: section.endDate,
       color: section.color,
+      isMulticolor: section.isMulticolor,
       isCollapsed: section.isCollapsed,
       phases: section.phases.map((phase) => computePhaseAbsoluteDates(phase, section)),
       milestones: section.milestones.map((milestone) => computeMilestoneAbsoluteDate(milestone, section)),
@@ -91,7 +92,7 @@ export const exportProjectToJson = (project: Project, sections: Section[]): Proj
 export interface LegacyExportData {
   version: number;
   exportedAt: string;
-  project: Project;
+  project: Project & { masterSectionId?: string };
   sections: Section[];
 }
 
@@ -128,8 +129,14 @@ export const parseProjectJson = (json: string): ProjectExportData | null => {
     if (data.format === 'floid-project' && data.version === '2.0') {
       // Ensure isCollapsed has a default value
       const result = data as ProjectExportData;
+      // Map legacy master exports to the pin model
+      result.project.pinnedSectionId =
+        result.project.pinnedSectionId ?? result.project.masterSectionId ?? null;
       result.sections = result.sections.map((section) => ({
         ...section,
+        isMulticolor:
+          section.isMulticolor ??
+          (section.id === result.project.pinnedSectionId ? true : undefined),
         isCollapsed: section.isCollapsed ?? false,
       }));
       return result;
@@ -146,7 +153,7 @@ export const parseProjectJson = (json: string): ProjectExportData | null => {
         project: {
           id: legacyData.project.id,
           name: legacyData.project.name,
-          masterSectionId: legacyData.project.masterSectionId,
+          pinnedSectionId: legacyData.project.pinnedSectionId ?? legacyData.project.masterSectionId ?? null,
           projectStartDate: legacyData.project.projectStartDate,
           projectEndDate: legacyData.project.projectEndDate,
           createdAt: legacyData.project.createdAt,
@@ -165,6 +172,7 @@ export const parseProjectJson = (json: string): ProjectExportData | null => {
           startDate: section.startDate,
           endDate: section.endDate,
           color: section.color,
+          isMulticolor: section.isMulticolor ?? (section.id === legacyData.project.masterSectionId ? true : undefined),
           isCollapsed: section.isCollapsed ?? false,
           // Legacy format doesn't have absolute dates, so we compute them
           phases: section.phases.map((phase) => ({
@@ -192,7 +200,7 @@ export const convertImportedProject = (data: ProjectExportData): { project: Proj
   const project: Project = {
     id: data.project.id,
     name: data.project.name,
-    masterSectionId: data.project.masterSectionId,
+    pinnedSectionId: data.project.pinnedSectionId ?? data.project.masterSectionId ?? null,
     projectStartDate: data.project.projectStartDate,
     projectEndDate: data.project.projectEndDate,
     createdAt: data.project.createdAt,
@@ -212,6 +220,7 @@ export const convertImportedProject = (data: ProjectExportData): { project: Proj
     startDate: section.startDate,
     endDate: section.endDate,
     color: section.color,
+    isMulticolor: section.isMulticolor,
     isCollapsed: section.isCollapsed,
     // Strip absolute dates from phases (keep relative positions)
     phases: section.phases.map((phase) => ({
@@ -257,6 +266,7 @@ export const exportScheduleToFloid = (project: Project, section: Section): Sched
       revision: section.revision,
       lastModifiedAt: section.lastModifiedAt,
       color: section.color,
+      isMulticolor: section.isMulticolor,
     },
     projectDates: {
       startDate: project.projectStartDate,
@@ -405,10 +415,10 @@ export const exportTimelineAsImage = async (
     hover: getColor('--color-hover', '#f3f4f6'),
   };
 
-  // Sort sections by order (master section first)
+  // Sort sections by order (pinned section first)
   const sortedSections = [...sections].sort((a, b) => {
-    if (a.id === project.masterSectionId) return -1;
-    if (b.id === project.masterSectionId) return 1;
+    if (a.id === project.pinnedSectionId) return -1;
+    if (b.id === project.pinnedSectionId) return 1;
     return a.order - b.order;
   });
 
@@ -528,14 +538,14 @@ export const exportTimelineAsImage = async (
   let y = HEADER_HEIGHT + PADDING;
 
   for (const section of sortedSections) {
-    const isMaster = section.id === project.masterSectionId;
+    const isPinned = section.id === project.pinnedSectionId;
     const sectionHeaderY = y; // Store for milestone positioning
 
     // Draw section label
-    ctx.font = isMaster ? 'bold 13px system-ui, -apple-system, sans-serif' : '13px system-ui, -apple-system, sans-serif';
+    ctx.font = isPinned ? 'bold 13px system-ui, -apple-system, sans-serif' : '13px system-ui, -apple-system, sans-serif';
     ctx.fillStyle = colors.text;
     ctx.textAlign = 'left';
-    const sectionLabel = section.name + (isMaster ? ' ★' : '');
+    const sectionLabel = section.name + (isPinned ? ' ★' : '');
     ctx.fillText(sectionLabel, PADDING, y + scaledRowHeight / 2 + 4, LABEL_WIDTH - PADDING);
 
     // Draw section divider

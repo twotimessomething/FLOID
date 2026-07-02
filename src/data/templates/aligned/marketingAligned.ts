@@ -17,7 +17,6 @@ export const marketingAlignedTemplate: ScheduleTemplate = {
   description: 'Go-to-market cycle aligned with product availability milestones',
   icon: 'megaphone',
   category: 'team',
-  suggestedAsMaster: false,
   defaultColor: '#EC4899', // Pink
   phases: [
     {

@@ -1,14 +1,14 @@
-interface MasterBadgeProps {
+interface PinBadgeProps {
   readonly size?: 'sm' | 'md';
 }
 
-export function MasterBadge({ size = 'sm' }: MasterBadgeProps): JSX.Element {
+export function PinBadge({ size = 'sm' }: PinBadgeProps): JSX.Element {
   const iconSize = size === 'sm' ? 'w-5 h-5' : 'w-6 h-6';
 
   return (
     <span
       className="inline-flex items-center text-[var(--color-warning)]"
-      title="Pinned as master schedule"
+      title="Pinned to top"
     >
       {/* Pin icon */}
       <svg

@@ -59,7 +59,6 @@ export const PhaseRow = memo(function PhaseRow({
 }: PhaseRowProps): JSX.Element {
   const { togglePhaseCollapse, updatePhase, updatePhasePosition, updatePhaseWithTasks, updatePhaseWithRipple, addTask, addPhaseBarMilestone, clearExpansion, addPhase, reorderPhases, reorderTasks, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
-  const project = useProjectStore((state) => state.project);
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const selection = useUIStore((s) => s.selection);
   const selectItem = useUIStore((s) => s.selectItem);
@@ -67,7 +66,6 @@ export const PhaseRow = memo(function PhaseRow({
   const openContextMenu = useUIStore((s) => s.openContextMenu);
   const phaseRowRef = useRef<HTMLDivElement>(null);
 
-  const isMasterSection = section.id === project?.masterSectionId;
   const effectiveColor = getPhaseColor(phase, section, phaseIndex, totalPhases);
   const isSelected = selection.type === 'phase' && selection.id === phase.id;
   const isLocked = section.isLocked || phase.isLocked;
@@ -228,7 +226,7 @@ export const PhaseRow = memo(function PhaseRow({
       addPhase(section.id, {
         name: '',
         description: '',
-        color: isMasterSection ? getNextPhaseColor(section.phases.length) : null,
+        color: section.isMulticolor ? getNextPhaseColor(section.phases.length) : null,
         order: phase.order + 1,
         isCollapsed: false,
         tasks: [],
@@ -253,7 +251,7 @@ export const PhaseRow = memo(function PhaseRow({
         selectItem('phase', newPhase.id, section.id, null, { x: e.clientX, y: e.clientY });
       }
     },
-    [section.id, section.startDate, section.endDate, section.phases.length, phase.relativeEnd, phase.order, isMasterSection, addPhase, reorderPhases, selectItem]
+    [section.id, section.startDate, section.endDate, section.phases.length, section.isMulticolor, phase.relativeEnd, phase.order, addPhase, reorderPhases, selectItem]
   );
 
   // Double-click on the phase row creates a new phase below this one
@@ -597,7 +595,7 @@ export const PhaseRow = memo(function PhaseRow({
       <div role="group" aria-label={`${phase.name} phase`} className={isDragTarget ? 'opacity-50' : ''}>
         {/* Phase label */}
         <div
-          className={`group flex items-center gap-2 ${isMasterSection ? 'px-3' : 'pl-6 pr-3'} border-b cursor-pointer row-selectable focus-ring ${
+          className={`group flex items-center gap-2 pl-6 pr-3 border-b cursor-pointer row-selectable focus-ring ${
             isSelected ? 'selected' : ''
           }`}
           style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
@@ -654,7 +652,7 @@ export const PhaseRow = memo(function PhaseRow({
               />
             </svg>
           </button>
-          {isMasterSection && (
+          {section.isMulticolor && (
             <span
               className="w-2 h-2 rounded-full flex-shrink-0"
               style={{ backgroundColor: effectiveColor }}
@@ -664,7 +662,7 @@ export const PhaseRow = memo(function PhaseRow({
           {isEditingName ? (
             <input
               ref={inlineEdit.inputRef}
-              className={`text-sm ${isMasterSection ? 'font-medium' : ''} text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1`}
+              className="text-sm text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1"
               value={inlineEdit.editedName}
               onChange={inlineEdit.handleChange}
               onKeyDown={(e) => inlineEdit.handleKeyDown(e, handleSavePhaseEdit)}
@@ -672,7 +670,7 @@ export const PhaseRow = memo(function PhaseRow({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className={`text-sm ${isMasterSection ? 'font-medium' : ''} text-[var(--color-text-primary)] truncate flex-1`}>
+            <span className="text-sm text-[var(--color-text-primary)] truncate flex-1">
               {phase.name}
             </span>
           )}

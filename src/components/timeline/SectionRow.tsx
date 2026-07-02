@@ -6,12 +6,12 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { ROW_HEIGHT, TASK_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
 import { sectionToViewportRelative, viewportToSectionRelative, getDaysBetween } from '../../utils/dateUtils';
-import { getNextPhaseColor } from '../../constants/colors';
+import { getNextPhaseColor, MULTICOLOR_GRADIENT } from '../../constants/colors';
 import { getPhaseColor } from '../../types';
 import { PhaseRow } from './PhaseRow';
 import { MilestoneMarker } from './MilestoneMarker';
 import { EmptyStateHint } from './EmptyStateHint';
-import { MasterBadge } from '../common';
+import { PinBadge } from '../common';
 import { useInlineEdit } from '../../hooks/useInlineEdit';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useDragReorder } from '../../hooks/useDragReorder';
@@ -61,7 +61,7 @@ export const SectionRow = memo(function SectionRow({
   const inlineEdit = useInlineEdit();
   const isEditingName = inlineEdit.editingId === section.id;
 
-  const isMasterSection = section.id === project?.masterSectionId;
+  const isPinned = section.id === project?.pinnedSectionId;
 
   // Sort phases by order for consistent rendering and gradient coloring
   const sortedPhases = useMemo(
@@ -115,11 +115,9 @@ export const SectionRow = memo(function SectionRow({
 
   const onLabelSingleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (!isMasterSection) {
-        selectItem('section', section.id, section.id, null, { x: e.clientX, y: e.clientY });
-      }
+      selectItem('section', section.id, section.id, null, { x: e.clientX, y: e.clientY });
     },
-    [isMasterSection, selectItem, section.id]
+    [selectItem, section.id]
   );
 
   const { handleClick: handleLabelClick, handleDoubleClick: handleLabelDoubleClick } = useDoubleClick(
@@ -270,7 +268,7 @@ export const SectionRow = memo(function SectionRow({
       addPhase(section.id, {
         name: '',
         description: '',
-        color: isMasterSection ? getNextPhaseColor(section.phases.length) : null,
+        color: section.isMulticolor ? getNextPhaseColor(section.phases.length) : null,
         order: insertAtIndex,
         isCollapsed: false,
         tasks: [],
@@ -296,7 +294,7 @@ export const SectionRow = memo(function SectionRow({
         selectItem('phase', newPhase.id, section.id, null, { x: clientX, y: clientY });
       }
     },
-    [section, isMasterSection, timelineWidth, viewportBounds, addPhase, selectItem]
+    [section, timelineWidth, viewportBounds, addPhase, selectItem]
   );
 
   // Double-click on phases container creates a new phase at the end
@@ -327,7 +325,7 @@ export const SectionRow = memo(function SectionRow({
     return 0.15 * timelineWidth;
   }, [viewportBounds.totalDays, timelineWidth]);
 
-  const ghostPhaseColor = isMasterSection ? getNextPhaseColor(0) : section.color;
+  const ghostPhaseColor = section.isMulticolor ? getNextPhaseColor(0) : section.color;
 
   // Handle creating a phase after a specific phase (called from PhaseRow)
   const handleCreatePhaseAfter = useCallback(
@@ -341,28 +339,26 @@ export const SectionRow = memo(function SectionRow({
     // Render label column content
     return (
       <div
-        className={`${!isMasterSection ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''} ${isMasterSection ? 'border-l-2 border-l-amber-400' : ''}`}
-        style={!isMasterSection && coloredRows ? { backgroundColor: section.color + '0D' } : undefined}
+        className={`border-t-2 border-[var(--color-border)] ${isDragging ? 'opacity-50' : ''} ${isPinned ? 'border-l-2 border-l-amber-400' : ''}`}
+        style={coloredRows && !section.isMulticolor ? { backgroundColor: section.color + '0D' } : undefined}
         role="group"
-        aria-label={`${section.name} ${isMasterSection ? 'timeline' : 'team'}`}
+        aria-label={`${section.name} schedule`}
       >
         {/* Section header label */}
         <div
-          className={`flex items-center gap-2 px-3 border-b ${isMasterSection ? 'bg-[var(--color-background)]' : ''} ${
-            !isMasterSection ? 'cursor-pointer row-selectable focus-ring' : ''
-          } ${isSelected ? 'selected' : ''}`}
-          style={{ height: ROW_HEIGHT, borderColor: isMasterSection ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
+          className={`flex items-center gap-2 px-3 border-b cursor-pointer row-selectable focus-ring ${isSelected ? 'selected' : ''}`}
+          style={{ height: ROW_HEIGHT, borderColor: isPinned ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
           onClick={isEditingName ? undefined : handleLabelClick}
           onDoubleClick={isEditingName ? undefined : handleLabelDoubleClick}
           onContextMenu={handleLabelContextMenu}
-          onKeyDown={!isMasterSection && !isEditingName ? handleKeyDown : undefined}
-          role={!isMasterSection ? 'button' : undefined}
-          tabIndex={!isMasterSection ? 0 : undefined}
-          aria-selected={!isMasterSection ? isSelected : undefined}
-          aria-label={!isMasterSection ? `${section.name} team${isSelected ? ', selected' : ''}` : undefined}
+          onKeyDown={!isEditingName ? handleKeyDown : undefined}
+          role="button"
+          tabIndex={0}
+          aria-selected={isSelected}
+          aria-label={`${section.name} schedule${isSelected ? ', selected' : ''}`}
         >
-          {/* Drag handle for reordering (teams only) */}
-          {!isMasterSection && dragHandleProps && sectionIndex !== undefined && (
+          {/* Drag handle for reordering (unpinned schedules only) */}
+          {dragHandleProps && sectionIndex !== undefined && (
             <div
               {...dragHandleProps}
               className="flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-150"
@@ -405,17 +401,19 @@ export const SectionRow = memo(function SectionRow({
               />
             </svg>
           </button>
-          {!isMasterSection && (
-            <span
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: section.color }}
-              aria-hidden="true"
-            />
-          )}
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={
+              section.isMulticolor
+                ? { background: MULTICOLOR_GRADIENT }
+                : { backgroundColor: section.color }
+            }
+            aria-hidden="true"
+          />
           {isEditingName ? (
             <input
               ref={inlineEdit.inputRef}
-              className={`text-sm ${isMasterSection ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1`}
+              className={`text-sm ${isPinned ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1`}
               value={inlineEdit.editedName}
               onChange={inlineEdit.handleChange}
               onKeyDown={(e) => inlineEdit.handleKeyDown(e, handleSaveEdit)}
@@ -423,8 +421,8 @@ export const SectionRow = memo(function SectionRow({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className={`text-sm ${isMasterSection ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] truncate`}>
-              {section.name || (isMasterSection ? 'Industrial Design' : 'Untitled Team')}
+            <span className={`text-sm ${isPinned ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] truncate`}>
+              {section.name || 'Untitled Schedule'}
             </span>
           )}
           <span className="flex-1" />
@@ -437,7 +435,7 @@ export const SectionRow = memo(function SectionRow({
               />
             </svg>
           )}
-          {isMasterSection && <MasterBadge size="sm" />}
+          {isPinned && <PinBadge size="sm" />}
         </div>
 
         {/* Phase labels (when expanded) */}
@@ -476,16 +474,16 @@ export const SectionRow = memo(function SectionRow({
   // Render timeline content
   return (
     <div
-      className={`${!isMasterSection ? 'border-t-2 border-[var(--color-border)]' : ''} ${isDragging ? 'opacity-50' : ''}`}
-      style={!isMasterSection && coloredRows ? { backgroundColor: section.color + '0D' } : undefined}
+      className={`border-t-2 border-[var(--color-border)] ${isDragging ? 'opacity-50' : ''}`}
+      style={coloredRows && !section.isMulticolor ? { backgroundColor: section.color + '0D' } : undefined}
       role="group"
-      aria-label={`${section.name} ${isMasterSection ? 'timeline bars' : 'team timeline'}`}
+      aria-label={`${section.name} schedule timeline`}
     >
       {/* Section header row with collapsed phase bars when collapsed */}
       <div
         ref={headerRowRef}
         className={`relative border-b ${ghostX !== null ? 'cursor-copy' : ''}`}
-        style={{ height: ROW_HEIGHT, borderColor: isMasterSection ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
+        style={{ height: ROW_HEIGHT, borderColor: isPinned ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
         onDoubleClick={handleHeaderDoubleClick}
         onContextMenu={handleHeaderContextMenu}
         onMouseMove={handleHeaderMouseMove}

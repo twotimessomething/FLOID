@@ -7,7 +7,6 @@ export const industrialDesignTemplate: ScheduleTemplate = {
   description: 'Consumer product ID process from research through production handoff',
   icon: 'palette',
   category: 'core',
-  suggestedAsMaster: true,
   defaultColor: '#6366F1', // Indigo
   phases: [
     {

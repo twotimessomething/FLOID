@@ -19,13 +19,36 @@ export interface ProjectIndexEntry {
 // Get storage key for a specific project
 const getProjectKey = (projectId: string): string => `${STORAGE_KEY}-${projectId}`;
 
+/**
+ * Migrate stored data from the legacy master-schedule model to the pin model:
+ * `masterSectionId` becomes `pinnedSectionId`, and the former master keeps its
+ * multicolor phase palette via `isMulticolor`.
+ */
+export const migrateStoredData = (data: StoredData): StoredData => {
+  const rawProject = data.project as Project & { masterSectionId?: string };
+  if (rawProject.pinnedSectionId !== undefined || rawProject.masterSectionId === undefined) {
+    return data;
+  }
+
+  const { masterSectionId, ...projectRest } = rawProject;
+  return {
+    project: { ...projectRest, pinnedSectionId: masterSectionId ?? null },
+    sections: data.sections.map((section) =>
+      section.id === masterSectionId && section.isMulticolor === undefined
+        ? { ...section, isMulticolor: true }
+        : section
+    ),
+  };
+};
+
 // Async primary storage using IndexedDB
 export const saveProjectToStorage = async (projectId: string, data: StoredData): Promise<void> => {
   await idb.setProjectData(projectId, data);
 };
 
 export const loadProjectFromStorage = async (projectId: string): Promise<StoredData | null> => {
-  return idb.getProjectData(projectId);
+  const data = await idb.getProjectData(projectId);
+  return data ? migrateStoredData(data) : null;
 };
 
 export const deleteProjectFromStorage = async (projectId: string): Promise<void> => {
@@ -64,7 +87,7 @@ export const recoverFromLocalStorage = async (projectId: string): Promise<Stored
     const key = getProjectKey(projectId);
     const data = localStorage.getItem(key);
     if (data) {
-      const parsed: StoredData = JSON.parse(data);
+      const parsed = migrateStoredData(JSON.parse(data) as StoredData);
       // Save to IndexedDB and remove from localStorage
       await idb.setProjectData(projectId, parsed);
       localStorage.removeItem(key);

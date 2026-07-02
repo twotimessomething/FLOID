@@ -3,12 +3,12 @@ import { useViewport } from '../../hooks/useViewport';
 import { useUIStore } from '../../stores/uiStore';
 import { getTimeMarkers, getDaysBetween } from '../../utils/dateUtils';
 import { getPositionFromRelative, calculateSectionHeight } from '../../utils/timelineUtils';
-import { useMasterSection } from '../../hooks/useMasterSection';
+import { usePinnedSection } from '../../hooks/usePinnedSection';
 
 export function TimelineGrid() {
   const { viewportBounds, timelineWidth } = useViewport();
   const { zoomLevel } = useUIStore();
-  const { masterSection, nonMasterSections } = useMasterSection();
+  const { pinnedSection, unpinnedSections } = usePinnedSection();
 
   const markers = getTimeMarkers(viewportBounds.startDate, viewportBounds.endDate, zoomLevel);
   const totalDays = viewportBounds.totalDays;
@@ -17,18 +17,16 @@ export function TimelineGrid() {
   const sectionHeight = useMemo(() => {
     let height = 0;
 
-    // Master section
-    if (masterSection) {
-      height += calculateSectionHeight(masterSection);
+    if (pinnedSection) {
+      height += calculateSectionHeight(pinnedSection);
     }
 
-    // Non-master sections
-    nonMasterSections.forEach((section) => {
+    unpinnedSections.forEach((section) => {
       height += calculateSectionHeight(section);
     });
 
     return height;
-  }, [masterSection, nonMasterSections]);
+  }, [pinnedSection, unpinnedSections]);
 
   return (
     <div

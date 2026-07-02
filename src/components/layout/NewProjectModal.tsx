@@ -12,7 +12,7 @@ interface ProjectFormData {
   name: string;
   startDate: Date;
   endDate: Date;
-  masterTemplateId: string;
+  templateId: string;
 }
 
 const getDefaultFormData = (): ProjectFormData => {
@@ -23,7 +23,7 @@ const getDefaultFormData = (): ProjectFormData => {
     name: '',
     startDate,
     endDate,
-    masterTemplateId: 'id-timeline',
+    templateId: 'id-timeline',
   };
 };
 
@@ -122,7 +122,7 @@ export function NewProjectModal(): JSX.Element | null {
   const [step, setStep] = useState<Step>('details');
   const [formData, setFormData] = useState<ProjectFormData>(getDefaultFormData);
 
-  // Filter templates for master schedule selection (core + team, not blank unless explicitly selected)
+  // Filter templates for the first schedule (core + team, not blank unless explicitly selected)
   const availableTemplates = useMemo(() => {
     return SCHEDULE_TEMPLATES.filter((t) => t.category === 'core' || t.category === 'team');
   }, []);
@@ -175,7 +175,7 @@ export function NewProjectModal(): JSX.Element | null {
   }, []);
 
   const handleTemplateSelect = useCallback((templateId: string) => {
-    setFormData((prev) => ({ ...prev, masterTemplateId: templateId }));
+    setFormData((prev) => ({ ...prev, templateId }));
   }, []);
 
   const handleNext = useCallback(() => {
@@ -211,7 +211,7 @@ export function NewProjectModal(): JSX.Element | null {
         name: formData.name.trim() || 'New Project',
         startDate: formData.startDate,
         endDate: formData.endDate,
-        masterTemplateId: formData.masterTemplateId,
+        templateId: formData.templateId,
       };
 
       // Create the new project with selected template
@@ -322,9 +322,14 @@ export function NewProjectModal(): JSX.Element | null {
                 </div>
 
                 {/* Duration info */}
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Project duration: {Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24))} days
-                </p>
+                <div>
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    Project duration: {Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24))} days
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                    These dates can be changed later in project settings.
+                  </p>
+                </div>
               </div>
 
               {/* Actions */}
@@ -348,10 +353,10 @@ export function NewProjectModal(): JSX.Element | null {
             <div className="p-6">
               <div className="mb-4">
                 <h3 className="text-sm font-medium text-[var(--color-text-primary)]">
-                  Choose Master Schedule
+                  Choose a Starting Schedule
                 </h3>
                 <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                  This will be the primary schedule that drives project dates.
+                  Your first schedule, pinned to the top. Add more schedules anytime.
                 </p>
               </div>
 
@@ -361,7 +366,7 @@ export function NewProjectModal(): JSX.Element | null {
                   <TemplateCard
                     key={template.id}
                     template={template}
-                    isSelected={formData.masterTemplateId === template.id}
+                    isSelected={formData.templateId === template.id}
                     onSelect={() => handleTemplateSelect(template.id)}
                   />
                 ))}

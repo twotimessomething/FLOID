@@ -5,13 +5,13 @@ import { createDefaultSectionDateRange } from '../utils/dateRangeUtils';
 
 export { createDefaultSectionDateRange } from '../utils/dateRangeUtils';
 
-export const createDefaultProject = (masterSectionId: string, startDate: string, endDate: string): Project => {
+export const createDefaultProject = (pinnedSectionId: string, startDate: string, endDate: string): Project => {
   const now = new Date();
 
   return {
     id: generateId(),
     name: 'Product Development',
-    masterSectionId,
+    pinnedSectionId,
     projectStartDate: startDate,
     projectEndDate: endDate,
     createdAt: now.toISOString(),

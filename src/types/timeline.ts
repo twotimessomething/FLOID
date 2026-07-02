@@ -14,6 +14,7 @@ export interface Section {
   phases: Phase[];
   milestones: Milestone[];
   color: string;
+  isMulticolor?: boolean;       // Phases use the multicolor palette instead of the schedule color
   isCollapsed: boolean;
   isLocked?: boolean;           // Prevents moving/resizing all phases in this section
 }

@@ -32,3 +32,8 @@ export const getNextPhaseColor = (existingCount: number): string => {
   const colorIndex = existingCount % colorKeys.length;
   return PHASE_COLORS[colorKeys[colorIndex]];
 };
+
+// Conic gradient swatch representing the multicolor phase palette
+export const MULTICOLOR_GRADIENT = `conic-gradient(${Object.values(PHASE_COLORS).join(', ')}, ${
+  Object.values(PHASE_COLORS)[0]
+})`;

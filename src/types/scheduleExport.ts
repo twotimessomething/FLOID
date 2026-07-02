@@ -28,6 +28,7 @@ export interface ScheduleExportData {
     revision: number;
     lastModifiedAt: string;
     color: string;
+    isMulticolor?: boolean;
   };
 
   // Date context (for import decisions)
@@ -61,7 +62,6 @@ export interface ImportAnalysis {
 }
 
 export interface ImportOptions {
-  rescaleToMaster: boolean;
   newName?: string;  // For name collision resolution
 }
 
@@ -81,7 +81,9 @@ export interface ProjectExportData {
   project: {
     id: string;
     name: string;
-    masterSectionId: string;
+    pinnedSectionId: string | null;
+    /** Legacy field from exports created before the pin model */
+    masterSectionId?: string;
     projectStartDate: string;
     projectEndDate: string;
     createdAt: string;
@@ -100,6 +102,7 @@ export interface ProjectExportData {
     startDate: string;
     endDate: string;
     color: string;
+    isMulticolor?: boolean;
     isCollapsed: boolean;
     phases: ExportPhase[];
     milestones: ExportMilestone[];

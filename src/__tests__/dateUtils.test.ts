@@ -14,6 +14,7 @@ import {
   findNearestPhaseBoundary,
   rescalePhases,
   rescaleMilestones,
+  remapSectionToDateRange,
   getTimeMarkers,
 } from '../utils/dateUtils';
 import type { Section, Phase } from '../types';
@@ -350,6 +351,66 @@ describe('rescaleMilestones', () => {
     const sameDate = '2025-01-01T00:00:00.000Z';
     const result = rescaleMilestones(milestones, sameDate, sameDate, sameDate, '2025-07-01T00:00:00.000Z');
     expect(result).toEqual(milestones);
+  });
+});
+
+describe('remapSectionToDateRange', () => {
+  const makePhase = (relativeStart: number, relativeEnd: number): Phase => ({
+    id: 'p1',
+    sectionId: 'sec-1',
+    name: 'Phase 1',
+    description: '',
+    color: null,
+    order: 0,
+    isCollapsed: false,
+    tasks: [],
+    relativeStart,
+    relativeEnd,
+  });
+
+  it('keeps absolute dates when extending the end date', () => {
+    // 100-day section, phase covers days 0-50, milestone at day 50
+    const section = makeSection({
+      startDate: '2025-01-01T00:00:00.000Z',
+      endDate: '2025-04-11T00:00:00.000Z', // 100 days
+      phases: [makePhase(0, 0.5)],
+      milestones: [
+        { id: 'm1', sectionId: 'sec-1', name: 'Mid', description: '', relativePosition: 0.5, order: 0 },
+      ],
+    });
+
+    // Extend to 200 days: same absolute dates land at half the relative position
+    const result = remapSectionToDateRange(section, '2025-01-01T00:00:00.000Z', '2025-07-20T00:00:00.000Z');
+    expect(result.phases[0].relativeStart).toBeCloseTo(0, 5);
+    expect(result.phases[0].relativeEnd).toBeCloseTo(0.25, 2);
+    expect(result.milestones[0].relativePosition).toBeCloseTo(0.25, 2);
+  });
+
+  it('keeps absolute dates when moving the start date earlier', () => {
+    // 100-day section, milestone at day 0
+    const section = makeSection({
+      startDate: '2025-04-11T00:00:00.000Z',
+      endDate: '2025-07-20T00:00:00.000Z',
+      milestones: [
+        { id: 'm1', sectionId: 'sec-1', name: 'Start', description: '', relativePosition: 0, order: 0 },
+      ],
+    });
+
+    // Start 100 days earlier: the milestone should sit at the middle
+    const result = remapSectionToDateRange(section, '2025-01-01T00:00:00.000Z', '2025-07-20T00:00:00.000Z');
+    expect(result.milestones[0].relativePosition).toBeCloseTo(0.5, 2);
+  });
+
+  it('clips items outside a shrunken range to its edges', () => {
+    const section = makeSection({
+      startDate: '2025-01-01T00:00:00.000Z',
+      endDate: '2025-12-31T00:00:00.000Z',
+      phases: [makePhase(0, 1)],
+    });
+
+    const result = remapSectionToDateRange(section, '2025-03-01T00:00:00.000Z', '2025-06-01T00:00:00.000Z');
+    expect(result.phases[0].relativeStart).toBe(0);
+    expect(result.phases[0].relativeEnd).toBe(1);
   });
 });
 

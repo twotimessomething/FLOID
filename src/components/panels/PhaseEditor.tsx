@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection, selectPhase } from '../../stores/sectionStore';
-import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, ColorPicker, Button } from '../common';
 import { getDateFromRelativePosition, getRelativePositionFromDate, parseDate } from '../../utils/dateUtils';
@@ -8,7 +7,6 @@ import { getDateFromRelativePosition, getRelativePositionFromDate, parseDate } f
 export function PhaseEditor(): JSX.Element {
   const { selection, closeModal } = useUIStore();
   const { updatePhase, updatePhasePosition, deletePhase } = useSectionStore();
-  const project = useProjectStore((state) => state.project);
 
   const sectionId = selection.sectionId;
   const phaseId = selection.id;
@@ -16,8 +14,6 @@ export function PhaseEditor(): JSX.Element {
   // Use inline selectors - Zustand handles memoization internally based on result equality
   const section = useSectionStore((state) => selectSection(sectionId || '')(state));
   const phase = useSectionStore((state) => selectPhase(sectionId || '', phaseId || '')(state));
-
-  const isMasterSection = section?.id === project?.masterSectionId;
 
   // Use section dates for calculating phase dates
   const startDate = useMemo(() => {
@@ -110,12 +106,9 @@ export function PhaseEditor(): JSX.Element {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Context label for non-master section phases */}
-      {!isMasterSection && (
-        <div className="text-xs text-[var(--color-text-secondary)]">
-          Part of <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>
-        </div>
-      )}
+      <div className="text-xs text-[var(--color-text-secondary)]">
+        Part of <span className="font-medium text-[var(--color-text-primary)]">{section.name}</span>
+      </div>
 
       <Input
         label="Name"
@@ -132,8 +125,8 @@ export function PhaseEditor(): JSX.Element {
         placeholder="Add a description..."
       />
 
-      {/* Color picker for master section phases */}
-      {isMasterSection && (
+      {/* Color picker for phases in multicolor schedules */}
+      {section.isMulticolor && (
         <ColorPicker
           label="Color"
           value={phase.color || section.color}

@@ -6,7 +6,6 @@ export const softwareTemplate: ScheduleTemplate = {
   description: 'Agile software development with sprints, testing, and release phases',
   icon: 'code',
   category: 'team',
-  suggestedAsMaster: false,
   defaultColor: '#3B82F6', // Blue
   phases: [
     {

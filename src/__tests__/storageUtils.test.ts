@@ -25,13 +25,15 @@ import {
   saveProjectToStorageSync,
   saveProjectsIndexSync,
   recoverFromLocalStorage,
+  migrateStoredData,
 } from '../utils/storageUtils';
+import type { Section } from '../types';
 
 const mockData: StoredData = {
   project: {
     id: 'proj-1',
     name: 'Test',
-    masterSectionId: 'sec-1',
+    pinnedSectionId: 'sec-1',
     projectStartDate: '2025-01-01T00:00:00.000Z',
     projectEndDate: '2025-07-01T00:00:00.000Z',
     createdAt: '2025-01-01T00:00:00.000Z',
@@ -89,6 +91,43 @@ describe('sync fallback (localStorage)', () => {
     const stored = localStorage.getItem('floid-projects-index');
     expect(stored).not.toBeNull();
     expect(JSON.parse(stored!)).toEqual(index);
+  });
+});
+
+describe('migrateStoredData', () => {
+  const legacySection = {
+    id: 'sec-1',
+    name: 'Design',
+    type: 'schedule',
+    revision: 1,
+    lastModifiedAt: '2025-01-01T00:00:00.000Z',
+    order: 0,
+    startDate: '2025-01-01T00:00:00.000Z',
+    endDate: '2025-07-01T00:00:00.000Z',
+    phases: [],
+    milestones: [],
+    color: '#3b82f6',
+    isCollapsed: false,
+  } as Section;
+
+  it('maps legacy masterSectionId to pinnedSectionId', () => {
+    const legacyProject = { ...mockData.project, masterSectionId: 'sec-1' } as unknown as Record<string, unknown>;
+    delete legacyProject.pinnedSectionId;
+    const legacy = {
+      project: legacyProject as unknown as StoredData['project'],
+      sections: [legacySection],
+    };
+
+    const migrated = migrateStoredData(legacy);
+    expect(migrated.project.pinnedSectionId).toBe('sec-1');
+    expect(migrated.project).not.toHaveProperty('masterSectionId');
+    // The former master keeps its multicolor phase palette
+    expect(migrated.sections[0].isMulticolor).toBe(true);
+  });
+
+  it('leaves already-migrated data untouched', () => {
+    const migrated = migrateStoredData(mockData);
+    expect(migrated).toEqual(mockData);
   });
 });
 

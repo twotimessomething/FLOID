@@ -302,6 +302,36 @@ body {
   }
 }
 
+/* Walkthrough slide transition */
+.walkthrough-slide-enter {
+  animation: walkthroughSlideIn 240ms ease-out;
+}
+
+@keyframes walkthroughSlideIn {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Walkthrough drag demo — bars gently drift to show move/resize */
+.walkthrough-drift {
+  animation: walkthroughDrift 2.6s ease-in-out infinite alternate;
+}
+
+@keyframes walkthroughDrift {
+  from {
+    transform: translateX(-7px);
+  }
+  to {
+    transform: translateX(7px);
+  }
+}
+
 /* Row highlight animation for selection */
 .row-selectable {
   transition: background-color 150ms ease-out;

@@ -174,6 +174,35 @@ export const computeViewportBounds = (sections: readonly Section[]): ViewportBou
 };
 
 /**
+ * Compute the union date range across all sections (no padding).
+ * Returns null if there are no sections.
+ */
+export const getSectionsDateRange = (
+  sections: readonly Section[]
+): { startDate: string; endDate: string } | null => {
+  if (sections.length === 0) return null;
+  const minStart = dateMin(sections.map((s) => parseISO(s.startDate)));
+  const maxEnd = dateMax(sections.map((s) => parseISO(s.endDate)));
+  return { startDate: minStart.toISOString(), endDate: maxEnd.toISOString() };
+};
+
+/**
+ * Remap a section's relative positions to a new date range so that every
+ * phase and milestone keeps its absolute dates. Extending the range adds
+ * empty space; items outside a shrunken range are clipped to its edges.
+ * Tasks and bar milestones are positioned relative to their parent bar,
+ * so they follow automatically.
+ */
+export const remapSectionToDateRange = (
+  section: Section,
+  newStartDate: string,
+  newEndDate: string
+): Pick<Section, 'phases' | 'milestones'> => ({
+  phases: rescalePhases(section.phases, section.startDate, section.endDate, newStartDate, newEndDate),
+  milestones: rescaleMilestones(section.milestones, section.startDate, section.endDate, newStartDate, newEndDate),
+});
+
+/**
  * Convert a section-relative position (0-1 within section) to a viewport-relative position (0-1 within viewport).
  */
 export const sectionToViewportRelative = (

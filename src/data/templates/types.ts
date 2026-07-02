@@ -33,7 +33,6 @@ export interface ScheduleTemplate {
   readonly description: string;
   readonly icon: 'palette' | 'cog' | 'megaphone' | 'code' | 'clipboard' | 'plus';
   readonly category: 'core' | 'team' | 'custom';
-  readonly suggestedAsMaster: boolean;
   readonly defaultColor: string;
   readonly phases: readonly TemplatePhase[];
   readonly milestones: readonly TemplateMilestone[];

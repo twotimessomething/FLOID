@@ -6,7 +6,6 @@ export const engineeringTemplate: ScheduleTemplate = {
   description: 'Hardware engineering with EVT/DVT/PVT validation phases',
   icon: 'cog',
   category: 'team',
-  suggestedAsMaster: false,
   defaultColor: '#10B981', // Emerald
   phases: [
     {

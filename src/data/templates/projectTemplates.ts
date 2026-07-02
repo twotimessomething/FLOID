@@ -7,7 +7,7 @@ import type { ScheduleTemplate } from './types';
 export interface ProjectTemplateSection {
   readonly templateId: string;
   readonly order: number;
-  readonly isMaster: boolean;
+  readonly isPinned: boolean;
   readonly nameOverride?: string;
 }
 

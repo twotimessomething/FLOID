@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useSectionStore } from '../stores/sectionStore';
-import { useMasterSection } from './useMasterSection';
 import type { Section, Phase, Task, Milestone } from '../types';
 import { getPhaseColor } from '../types';
 import { parseISO, differenceInDays, addDays } from 'date-fns';
@@ -34,7 +33,6 @@ export interface TimelineStatus {
   inFlight: StatusItem[];
   nextUp: StatusItem[];
   upcomingMilestones: MilestoneItem[];
-  todayPosition: number;
 }
 
 function getTodayPositionInSection(section: Section): number {
@@ -55,12 +53,8 @@ function sectionPositionToDate(position: number, section: Section): Date {
 
 export function useTimelineStatus(): TimelineStatus {
   const sections = useSectionStore((state) => state.sections);
-  const { masterSection } = useMasterSection();
 
   return useMemo(() => {
-    // Get today's position relative to the master section
-    const todayPosition = masterSection ? getTodayPositionInSection(masterSection) : 0.5;
-
     const inFlight: StatusItem[] = [];
     const nextUp: StatusItem[] = [];
     const upcomingMilestones: MilestoneItem[] = [];
@@ -181,7 +175,6 @@ export function useTimelineStatus(): TimelineStatus {
       inFlight,
       nextUp,
       upcomingMilestones,
-      todayPosition,
     };
-  }, [sections, masterSection]);
+  }, [sections]);
 }

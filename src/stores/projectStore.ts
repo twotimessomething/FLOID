@@ -18,13 +18,14 @@ import {
   initializeStorage,
   type ProjectIndexEntry,
 } from '../utils/storageUtils';
+import { getSectionsDateRange } from '../utils/dateUtils';
 
 // Configuration for creating a new project
 export interface NewProjectConfig {
   name: string;
   startDate: Date;
   endDate: Date;
-  masterTemplateId: string;
+  templateId: string;
   projectTemplateId?: string; // For multi-section projects
 }
 
@@ -46,9 +47,8 @@ interface ProjectState {
   selectProject: (projectId: string) => Promise<void>;
   updateProjectIndex: (projectId: string, updates: Partial<ProjectIndexEntry>) => Promise<void>;
 
-  // Master section operations
-  setMasterSection: (sectionId: string, startDate: string, endDate: string) => void;
-  updateProjectDates: (startDate: string, endDate: string) => void;
+  // Pin operations
+  setPinnedSection: (sectionId: string | null) => void;
 
   // Settings
   getSettings: () => ProjectSettings;
@@ -81,7 +81,7 @@ const seedStartMilestone = (section: Section): Section => {
   };
 };
 
-// Helper to create a default project with its master section
+// Helper to create a default project with its first (pinned) section
 const createDefaultProjectWithSection = (name?: string): { project: Project; section: Section } => {
   const section = seedStartMilestone(createDefaultIDTimelineSection());
   const project = createDefaultProject(section.id, section.startDate, section.endDate);
@@ -209,7 +209,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const dateRange = { startDate: startDateStr, endDate: endDateStr };
 
     let projectSections: Section[];
-    let masterSectionId: string;
+    let pinnedSectionId: string;
 
     // Check if using a project template (multi-section)
     if (config.projectTemplateId) {
@@ -220,29 +220,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
       const result = createSectionsFromProjectTemplate(projectTemplate, { dateRange });
       projectSections = result.sections;
-      masterSectionId = result.masterSectionId;
+      pinnedSectionId = result.pinnedSectionId;
     } else {
       // Single section from schedule template
-      const template = getTemplateById(config.masterTemplateId);
+      const template = getTemplateById(config.templateId);
       if (!template) {
-        throw new Error(`Template not found: ${config.masterTemplateId}`);
+        throw new Error(`Template not found: ${config.templateId}`);
       }
 
-      const masterSection = createSectionFromTemplate(template, 0, { dateRange });
-      projectSections = [masterSection];
-      masterSectionId = masterSection.id;
+      const firstSection = createSectionFromTemplate(template, 0, { dateRange });
+      projectSections = [firstSection];
+      pinnedSectionId = firstSection.id;
     }
 
-    // Seed a "Start" milestone on the master section so users see the affordance.
+    // Seed a "Start" milestone on the pinned section so users see the affordance.
     projectSections = projectSections.map((s) =>
-      s.id === masterSectionId ? seedStartMilestone(s) : s
+      s.id === pinnedSectionId ? seedStartMilestone(s) : s
     );
 
     const now = new Date();
     const newProject: Project = {
       id: Math.random().toString(36).substring(2, 11),
       name: config.name.trim() || 'New Project',
-      masterSectionId,
+      pinnedSectionId,
       projectStartDate: startDateStr,
       projectEndDate: endDateStr,
       createdAt: now.toISOString(),
@@ -280,14 +280,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       sectionIdMap.set(section.id, Math.random().toString(36).substring(2, 11));
     });
 
-    // Update master section ID reference
-    const newMasterSectionId = sectionIdMap.get(importedProject.masterSectionId) ?? importedProject.masterSectionId;
+    // Update pinned section ID reference
+    const newPinnedSectionId = importedProject.pinnedSectionId
+      ? sectionIdMap.get(importedProject.pinnedSectionId) ?? importedProject.pinnedSectionId
+      : null;
 
     // Create new project with new ID
     const newProject: Project = {
       ...importedProject,
       id: newProjectId,
-      masterSectionId: newMasterSectionId,
+      pinnedSectionId: newPinnedSectionId,
       createdAt: now,
       updatedAt: now,
     };
@@ -386,23 +388,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ projects: updatedProjects });
   },
 
-  setMasterSection: (sectionId, startDate, endDate) =>
+  setPinnedSection: (sectionId) =>
     set((state) => ({
       project: {
         ...state.project,
-        masterSectionId: sectionId,
-        projectStartDate: startDate,
-        projectEndDate: endDate,
-        updatedAt: new Date().toISOString(),
-      },
-    })),
-
-  updateProjectDates: (startDate, endDate) =>
-    set((state) => ({
-      project: {
-        ...state.project,
-        projectStartDate: startDate,
-        projectEndDate: endDate,
+        pinnedSectionId: sectionId,
         updatedAt: new Date().toISOString(),
       },
     })),
@@ -429,7 +419,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (!activeProjectId) return;
 
     const updatedAt = new Date().toISOString();
-    const updatedProject = { ...project, updatedAt };
+    // Project dates are derived from the combined range of all schedules
+    const dateRange = getSectionsDateRange(sections);
+    const updatedProject = {
+      ...project,
+      ...(dateRange && {
+        projectStartDate: dateRange.startDate,
+        projectEndDate: dateRange.endDate,
+      }),
+      updatedAt,
+    };
 
     await saveProjectToStorage(activeProjectId, {
       project: updatedProject,
