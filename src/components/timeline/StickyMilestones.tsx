@@ -3,6 +3,9 @@ import type { Section, ViewportBounds } from '../../types';
 import { useUIStore } from '../../stores/uiStore';
 import { HEADER_HEIGHT, ROW_HEIGHT } from '../../utils/timelineUtils';
 import { sectionToViewportRelative } from '../../utils/dateUtils';
+import { layoutLabels, measureMilestoneLabelWidth } from '../../utils/labelLayoutUtils';
+import { MilestoneGlyph } from './MilestoneGlyph';
+import { MilestoneLabel } from './MilestoneLabel';
 
 interface StickyMilestonesProps {
   readonly sections: Section[];
@@ -25,7 +28,9 @@ export function StickyMilestones({
   timelineWidth,
   viewportBounds,
 }: StickyMilestonesProps) {
-  const { selection, selectItem, openContextMenu } = useUIStore();
+  const selection = useUIStore((s) => s.selection);
+  const selectItem = useUIStore((s) => s.selectItem);
+  const openContextMenu = useUIStore((s) => s.openContextMenu);
 
   // Collect milestone render data for those that are currently sticky
   const stickyMilestones = useMemo(() => {
@@ -56,6 +61,19 @@ export function StickyMilestones({
     return result;
   }, [sections, stickyMilestoneIds, timelineWidth, viewportBounds, selection.type, selection.id]);
 
+  // Sticky labels share one row, so they need the same collision layout
+  const labelPlacements = useMemo(
+    () =>
+      layoutLabels(
+        stickyMilestones.map((milestone) => ({
+          id: milestone.milestoneId,
+          center: milestone.left,
+          width: measureMilestoneLabelWidth(milestone.milestoneName),
+        }))
+      ),
+    [stickyMilestones]
+  );
+
   // Don't render anything if no sticky milestones
   if (stickyMilestones.length === 0) {
     return null;
@@ -69,7 +87,7 @@ export function StickyMilestones({
       {stickyMilestones.map((milestone) => (
         <div
           key={milestone.milestoneId}
-          className="absolute pointer-events-auto cursor-pointer group"
+          className="absolute hover:z-10 pointer-events-auto cursor-pointer group"
           style={{
             left: milestone.left,
             top: 0,
@@ -96,34 +114,12 @@ export function StickyMilestones({
           tabIndex={0}
           aria-label={`${milestone.milestoneName} milestone (sticky)`}
         >
-          {/* Diamond marker */}
-          <div
-            className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform duration-150 ${
-              milestone.isSelected ? 'scale-125' : 'hover:scale-110'
-            }`}
-          >
-            <div
-              className={`w-3 h-3 rotate-45 ${
-                milestone.isSelected
-                  ? 'bg-[var(--color-focus)] ring-2 ring-[var(--color-focus)]/40'
-                  : 'bg-[var(--color-text-primary)]'
-              }`}
-            />
-          </div>
-
-          {/* Short vertical line */}
-          <div
-            className={`absolute top-1/2 left-0 -translate-x-1/2 w-0.5 h-3 ${
-              milestone.isSelected
-                ? 'bg-[var(--color-focus)]'
-                : 'bg-[var(--color-text-primary)]'
-            }`}
+          <MilestoneGlyph isSelected={milestone.isSelected} />
+          <MilestoneLabel
+            name={milestone.milestoneName}
+            placement={labelPlacements.get(milestone.milestoneId)}
+            forceVisible={milestone.isSelected}
           />
-
-          {/* Title label */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-2 px-2 py-0.5 bg-[var(--color-surface)]/90 backdrop-blur-[2px] text-[var(--color-text-primary)] text-xs rounded-md whitespace-nowrap pointer-events-none border border-[var(--color-border)]">
-            {milestone.milestoneName}
-          </div>
         </div>
       ))}
     </div>

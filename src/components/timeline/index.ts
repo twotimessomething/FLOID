@@ -5,6 +5,8 @@ export { SectionRow } from './SectionRow';
 export { PhaseRow } from './PhaseRow';
 export { TaskRow } from './TaskRow';
 export { MilestoneMarker } from './MilestoneMarker';
+export { MilestoneGlyph } from './MilestoneGlyph';
+export { MilestoneLabel } from './MilestoneLabel';
 export { BarMilestoneMarker } from './BarMilestoneMarker';
 export { StickyMilestones } from './StickyMilestones';
 export { DragHandle } from './DragHandle';

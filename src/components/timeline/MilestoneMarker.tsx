@@ -7,6 +7,9 @@ import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { ROW_HEIGHT } from '../../utils/timelineUtils';
 import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, getDaysBetween, snapRelativeToBusinessDay, findNearestPhaseBoundary } from '../../utils/dateUtils';
 import { useContextMenu } from '../../hooks/useContextMenu';
+import { MilestoneGlyph } from './MilestoneGlyph';
+import { MilestoneLabel } from './MilestoneLabel';
+import type { LabelPlacement } from '../../utils/labelLayoutUtils';
 
 interface MilestoneMarkerProps {
   readonly milestone: Milestone;
@@ -15,6 +18,7 @@ interface MilestoneMarkerProps {
   readonly viewportBounds: ViewportBounds;
   readonly lineHeight?: number; // Height of the vertical line extending down
   readonly isHidden?: boolean; // Hide when rendered as sticky
+  readonly labelPlacement?: LabelPlacement;
 }
 
 export const MilestoneMarker = memo(function MilestoneMarker({
@@ -24,8 +28,11 @@ export const MilestoneMarker = memo(function MilestoneMarker({
   viewportBounds,
   lineHeight = 0,
   isHidden = false,
+  labelPlacement,
 }: MilestoneMarkerProps) {
-  const { updateMilestone, beginDragTransaction, commitDragTransaction } = useSectionStore();
+  const updateMilestone = useSectionStore((s) => s.updateMilestone);
+  const beginDragTransaction = useSectionStore((s) => s.beginDragTransaction);
+  const commitDragTransaction = useSectionStore((s) => s.commitDragTransaction);
   const selection = useUIStore((s) => s.selection);
   const selectItem = useUIStore((s) => s.selectItem);
   const setDragging = useUIStore((s) => s.setDragging);
@@ -171,7 +178,7 @@ export const MilestoneMarker = memo(function MilestoneMarker({
 
   return (
     <div
-      className={`absolute z-30 group focus-ring ${isHidden ? 'pointer-events-none' : 'cursor-pointer'}`}
+      className={`absolute z-30 hover:z-40 group focus-ring ${isHidden ? 'pointer-events-none' : 'cursor-pointer'}`}
       style={{
         left: milestoneLeft,
         top: 0,
@@ -199,33 +206,8 @@ export const MilestoneMarker = memo(function MilestoneMarker({
         </div>
       )}
 
-      {/* Diamond marker - hidden when sticky */}
-      {!isHidden && (
-        <div
-          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 transition-transform duration-150 ${
-            isSelected ? 'scale-125' : 'hover:scale-110'
-          }`}
-          aria-hidden="true"
-        >
-          <div
-            className={`w-3 h-3 rotate-45 ${
-              isSelected
-                ? 'bg-[var(--color-focus)] ring-2 ring-[var(--color-focus)]/40'
-                : 'bg-[var(--color-text-primary)]'
-            }`}
-          />
-        </div>
-      )}
-
-      {/* Short vertical line extending down from marker - hidden when sticky */}
-      {!isHidden && (
-        <div
-          className={`absolute top-1/2 left-0 -translate-x-1/2 w-0.5 h-3 ${
-            isSelected ? 'bg-[var(--color-focus)]' : 'bg-[var(--color-text-primary)]'
-          }`}
-          aria-hidden="true"
-        />
-      )}
+      {/* Diamond marker with tick - hidden when sticky */}
+      {!isHidden && <MilestoneGlyph isSelected={isSelected} />}
 
       {/* Extended vertical line through content rows - ALWAYS visible */}
       {lineHeight > 0 && (
@@ -239,14 +221,13 @@ export const MilestoneMarker = memo(function MilestoneMarker({
         />
       )}
 
-      {/* Always visible title - below the marker - hidden when sticky */}
+      {/* Title below the marker - placement from collision layout, hidden when sticky */}
       {!isHidden && (
-        <div
-          className="absolute top-full left-1/2 -translate-x-1/2 -mt-2 px-2 py-0.5 bg-[var(--color-surface)]/90 backdrop-blur-[2px] text-[var(--color-text-primary)] text-xs rounded-md whitespace-nowrap pointer-events-none border border-[var(--color-border)]"
-          role="tooltip"
-        >
-          {milestone.name}
-        </div>
+        <MilestoneLabel
+          name={milestone.name}
+          placement={labelPlacement}
+          forceVisible={isSelected}
+        />
       )}
     </div>
   );

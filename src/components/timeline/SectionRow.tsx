@@ -6,6 +6,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { ROW_HEIGHT, TASK_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
 import { sectionToViewportRelative, viewportToSectionRelative, getDaysBetween } from '../../utils/dateUtils';
+import { layoutLabels, measureMilestoneLabelWidth } from '../../utils/labelLayoutUtils';
 import { getNextPhaseColor, MULTICOLOR_GRADIENT } from '../../constants/colors';
 import { getPhaseColor } from '../../types';
 import { PhaseRow } from './PhaseRow';
@@ -82,6 +83,22 @@ export const SectionRow = memo(function SectionRow({
     });
     return height;
   }, [section.phases, section.isCollapsed]);
+
+  // Collision-aware label placement: overlapping labels are dodged right or
+  // hidden (revealed on diamond hover). Sticky milestones render their label
+  // in the sticky strip, so they don't reserve space here.
+  const milestoneLabelPlacements = useMemo(() => {
+    const candidates = section.milestones
+      .filter((milestone) => !stickyMilestoneIds?.has(milestone.id))
+      .map((milestone) => ({
+        id: milestone.id,
+        center:
+          sectionToViewportRelative(milestone.relativePosition, section, viewportBounds) *
+          timelineWidth,
+        width: measureMilestoneLabelWidth(milestone.name),
+      }));
+    return layoutLabels(candidates);
+  }, [section, stickyMilestoneIds, viewportBounds, timelineWidth]);
 
   // Handle keyboard interaction for team selection
   const handleKeyDown = useCallback(
@@ -568,6 +585,7 @@ export const SectionRow = memo(function SectionRow({
             viewportBounds={viewportBounds}
             lineHeight={milestoneLineHeight}
             isHidden={stickyMilestoneIds?.has(milestone.id)}
+            labelPlacement={milestoneLabelPlacements.get(milestone.id)}
           />
         ))}
       </div>
