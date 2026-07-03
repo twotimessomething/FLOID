@@ -1,19 +1,19 @@
 # FLOID — Full Product Reference
 
-> Free design process scheduling software for industrial designers and product development teams.
+> Free product development scheduling software — a visual timeline builder for product teams and anyone who needs to build a project schedule.
 
 Website: https://floid.design/
 Pricing: Free (no account required, no usage limits)
 Platform: Web browser — works on desktop and tablet
-Category: Project scheduling, timeline management, product development planning
+Category: Product development scheduling, project timelines, timeline builder, milestone tracking
 
 ---
 
 ## Overview
 
-FLOID is a free, browser-based timeline scheduling tool designed specifically for industrial designers and product development teams. It provides a visual timeline interface for planning projects with multiple parallel schedule tracks, drag-and-drop phases, tasks, and milestones.
+FLOID is a free, browser-based scheduling tool built for product development. It provides a visual timeline interface for planning projects with multiple parallel schedule tracks, drag-and-drop phases, tasks, and milestones.
 
-Unlike general-purpose project management tools, FLOID is focused on the scheduling needs of physical product development — where teams need to coordinate multiple workstreams (engineering, tooling, prototyping, testing, regulatory) against a master timeline.
+Product development is FLOID's home turf: coordinating parallel workstreams — engineering, design, tooling, prototyping, testing, marketing, regulatory — against shared milestones from concept through launch. But at its core FLOID is a general-purpose timeline builder, so it works just as well for software release plans, marketing campaigns, event schedules, research projects, or any plan that benefits from a visual, multi-track timeline.
 
 ---
 
@@ -25,35 +25,39 @@ Unlike general-purpose project management tools, FLOID is focused on the schedul
 - Zoom in/out to adjust timeline granularity
 - Scroll and navigate large timelines fluidly
 
-### Multiple Schedule Sections
-- Create multiple schedule tracks (sections) within a single project
-- Each section has its own set of phases, tasks, and milestones
-- Color-code sections for visual organization
-- Collapse or expand sections to manage complexity
+### Multiple Schedules
+- Create multiple schedule tracks within a single project — one per team or workstream
+- Each schedule has its own set of phases, tasks, and milestones
+- Color-code schedules for visual organization, or enable the multicolor option to give each phase its own palette color
+- Collapse or expand schedules to manage complexity
+- Drag to rearrange schedules
 
-### Master Schedule Sync
-- Designate one section as the master schedule
-- Other sections can be "locked" to sync their date range with the master
-- Or set sections to "independent" mode to maintain their own dates
-- When the master schedule changes, locked sections automatically rescale
+### Pinned Reference Schedule
+- Pin one schedule as the project reference
+- The pinned schedule renders at the top with a badge
+- Its milestone lines extend full-height through every schedule, so key dates stay visible across the whole project
+- Pinning is purely visual — it never moves or rescales other schedules
+
+### Templates
+- Start from ready-made schedule templates: complete product development, engineering, industrial design, software, and marketing
+- Or start from a blank schedule and build your own
 
 ### Phases, Tasks, and Milestones
 - Phases are top-level timeline blocks with duration
 - Tasks are sub-items within phases, also with duration
 - Milestones are single-point markers (no duration) for key dates and deadlines
-- All items use relative positioning — resizing a parent cascades to children
+- All items use relative positioning — resizing a parent cascades to children, and editing a schedule's date range keeps items on their absolute dates
 
 ### Export and Sharing
 - Export individual schedules as .floid files to share with collaborators
 - Export full project backups as .floid-project files
-- Export timeline as an image
+- Export the timeline as an image for presentations and status updates
 - Import .floid files to bring in schedules from other projects
 
 ### User Experience
 - Dark mode support (follows system preference)
 - Keyboard shortcuts for common actions
 - Double-click to rename items inline
-- Drag to rearrange sections
 - Right-click context menus
 - Clean, minimal interface designed to stay out of your way
 
@@ -62,13 +66,16 @@ Unlike general-purpose project management tools, FLOID is focused on the schedul
 ## Use Cases
 
 ### Product Development Timeline Planning
-Plan the full lifecycle of a physical product — from concept through production. Create parallel tracks for industrial design, mechanical engineering, tooling, and regulatory, all synced to a master schedule.
+Plan the full lifecycle of a product — from concept through production and launch. Create parallel tracks for engineering, design, tooling, and regulatory, aligned on shared milestones. Hardware teams can map build stages like EVT, DVT, and PVT directly on the timeline.
 
-### Multi-Workstream Coordination
-When multiple teams or disciplines need to work in parallel, FLOID's section-based timeline lets you visualize how workstreams align and where handoffs occur.
+### Product Launch and Roadmap Timelines
+Build a launch timeline that engineering, design, and marketing can all read at a glance, with the launch milestones pinned as reference lines through every team's schedule.
 
-### Schedule Sharing and Review
-Export individual schedules as .floid files to share with stakeholders or collaborators who also use FLOID. Export timeline images for presentations and status updates.
+### Multi-Team Program Coordination
+When multiple teams or disciplines work in parallel, FLOID's multi-schedule timeline lets you visualize how workstreams align and where handoffs occur.
+
+### Any Schedule, Really
+Software release plans, marketing campaigns, event planning, research projects, construction phases — anything that benefits from a visual, multi-track timeline.
 
 ### Quick Project Estimation
 Rapidly sketch out a project timeline to estimate duration and identify scheduling conflicts before committing to a detailed plan.
@@ -81,7 +88,7 @@ Rapidly sketch out a project timeline to estimate duration and identify scheduli
 FLOID is focused purely on visual timeline scheduling. It does not include task assignment, communication, or workflow automation. This makes it faster and simpler for teams that just need to plan and visualize a schedule without the overhead of a full project management platform.
 
 ### FLOID vs. Gantt Chart Software (Microsoft Project, TeamGantt)
-FLOID's timeline model is simpler than traditional Gantt charts. It uses relative positioning instead of rigid date dependencies, which makes it easier to quickly sketch and adjust timelines. It also supports multiple independent schedule sections in a single view, which is uncommon in Gantt tools.
+FLOID's timeline model is simpler than traditional Gantt charts. It uses relative positioning instead of rigid date dependencies, which makes it easier to quickly sketch and adjust timelines. It also supports multiple parallel schedules in a single view, which is uncommon in Gantt tools.
 
 ### FLOID vs. Spreadsheet-Based Scheduling
 Many teams use Excel or Google Sheets for scheduling. FLOID provides the same visual timeline layout but with drag-and-drop interaction, automatic date calculation, and proper export formats — without the manual formatting work.
@@ -99,14 +106,17 @@ No. FLOID runs entirely in your browser. No sign-up, no login, no account needed
 ### What platforms does FLOID support?
 FLOID runs in any modern web browser on desktop or tablet. There is no native mobile app, but the web app works on tablet-sized screens.
 
+### How do I create a product development timeline?
+Start from a ready-made template — complete product development, engineering, industrial design, software, or marketing — or from a blank schedule. Then drag and drop phases, tasks, and milestones, add a schedule for each team, and pin one schedule so its milestones draw reference lines through the whole project.
+
 ### Can I share schedules with my team?
 Yes. Export a schedule as a .floid file and share it with anyone. They can import it into their own FLOID instance. You can also export timeline images for presentations.
 
-### Is FLOID good for industrial design projects?
-Yes — FLOID was built specifically for industrial designers and product development teams. Its multi-section timeline model matches how physical product development projects are typically structured, with parallel workstreams for design, engineering, tooling, testing, and regulatory.
+### Can I use FLOID for projects other than product development?
+Yes. FLOID is optimized for product development, but its timeline scheduling works for any kind of schedule building — software releases, marketing campaigns, events, research, or personal projects.
 
-### Can I use FLOID for software projects?
-While FLOID was designed for physical product development, its timeline scheduling features work for any type of project that benefits from visual timeline planning.
+### Is FLOID good for industrial design projects?
+Yes. FLOID began as a tool for industrial designers and includes a dedicated industrial design schedule template. Its multi-schedule timeline model matches how physical product development projects are structured, with parallel workstreams for design, engineering, tooling, testing, and regulatory.
 
 ### Does FLOID support Gantt chart dependencies?
 FLOID uses a relative positioning model rather than rigid task dependencies. This makes timelines more flexible and easier to adjust, but it means there are no automatic dependency arrows between tasks.

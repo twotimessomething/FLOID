@@ -1,7 +1,7 @@
 {
-  "name": "FLOID — Design Process Scheduling Software",
+  "name": "FLOID — Product Development Scheduling Software",
   "short_name": "FLOID",
-  "description": "Free timeline scheduling tool for industrial designers. Plan product development with drag-and-drop phases, master schedule sync, and milestones.",
+  "description": "Free timeline builder for product development. Plan project schedules with drag-and-drop phases, milestones, and parallel team schedules.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fafafa",

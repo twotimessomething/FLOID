@@ -170,8 +170,8 @@ function App() {
         Skip to timeline
       </a>
       {/* SEO: visually hidden heading for crawlers */}
-      <h1 className="sr-only">FLOID — Design Process Scheduling Software for Industrial Designers</h1>
-      <p className="sr-only">Plan product development timelines with drag-and-drop phases, pinned schedule milestones, milestone tracking, and multiple export formats. Free browser-based scheduling tool for industrial design teams.</p>
+      <h1 className="sr-only">FLOID — Free Product Development Scheduling &amp; Timeline Software</h1>
+      <p className="sr-only">Build product development timelines with drag-and-drop phases, tasks, and milestones. Run parallel schedules for every team, pin a reference schedule, and export or share your plan. Free browser-based timeline builder for product development and any project schedule.</p>
       <Header />
       <ErrorBoundary>
         <main
