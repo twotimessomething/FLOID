@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { Button } from '../common/Button';
 import { PHASE_COLORS, SCHEDULE_COLORS } from '../../constants/colors';
@@ -36,7 +43,12 @@ function LogoMark({ isDark }: { readonly isDark: boolean }): ReactElement {
 
 function MiniPin(): ReactElement {
   return (
-    <svg className="w-2.5 h-2.5 rotate-45 flex-shrink-0 text-[var(--color-warning)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg
+      className="w-2.5 h-2.5 rotate-45 flex-shrink-0 text-[var(--color-warning)]"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
       <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
     </svg>
   );
@@ -44,7 +56,12 @@ function MiniPin(): ReactElement {
 
 function MiniChevron(): ReactElement {
   return (
-    <svg className="w-2 h-2 rotate-90 flex-shrink-0 text-[var(--color-text-muted)]" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+    <svg
+      className="w-2 h-2 rotate-90 flex-shrink-0 text-[var(--color-text-muted)]"
+      fill="currentColor"
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+    >
       <path
         fillRule="evenodd"
         d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
@@ -81,7 +98,10 @@ function MiniLabelRow({
     >
       {chevron && <MiniChevron />}
       {dotColor && (
-        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
+        <span
+          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          style={{ backgroundColor: dotColor }}
+        />
       )}
       <span
         className={`text-[9px] truncate ${isPinned ? 'font-semibold' : ''} ${isTask ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}
@@ -116,7 +136,15 @@ interface MiniBarProps {
   readonly showHandles?: boolean;
 }
 
-function MiniBar({ left, width, color, label, inset = 4, isGhost = false, showHandles = false }: MiniBarProps): ReactElement {
+function MiniBar({
+  left,
+  width,
+  color,
+  label,
+  inset = 4,
+  isGhost = false,
+  showHandles = false,
+}: MiniBarProps): ReactElement {
   return (
     <div
       className="absolute rounded-md flex items-center px-1.5 overflow-hidden"
@@ -129,7 +157,9 @@ function MiniBar({ left, width, color, label, inset = 4, isGhost = false, showHa
         opacity: isGhost ? 0.3 : undefined,
       }}
     >
-      {label && <span className="text-[9px] font-medium text-white truncate drop-shadow-sm">{label}</span>}
+      {label && (
+        <span className="text-[9px] font-medium text-white truncate drop-shadow-sm">{label}</span>
+      )}
       {showHandles && (
         <>
           <span className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-3 rounded bg-white/80" />
@@ -147,7 +177,12 @@ interface MiniMilestoneProps {
   readonly isGhost?: boolean;
 }
 
-function MiniMilestone({ left, label, lineHeight = 0, isGhost = false }: MiniMilestoneProps): ReactElement {
+function MiniMilestone({
+  left,
+  label,
+  lineHeight = 0,
+  isGhost = false,
+}: MiniMilestoneProps): ReactElement {
   return (
     <div className="absolute top-0 z-10" style={{ left: `${left}%`, height: MINI_ROW_HEIGHT }}>
       {lineHeight > 0 && (
@@ -221,7 +256,10 @@ function MiniFrame({ labels, children }: MiniFrameProps): ReactElement {
                 className="absolute top-0 bottom-0 border-l"
                 style={{
                   left: `${position}%`,
-                  borderColor: position % 25 === 0 ? 'var(--color-gridline-major)' : 'var(--color-gridline-minor)',
+                  borderColor:
+                    position % 25 === 0
+                      ? 'var(--color-gridline-major)'
+                      : 'var(--color-gridline-minor)',
                 }}
               />
             ))}
@@ -370,7 +408,13 @@ function DragIllustration(): ReactElement {
       <MiniRow />
       <MiniRow>
         <div className="walkthrough-drift absolute inset-0">
-          <MiniBar left={18} width={54} color={PHASE_COLORS.engineering} label="Engineering" showHandles />
+          <MiniBar
+            left={18}
+            width={54}
+            color={PHASE_COLORS.engineering}
+            label="Engineering"
+            showHandles
+          />
           {/* Drag date bubble above the end handle */}
           <div
             className="absolute z-30 -top-3 -translate-x-1/2 px-1 py-px rounded bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-[8px] font-medium shadow-lg whitespace-nowrap pointer-events-none"
@@ -401,9 +445,10 @@ function DragIllustration(): ReactElement {
 
 export function WelcomeWalkthrough(): ReactElement {
   const openProjectSetupModal = useUIStore((state) => state.openProjectSetupModal);
+  const isProjectSetupModalOpen = useUIStore((state) => state.isProjectSetupModalOpen);
   const theme = useUIStore((state) => state.theme);
-  const [systemIsDark, setSystemIsDark] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+  const [systemIsDark, setSystemIsDark] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
   );
   const [index, setIndex] = useState(0);
 
@@ -416,38 +461,41 @@ export function WelcomeWalkthrough(): ReactElement {
 
   const isDark = theme === 'dark' || (theme === 'system' && systemIsDark);
 
-  const slides = useMemo<readonly Slide[]>(() => [
-    {
-      title: '',
-      body: 'A lightweight way to plan product timelines. Create a schedule for each team, see them all on one shared calendar, and ship with less friction.',
-      illustration: <LogoMark isDark={isDark} />,
-    },
-    {
-      title: 'Every team on one timeline',
-      body: 'Add a schedule per team — everything lines up on the same dates. Pin the schedule that matters to keep it on top and extend its milestone lines through every schedule below.',
-      illustration: <SchedulesIllustration />,
-    },
-    {
-      title: 'Phases, tasks & milestones',
-      body: 'Phases are the big blocks of work. Tasks break them down into finer detail. Milestones pin a single date — a review, a handoff, a deadline.',
-      illustration: <ItemsIllustration />,
-    },
-    {
-      title: 'Build your timeline in clicks',
-      body: 'Hover empty space to preview, then double-click to drop in a phase — or drag to draw one exactly the size you want. Schedule headers take milestones the same way. Right-click anywhere for the full menu.',
-      illustration: <CreateIllustration />,
-    },
-    {
-      title: 'Drag to move, pull edges to resize',
-      body: 'Grab a bar to move it; pull its handles to resize. Tasks and milestones travel with their phase — hold Shift while resizing to keep them pinned in place.',
-      illustration: <DragIllustration />,
-    },
-    {
-      title: "You're ready to plan",
-      body: 'Create a project to set your dates and first schedule. Everything else is a double-click away.',
-      illustration: <LogoMark isDark={isDark} />,
-    },
-  ], [isDark]);
+  const slides = useMemo<readonly Slide[]>(
+    () => [
+      {
+        title: '',
+        body: 'A lightweight way to plan product timelines. Create a schedule for each team, see them all on one shared calendar, and ship with less friction.',
+        illustration: <LogoMark isDark={isDark} />,
+      },
+      {
+        title: 'Every team on one timeline',
+        body: 'Add a schedule per team — everything lines up on the same dates. Pin the schedule that matters to keep it on top and extend its milestone lines through every schedule below.',
+        illustration: <SchedulesIllustration />,
+      },
+      {
+        title: 'Phases, tasks & milestones',
+        body: 'Phases are the big blocks of work. Tasks break them down into finer detail. Milestones pin a single date — a review, a handoff, a deadline.',
+        illustration: <ItemsIllustration />,
+      },
+      {
+        title: 'Build your timeline in clicks',
+        body: 'Hover empty space to preview, then double-click to drop in a phase — or drag to draw one exactly the size you want. Schedule headers take milestones the same way. Right-click anywhere for the full menu.',
+        illustration: <CreateIllustration />,
+      },
+      {
+        title: 'Drag to move, pull edges to resize',
+        body: 'Grab a bar to move it; pull its handles to resize. Tasks and milestones travel with their phase — hold Shift while resizing to keep them pinned in place.',
+        illustration: <DragIllustration />,
+      },
+      {
+        title: "You're ready to plan",
+        body: 'Create a project to set your dates and first schedule. Everything else is a double-click away.',
+        illustration: <LogoMark isDark={isDark} />,
+      },
+    ],
+    [isDark]
+  );
 
   const lastIndex = slides.length - 1;
   const isLast = index === lastIndex;
@@ -462,6 +510,7 @@ export function WelcomeWalkthrough(): ReactElement {
   }, []);
 
   useEffect(() => {
+    if (isProjectSetupModalOpen) return;
     const handleKey = (e: KeyboardEvent): void => {
       const target = e.target as HTMLElement | null;
       if (target?.closest('button, input, textarea, select, a')) return;
@@ -474,86 +523,90 @@ export function WelcomeWalkthrough(): ReactElement {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [goNext, goBack, isLast, openProjectSetupModal]);
+  }, [goNext, goBack, isLast, openProjectSetupModal, isProjectSetupModalOpen]);
 
   const slide = slides[index];
 
   return (
     <div className="h-full flex items-center justify-center bg-[var(--color-surface)] px-6">
-      <div
-        className="glass-bordered rounded-xl w-full max-w-xl modal-enter relative"
-        role="region"
-        aria-label="Welcome walkthrough"
-      >
-        {!isLast && (
-          <button
-            type="button"
-            onClick={openProjectSetupModal}
-            className="absolute top-3 right-4 z-10 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors focus-ring rounded px-1.5 py-0.5"
-          >
-            Skip
-          </button>
-        )}
+      {!isProjectSetupModalOpen && (
+        <div
+          className="glass-bordered rounded-xl w-full max-w-xl modal-enter relative"
+          role="region"
+          aria-label="Welcome walkthrough"
+        >
+          {!isLast && (
+            <button
+              type="button"
+              onClick={openProjectSetupModal}
+              className="absolute top-3 right-4 z-10 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors focus-ring rounded px-1.5 py-0.5"
+            >
+              Skip
+            </button>
+          )}
 
-        <div className="px-10 pt-10 pb-7">
-          <div key={index} className="walkthrough-slide-enter">
-            <div className="h-40 mb-6 flex items-center justify-center">
-              {slide.illustration}
+          <div className="px-10 pt-10 pb-7">
+            <div key={index} className="walkthrough-slide-enter">
+              <div className="h-40 mb-6 flex items-center justify-center">{slide.illustration}</div>
+              {slide.title && (
+                <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-3 text-center">
+                  {slide.title}
+                </h2>
+              )}
+              <p className="text-sm text-[var(--color-text-muted)] text-center leading-relaxed max-w-md mx-auto min-h-[3.5rem]">
+                {slide.body}
+              </p>
+              {isLast && (
+                <div className="flex justify-center mt-2">
+                  <Button variant="primary" onClick={openProjectSetupModal}>
+                    Create Project
+                  </Button>
+                </div>
+              )}
             </div>
-            {slide.title && (
-              <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-3 text-center">
-                {slide.title}
-              </h2>
-            )}
-            <p className="text-sm text-[var(--color-text-muted)] text-center leading-relaxed max-w-md mx-auto min-h-[3.5rem]">
-              {slide.body}
-            </p>
-            {isLast && (
-              <div className="flex justify-center mt-2">
-                <Button variant="primary" onClick={openProjectSetupModal}>
-                  Create Project
+          </div>
+
+          <div className="px-8 py-4 border-t border-[var(--color-row-border-strong)] flex items-center justify-between">
+            <div className="min-w-[72px]">
+              {!isFirst && (
+                <Button variant="ghost" onClick={goBack} aria-label="Previous slide">
+                  Back
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
+
+            <div
+              className="flex items-center gap-1.5"
+              role="tablist"
+              aria-label="Walkthrough progress"
+            >
+              {slides.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  role="tab"
+                  aria-selected={i === index}
+                  aria-label={`Go to slide ${i + 1}`}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    i === index
+                      ? 'bg-[var(--color-text-primary)]'
+                      : 'bg-[var(--color-border)] hover:bg-[var(--color-text-muted)]'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <div className="min-w-[72px] flex justify-end">
+              {!isLast && (
+                <Button variant="primary" onClick={goNext} aria-label="Next slide">
+                  Next
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-
-        <div className="px-8 py-4 border-t border-[var(--color-row-border-strong)] flex items-center justify-between">
-          <div className="min-w-[72px]">
-            {!isFirst && (
-              <Button variant="ghost" onClick={goBack} aria-label="Previous slide">
-                Back
-              </Button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5" role="tablist" aria-label="Walkthrough progress">
-            {slides.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setIndex(i)}
-                role="tab"
-                aria-selected={i === index}
-                aria-label={`Go to slide ${i + 1}`}
-                className={`w-2 h-2 rounded-full transition-colors ${
-                  i === index
-                    ? 'bg-[var(--color-text-primary)]'
-                    : 'bg-[var(--color-border)] hover:bg-[var(--color-text-muted)]'
-                }`}
-              />
-            ))}
-          </div>
-
-          <div className="min-w-[72px] flex justify-end">
-            {!isLast && (
-              <Button variant="primary" onClick={goNext} aria-label="Next slide">
-                Next
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
