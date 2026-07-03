@@ -434,7 +434,7 @@ export function WelcomeWalkthrough(): ReactElement {
     },
     {
       title: 'Build your timeline in clicks',
-      body: 'Double-click an empty row to drop in a phase, or a schedule header to add a milestone — right where you click. Right-click anywhere for the full menu.',
+      body: 'Hover empty space to preview, then double-click to drop in a phase — or drag to draw one exactly the size you want. Schedule headers take milestones the same way. Right-click anywhere for the full menu.',
       illustration: <CreateIllustration />,
     },
     {

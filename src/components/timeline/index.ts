@@ -14,3 +14,5 @@ export { AddItemButton } from './AddItemButton';
 export { Playhead } from './Playhead';
 export { ContextMenu } from './ContextMenu';
 export { EmptyStateHint } from './EmptyStateHint';
+export { GhostBar } from './GhostBar';
+export { BarMilestoneHint } from './BarMilestoneHint';

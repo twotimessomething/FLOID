@@ -46,7 +46,7 @@ interface SectionState {
   incrementRevision: (sectionId: string) => void;
 
   // Phase operations
-  addPhase: (sectionId: string, phase: Omit<Phase, 'id' | 'sectionId'>) => void;
+  addPhase: (sectionId: string, phase: Omit<Phase, 'id' | 'sectionId'>) => string;
   updatePhase: (sectionId: string, phaseId: string, updates: Partial<Phase>) => void;
   deletePhase: (sectionId: string, phaseId: string) => void;
   togglePhaseCollapse: (sectionId: string, phaseId: string) => void;
@@ -78,7 +78,7 @@ interface SectionState {
     sectionId: string,
     phaseId: string,
     task: Omit<Task, 'id' | 'phaseId'>
-  ) => void;
+  ) => string;
   updateTask: (
     sectionId: string,
     phaseId: string,
@@ -95,7 +95,7 @@ interface SectionState {
   ) => void;
 
   // Milestone operations
-  addMilestone: (sectionId: string, milestone: Omit<Milestone, 'id' | 'sectionId'>) => void;
+  addMilestone: (sectionId: string, milestone: Omit<Milestone, 'id' | 'sectionId'>) => string;
   updateMilestone: (sectionId: string, milestoneId: string, updates: Partial<Milestone>) => void;
   deleteMilestone: (sectionId: string, milestoneId: string) => void;
 
@@ -364,7 +364,8 @@ export const useSectionStore = create<SectionState>()(
       ),
     })),
 
-  addPhase: (sectionId, phase) =>
+  addPhase: (sectionId, phase) => {
+    const newId = generateId();
     set((state) => ({
       sections: state.sections.map((section) =>
         section.id === sectionId
@@ -372,14 +373,16 @@ export const useSectionStore = create<SectionState>()(
               ...section,
               phases: [
                 ...section.phases,
-                { ...phase, id: generateId(), sectionId },
+                { ...phase, id: newId, sectionId },
               ],
               lastModifiedAt: new Date().toISOString(),
               revision: section.revision + 1,
             }
           : section
       ),
-    })),
+    }));
+    return newId;
+  },
 
   updatePhase: (sectionId, phaseId, updates) =>
     set((state) => ({
@@ -699,7 +702,8 @@ export const useSectionStore = create<SectionState>()(
       };
     }),
 
-  addTask: (sectionId, phaseId, task) =>
+  addTask: (sectionId, phaseId, task) => {
+    const newId = generateId();
     set((state) => ({
       sections: state.sections.map((section) =>
         section.id === sectionId
@@ -713,7 +717,7 @@ export const useSectionStore = create<SectionState>()(
                       ...phase,
                       tasks: [
                         ...phase.tasks,
-                        { ...task, id: generateId(), phaseId },
+                        { ...task, id: newId, phaseId },
                       ],
                     }
                   : phase
@@ -721,7 +725,9 @@ export const useSectionStore = create<SectionState>()(
             }
           : section
       ),
-    })),
+    }));
+    return newId;
+  },
 
   updateTask: (sectionId, phaseId, taskId, updates) =>
     set((state) => ({
@@ -792,7 +798,8 @@ export const useSectionStore = create<SectionState>()(
       ),
     })),
 
-  addMilestone: (sectionId, milestone) =>
+  addMilestone: (sectionId, milestone) => {
+    const newId = generateId();
     set((state) => ({
       sections: state.sections.map((section) =>
         section.id === sectionId
@@ -802,12 +809,14 @@ export const useSectionStore = create<SectionState>()(
               revision: section.revision + 1,
               milestones: [
                 ...section.milestones,
-                { ...milestone, id: generateId(), sectionId },
+                { ...milestone, id: newId, sectionId },
               ],
             }
           : section
       ),
-    })),
+    }));
+    return newId;
+  },
 
   updateMilestone: (sectionId, milestoneId, updates) =>
     set((state) => ({

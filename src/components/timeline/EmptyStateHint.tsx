@@ -15,7 +15,7 @@ export function EmptyStateHint({
   // Border at bottom shows this is a row.
   return (
     <div
-      className={`relative w-full ${borderClass}`}
+      className={`relative w-full pointer-events-none ${borderClass}`}
       style={{ height, borderColor: 'var(--color-row-border-light)' }}
     >
       <div

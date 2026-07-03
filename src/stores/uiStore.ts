@@ -77,8 +77,8 @@ interface UIState {
 
   // Drag state
   isDragging: boolean;
-  dragType: 'resize-start' | 'resize-end' | 'move' | null;
-  setDragging: (isDragging: boolean, dragType?: 'resize-start' | 'resize-end' | 'move' | null) => void;
+  dragType: 'resize-start' | 'resize-end' | 'move' | 'draw' | null;
+  setDragging: (isDragging: boolean, dragType?: 'resize-start' | 'resize-end' | 'move' | 'draw' | null) => void;
 
   // Playhead (scrubber)
   playheadPosition: number | null;

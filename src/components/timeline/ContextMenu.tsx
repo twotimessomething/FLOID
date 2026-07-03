@@ -4,6 +4,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { downloadScheduleFloid } from '../../utils/exportUtils';
+import { createPhaseAt, createTaskAt, createMilestoneAt, createBarMilestoneAt } from '../../utils/creationUtils';
 import { PHASE_COLORS } from '../../constants/colors';
 
 interface MenuItem {
@@ -22,17 +23,12 @@ export function ContextMenu(): JSX.Element | null {
     deleteTask,
     deleteMilestone,
     deleteSection,
-    addPhase,
-    addTask,
-    addMilestone,
     reorderPhases,
     sections,
     togglePhaseCollapse,
     togglePhaseLock,
     toggleSectionCollapse,
     toggleSectionLock,
-    addPhaseBarMilestone,
-    addTaskBarMilestone,
     deletePhaseBarMilestone,
     deleteTaskBarMilestone,
     updatePhase,
@@ -150,60 +146,17 @@ export function ContextMenu(): JSX.Element | null {
 
   const handleAddPhase = useCallback(() => {
     if (!sectionId) return;
-
-    const section = sections.find((s) => s.id === sectionId);
-    if (!section) return;
-
-    const colorKeys = Object.keys(PHASE_COLORS) as (keyof typeof PHASE_COLORS)[];
-    const colorIndex = section.phases.length % colorKeys.length;
-    const phaseColor = section.isMulticolor ? PHASE_COLORS[colorKeys[colorIndex]] : null;
-
-    addPhase(sectionId, {
-      name: '',
-      description: '',
-      color: phaseColor,
-      relativeStart: 0.1,
-      relativeEnd: 0.4,
-      order: section.phases.length,
-      isCollapsed: false,
-      tasks: [],
-    });
-
-    // Select the newly created phase
-    const updatedSections = useSectionStore.getState().sections;
-    const updatedSection = updatedSections.find((s) => s.id === sectionId);
-    const newPhase = updatedSection?.phases[updatedSection.phases.length - 1];
-
-    if (newPhase) {
-      selectItem('phase', newPhase.id, sectionId, null, position);
-    }
-
+    // No click position on the label side — continues after the last phase
+    createPhaseAt(sectionId, {}, position);
     closeContextMenu();
-  }, [sectionId, sections, addPhase, selectItem, position, closeContextMenu]);
+  }, [sectionId, position, closeContextMenu]);
 
   const handleAddTask = useCallback(() => {
     if (!sectionId || !targetId) return;
-
-    addTask(sectionId, targetId, {
-      name: '',
-      description: '',
-      relativeStart: 0,
-      relativeEnd: 0.3,
-      order: 0,
-    });
-
-    // Select the newly created task
-    const updatedSections = useSectionStore.getState().sections;
-    const section = updatedSections.find((s) => s.id === sectionId);
-    const phase = section?.phases.find((p) => p.id === targetId);
-    const newTask = phase?.tasks[phase.tasks.length - 1];
-
-    if (newTask) {
-      selectItem('task', newTask.id, sectionId, targetId, position);
-    }
-
+    // No click position — default-width task at the phase start
+    createTaskAt(sectionId, targetId, {}, position);
     closeContextMenu();
-  }, [sectionId, targetId, addTask, selectItem, position, closeContextMenu]);
+  }, [sectionId, targetId, position, closeContextMenu]);
 
   const handleMovePhaseUp = useCallback(() => {
     if (!sectionId || !targetId || targetType !== 'phase') return;
@@ -281,46 +234,16 @@ export function ContextMenu(): JSX.Element | null {
   // Add bar milestone at click position (for phase bar)
   const handleAddBarMilestoneHere = useCallback(() => {
     if (!sectionId || !phaseId || clickRelativePosition === undefined) return;
-
-    const newMilestone = { name: '', relativePosition: clickRelativePosition };
-    let newId: string;
-
-    if (taskId) {
-      newId = addTaskBarMilestone(sectionId, phaseId, taskId, newMilestone);
-      selectItem('barMilestone', newId, sectionId, phaseId, position, taskId);
-    } else {
-      newId = addPhaseBarMilestone(sectionId, phaseId, newMilestone);
-      selectItem('barMilestone', newId, sectionId, phaseId, position);
-    }
-
+    createBarMilestoneAt(sectionId, phaseId, taskId ?? null, clickRelativePosition, position);
     closeContextMenu();
-  }, [sectionId, phaseId, taskId, clickRelativePosition, addPhaseBarMilestone, addTaskBarMilestone, selectItem, position, closeContextMenu]);
+  }, [sectionId, phaseId, taskId, clickRelativePosition, position, closeContextMenu]);
 
   // Add section milestone at click position (for section header)
   const handleAddMilestoneHere = useCallback(() => {
     if (!sectionId || clickRelativePosition === undefined) return;
-
-    const section = sections.find((s) => s.id === sectionId);
-    if (!section) return;
-
-    addMilestone(sectionId, {
-      name: '',
-      description: '',
-      relativePosition: clickRelativePosition,
-      order: section.milestones.length,
-    });
-
-    // Select the newly created milestone
-    const updatedSections = useSectionStore.getState().sections;
-    const updatedSection = updatedSections.find((s) => s.id === sectionId);
-    const newMilestone = updatedSection?.milestones[updatedSection.milestones.length - 1];
-
-    if (newMilestone) {
-      selectItem('milestone', newMilestone.id, sectionId, null, position);
-    }
-
+    createMilestoneAt(sectionId, clickRelativePosition, position);
     closeContextMenu();
-  }, [sectionId, clickRelativePosition, sections, addMilestone, selectItem, position, closeContextMenu]);
+  }, [sectionId, clickRelativePosition, position, closeContextMenu]);
 
   // Change phase color
   const handleColorChange = useCallback((color: string) => {
@@ -332,93 +255,21 @@ export function ContextMenu(): JSX.Element | null {
   // Add phase at click position (for empty row area)
   const handleAddPhaseHere = useCallback(() => {
     if (!sectionId || clickRelativePosition === undefined) return;
-
-    const section = sections.find((s) => s.id === sectionId);
-    if (!section) return;
-
-    const colorKeys = Object.keys(PHASE_COLORS) as (keyof typeof PHASE_COLORS)[];
-    const colorIndex = section.phases.length % colorKeys.length;
-    const phaseColor = section.isMulticolor ? PHASE_COLORS[colorKeys[colorIndex]] : null;
-
-    // Create phase starting at click position with ~20% width
-    const phaseWidth = 0.2;
-    const relativeStart = Math.max(0, Math.min(1 - phaseWidth, clickRelativePosition));
-    const relativeEnd = Math.min(1, relativeStart + phaseWidth);
-
-    // Find the order for insertion (after the phase we clicked near, if any)
-    // phaseId contains the context phase when clicking in phase row area
-    const contextPhase = phaseId ? section.phases.find((p) => p.id === phaseId) : null;
-    const insertOrder = contextPhase ? contextPhase.order + 1 : section.phases.length;
-
-    addPhase(sectionId, {
-      name: '',
-      description: '',
-      color: phaseColor,
-      relativeStart,
-      relativeEnd,
-      order: insertOrder,
-      isCollapsed: false,
-      tasks: [],
-    });
-
-    // Reorder if needed
-    const updatedSections = useSectionStore.getState().sections;
-    const updatedSection = updatedSections.find((s) => s.id === sectionId);
-    const newPhase = updatedSection?.phases[updatedSection.phases.length - 1];
-
-    if (newPhase && contextPhase) {
-      const currentIndex = updatedSection.phases.length - 1;
-      const targetIndex = Math.min(insertOrder, updatedSection.phases.length - 1);
-      if (currentIndex !== targetIndex) {
-        reorderPhases(sectionId, currentIndex, targetIndex);
-      }
-    }
-
-    // Get the final state and select the new phase
-    const finalSections = useSectionStore.getState().sections;
-    const finalSection = finalSections.find((s) => s.id === sectionId);
-    const finalPhase = finalSection?.phases.find((p) => p.id === newPhase?.id);
-
-    if (finalPhase) {
-      selectItem('phase', finalPhase.id, sectionId, null, position);
-    }
-
+    // phaseId carries the context phase when clicking in a phase row area
+    createPhaseAt(
+      sectionId,
+      { startAt: clickRelativePosition, afterPhaseId: phaseId ?? undefined },
+      position
+    );
     closeContextMenu();
-  }, [sectionId, phaseId, clickRelativePosition, sections, addPhase, reorderPhases, selectItem, position, closeContextMenu]);
+  }, [sectionId, phaseId, clickRelativePosition, position, closeContextMenu]);
 
   // Add task at click position (for empty task area)
   const handleAddTaskHere = useCallback(() => {
     if (!sectionId || !phaseId || clickRelativePosition === undefined) return;
-
-    const section = sections.find((s) => s.id === sectionId);
-    const phase = section?.phases.find((p) => p.id === phaseId);
-    if (!phase) return;
-
-    // Create task starting at click position with ~20% width (phase-relative)
-    const taskWidth = 0.2;
-    const relativeStart = Math.max(0, Math.min(1 - taskWidth, clickRelativePosition));
-    const relativeEnd = Math.min(1, relativeStart + taskWidth);
-
-    addTask(sectionId, phaseId, {
-      name: '',
-      description: '',
-      relativeStart,
-      relativeEnd,
-      order: phase.tasks.length,
-    });
-
-    // Select the newly created task
-    const updatedSections = useSectionStore.getState().sections;
-    const updatedSection = updatedSections.find((s) => s.id === sectionId);
-    const updatedPhase = updatedSection?.phases.find((p) => p.id === phaseId);
-    const newTask = updatedPhase?.tasks[updatedPhase.tasks.length - 1];
-
-    if (newTask) {
-      selectItem('task', newTask.id, sectionId, phaseId, position);
-    }
-
+    createTaskAt(sectionId, phaseId, { startAt: clickRelativePosition }, position);
     closeContextMenu();
-  }, [sectionId, phaseId, clickRelativePosition, sections, addTask, selectItem, position, closeContextMenu]);
+  }, [sectionId, phaseId, clickRelativePosition, position, closeContextMenu]);
 
   // Memoize menu items to avoid recalculating on every render
   const menuItems = useMemo((): MenuItem[] => {

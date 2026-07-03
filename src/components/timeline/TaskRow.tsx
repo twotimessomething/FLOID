@@ -9,7 +9,9 @@ import { getBarDimensions, TASK_ROW_HEIGHT, getRelativeFromPosition } from '../.
 import { getDateFromRelativePosition, formatDate, sectionToViewportRelative, viewportToSectionRelative, getDaysBetween, snapRelativeToBusinessDay } from '../../utils/dateUtils';
 import { DragHandle } from './DragHandle';
 import { BarMilestoneMarker } from './BarMilestoneMarker';
+import { BarMilestoneHint } from './BarMilestoneHint';
 import { AddItemButton } from './AddItemButton';
+import { createTaskAt, createBarMilestoneAt } from '../../utils/creationUtils';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useContextMenu } from '../../hooks/useContextMenu';
 import { useInlineEdit } from '../../hooks/useInlineEdit';
@@ -49,7 +51,7 @@ export const TaskRow = memo(function TaskRow({
   onTimelineReorder,
   taskIndex,
 }: TaskRowProps): JSX.Element {
-  const { updateTaskPosition, updateTask, addTaskBarMilestone, addTask, beginDragTransaction, commitDragTransaction } = useSectionStore();
+  const { updateTaskPosition, updateTask, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const selection = useUIStore((s) => s.selection);
   const selectItem = useUIStore((s) => s.selectItem);
   const setDragging = useUIStore((s) => s.setDragging);
@@ -106,18 +108,26 @@ export const TaskRow = memo(function TaskRow({
 
   // Double-click on task bar creates a bar milestone
   const onBarDoubleClick = useCallback((e: React.MouseEvent): void => {
-    const barElement = e.currentTarget as HTMLElement;
-    const barRect = barElement.getBoundingClientRect();
-    const clickX = e.clientX - barRect.left;
-    const relativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
+    const barRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const relativePosition = barRect.width > 0 ? (e.clientX - barRect.left) / barRect.width : 0.5;
+    createBarMilestoneAt(section.id, phase.id, task.id, relativePosition, { x: e.clientX, y: e.clientY });
+  }, [section.id, phase.id, task.id]);
 
-    const newId = addTaskBarMilestone(section.id, phase.id, task.id, {
-      name: '',
-      relativePosition,
-    });
+  // Faint diamond on bar hover hinting that double-click drops a milestone
+  const [milestoneHintX, setMilestoneHintX] = useState<number | null>(null);
 
-    selectItem('barMilestone', newId, section.id, phase.id, { x: e.clientX, y: e.clientY }, task.id);
-  }, [addTaskBarMilestone, section.id, phase.id, task.id, selectItem]);
+  const handleBarHintMouseMove = useCallback((e: React.MouseEvent): void => {
+    if (e.buttons !== 0 || e.target !== e.currentTarget) {
+      setMilestoneHintX((prev) => (prev !== null ? null : prev));
+      return;
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setMilestoneHintX(e.clientX - rect.left);
+  }, []);
+
+  const handleBarHintMouseLeave = useCallback((): void => {
+    setMilestoneHintX(null);
+  }, []);
 
   // Single click selects task
   const onTaskClick = useCallback((e: React.MouseEvent): void => {
@@ -162,33 +172,14 @@ export const TaskRow = memo(function TaskRow({
   // Click on "+" button creates a new task starting at the end of this task
   const handleAddTaskAfter = useCallback(
     (e: React.MouseEvent): void => {
-      // Calculate new task position - starts at current task's end (phase-relative)
-      // Default to 7 days width relative to section, converted to phase-relative
-      const sectionDayCount = getDaysBetween(section.startDate, section.endDate);
-      const sevenDaysRelative = sectionDayCount > 0 ? (7 / sectionDayCount) / phaseWidth : 0.15;
-      const relativeStart = task.relativeEnd;
-      const relativeEnd = Math.min(1, relativeStart + sevenDaysRelative);
-
-      // Add the task
-      addTask(section.id, phase.id, {
-        name: '',
-        description: '',
-        relativeStart,
-        relativeEnd,
-        order: task.order + 1,
-      });
-
-      // Get the new task and select it
-      const updatedSections = useSectionStore.getState().sections;
-      const updatedSection = updatedSections.find((s) => s.id === section.id);
-      const updatedPhase = updatedSection?.phases.find((p) => p.id === phase.id);
-      const newTask = updatedPhase?.tasks[updatedPhase.tasks.length - 1];
-
-      if (newTask) {
-        selectItem('task', newTask.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
-      }
+      createTaskAt(
+        section.id,
+        phase.id,
+        { startAt: task.relativeEnd, afterTaskId: task.id },
+        { x: e.clientX, y: e.clientY }
+      );
     },
-    [section.id, section.startDate, section.endDate, phase.id, phaseWidth, task.relativeEnd, task.order, addTask, selectItem]
+    [section.id, phase.id, task.relativeEnd, task.id]
   );
 
   const handleDragStart = (edge: 'start' | 'end', _e?: React.MouseEvent): void => {
@@ -478,6 +469,7 @@ export const TaskRow = memo(function TaskRow({
       className={`relative border-b overflow-visible ${isDragTarget ? 'opacity-50' : ''}`}
       style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
       role="listitem"
+      data-creation-zone="true"
       onContextMenu={handleRowContextMenu}
     >
       <div
@@ -493,12 +485,15 @@ export const TaskRow = memo(function TaskRow({
         onContextMenu={handleBarContextMenu}
         onDoubleClick={handleDoubleClick}
         onMouseDown={onTimelineReorder ? handleBarMouseDown : handleMoveStart}
+        onMouseMove={handleBarHintMouseMove}
+        onMouseLeave={handleBarHintMouseLeave}
         onKeyDown={handleKeyDown}
         role="button"
         tabIndex={0}
         aria-label={`${task.name} task bar`}
         aria-selected={isSelected}
       >
+        {milestoneHintX !== null && <BarMilestoneHint x={milestoneHintX} />}
         {/* Left drag handle */}
         <DragHandle
           edge="start"

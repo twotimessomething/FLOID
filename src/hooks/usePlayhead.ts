@@ -63,6 +63,14 @@ export function usePlayhead({
 
       // Delay showing the playhead to distinguish click from click-and-hold
       delayTimeoutRef.current = window.setTimeout(() => {
+        // Another gesture (drag-to-draw, bar drag) claimed this press — stand down
+        if (useUIStore.getState().isDragging) {
+          isActiveRef.current = false;
+          pendingPositionRef.current = null;
+          delayTimeoutRef.current = null;
+          document.body.classList.remove('no-select');
+          return;
+        }
         if (pendingPositionRef.current) {
           setPlayheadPosition(pendingPositionRef.current.x, pendingPositionRef.current.y);
         }
@@ -75,6 +83,19 @@ export function usePlayhead({
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isActiveRef.current) return;
+
+      // Yield to gestures that own the press (drag-to-draw, bar drags)
+      if (useUIStore.getState().isDragging) {
+        if (delayTimeoutRef.current !== null) {
+          window.clearTimeout(delayTimeoutRef.current);
+          delayTimeoutRef.current = null;
+        }
+        isActiveRef.current = false;
+        pendingPositionRef.current = null;
+        setPlayheadPosition(null, null);
+        document.body.classList.remove('no-select');
+        return;
+      }
 
       const position = getRelativePosition(e.clientX);
       const y = getYPosition(e.clientY);

@@ -5,17 +5,21 @@ import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { ROW_HEIGHT, TASK_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition } from '../../utils/timelineUtils';
-import { sectionToViewportRelative, viewportToSectionRelative, getDaysBetween } from '../../utils/dateUtils';
+import { sectionToViewportRelative, viewportToSectionRelative } from '../../utils/dateUtils';
 import { layoutLabels, measureMilestoneLabelWidth } from '../../utils/labelLayoutUtils';
+import { createPhaseAt, createMilestoneAt, DEFAULT_PHASE_DAYS } from '../../utils/creationUtils';
 import { getNextPhaseColor, MULTICOLOR_GRADIENT } from '../../constants/colors';
 import { getPhaseColor } from '../../types';
 import { PhaseRow } from './PhaseRow';
 import { MilestoneMarker } from './MilestoneMarker';
 import { EmptyStateHint } from './EmptyStateHint';
+import { GhostBar } from './GhostBar';
 import { PinBadge } from '../common';
 import { useInlineEdit } from '../../hooks/useInlineEdit';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useDragReorder } from '../../hooks/useDragReorder';
+import { useCreateGhost } from '../../hooks/useCreateGhost';
+import type { CreateGestureInfo } from '../../hooks/useCreateGhost';
 
 interface DragHandleProps {
   readonly onMouseDown: (e: React.MouseEvent) => void;
@@ -45,8 +49,6 @@ export const SectionRow = memo(function SectionRow({
 }: SectionRowProps): JSX.Element {
   const toggleSectionCollapse = useSectionStore((s) => s.toggleSectionCollapse);
   const updateSection = useSectionStore((s) => s.updateSection);
-  const addPhase = useSectionStore((s) => s.addPhase);
-  const addMilestone = useSectionStore((s) => s.addMilestone);
   const reorderPhases = useSectionStore((s) => s.reorderPhases);
   const project = useProjectStore((state) => state.project);
   const coloredRows = useProjectStore((state) => state.project?.settings?.coloredRows ?? DEFAULT_PROJECT_SETTINGS.coloredRows);
@@ -54,9 +56,7 @@ export const SectionRow = memo(function SectionRow({
   const selectItem = useUIStore((s) => s.selectItem);
   const openContextMenu = useUIStore((s) => s.openContextMenu);
   const headerRowRef = useRef<HTMLDivElement>(null);
-  const phasesContainerRef = useRef<HTMLDivElement>(null);
   const [ghostX, setGhostX] = useState<number | null>(null);
-  const [phaseGhostX, setPhaseGhostX] = useState<number | null>(null);
 
   // Inline edit for section name
   const inlineEdit = useInlineEdit();
@@ -78,7 +78,8 @@ export const SectionRow = memo(function SectionRow({
     section.phases.forEach((phase) => {
       height += ROW_HEIGHT; // Phase row
       if (!phase.isCollapsed) {
-        height += phase.tasks.length * TASK_ROW_HEIGHT;
+        // Expanded empty phases show one empty task-creation row
+        height += Math.max(phase.tasks.length, 1) * TASK_ROW_HEIGHT;
       }
     });
     return height;
@@ -242,115 +243,73 @@ export const SectionRow = memo(function SectionRow({
       const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
       const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
 
-      addMilestone(section.id, {
-        name: '',
-        description: '',
-        relativePosition: Math.max(0, Math.min(1, sectionRelative)),
-        order: section.milestones.length,
-      });
-
-      // Get the new milestone
-      const updatedSections = useSectionStore.getState().sections;
-      const updatedSection = updatedSections.find((s) => s.id === section.id);
-      const newMilestone = updatedSection?.milestones[updatedSection.milestones.length - 1];
-
-      if (newMilestone) {
-        selectItem('milestone', newMilestone.id, section.id, null, { x: e.clientX, y: e.clientY });
-      }
+      createMilestoneAt(section.id, sectionRelative, { x: e.clientX, y: e.clientY });
     },
-    [section, timelineWidth, viewportBounds, addMilestone, selectItem]
+    [section, timelineWidth, viewportBounds]
   );
 
-  // Create a phase at a specific position (called by PhaseRow or container double-click)
-  const createPhaseAtPosition = useCallback(
-    (clientX: number, clientY: number, insertAtIndex: number): void => {
-      // Get the phases container to calculate position
-      const phasesContainer = document.querySelector(`[aria-label="${section.name} phase bars"]`) as HTMLElement | null;
-      if (!phasesContainer) return;
-
-      const rect = phasesContainer.getBoundingClientRect();
-      const clickX = clientX - rect.left;
-      // Convert viewport-relative position to section-relative
-      const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
-      const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
-
-      // Create a phase centered at the click position with 30-day width (relative to section)
-      const sectionDays = getDaysBetween(section.startDate, section.endDate);
-      const thirtyDaysRelative = sectionDays > 0 ? 30 / sectionDays : 0.15;
-      const halfWidth = thirtyDaysRelative / 2;
-      const relativeStart = Math.max(0, sectionRelative - halfWidth);
-      const relativeEnd = Math.min(1, sectionRelative + halfWidth);
-
-      // Add the phase at the end first
-      addPhase(section.id, {
-        name: '',
-        description: '',
-        color: section.isMulticolor ? getNextPhaseColor(section.phases.length) : null,
-        order: insertAtIndex,
-        isCollapsed: false,
-        tasks: [],
-        relativeStart,
-        relativeEnd,
-      });
-
-      // Get the new phase and reorder if needed
-      const updatedSections = useSectionStore.getState().sections;
-      const updatedSection = updatedSections.find((s) => s.id === section.id);
-      const newPhase = updatedSection?.phases[updatedSection.phases.length - 1];
-
-      if (newPhase) {
-        // Reorder phases to put the new phase at the correct position
-        // The new phase is at the end, move it to insertAtIndex position
-        const currentIndex = updatedSection.phases.length - 1;
-        const targetIndex = Math.min(insertAtIndex, updatedSection.phases.length - 1);
-
-        if (currentIndex !== targetIndex) {
-          useSectionStore.getState().reorderPhases(section.id, currentIndex, targetIndex);
-        }
-
-        selectItem('phase', newPhase.id, section.id, null, { x: clientX, y: clientY });
-      }
+  // Convert a container px position to a section-relative position
+  const pxToSectionRelative = useCallback(
+    (px: number): number => {
+      const viewportRelative = getRelativeFromPosition(px, timelineWidth);
+      return viewportToSectionRelative(viewportRelative, section, viewportBounds);
     },
-    [section, timelineWidth, viewportBounds, addPhase, selectItem]
+    [timelineWidth, section, viewportBounds]
   );
 
-  // Double-click on phases container creates a new phase at the end
-  const handleCreatePhase = useCallback(
-    (e: React.MouseEvent): void => {
-      e.stopPropagation();
-      createPhaseAtPosition(e.clientX, e.clientY, section.phases.length);
-    },
-    [createPhaseAtPosition, section.phases.length]
+  // Px range the section's date range occupies — ghosts stay honest to it
+  const sectionPxBounds = useMemo(
+    () => ({
+      min: sectionToViewportRelative(0, section, viewportBounds) * timelineWidth,
+      max: sectionToViewportRelative(1, section, viewportBounds) * timelineWidth,
+    }),
+    [section, viewportBounds, timelineWidth]
   );
 
-  // Ghost preview for empty phase row — mirrors what double-click will create.
-  const handlePhasesMouseMove = useCallback((e: React.MouseEvent): void => {
-    const rect = phasesContainerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setPhaseGhostX(e.clientX - rect.left);
-  }, []);
-
-  const handlePhasesMouseLeave = useCallback((): void => {
-    setPhaseGhostX(null);
-  }, []);
-
-  // Width matches createPhaseAtPosition (30 days, fallback 0.15 of timeline)
+  // Width matches createPhaseAt's default (30 days, fallback 0.15 of timeline)
   const ghostPhaseWidth = useMemo(() => {
     if (viewportBounds.totalDays > 0) {
-      return (30 / viewportBounds.totalDays) * timelineWidth;
+      return (DEFAULT_PHASE_DAYS / viewportBounds.totalDays) * timelineWidth;
     }
     return 0.15 * timelineWidth;
   }, [viewportBounds.totalDays, timelineWidth]);
 
   const ghostPhaseColor = section.isMulticolor ? getNextPhaseColor(0) : section.color;
 
-  // Handle creating a phase after a specific phase (called from PhaseRow)
-  const handleCreatePhaseAfter = useCallback(
-    (afterOrder: number, clickX: number, clickY: number): void => {
-      createPhaseAtPosition(clickX, clickY, afterOrder + 1);
+  // Hover ghost + drag-to-draw for the empty phases area (no phases yet).
+  // When phases exist their rows cover this container, so it stays inert.
+  const handlePhaseGhostDoubleClick = useCallback(
+    ({ startPx, point }: CreateGestureInfo): void => {
+      createPhaseAt(section.id, { startAt: pxToSectionRelative(startPx) }, point);
     },
-    [createPhaseAtPosition]
+    [section.id, pxToSectionRelative]
   );
+
+  const handlePhaseGhostDraw = useCallback(
+    ({ startPx, endPx, point }: CreateGestureInfo): void => {
+      createPhaseAt(
+        section.id,
+        { span: { start: pxToSectionRelative(startPx), end: pxToSectionRelative(endPx) } },
+        point
+      );
+    },
+    [section.id, pxToSectionRelative]
+  );
+
+  const phaseGhost = useCreateGhost({
+    defaultWidth: ghostPhaseWidth,
+    clampBounds: sectionPxBounds,
+    onDoubleClickCreate: handlePhaseGhostDoubleClick,
+    onDrawCreate: handlePhaseGhostDraw,
+  });
+
+  const phaseGhostDays =
+    phaseGhost.ghost && timelineWidth > 0
+      ? Math.max(1, Math.round((phaseGhost.ghost.width / timelineWidth) * viewportBounds.totalDays))
+      : 0;
+  const phaseGhostLabel = phaseGhost.ghost?.isDrawing
+    ? `${phaseGhostDays}d`
+    : 'Double-click · drag';
 
   if (isLabel) {
     // Render label column content
@@ -593,43 +552,34 @@ export const SectionRow = memo(function SectionRow({
       {/* Phase bars (when expanded) */}
       {!section.isCollapsed && (
         <div
-          ref={phasesContainerRef}
           role="list"
           aria-label={`${section.name} phase bars`}
-          className={`relative ${sortedPhases.length === 0 && phaseGhostX !== null ? 'cursor-copy' : ''}`}
-          onDoubleClick={handleCreatePhase}
-          onMouseMove={sortedPhases.length === 0 ? handlePhasesMouseMove : undefined}
-          onMouseLeave={sortedPhases.length === 0 ? handlePhasesMouseLeave : undefined}
+          className={`relative ${phaseGhost.ghost !== null ? 'cursor-copy' : ''}`}
+          onDoubleClick={phaseGhost.handleDoubleClick}
+          onMouseMove={phaseGhost.handleMouseMove}
+          onMouseLeave={phaseGhost.handleMouseLeave}
+          onMouseDown={phaseGhost.handleMouseDown}
         >
           {sortedPhases.length === 0 ? (
             <>
-              {phaseGhostX === null && (
+              {phaseGhost.ghost === null ? (
                 <EmptyStateHint
-                  text="Double-click to add phase"
+                  text="Double-click or drag to add phase"
                   height={ROW_HEIGHT}
                   borderClass="border-b"
                 />
-              )}
-              {phaseGhostX !== null && (
+              ) : (
                 <>
                   <div
-                    className="border-b"
+                    className="border-b pointer-events-none"
                     style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
                   />
-                  <div
-                    className="absolute top-2 bottom-2 rounded-[10px] pointer-events-none flex items-center justify-center px-2 overflow-hidden"
-                    style={{
-                      left: phaseGhostX - ghostPhaseWidth / 2,
-                      width: ghostPhaseWidth,
-                      backgroundColor: ghostPhaseColor,
-                      opacity: 0.3,
-                    }}
-                    aria-hidden="true"
-                  >
-                    <span className="text-xs font-medium text-white truncate drop-shadow-sm">
-                      Double-click
-                    </span>
-                  </div>
+                  <GhostBar
+                    left={phaseGhost.ghost.left}
+                    width={phaseGhost.ghost.width}
+                    color={ghostPhaseColor}
+                    label={phaseGhostLabel}
+                  />
                 </>
               )}
             </>
@@ -642,7 +592,6 @@ export const SectionRow = memo(function SectionRow({
                 isLabel={false}
                 timelineWidth={timelineWidth}
                 viewportBounds={viewportBounds}
-                onCreatePhaseAfter={handleCreatePhaseAfter}
                 phaseIndex={index}
                 totalPhases={totalPhases}
                 onTimelineReorder={phaseDragReorder.startReorder}

@@ -63,7 +63,8 @@ export function calculateSectionHeight(section: Section): number {
     section.phases.forEach((phase) => {
       height += ROW_HEIGHT;
       if (!phase.isCollapsed) {
-        height += phase.tasks.length * TASK_ROW_HEIGHT;
+        // An expanded phase with no tasks shows one empty task-creation row
+        height += Math.max(phase.tasks.length, 1) * TASK_ROW_HEIGHT;
       }
     });
   }

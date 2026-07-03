@@ -18,12 +18,18 @@ import {
 import { TaskRow } from './TaskRow';
 import { DragHandle } from './DragHandle';
 import { BarMilestoneMarker } from './BarMilestoneMarker';
+import { BarMilestoneHint } from './BarMilestoneHint';
 import { AddItemButton } from './AddItemButton';
+import { EmptyStateHint } from './EmptyStateHint';
+import { GhostBar } from './GhostBar';
+import { createPhaseAt, createTaskAt, createBarMilestoneAt, DEFAULT_PHASE_DAYS, DEFAULT_TASK_DAYS } from '../../utils/creationUtils';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useContextMenu } from '../../hooks/useContextMenu';
 import { useInlineEdit } from '../../hooks/useInlineEdit';
 import { useDragReorder } from '../../hooks/useDragReorder';
 import { useDragAxis } from '../../hooks/useDragAxis';
+import { useCreateGhost } from '../../hooks/useCreateGhost';
+import type { CreateGestureInfo } from '../../hooks/useCreateGhost';
 
 interface DragHandleRowProps {
   readonly onMouseDown: (e: React.MouseEvent) => void;
@@ -36,7 +42,6 @@ interface PhaseRowProps {
   readonly isLabel: boolean;
   readonly timelineWidth: number;
   readonly viewportBounds: ViewportBounds;
-  readonly onCreatePhaseAfter?: (afterOrder: number, clickX: number, clickY: number) => void;
   readonly phaseIndex?: number;
   readonly totalPhases?: number;
   readonly dragHandleProps?: DragHandleRowProps;
@@ -50,14 +55,13 @@ export const PhaseRow = memo(function PhaseRow({
   isLabel,
   timelineWidth,
   viewportBounds,
-  onCreatePhaseAfter,
   phaseIndex,
   totalPhases,
   dragHandleProps: phaseDragHandleProps,
   isDragTarget,
   onTimelineReorder,
 }: PhaseRowProps): JSX.Element {
-  const { togglePhaseCollapse, updatePhase, updatePhasePosition, updatePhaseWithTasks, updatePhaseWithRipple, addTask, addPhaseBarMilestone, clearExpansion, addPhase, reorderPhases, reorderTasks, beginDragTransaction, commitDragTransaction } = useSectionStore();
+  const { togglePhaseCollapse, updatePhase, updatePhasePosition, updatePhaseWithTasks, updatePhaseWithRipple, clearExpansion, reorderTasks, beginDragTransaction, commitDragTransaction } = useSectionStore();
   const lastExpansion = useSectionStore((state) => state.lastExpansion);
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const selection = useUIStore((s) => s.selection);
@@ -146,18 +150,26 @@ export const PhaseRow = memo(function PhaseRow({
 
   // Double-click on bar creates a bar milestone
   const onBarDoubleClick = useCallback((e: React.MouseEvent): void => {
-    const barElement = e.currentTarget as HTMLElement;
-    const barRect = barElement.getBoundingClientRect();
-    const clickX = e.clientX - barRect.left;
-    const relativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
+    const barRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const relativePosition = barRect.width > 0 ? (e.clientX - barRect.left) / barRect.width : 0.5;
+    createBarMilestoneAt(section.id, phase.id, null, relativePosition, { x: e.clientX, y: e.clientY });
+  }, [section.id, phase.id]);
 
-    const newId = addPhaseBarMilestone(section.id, phase.id, {
-      name: '',
-      relativePosition,
-    });
+  // Faint diamond on bar hover hinting that double-click drops a milestone
+  const [milestoneHintX, setMilestoneHintX] = useState<number | null>(null);
 
-    selectItem('barMilestone', newId, section.id, phase.id, { x: e.clientX, y: e.clientY });
-  }, [addPhaseBarMilestone, section.id, phase.id, selectItem]);
+  const handleBarHintMouseMove = useCallback((e: React.MouseEvent): void => {
+    if (e.buttons !== 0 || e.target !== e.currentTarget) {
+      setMilestoneHintX((prev) => (prev !== null ? null : prev));
+      return;
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setMilestoneHintX(e.clientX - rect.left);
+  }, []);
+
+  const handleBarHintMouseLeave = useCallback((): void => {
+    setMilestoneHintX(null);
+  }, []);
 
   // Single click selects phase
   const onPhaseClick = useCallback((e: React.MouseEvent): void => {
@@ -216,102 +228,154 @@ export const PhaseRow = memo(function PhaseRow({
   // Click on "+" button creates a new phase starting at the end of this phase
   const handleAddPhaseAfter = useCallback(
     (e: React.MouseEvent): void => {
-      // Calculate new phase position - starts at current phase's end
-      const sectionDays = getDaysBetween(section.startDate, section.endDate);
-      const thirtyDaysRelative = sectionDays > 0 ? 30 / sectionDays : 0.15;
-      const relativeStart = phase.relativeEnd;
-      const relativeEnd = Math.min(1, relativeStart + thirtyDaysRelative);
-
-      // Add the phase
-      addPhase(section.id, {
-        name: '',
-        description: '',
-        color: section.isMulticolor ? getNextPhaseColor(section.phases.length) : null,
-        order: phase.order + 1,
-        isCollapsed: false,
-        tasks: [],
-        relativeStart,
-        relativeEnd,
-      });
-
-      // Get the new phase and reorder if needed
-      const updatedSections = useSectionStore.getState().sections;
-      const updatedSection = updatedSections.find((s) => s.id === section.id);
-      const newPhase = updatedSection?.phases[updatedSection.phases.length - 1];
-
-      if (newPhase) {
-        // Reorder phases to put the new phase at the correct position
-        const currentIndex = updatedSection.phases.length - 1;
-        const targetIndex = Math.min(phase.order + 1, updatedSection.phases.length - 1);
-
-        if (currentIndex !== targetIndex) {
-          reorderPhases(section.id, currentIndex, targetIndex);
-        }
-
-        selectItem('phase', newPhase.id, section.id, null, { x: e.clientX, y: e.clientY });
-      }
+      createPhaseAt(
+        section.id,
+        { startAt: phase.relativeEnd, afterPhaseId: phase.id },
+        { x: e.clientX, y: e.clientY }
+      );
     },
-    [section.id, section.startDate, section.endDate, section.phases.length, section.isMulticolor, phase.relativeEnd, phase.order, addPhase, reorderPhases, selectItem]
+    [section.id, phase.relativeEnd, phase.id]
   );
 
-  // Double-click on the phase row creates a new phase below this one
-  const handlePhaseRowDoubleClick = useCallback(
-    (e: React.MouseEvent): void => {
-      if (onCreatePhaseAfter) {
-        e.stopPropagation();
-        onCreatePhaseAfter(phase.order, e.clientX, e.clientY);
-      }
+  // Convert a container px position to a section-relative position
+  const pxToSectionRelative = useCallback(
+    (px: number): number => {
+      const viewportRelative = getRelativeFromPosition(px, timelineWidth);
+      return viewportToSectionRelative(viewportRelative, section, viewportBounds);
     },
-    [onCreatePhaseAfter, phase.order]
+    [timelineWidth, section, viewportBounds]
   );
 
-  // Double-click on tasks container creates a new task within this phase
-  const handleCreateTask = useCallback(
-    (e: React.MouseEvent): void => {
-      e.stopPropagation();
-
-      // Calculate position relative to the phase
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      // Convert viewport pixel position to viewport-relative
-      const viewportRelative = getRelativeFromPosition(clickX, timelineWidth);
-      // Convert viewport-relative to section-relative
-      const sectionRelative = viewportToSectionRelative(viewportRelative, section, viewportBounds);
-
-      // Convert section-relative to phase-relative position
-      const relativeInPhase = phaseWidth > 0
-        ? (sectionRelative - phase.relativeStart) / phaseWidth
-        : 0.5;
-
-      // Create a task centered at the click position with reasonable width
-      const sectionDayCount = getDaysBetween(section.startDate, section.endDate);
-      const sevenDaysRelative = sectionDayCount > 0 ? (7 / sectionDayCount) / phaseWidth : 0.15;
-      const halfWidth = sevenDaysRelative / 2;
-      const relativeStart = Math.max(0, Math.min(1 - sevenDaysRelative, relativeInPhase - halfWidth));
-      const relativeEnd = Math.min(1, relativeStart + sevenDaysRelative);
-
-      addTask(section.id, phase.id, {
-        name: '',
-        description: '',
-        relativeStart,
-        relativeEnd,
-        order: phase.tasks.length,
-      });
-
-      // Get the new task and select it
-      const updatedSections = useSectionStore.getState().sections;
-      const updatedSection = updatedSections.find((s) => s.id === section.id);
-      const updatedPhase = updatedSection?.phases.find((p) => p.id === phase.id);
-      const newTask = updatedPhase?.tasks[updatedPhase.tasks.length - 1];
-
-      if (newTask) {
-        selectItem('task', newTask.id, section.id, phase.id, { x: e.clientX, y: e.clientY });
-      }
+  // Convert a container px position to a phase-relative position
+  const pxToPhaseRelative = useCallback(
+    (px: number): number => {
+      const sectionRelative = pxToSectionRelative(px);
+      return phaseWidth > 0 ? (sectionRelative - phase.relativeStart) / phaseWidth : 0.5;
     },
-    // section object is passed to viewportToSectionRelative but only startDate/endDate are used
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [section.id, section.startDate, section.endDate, phase.id, phase.relativeStart, phaseWidth, phase.tasks.length, timelineWidth, viewportBounds, addTask, selectItem]
+    [pxToSectionRelative, phaseWidth, phase.relativeStart]
   );
+
+  // Px range the section's date range occupies — phase ghosts stay honest to it
+  const sectionPxBounds = useMemo(
+    () => ({
+      min: sectionToViewportRelative(0, section, viewportBounds) * timelineWidth,
+      max: sectionToViewportRelative(1, section, viewportBounds) * timelineWidth,
+    }),
+    [section, viewportBounds, timelineWidth]
+  );
+
+  const defaultPhasePx = useMemo(
+    () =>
+      viewportBounds.totalDays > 0
+        ? (DEFAULT_PHASE_DAYS / viewportBounds.totalDays) * timelineWidth
+        : 0.15 * timelineWidth,
+    [viewportBounds.totalDays, timelineWidth]
+  );
+
+  const defaultTaskPx = useMemo(
+    () =>
+      viewportBounds.totalDays > 0
+        ? (DEFAULT_TASK_DAYS / viewportBounds.totalDays) * timelineWidth
+        : 0.15 * timelineWidth,
+    [viewportBounds.totalDays, timelineWidth]
+  );
+
+  // Hover ghost + drag-to-draw on this row's empty space inserts a phase below this one
+  const handlePhaseGhostDoubleClick = useCallback(
+    ({ startPx, point }: CreateGestureInfo): void => {
+      createPhaseAt(section.id, { startAt: pxToSectionRelative(startPx), afterPhaseId: phase.id }, point);
+    },
+    [section.id, phase.id, pxToSectionRelative]
+  );
+
+  const handlePhaseGhostDraw = useCallback(
+    ({ startPx, endPx, point }: CreateGestureInfo): void => {
+      createPhaseAt(
+        section.id,
+        { span: { start: pxToSectionRelative(startPx), end: pxToSectionRelative(endPx) }, afterPhaseId: phase.id },
+        point
+      );
+    },
+    [section.id, phase.id, pxToSectionRelative]
+  );
+
+  const phaseRowGhost = useCreateGhost({
+    defaultWidth: defaultPhasePx,
+    clampBounds: sectionPxBounds,
+    onDoubleClickCreate: handlePhaseGhostDoubleClick,
+    onDrawCreate: handlePhaseGhostDraw,
+  });
+
+  // Hover ghost + drag-to-draw in the task area; creation lands after the hovered row
+  const taskIdAtOffset = useCallback(
+    (offsetY: number): string | undefined => {
+      if (phase.tasks.length === 0) return undefined;
+      const rowIndex = Math.max(0, Math.min(phase.tasks.length - 1, Math.floor(offsetY / TASK_ROW_HEIGHT)));
+      return phase.tasks[rowIndex]?.id;
+    },
+    [phase.tasks]
+  );
+
+  const handleTaskGhostDoubleClick = useCallback(
+    ({ startPx, offsetY, point }: CreateGestureInfo): void => {
+      createTaskAt(
+        section.id,
+        phase.id,
+        { startAt: pxToPhaseRelative(startPx), afterTaskId: taskIdAtOffset(offsetY) },
+        point
+      );
+    },
+    [section.id, phase.id, pxToPhaseRelative, taskIdAtOffset]
+  );
+
+  const handleTaskGhostDraw = useCallback(
+    ({ startPx, endPx, offsetY, point }: CreateGestureInfo): void => {
+      createTaskAt(
+        section.id,
+        phase.id,
+        {
+          span: { start: pxToPhaseRelative(startPx), end: pxToPhaseRelative(endPx) },
+          afterTaskId: taskIdAtOffset(offsetY),
+        },
+        point
+      );
+    },
+    [section.id, phase.id, pxToPhaseRelative, taskIdAtOffset]
+  );
+
+  // Task-row backgrounds are marked as creation zones (the bars are not)
+  const isTaskZoneTarget = useCallback(
+    (target: HTMLElement, container: HTMLElement): boolean =>
+      target === container || target.dataset.creationZone === 'true',
+    []
+  );
+
+  // Task ghosts clamp to the phase bar's px range — tasks live inside the phase
+  const phasePxBounds = useMemo(() => ({ min: left, max: left + width }), [left, width]);
+
+  const taskGhost = useCreateGhost({
+    defaultWidth: defaultTaskPx,
+    clampBounds: phasePxBounds,
+    isEligibleTarget: isTaskZoneTarget,
+    onDoubleClickCreate: handleTaskGhostDoubleClick,
+    onDrawCreate: handleTaskGhostDraw,
+  });
+
+  // Ghost presentation: colors match what creation will produce, labels show
+  // the affordance while hovering and the duration while drawing
+  const phaseGhostColor = section.isMulticolor ? getNextPhaseColor(section.phases.length) : section.color;
+
+  const ghostLabelFor = (ghost: { width: number; isDrawing: boolean } | null): string => {
+    if (!ghost) return '';
+    if (!ghost.isDrawing) return 'Double-click · drag';
+    const days = timelineWidth > 0 ? Math.round((ghost.width / timelineWidth) * viewportBounds.totalDays) : 0;
+    return `${Math.max(1, days)}d`;
+  };
+
+  const taskGhostRowTop = taskGhost.ghost
+    ? Math.max(0, Math.min(phase.tasks.length - 1, Math.floor(taskGhost.ghost.offsetY / TASK_ROW_HEIGHT))) *
+      TASK_ROW_HEIGHT
+    : 0;
 
   const handleToggleCollapse = (e: React.MouseEvent): void => {
     e.stopPropagation();
@@ -686,28 +750,36 @@ export const PhaseRow = memo(function PhaseRow({
         </div>
 
         {/* Task labels */}
-        {!phase.isCollapsed && phase.tasks.length > 0 && (
-          <div role="list" aria-label={`${phase.name} tasks`} data-drag-container className="relative">
-            {phase.tasks.map((task, index) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                phase={phase}
-                section={section}
-                isLabel
-                timelineWidth={timelineWidth}
-                viewportBounds={viewportBounds}
-                phaseIndex={phaseIndex}
-                totalPhases={totalPhases}
-                dragHandleProps={taskDragReorder.getDragHandleProps(index)}
-                isDragTarget={taskDragReorder.state.isDragging && taskDragReorder.state.dragIndex === index}
-              />
-            ))}
-            {taskDragReorder.getDropIndicatorStyle() && (
-              <div style={taskDragReorder.getDropIndicatorStyle()!} />
-            )}
-          </div>
-        )}
+        {!phase.isCollapsed &&
+          (phase.tasks.length > 0 ? (
+            <div role="list" aria-label={`${phase.name} tasks`} data-drag-container className="relative">
+              {phase.tasks.map((task, index) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  phase={phase}
+                  section={section}
+                  isLabel
+                  timelineWidth={timelineWidth}
+                  viewportBounds={viewportBounds}
+                  phaseIndex={phaseIndex}
+                  totalPhases={totalPhases}
+                  dragHandleProps={taskDragReorder.getDragHandleProps(index)}
+                  isDragTarget={taskDragReorder.state.isDragging && taskDragReorder.state.dragIndex === index}
+                />
+              ))}
+              {taskDragReorder.getDropIndicatorStyle() && (
+                <div style={taskDragReorder.getDropIndicatorStyle()!} />
+              )}
+            </div>
+          ) : (
+            // Matches the empty task-creation row on the timeline side
+            <div
+              className="border-b"
+              style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
+              aria-hidden="true"
+            />
+          ))}
       </div>
     );
   }
@@ -715,14 +787,25 @@ export const PhaseRow = memo(function PhaseRow({
   // Render timeline content
   return (
     <div role="group" aria-label={`${phase.name} timeline`} className={isDragTarget ? 'opacity-50' : ''}>
-      {/* Phase bar row - double-click creates a phase below this one */}
+      {/* Phase bar row - empty space hosts the create-phase ghost (double-click or drag) */}
       <div
         ref={phaseRowRef}
-        className="relative border-b overflow-visible"
+        className={`relative border-b overflow-visible ${phaseRowGhost.ghost !== null ? 'cursor-copy' : ''}`}
         style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
-        onDoubleClick={handlePhaseRowDoubleClick}
+        onDoubleClick={phaseRowGhost.handleDoubleClick}
+        onMouseMove={phaseRowGhost.handleMouseMove}
+        onMouseLeave={phaseRowGhost.handleMouseLeave}
+        onMouseDown={phaseRowGhost.handleMouseDown}
         onContextMenu={handleRowContextMenu}
       >
+        {phaseRowGhost.ghost !== null && (
+          <GhostBar
+            left={phaseRowGhost.ghost.left}
+            width={phaseRowGhost.ghost.width}
+            color={phaseGhostColor}
+            label={ghostLabelFor(phaseRowGhost.ghost)}
+          />
+        )}
         <div
           className={`absolute top-2 bottom-2 rounded-[10px] timeline-bar group overflow-visible ${
             isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
@@ -736,12 +819,15 @@ export const PhaseRow = memo(function PhaseRow({
           onContextMenu={handleBarContextMenu}
           onDoubleClick={handleBarDoubleClick}
           onMouseDown={onTimelineReorder ? handleBarMouseDown : handleMoveStart}
+          onMouseMove={handleBarHintMouseMove}
+          onMouseLeave={handleBarHintMouseLeave}
           role="button"
           tabIndex={0}
           onKeyDown={handleKeyDown}
           aria-label={`${phase.name} phase bar, from ${Math.round(phase.relativeStart * 100)}% to ${Math.round(phase.relativeEnd * 100)}%${isLocked ? ', locked' : ''}`}
           aria-selected={isSelected}
         >
+          {milestoneHintX !== null && <BarMilestoneHint x={milestoneHintX} />}
           {/* Left drag handle */}
           <DragHandle
             edge="start"
@@ -791,36 +877,83 @@ export const PhaseRow = memo(function PhaseRow({
         </div>
       </div>
 
-      {/* Task bars */}
-      {!phase.isCollapsed && phase.tasks.length > 0 && (
-        <div
-          role="list"
-          aria-label={`${phase.name} task bars`}
-          className="relative"
-          onDoubleClick={handleCreateTask}
-          onContextMenu={handleTaskContainerContextMenu}
-        >
-          {phase.tasks.map((task, index) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              phase={phase}
-              section={section}
-              isLabel={false}
-              timelineWidth={timelineWidth}
-              viewportBounds={viewportBounds}
-              phaseIndex={phaseIndex}
-              totalPhases={totalPhases}
-              taskIndex={index}
-              onTimelineReorder={taskDragReorder.startReorder}
-              isDragTarget={taskDragReorder.state.isDragging && taskDragReorder.state.dragIndex === index}
-            />
-          ))}
-          {taskDragReorder.getDropIndicatorStyle() && (
-            <div style={taskDragReorder.getDropIndicatorStyle()!} />
-          )}
-        </div>
-      )}
+      {/* Task bars; when the phase has none, one empty row hosts the create-task ghost */}
+      {!phase.isCollapsed &&
+        (phase.tasks.length > 0 ? (
+          <div
+            role="list"
+            aria-label={`${phase.name} task bars`}
+            className={`relative ${taskGhost.ghost !== null ? 'cursor-copy' : ''}`}
+            onDoubleClick={taskGhost.handleDoubleClick}
+            onMouseMove={taskGhost.handleMouseMove}
+            onMouseLeave={taskGhost.handleMouseLeave}
+            onMouseDown={taskGhost.handleMouseDown}
+            onContextMenu={handleTaskContainerContextMenu}
+          >
+            {taskGhost.ghost !== null && (
+              <GhostBar
+                left={taskGhost.ghost.left}
+                width={taskGhost.ghost.width}
+                color={effectiveColor + 'CC'}
+                label={ghostLabelFor(taskGhost.ghost)}
+                verticalClassName=""
+                style={{ top: taskGhostRowTop + 4, height: TASK_ROW_HEIGHT - 8 }}
+              />
+            )}
+            {phase.tasks.map((task, index) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                phase={phase}
+                section={section}
+                isLabel={false}
+                timelineWidth={timelineWidth}
+                viewportBounds={viewportBounds}
+                phaseIndex={phaseIndex}
+                totalPhases={totalPhases}
+                taskIndex={index}
+                onTimelineReorder={taskDragReorder.startReorder}
+                isDragTarget={taskDragReorder.state.isDragging && taskDragReorder.state.dragIndex === index}
+              />
+            ))}
+            {taskDragReorder.getDropIndicatorStyle() && (
+              <div style={taskDragReorder.getDropIndicatorStyle()!} />
+            )}
+          </div>
+        ) : (
+          <div
+            role="list"
+            aria-label={`${phase.name} task bars`}
+            className={`relative ${taskGhost.ghost !== null ? 'cursor-copy' : ''}`}
+            onDoubleClick={taskGhost.handleDoubleClick}
+            onMouseMove={taskGhost.handleMouseMove}
+            onMouseLeave={taskGhost.handleMouseLeave}
+            onMouseDown={taskGhost.handleMouseDown}
+            onContextMenu={handleTaskContainerContextMenu}
+          >
+            {taskGhost.ghost === null ? (
+              <EmptyStateHint
+                text="Double-click or drag to add task"
+                height={TASK_ROW_HEIGHT}
+                borderClass="border-b"
+              />
+            ) : (
+              <>
+                <div
+                  className="border-b pointer-events-none"
+                  style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
+                />
+                <GhostBar
+                  left={taskGhost.ghost.left}
+                  width={taskGhost.ghost.width}
+                  color={effectiveColor + 'CC'}
+                  label={ghostLabelFor(taskGhost.ghost)}
+                  verticalClassName="top-1 bottom-1"
+                />
+              </>
+            )}
+          </div>
+        ))}
     </div>
   );
 });
