@@ -286,6 +286,17 @@ body {
   }
 }
 
+/* Ghost bar fade-in — animates from 0 to the element's own opacity */
+.ghost-enter {
+  animation: ghostFadeIn 180ms ease-out;
+}
+
+@keyframes ghostFadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
 /* Modal pop-in animation */
 .modal-enter {
   animation: modalPopIn 150ms ease-out;

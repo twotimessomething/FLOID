@@ -3,6 +3,8 @@ import { useUIStore } from '../stores/uiStore';
 
 const DRAW_THRESHOLD_PX = 4;
 const POST_DRAW_SUPPRESS_MS = 400;
+/** Hover ghost appears only after the mouse has been still this long. */
+const HOVER_STILL_DELAY_MS = 100;
 
 export interface CreateGhostState {
   /** Left edge in px, relative to the container. */
@@ -67,14 +69,28 @@ export function useCreateGhost({
   const [ghost, setGhost] = useState<CreateGhostState | null>(null);
   const drawStateRef = useRef<DrawState | null>(null);
   const suppressUntilRef = useRef(0);
+  const hoverTimerRef = useRef<number | null>(null);
+  // Once the ghost has appeared it follows the cursor; the stillness delay
+  // only gates its first appearance after entering empty space
+  const isGhostVisibleRef = useRef(false);
 
   // Latest values for document-level listeners that outlive a render
   const latestRef = useRef({ defaultWidth, clampBounds, onDrawCreate });
   latestRef.current = { defaultWidth, clampBounds, onDrawCreate };
 
+  const clearHoverTimer = useCallback((): void => {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, []);
+
   // Abort a draw mid-gesture if the component unmounts
   useEffect(() => {
-    return () => drawStateRef.current?.cleanup();
+    return () => {
+      drawStateRef.current?.cleanup();
+      if (hoverTimerRef.current !== null) window.clearTimeout(hoverTimerRef.current);
+    };
   }, []);
 
   const isEligible = useCallback(
@@ -99,6 +115,8 @@ export function useCreateGhost({
       if (drawStateRef.current) return;
       const container = e.currentTarget as HTMLElement;
       if (e.buttons !== 0 || !isEligible(e.target as HTMLElement, container)) {
+        clearHoverTimer();
+        isGhostVisibleRef.current = false;
         setGhost((prev) => (prev !== null ? null : prev));
         return;
       }
@@ -106,32 +124,50 @@ export function useCreateGhost({
       const min = Math.max(0, clampBounds?.min ?? 0);
       const max = Math.min(rect.width, clampBounds?.max ?? rect.width);
       if (max - min <= 0) {
+        clearHoverTimer();
+        isGhostVisibleRef.current = false;
         setGhost((prev) => (prev !== null ? null : prev));
         return;
       }
       // Ghost starts at the pointer and extends forward, shrinking against
       // the right bound — mirroring what creation will produce
       const x = clampPx(e.clientX - rect.left, rect.width);
-      setGhost({
+      const next: CreateGhostState = {
         left: x,
         width: Math.min(defaultWidth, max - x),
         offsetY: e.clientY - rect.top,
         isDrawing: false,
-      });
+      };
+      if (isGhostVisibleRef.current) {
+        // Already showing — track the cursor directly
+        setGhost(next);
+        return;
+      }
+      // First appearance waits for the mouse to settle
+      clearHoverTimer();
+      hoverTimerRef.current = window.setTimeout(() => {
+        hoverTimerRef.current = null;
+        if (drawStateRef.current) return;
+        isGhostVisibleRef.current = true;
+        setGhost(next);
+      }, HOVER_STILL_DELAY_MS);
     },
-    [disabled, isEligible, clampBounds, defaultWidth, clampPx]
+    [disabled, isEligible, clampBounds, defaultWidth, clampPx, clearHoverTimer]
   );
 
   const handleMouseLeave = useCallback((): void => {
+    clearHoverTimer();
     if (drawStateRef.current) return;
+    isGhostVisibleRef.current = false;
     setGhost(null);
-  }, []);
+  }, [clearHoverTimer]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent): void => {
       if (disabled || e.button !== 0 || drawStateRef.current) return;
       const container = e.currentTarget as HTMLElement;
       if (!isEligible(e.target as HTMLElement, container)) return;
+      clearHoverTimer();
 
       // Stop text selection; let the event propagate so the playhead can
       // still win a motionless hold
@@ -170,6 +206,7 @@ export function useCreateGhost({
         if (!wasDrawing) return;
 
         suppressUntilRef.current = Date.now() + POST_DRAW_SUPPRESS_MS;
+        isGhostVisibleRef.current = false;
         setGhost(null);
         const releasePx = clampPx(me.clientX - draw.rect.left, draw.rect.width);
         const startPx = Math.min(draw.anchorPx, releasePx);
@@ -205,7 +242,7 @@ export function useCreateGhost({
       document.addEventListener('mousemove', handleDocMouseMove);
       document.addEventListener('mouseup', handleDocMouseUp);
     },
-    [disabled, isEligible, clampPx]
+    [disabled, isEligible, clampPx, clearHoverTimer]
   );
 
   const handleDoubleClick = useCallback(

@@ -24,7 +24,7 @@ export function GhostBar({
 }: GhostBarProps): JSX.Element {
   return (
     <div
-      className={`absolute ${verticalClassName} rounded-[10px] pointer-events-none flex items-center justify-center px-2 overflow-hidden`}
+      className={`absolute ${verticalClassName} ghost-enter rounded-[10px] pointer-events-none flex items-center justify-center px-2 overflow-hidden`}
       style={{ left, width, backgroundColor: color, opacity: 0.3, ...style }}
       aria-hidden="true"
     >
