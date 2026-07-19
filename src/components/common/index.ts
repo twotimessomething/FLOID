@@ -5,6 +5,7 @@ export { TextArea } from './TextArea';
 export { DateInput } from './DateInput';
 export { ColorPicker } from './ColorPicker';
 export { Toast } from './Toast';
+export { MobileNotice } from './MobileNotice';
 export { PinBadge } from './PinBadge';
 export { Toggle } from './Toggle';
 export { SyncStatusIndicator } from './SyncStatusIndicator';

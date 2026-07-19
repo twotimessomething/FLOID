@@ -13,7 +13,7 @@ import { SettingsModal } from './components/layout/SettingsModal';
 import { ExportModal } from './components/layout/ExportModal';
 import { KeyboardHelpModal } from './components/layout/KeyboardHelpModal';
 import { ContextMenu } from './components/timeline';
-import { Toast, ConfirmDialog } from './components/common';
+import { Toast, ConfirmDialog, MobileNotice } from './components/common';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useAutoSave, useKeyboardShortcuts, useScheduleImport, useTheme } from './hooks';
 import { useBackupReminder } from './hooks/useBackupReminder';
@@ -196,6 +196,7 @@ function App() {
       <ContextMenu />
       <Toast />
       <ConfirmDialog />
+      <MobileNotice />
 
       {/* Drop zone overlay */}
       {isDraggingFile && (
