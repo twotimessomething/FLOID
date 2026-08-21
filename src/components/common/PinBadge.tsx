@@ -2,23 +2,20 @@ interface PinBadgeProps {
   readonly size?: 'sm' | 'md';
 }
 
+/**
+ * Minimal indicator for the pinned schedule — an outline text chip, not a
+ * filled badge. Position (top of the timeline) already carries most of the
+ * meaning; this is just a small confirmation, not the loudest thing on screen.
+ */
 export function PinBadge({ size = 'sm' }: PinBadgeProps): JSX.Element {
-  const iconSize = size === 'sm' ? 'w-5 h-5' : 'w-6 h-6';
+  const paddingClass = size === 'sm' ? 'px-1 py-px' : 'px-1.5 py-0.5';
 
   return (
     <span
-      className="inline-flex items-center text-[var(--color-warning)]"
+      className={`eyebrow inline-flex items-center flex-shrink-0 ${paddingClass} border border-[var(--color-text-muted)] rounded-[var(--radius-sm)]`}
       title="Pinned to top"
     >
-      {/* Pin icon */}
-      <svg
-        className={`${iconSize} rotate-45`}
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
-      </svg>
+      Pinned
     </span>
   );
 }

@@ -19,7 +19,7 @@ export function ProjectEditModal(): JSX.Element | null {
 
   // Close on escape key
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         closeProjectEditModal();
       }
@@ -67,21 +67,21 @@ export function ProjectEditModal(): JSX.Element | null {
       aria-labelledby="project-edit-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/25" />
 
       {/* Modal */}
       <div
-        className="relative glass-bordered rounded-xl w-full max-w-md mx-4 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] w-full max-w-md mx-4 modal-enter"
         role="document"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-row-border-strong)]">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="project-edit-title">
+        <div className="flex items-center justify-between px-6 py-4">
+          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="project-edit-title">
             Edit Project
           </h2>
           <button
             onClick={closeProjectEditModal}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-[var(--color-hover)] focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-hover)] focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg
@@ -119,7 +119,7 @@ export function ProjectEditModal(): JSX.Element | null {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--color-border)]">
+          <div className="flex justify-end gap-3 mt-6">
             <Button type="button" variant="secondary" onClick={closeProjectEditModal}>
               Cancel
             </Button>

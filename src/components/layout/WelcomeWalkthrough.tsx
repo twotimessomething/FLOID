@@ -9,6 +9,7 @@ import {
 import { useUIStore } from '../../stores/uiStore';
 import { Button } from '../common/Button';
 import { PHASE_COLORS, SCHEDULE_COLORS } from '../../constants/colors';
+import { getReadableTextColor } from '../../utils/colorUtils';
 
 interface Slide {
   readonly title: string;
@@ -44,7 +45,7 @@ function LogoMark({ isDark }: { readonly isDark: boolean }): ReactElement {
 function MiniPin(): ReactElement {
   return (
     <svg
-      className="w-2.5 h-2.5 rotate-45 flex-shrink-0 text-[var(--color-warning)]"
+      className="w-2.5 h-2.5 rotate-45 flex-shrink-0 text-[var(--color-text-muted)]"
       viewBox="0 0 24 24"
       fill="currentColor"
       aria-hidden="true"
@@ -77,7 +78,6 @@ interface MiniLabelRowProps {
   readonly isPinned?: boolean;
   readonly isTask?: boolean;
   readonly chevron?: boolean;
-  readonly dotColor?: string;
 }
 
 function MiniLabelRow({
@@ -86,25 +86,15 @@ function MiniLabelRow({
   isPinned = false,
   isTask = false,
   chevron = false,
-  dotColor,
 }: MiniLabelRowProps): ReactElement {
   return (
     <div
-      className={`flex items-center gap-1 border-b ${isPinned ? 'border-l-2 border-l-amber-400 bg-[var(--color-background)]' : ''} ${isTask ? 'pl-5 pr-1' : 'pl-1.5 pr-1'}`}
-      style={{
-        height,
-        borderBottomColor: isPinned ? 'var(--color-row-border-strong)' : 'var(--color-row-border)',
-      }}
+      className={`flex items-center gap-1 ${isTask ? 'pl-5 pr-1' : 'pl-1.5 pr-1'}`}
+      style={{ height }}
     >
       {chevron && <MiniChevron />}
-      {dotColor && (
-        <span
-          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: dotColor }}
-        />
-      )}
       <span
-        className={`text-[9px] truncate ${isPinned ? 'font-semibold' : ''} ${isTask ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}
+        className={`text-[9px] truncate ${isPinned ? 'font-medium' : ''} ${isTask ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}
       >
         {name}
       </span>
@@ -120,7 +110,7 @@ interface MiniRowProps {
 
 function MiniRow({ height = MINI_ROW_HEIGHT, children }: MiniRowProps): ReactElement {
   return (
-    <div className="relative border-b" style={{ height, borderColor: 'var(--color-row-border)' }}>
+    <div className="relative" style={{ height }}>
       {children}
     </div>
   );
@@ -145,9 +135,10 @@ function MiniBar({
   isGhost = false,
   showHandles = false,
 }: MiniBarProps): ReactElement {
+  const textColor = getReadableTextColor(color);
   return (
     <div
-      className="absolute rounded-md flex items-center px-1.5 overflow-hidden"
+      className="absolute flex items-center px-1.5 overflow-hidden"
       style={{
         left: `${left}%`,
         width: `${width}%`,
@@ -158,12 +149,14 @@ function MiniBar({
       }}
     >
       {label && (
-        <span className="text-[9px] font-medium text-white truncate drop-shadow-sm">{label}</span>
+        <span className="text-[9px] truncate" style={{ color: textColor }}>
+          {label}
+        </span>
       )}
       {showHandles && (
         <>
-          <span className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-3 rounded bg-white/80" />
-          <span className="absolute right-1 top-1/2 -translate-y-1/2 w-[3px] h-3 rounded bg-white/80" />
+          <span className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-3 bg-white/80" />
+          <span className="absolute right-1 top-1/2 -translate-y-1/2 w-[3px] h-3 bg-white/80" />
         </>
       )}
     </div>
@@ -198,8 +191,8 @@ function MiniMilestone({
         <div
           className={`absolute left-0 -translate-x-1/2 z-20 whitespace-nowrap ${
             isGhost
-              ? 'top-[20px] text-[8px] font-medium text-[var(--color-text-muted)] opacity-70'
-              : 'top-[19px] px-1 py-px bg-[var(--color-surface)]/90 border border-[var(--color-border)] rounded text-[8px] text-[var(--color-text-primary)]'
+              ? 'top-[20px] text-[8px] text-[var(--color-text-muted)] opacity-70'
+              : 'top-[19px] px-1 py-px bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-sm)] text-[8px] text-[var(--color-text-primary)]'
           }`}
         >
           {label}
@@ -216,30 +209,21 @@ interface MiniFrameProps {
 
 function MiniFrame({ labels, children }: MiniFrameProps): ReactElement {
   return (
-    <div
-      className="w-full flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden shadow-sm select-none text-left"
-      aria-hidden="true"
-    >
+    <div className="w-full flex overflow-hidden select-none text-left" aria-hidden="true">
       {/* Labels column */}
-      <div className="w-32 flex-shrink-0 border-r border-[var(--color-border)]">
-        <div
-          className="border-b"
-          style={{ height: MINI_HEADER_HEIGHT, borderColor: 'var(--color-row-border-strong)' }}
-        />
+      <div className="w-32 flex-shrink-0 border-r border-[var(--color-hairline)]">
+        <div style={{ height: MINI_HEADER_HEIGHT }} />
         {labels}
       </div>
 
       {/* Timeline column */}
       <div className="flex-1 min-w-0">
         {/* Month header */}
-        <div
-          className="relative border-b"
-          style={{ height: MINI_HEADER_HEIGHT, borderColor: 'var(--color-row-border-strong)' }}
-        >
+        <div className="relative" style={{ height: MINI_HEADER_HEIGHT }}>
           {MONTH_MARKERS.map((marker) => (
             <span
               key={marker.label}
-              className="absolute top-1/2 -translate-y-1/2 text-[8px] font-medium text-[var(--color-text-secondary)] pl-1"
+              className="absolute top-1/2 -translate-y-1/2 pl-1 text-[8px] uppercase tracking-wide text-[var(--color-text-muted)]"
               style={{ left: `${marker.left}%` }}
             >
               {marker.label}
@@ -253,14 +237,8 @@ function MiniFrame({ labels, children }: MiniFrameProps): ReactElement {
             {GRIDLINE_POSITIONS.map((position) => (
               <div
                 key={position}
-                className="absolute top-0 bottom-0 border-l"
-                style={{
-                  left: `${position}%`,
-                  borderColor:
-                    position % 25 === 0
-                      ? 'var(--color-gridline-major)'
-                      : 'var(--color-gridline-minor)',
-                }}
+                className="absolute top-0 bottom-0 border-l border-[var(--color-gridline)]"
+                style={{ left: `${position}%` }}
               />
             ))}
           </div>
@@ -274,7 +252,7 @@ function MiniFrame({ labels, children }: MiniFrameProps): ReactElement {
 function MiniCursor({ left, top }: { readonly left: number; readonly top: number }): ReactElement {
   return (
     <svg
-      className="absolute z-30 w-3.5 h-3.5 text-[var(--color-text-primary)] drop-shadow-md"
+      className="absolute z-30 w-3.5 h-3.5 text-[var(--color-text-primary)]"
       style={{ left: `${left}%`, top }}
       viewBox="0 0 24 24"
       fill="currentColor"
@@ -287,6 +265,12 @@ function MiniCursor({ left, top }: { readonly left: number; readonly top: number
 
 /* =========================================
    Slide illustrations
+
+   Color sequencing is deliberate: siblings in the same row alternate
+   value — a mid-tone next to a light tint next to a dark saturated —
+   the same alternation the real palette (`src/constants/colors.ts`)
+   is built around. Child bars (tasks) reuse their parent phase's hue
+   at reduced alpha rather than introducing a new color.
    ========================================= */
 
 function SchedulesIllustration(): ReactElement {
@@ -295,8 +279,8 @@ function SchedulesIllustration(): ReactElement {
       labels={
         <>
           <MiniLabelRow name="Product Timeline" isPinned chevron />
-          <MiniLabelRow name="Design" chevron dotColor={SCHEDULE_COLORS[0]} />
-          <MiniLabelRow name="Engineering" chevron dotColor={SCHEDULE_COLORS[1]} />
+          <MiniLabelRow name="Design" chevron />
+          <MiniLabelRow name="Engineering" chevron />
         </>
       }
     >
@@ -307,9 +291,9 @@ function SchedulesIllustration(): ReactElement {
       />
       <MiniRow>
         <MiniMilestone left={64} label="Design lock" lineHeight={74} />
-        <MiniBar left={2} width={30} color={PHASE_COLORS.discovery} label="Discover" />
-        <MiniBar left={34} width={28} color={PHASE_COLORS.concept} label="Concept" />
-        <MiniBar left={66} width={31} color={PHASE_COLORS.design} label="Design" />
+        <MiniBar left={2} width={30} color={PHASE_COLORS.teal} label="Discover" />
+        <MiniBar left={34} width={28} color={PHASE_COLORS.sky} label="Concept" />
+        <MiniBar left={66} width={31} color={PHASE_COLORS.blue} label="Design" />
       </MiniRow>
       <MiniRow>
         <MiniBar left={6} width={38} color={SCHEDULE_COLORS[0]} label="Research" />
@@ -323,13 +307,13 @@ function SchedulesIllustration(): ReactElement {
 }
 
 function ItemsIllustration(): ReactElement {
-  const taskColor = `${PHASE_COLORS.concept}CC`;
+  const taskColor = `${PHASE_COLORS.sky}CC`;
   return (
     <MiniFrame
       labels={
         <>
           <MiniLabelRow name="Product Timeline" isPinned chevron />
-          <MiniLabelRow name="Concept" chevron dotColor={PHASE_COLORS.concept} />
+          <MiniLabelRow name="Concept" chevron />
           <MiniLabelRow name="Sketches" isTask height={MINI_TASK_ROW_HEIGHT} />
           <MiniLabelRow name="CAD model" isTask height={MINI_TASK_ROW_HEIGHT} />
         </>
@@ -339,7 +323,7 @@ function ItemsIllustration(): ReactElement {
         <MiniMilestone left={76} label="Design review" lineHeight={86} />
       </MiniRow>
       <MiniRow>
-        <MiniBar left={8} width={62} color={PHASE_COLORS.concept} label="Concept" />
+        <MiniBar left={8} width={62} color={PHASE_COLORS.sky} label="Concept" />
       </MiniRow>
       <MiniRow height={MINI_TASK_ROW_HEIGHT}>
         <MiniBar left={10} width={28} color={taskColor} label="Sketches" inset={3} />
@@ -357,7 +341,7 @@ function CreateIllustration(): ReactElement {
       labels={
         <>
           <MiniLabelRow name="Product Timeline" isPinned chevron />
-          <MiniLabelRow name="Discover" chevron dotColor={PHASE_COLORS.discovery} />
+          <MiniLabelRow name="Discover" chevron />
           <MiniLabelRow name="" />
         </>
       }
@@ -366,15 +350,15 @@ function CreateIllustration(): ReactElement {
         <MiniMilestone left={24} label="Double-click" isGhost />
       </MiniRow>
       <MiniRow>
-        <MiniBar left={4} width={34} color={PHASE_COLORS.discovery} label="Discover" />
+        <MiniBar left={4} width={34} color={PHASE_COLORS.teal} label="Discover" />
       </MiniRow>
       <MiniRow>
-        <MiniBar left={40} width={30} color={PHASE_COLORS.concept} label="Double-click" isGhost />
+        <MiniBar left={40} width={30} color={PHASE_COLORS.sky} label="Double-click" isGhost />
         <MiniCursor left={58} top={14} />
       </MiniRow>
 
       {/* Right-click context menu */}
-      <div className="absolute right-2 top-8 z-30 w-[88px] rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg py-0.5">
+      <div className="absolute right-2 top-8 z-30 w-[88px] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-raised)] shadow-[var(--shadow-md)] py-0.5">
         {['Add Phase', 'Add Task', 'Add Milestone'].map((item, i) => (
           <div
             key={item}
@@ -393,13 +377,13 @@ function CreateIllustration(): ReactElement {
 }
 
 function DragIllustration(): ReactElement {
-  const taskColor = `${PHASE_COLORS.engineering}CC`;
+  const taskColor = `${PHASE_COLORS.orange}CC`;
   return (
     <MiniFrame
       labels={
         <>
           <MiniLabelRow name="Product Timeline" isPinned chevron />
-          <MiniLabelRow name="Engineering" chevron dotColor={PHASE_COLORS.engineering} />
+          <MiniLabelRow name="Engineering" chevron />
           <MiniLabelRow name="Tooling" isTask height={MINI_TASK_ROW_HEIGHT} />
           <MiniLabelRow name="Samples" isTask height={MINI_TASK_ROW_HEIGHT} />
         </>
@@ -411,13 +395,13 @@ function DragIllustration(): ReactElement {
           <MiniBar
             left={18}
             width={54}
-            color={PHASE_COLORS.engineering}
+            color={PHASE_COLORS.orange}
             label="Engineering"
             showHandles
           />
           {/* Drag date bubble above the end handle */}
           <div
-            className="absolute z-30 -top-3 -translate-x-1/2 px-1 py-px rounded bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-[8px] font-medium shadow-lg whitespace-nowrap pointer-events-none"
+            className="absolute z-30 -top-3 -translate-x-1/2 px-1 py-px rounded-[var(--radius-sm)] bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-[8px] whitespace-nowrap pointer-events-none shadow-[var(--shadow-lg)]"
             style={{ left: '72%' }}
           >
             May 28
@@ -528,18 +512,14 @@ export function WelcomeWalkthrough(): ReactElement {
   const slide = slides[index];
 
   return (
-    <div className="h-full flex items-center justify-center bg-[var(--color-surface)] px-6">
+    <div className="h-full flex items-center justify-center bg-[var(--color-background)] px-6">
       {!isProjectSetupModalOpen && (
-        <div
-          className="glass-bordered rounded-xl w-full max-w-xl modal-enter relative"
-          role="region"
-          aria-label="Welcome walkthrough"
-        >
+        <div className="w-full max-w-xl modal-enter relative" role="region" aria-label="Welcome walkthrough">
           {!isLast && (
             <button
               type="button"
               onClick={openProjectSetupModal}
-              className="absolute top-3 right-4 z-10 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors focus-ring rounded px-1.5 py-0.5"
+              className="absolute top-3 right-4 z-10 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors focus-ring rounded-[var(--radius-sm)] px-1.5 py-0.5"
             >
               Skip
             </button>
@@ -549,11 +529,11 @@ export function WelcomeWalkthrough(): ReactElement {
             <div key={index} className="walkthrough-slide-enter">
               <div className="h-40 mb-6 flex items-center justify-center">{slide.illustration}</div>
               {slide.title && (
-                <h2 className="text-xl font-semibold text-[var(--color-text-primary)] mb-3 text-center">
+                <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-3 text-center">
                   {slide.title}
                 </h2>
               )}
-              <p className="text-sm text-[var(--color-text-muted)] text-center leading-relaxed max-w-md mx-auto min-h-[3.5rem]">
+              <p className="text-[13px] text-[var(--color-text-secondary)] text-center leading-relaxed max-w-md mx-auto min-h-[3.5rem]">
                 {slide.body}
               </p>
               {isLast && (
@@ -566,7 +546,7 @@ export function WelcomeWalkthrough(): ReactElement {
             </div>
           </div>
 
-          <div className="px-8 py-4 border-t border-[var(--color-row-border-strong)] flex items-center justify-between">
+          <div className="px-8 py-4 border-t border-[var(--color-hairline)] flex items-center justify-between">
             <div className="min-w-[72px]">
               {!isFirst && (
                 <Button variant="ghost" onClick={goBack} aria-label="Previous slide">
@@ -588,7 +568,7 @@ export function WelcomeWalkthrough(): ReactElement {
                   role="tab"
                   aria-selected={i === index}
                   aria-label={`Go to slide ${i + 1}`}
-                  className={`w-2 h-2 rounded-full transition-colors ${
+                  className={`w-2 h-2 rounded-[var(--radius-sm)] transition-colors ${
                     i === index
                       ? 'bg-[var(--color-text-primary)]'
                       : 'bg-[var(--color-border)] hover:bg-[var(--color-text-muted)]'

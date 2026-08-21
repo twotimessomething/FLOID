@@ -71,12 +71,12 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
   // Check if importing from same project
   const isFromSameProject = project && importData.sourceProjectId === project.id;
 
-  const renderContent = () => {
+  const renderContent = (): JSX.Element | null => {
     switch (type) {
       case 'new-schedule':
         return (
           <>
-            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">
+            <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Import Schedule
             </h2>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
@@ -85,14 +85,14 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
 
             {/* Info message when importing from same project */}
             {isFromSameProject && (
-              <div className="bg-[var(--color-selection)] text-[var(--color-focus)] rounded-lg p-3 mb-4 text-sm">
+              <div className="bg-[var(--color-selection)] text-[var(--color-focus)] rounded-[var(--radius-md)] p-3 mb-4 text-sm">
                 <p>This schedule originated from this project.</p>
               </div>
             )}
 
             {/* Date comparison if mismatch */}
             {dateMismatch && currentDateRange && (
-              <div className="bg-[var(--color-background)] rounded-lg p-4 mb-4 space-y-3">
+              <div className="bg-[var(--color-background)] rounded-[var(--radius-md)] p-4 mb-4 space-y-3">
                 <p className="text-xs font-medium text-[var(--color-text-muted)]">
                   Note: Different date ranges
                 </p>
@@ -127,7 +127,7 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
       case 'update':
         return (
           <>
-            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">
+            <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Update Schedule
             </h2>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
@@ -152,7 +152,7 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
       case 'name-collision':
         return (
           <>
-            <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">
+            <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Schedule Name Already Exists
             </h2>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
@@ -196,14 +196,14 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/30"
+        className="absolute inset-0 bg-black/25"
         onClick={handleCancel}
         aria-hidden="true"
       />
 
       {/* Modal */}
       <div
-        className="relative glass-bordered rounded-xl max-w-md w-full mx-4 p-6 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] max-w-md w-full mx-4 p-6 modal-enter"
         role="dialog"
         aria-modal="true"
         aria-labelledby="import-modal-title"

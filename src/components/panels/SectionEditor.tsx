@@ -82,9 +82,9 @@ export function SectionEditor(): JSX.Element {
     <div className="flex flex-col gap-4">
       {/* Pinned status indicator */}
       {isPinned && (
-        <div className="flex items-center gap-2 p-3 bg-[var(--color-warning-bg)] border border-[var(--color-warning)] rounded-lg">
+        <div className="flex items-center gap-2 py-1">
           <PinBadge size="md" />
-          <span className="text-sm text-[var(--color-warning)]">
+          <span className="text-xs text-[var(--color-text-secondary)]">
             Pinned to top — its milestone lines extend through all schedules
           </span>
         </div>
@@ -140,7 +140,7 @@ export function SectionEditor(): JSX.Element {
       </div>
 
       {/* Delete section */}
-      <div className="pt-4 border-t border-[var(--color-border)]">
+      <div className="pt-2">
         <Button variant="danger" onClick={handleDelete} className="w-full">Delete Schedule</Button>
       </div>
     </div>

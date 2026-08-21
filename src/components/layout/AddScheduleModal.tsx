@@ -95,10 +95,10 @@ function TemplateCard({ template, onSelect }: TemplateCardProps): JSX.Element {
   return (
     <button
       onClick={handleClick}
-      className="flex flex-col items-start p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-text-muted)] hover:shadow-sm transition-all duration-150 text-left focus-ring btn-press"
+      className="flex flex-col items-start p-4 rounded-[var(--radius-md)] border border-[var(--color-border)] hover:bg-[var(--color-hover)] text-left focus-ring btn-press"
     >
       <div
-        className="flex items-center justify-center w-10 h-10 rounded-lg mb-3"
+        className="flex items-center justify-center w-10 h-10 rounded-[var(--radius-sm)] mb-3"
         style={{ backgroundColor: `${template.defaultColor}15`, color: template.defaultColor }}
       >
         <TemplateIcon icon={template.icon} />
@@ -165,21 +165,21 @@ export function AddScheduleModal(): JSX.Element | null {
       aria-labelledby="add-schedule-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/25" />
 
       {/* Modal */}
       <div
-        className="relative glass-bordered rounded-xl w-full max-w-lg mx-4 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] w-full max-w-lg mx-4 modal-enter"
         role="document"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-row-border-strong)]">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="add-schedule-title">
+        <div className="flex items-center justify-between px-6 py-4">
+          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="add-schedule-title">
             Add Schedule
           </h2>
           <button
             onClick={closeAddScheduleModal}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-[var(--color-hover)] focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-hover)] focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg

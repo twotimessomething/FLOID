@@ -12,14 +12,14 @@ export function TextArea({ label, id, className = '', ...props }: TextAreaProps)
       {label && (
         <label
           htmlFor={textareaId}
-          className="text-xs font-medium text-[var(--color-text-secondary)]"
+          className="text-[11px] font-normal text-[var(--color-text-secondary)]"
         >
           {label}
         </label>
       )}
       <textarea
         id={textareaId}
-        className={`px-2 py-1.5 text-sm bg-[var(--color-input-bg)] text-[var(--color-text-primary)] border border-[var(--color-border)] rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] focus:border-transparent resize-none ${className}`}
+        className={`px-2 py-1.5 text-sm bg-[var(--color-input-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-[var(--radius-sm)] transition-colors duration-150 focus:outline-none focus:border-[var(--color-focus)] resize-none ${className}`}
         rows={3}
         {...props}
       />

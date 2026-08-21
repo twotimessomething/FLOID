@@ -52,7 +52,7 @@ export const MilestoneMarker = memo(function MilestoneMarker({
   const viewportPosition = sectionToViewportRelative(milestone.relativePosition, section, viewportBounds);
   const milestoneLeft = viewportPosition * timelineWidth;
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = (e: React.MouseEvent): void => {
     e.stopPropagation();
     // Don't trigger selection if we just finished dragging
     if (hasDragged.current) {
@@ -95,7 +95,7 @@ export const MilestoneMarker = memo(function MilestoneMarker({
   );
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent): void => {
       if (!isDraggingRef.current) return;
 
       const deltaX = e.clientX - lastXRef.current;
@@ -117,7 +117,7 @@ export const MilestoneMarker = memo(function MilestoneMarker({
       setDragDate(formatDate(date, 'MMM d'));
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (): void => {
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
       setDragging(false);
@@ -197,7 +197,7 @@ export const MilestoneMarker = memo(function MilestoneMarker({
       {/* Drag date bubble - hidden when sticky */}
       {dragDate && !isHidden && (
         <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs rounded-[var(--radius-sm)] shadow-[var(--shadow-sm)] whitespace-nowrap z-50 pointer-events-none"
           aria-hidden="true"
         >
           {dragDate}

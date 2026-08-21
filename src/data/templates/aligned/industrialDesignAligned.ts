@@ -19,12 +19,12 @@ export const industrialDesignAlignedTemplate: ScheduleTemplate = {
   description: 'Realistic ID process with early intensity and long-tail support',
   icon: 'palette',
   category: 'core',
-  defaultColor: '#6366F1', // Indigo
+  defaultColor: '#3A3F76', // Indigo
   phases: [
     {
       name: 'Discovery & Immersion',
       description: 'Understanding the problem space, users, and market context',
-      color: PHASE_COLORS.discovery,
+      color: PHASE_COLORS.teal,
       order: 0,
       relativeStart: 0.0,
       relativeEnd: 0.15,
@@ -55,7 +55,7 @@ export const industrialDesignAlignedTemplate: ScheduleTemplate = {
     {
       name: 'Concept Generation',
       description: 'Broad exploration of form, function, and interaction',
-      color: PHASE_COLORS.concept,
+      color: PHASE_COLORS.sky,
       order: 1,
       relativeStart: 0.10, // Overlaps with tail of discovery
       relativeEnd: 0.25,
@@ -86,7 +86,7 @@ export const industrialDesignAlignedTemplate: ScheduleTemplate = {
     {
       name: 'Design Refinement',
       description: 'Developing the chosen direction into a manufacturable product',
-      color: PHASE_COLORS.design,
+      color: PHASE_COLORS.blue,
       order: 2,
       relativeStart: 0.20, // Overlaps with previous phase significantly
       relativeEnd: 0.40,  // Ends around Gate 2/3 transition
@@ -124,7 +124,7 @@ export const industrialDesignAlignedTemplate: ScheduleTemplate = {
     {
       name: 'Engineering Support',
       description: 'Maintaining design intent during ME/EE development',
-      color: PHASE_COLORS.engineering,
+      color: PHASE_COLORS.orange,
       order: 3,
       relativeStart: 0.35, // Starts before refinement ends
       relativeEnd: 0.70,
@@ -155,7 +155,7 @@ export const industrialDesignAlignedTemplate: ScheduleTemplate = {
     {
       name: 'Production Finalization',
       description: 'Finalizing CMF and packaging for mass production',
-      color: PHASE_COLORS.production,
+      color: PHASE_COLORS.red,
       order: 4,
       relativeStart: 0.60,
       relativeEnd: 0.90,
@@ -186,7 +186,7 @@ export const industrialDesignAlignedTemplate: ScheduleTemplate = {
     {
       name: 'Launch Assets',
       description: 'Supporting marketing with product visuals',
-      color: '#10B981',
+      color: PHASE_COLORS.plum,
       order: 5,
       relativeStart: 0.85,
       relativeEnd: 1.0,

@@ -87,29 +87,23 @@ function TemplateCard({ template, isSelected, onSelect }: TemplateCardProps): JS
     <button
       type="button"
       onClick={onSelect}
+      aria-pressed={isSelected}
       className={`
-        relative flex flex-col items-start p-4 rounded-lg border-2 transition-all duration-150 text-left w-full
+        relative flex flex-col items-start p-4 rounded-[var(--radius-md)] text-left w-full focus-ring
         ${isSelected
-          ? 'border-[var(--color-text-primary)] bg-[var(--color-hover)]'
-          : 'border-[var(--color-border)] hover:border-[var(--color-text-muted)] hover:bg-[var(--color-hover)]'
+          ? 'border-[1.5px] border-[var(--color-accent)] bg-[var(--color-selection)]'
+          : 'border border-[var(--color-border)] hover:bg-[var(--color-hover)]'
         }
       `}
     >
       <div
-        className="p-2 rounded-lg mb-2"
+        className="p-2 rounded-[var(--radius-sm)] mb-2"
         style={{ backgroundColor: `${template.defaultColor}15`, color: template.defaultColor }}
       >
         <TemplateIcon icon={template.icon} />
       </div>
       <h3 className="text-sm font-medium text-[var(--color-text-primary)]">{template.name}</h3>
       <p className="text-xs text-[var(--color-text-muted)] mt-1 line-clamp-2">{template.description}</p>
-      {isSelected && (
-        <div className="absolute bottom-2 right-2">
-          <svg className="w-5 h-5 text-[var(--color-text-primary)]" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
-        </div>
-      )}
     </button>
   );
 }
@@ -137,7 +131,7 @@ export function NewProjectModal(): JSX.Element | null {
 
   // Close on escape key
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         closeProjectSetupModal();
       }
@@ -193,7 +187,7 @@ export function NewProjectModal(): JSX.Element | null {
   const isDetailsValid = formData.startDate < formData.endDate;
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: React.FormEvent): Promise<void> => {
       e.preventDefault();
 
       // On details step, just advance to template step
@@ -251,28 +245,28 @@ export function NewProjectModal(): JSX.Element | null {
       aria-labelledby="project-setup-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/25" />
 
       {/* Modal */}
       <div
-        className="relative glass-bordered rounded-xl w-full max-w-lg mx-4 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] w-full max-w-lg mx-4 modal-enter"
         role="document"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-row-border-strong)]">
+        <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="project-setup-title">
+            <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="project-setup-title">
               New Project
             </h2>
             {/* Step indicator */}
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full transition-colors ${step === 'details' ? 'bg-[var(--color-text-primary)]' : 'bg-[var(--color-border)]'}`} />
-              <div className={`w-2 h-2 rounded-full transition-colors ${step === 'template' ? 'bg-[var(--color-text-primary)]' : 'bg-[var(--color-border)]'}`} />
+            <div className="flex items-center gap-1">
+              <div className={`w-1.5 h-1.5 rounded-full ${step === 'details' ? 'bg-[var(--color-text-primary)]' : 'bg-[var(--color-border)]'}`} />
+              <div className={`w-1.5 h-1.5 rounded-full ${step === 'template' ? 'bg-[var(--color-text-primary)]' : 'bg-[var(--color-border)]'}`} />
             </div>
           </div>
           <button
             onClick={closeProjectSetupModal}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-[var(--color-hover)] focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-hover)] focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg
@@ -333,7 +327,7 @@ export function NewProjectModal(): JSX.Element | null {
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--color-border)]">
+              <div className="flex justify-end gap-3 mt-6">
                 <Button type="button" variant="secondary" onClick={closeProjectSetupModal}>
                   Cancel
                 </Button>
@@ -373,7 +367,7 @@ export function NewProjectModal(): JSX.Element | null {
               </div>
 
               {/* Actions */}
-              <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-[var(--color-border)]">
+              <div className="flex justify-between gap-3 mt-6">
                 <Button type="button" variant="secondary" onClick={handleBack}>
                   Back
                 </Button>

@@ -11,10 +11,11 @@ export function AddScheduleButton(): JSX.Element {
     <button
       onClick={handleAddSchedule}
       title="Add Schedule"
-      className="w-5 h-5 flex items-center justify-center rounded-full border border-current text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
+      aria-label="Add Schedule"
+      className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150 focus-ring"
     >
       <svg
-        className="w-3 h-3"
+        className="w-3.5 h-3.5"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"

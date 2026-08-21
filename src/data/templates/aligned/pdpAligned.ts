@@ -18,7 +18,7 @@ export const pdpAlignedTemplate: ScheduleTemplate = {
   description: 'Stage-Gate Product Development Process with formal decision gates',
   icon: 'clipboard',
   category: 'team',
-  defaultColor: '#F59E0B', // Amber
+  defaultColor: '#E0B54A', // Ochre
   phases: [
     {
       name: 'Discovery',

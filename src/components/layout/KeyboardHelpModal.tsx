@@ -49,7 +49,7 @@ interface KeyProps {
 
 function Key({ children }: KeyProps): JSX.Element {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 bg-[var(--color-active)] border border-[var(--color-border)] rounded text-xs font-medium text-[var(--color-text-secondary)]">
+    <kbd className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 bg-[var(--color-active)] border border-[var(--color-border)] rounded-[var(--radius-sm)] text-xs font-medium text-[var(--color-text-secondary)]">
       {children}
     </kbd>
   );
@@ -93,21 +93,21 @@ export function KeyboardHelpModal(): JSX.Element | null {
       aria-labelledby="keyboard-help-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/25" />
 
       {/* Modal */}
       <div
-        className="relative glass-bordered rounded-xl w-full max-w-md mx-4 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] w-full max-w-md mx-4 modal-enter"
         role="document"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-row-border-strong)]">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="keyboard-help-title">
+        <div className="flex items-center justify-between px-5 py-4">
+          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="keyboard-help-title">
             Keyboard Shortcuts
           </h2>
           <button
             onClick={closeKeyboardHelpModal}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-[var(--color-hover)] focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-hover)] focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg
@@ -132,7 +132,7 @@ export function KeyboardHelpModal(): JSX.Element | null {
           <div className="space-y-5">
             {SHORTCUT_GROUPS.map((group) => (
               <div key={group.title}>
-                <h3 className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-2">
+                <h3 className="eyebrow mb-2">
                   {group.title}
                 </h3>
                 <div className="space-y-2">

@@ -19,7 +19,7 @@ import { getTodayViewportPosition, isTodayInViewport } from '../../utils/dateUti
 import { usePinnedSection } from '../../hooks/usePinnedSection';
 import type { Section } from '../../types';
 
-export function Timeline() {
+export function Timeline(): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const labelsColumnRef = useRef<HTMLDivElement>(null);
   const labelsContentRef = useRef<HTMLDivElement>(null);
@@ -146,8 +146,8 @@ export function Timeline() {
       left: 0,
       right: 0,
       top: `${top}px`,
-      height: '2px',
-      backgroundColor: 'var(--color-focus)',
+      height: '1px',
+      backgroundColor: 'var(--color-text-primary)',
       zIndex: 50,
       pointerEvents: 'none',
     };
@@ -250,34 +250,30 @@ export function Timeline() {
 
   return (
     <div className="h-full flex flex-col relative" role="application" aria-label="Timeline editor">
-      {/* Zoom controls - fixed position in top right */}
-      <div className="absolute top-2 right-3 z-[60]">
-        <ZoomControls />
-      </div>
-
       {/* Two-column layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Fixed Labels Column */}
         <nav
-          className="flex-shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col relative"
+          className="flex-shrink-0 border-r border-[var(--color-hairline)] bg-[var(--color-background)] flex flex-col relative"
           style={{ width: labelColumnWidth }}
           aria-label="Timeline labels"
         >
-          {/* Resize handle */}
+          {/* Resize handle - invisible at rest, tints on hover/active */}
           <div
             className={`absolute top-0 -right-0.5 w-1 h-full cursor-col-resize z-10 transition-colors ${
-              isResizing ? 'bg-[var(--color-focus)]' : 'hover:bg-[var(--color-focus)]/70'
+              isResizing ? 'bg-[var(--color-hairline)]' : 'hover:bg-[var(--color-hairline)]'
             }`}
             onMouseDown={handleResizeMouseDown}
             aria-label="Resize labels column"
             role="separator"
           />
-          {/* Header spacer with add schedule button */}
+          {/* Header spacer: add-schedule control and zoom controls */}
           <div
-            className="flex-shrink-0 border-b border-[var(--color-border)] flex items-center px-3"
+            className="flex-shrink-0 flex items-center justify-between px-3"
             style={{ height: HEADER_HEIGHT }}
           >
             <AddScheduleButton />
+            <ZoomControls />
           </div>
 
           {/* Section and Phase labels */}
@@ -341,7 +337,7 @@ export function Timeline() {
 
             {/* Timeline content */}
             <div
-              className="relative cursor-crosshair"
+              className="relative cursor-crosshair timeline-plot"
               role="list"
               aria-label="Timeline bars"
               onMouseDown={handlePlayheadMouseDown}
@@ -359,17 +355,15 @@ export function Timeline() {
                 />
               )}
 
-              {/* Today line - extends full content height */}
+              {/* Today line — a bare hairline; the axis header carries its label */}
               {isTodayInViewport(viewportBounds) && (
                 <div
-                  className="absolute top-0 w-0.5 bg-[var(--color-today)] z-20 pointer-events-none"
+                  className="absolute top-0 w-px bg-[var(--color-today)] z-20 pointer-events-none"
                   style={{
                     left: getPositionFromRelative(getTodayViewportPosition(viewportBounds), timelineWidth),
                     height: contentHeight,
                   }}
-                >
-                  <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 bg-[var(--color-today)] rounded-full" />
-                </div>
+                />
               )}
 
               {/* Playhead (scrubber) */}

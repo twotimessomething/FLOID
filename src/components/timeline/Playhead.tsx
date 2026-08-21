@@ -8,7 +8,7 @@ interface PlayheadProps {
   readonly height: number;
 }
 
-export function Playhead({ height }: PlayheadProps) {
+export function Playhead({ height }: PlayheadProps): JSX.Element | null {
   const { playheadPosition, playheadY } = useUIStore();
   const { viewportBounds, timelineWidth } = useViewport();
 
@@ -28,12 +28,12 @@ export function Playhead({ height }: PlayheadProps) {
       className="absolute top-0 z-40 pointer-events-none"
       style={{ left, height }}
     >
-      {/* Vertical line */}
-      <div className="absolute top-0 bottom-0 w-px bg-[var(--color-text-muted)] -translate-x-1/2" />
+      {/* Vertical line - hairline weight, accent colored */}
+      <div className="absolute top-0 bottom-0 w-px bg-[var(--color-accent)] -translate-x-1/2" />
 
-      {/* Date label following mouse - glass effect */}
+      {/* Date label following the mouse - flat surface, no shadow or blur */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 bg-white/70 dark:bg-black/70 backdrop-blur-md text-[var(--color-text-primary)] text-xs font-medium rounded-lg whitespace-nowrap shadow-lg ring-1 ring-black/5 dark:ring-white/10"
+        className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 bg-[var(--color-raised)] border border-[var(--color-border)] text-[var(--color-text-primary)] text-xs font-medium rounded-[var(--radius-sm)] whitespace-nowrap"
         style={{ top: labelY }}
       >
         {dateLabel}

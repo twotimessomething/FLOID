@@ -23,7 +23,7 @@ import { useProjectStore } from './stores/projectStore';
 import { useUIStore } from './stores/uiStore';
 import { parseProjectJson, convertImportedProject } from './utils/exportUtils';
 
-function App() {
+function App(): JSX.Element {
   const { initializeFromProject, loadSectionsForProject } = useSectionStore();
   const sections = useSectionStore((state) => state.sections);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
@@ -152,7 +152,7 @@ function App() {
   if (!isStorageReady) {
     return (
       <div className="h-full flex items-center justify-center bg-[var(--color-background)]">
-        <div className="text-[var(--color-text-secondary)]">Loading...</div>
+        <div className="text-[13px] text-[var(--color-text-secondary)]">Loading...</div>
       </div>
     );
   }
@@ -200,9 +200,9 @@ function App() {
 
       {/* Drop zone overlay */}
       {isDraggingFile && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-focus)]/10 border-4 border-dashed border-[var(--color-focus)] pointer-events-none">
-          <div className="bg-[var(--color-surface)] px-6 py-4 rounded-xl shadow-lg">
-            <p className="text-lg font-medium text-[var(--color-focus)]">
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-accent)]/5 border border-dashed border-[var(--color-accent)] pointer-events-none">
+          <div className="bg-[var(--color-raised)] px-6 py-4 rounded-[var(--radius-md)]">
+            <p className="text-[13px] font-normal text-[var(--color-accent)]">
               Drop .floid file to import
             </p>
           </div>

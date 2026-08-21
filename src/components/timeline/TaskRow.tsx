@@ -1,6 +1,7 @@
 import { useCallback, useRef, useEffect, useState, useMemo, memo } from 'react';
 import type { Phase, Task, Section, ViewportBounds } from '../../types';
 import { getPhaseColor } from '../../types';
+import { getReadableTextColor } from '../../utils/colorUtils';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -407,10 +408,10 @@ export const TaskRow = memo(function TaskRow({
   if (isLabel) {
     return (
       <div
-        className={`group flex items-center gap-1 pl-12 pr-3 border-b cursor-pointer row-selectable focus-ring ${
+        className={`group flex items-center gap-1 pl-12 pr-3 cursor-pointer row-selectable focus-ring ${
           isSelected ? 'selected' : ''
         } ${isDragTarget ? 'opacity-50' : ''}`}
-        style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
+        style={{ height: TASK_ROW_HEIGHT }}
         onClick={isEditingName ? undefined : handleLabelClick}
         onDoubleClick={isEditingName ? undefined : handleLabelDoubleClick}
         onContextMenu={handleLabelContextMenu}
@@ -466,21 +467,17 @@ export const TaskRow = memo(function TaskRow({
 
   return (
     <div
-      className={`relative border-b overflow-visible ${isDragTarget ? 'opacity-50' : ''}`}
-      style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
+      className={`relative overflow-visible ${isDragTarget ? 'opacity-50' : ''}`}
+      style={{ height: TASK_ROW_HEIGHT }}
       role="listitem"
       data-creation-zone="true"
       onContextMenu={handleRowContextMenu}
     >
       <div
-        className={`absolute top-1 bottom-1 rounded-[10px] timeline-bar group overflow-visible ${
+        className={`absolute top-1 bottom-1 timeline-bar group overflow-visible ${
           isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
-        } ${isSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''}`}
-        style={{
-          left,
-          width,
-          backgroundColor: taskColor,
-        }}
+        } ${isSelected ? 'timeline-bar--selected' : ''}`}
+        style={{ left, width }}
         onClick={handleClick}
         onContextMenu={handleBarContextMenu}
         onDoubleClick={handleDoubleClick}
@@ -493,7 +490,13 @@ export const TaskRow = memo(function TaskRow({
         aria-label={`${task.name} task bar`}
         aria-selected={isSelected}
       >
-        {milestoneHintX !== null && <BarMilestoneHint x={milestoneHintX} />}
+        <div className="timeline-bar__fill" style={{ backgroundColor: taskColor }} />
+        <span className="timeline-bar__label">
+          <span className="truncate" style={{ color: getReadableTextColor(taskColor) }}>
+            {task.name}
+          </span>
+        </span>
+        {milestoneHintX !== null && <BarMilestoneHint x={milestoneHintX} color={taskColor} />}
         {/* Left drag handle */}
         <DragHandle
           edge="start"
@@ -515,13 +518,6 @@ export const TaskRow = memo(function TaskRow({
           dragDate={endDragDate}
           color={taskColor}
         />
-
-        {/* Task name on bar */}
-        <div className="absolute inset-0 flex items-center px-2 overflow-hidden pointer-events-none">
-          <span className="text-xs text-white/90 truncate drop-shadow-sm">
-            {task.name}
-          </span>
-        </div>
 
         {/* Bar milestones */}
         {task.barMilestones?.map((bm) => (

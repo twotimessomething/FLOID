@@ -63,14 +63,14 @@ export function MobileNotice(): JSX.Element | null {
       aria-labelledby="mobile-notice-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/25" aria-hidden="true" />
 
       {/* Centered within the visible area of the screen */}
       <div
         className="fixed top-0 h-full flex items-center justify-center"
         style={{ left: `${visibleArea.left}px`, width: `${visibleArea.width}px` }}
       >
-        <div className="relative glass-bordered rounded-xl max-w-xs w-full mx-4 px-6 py-6 text-center modal-enter">
+        <div className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] max-w-xs w-full mx-4 px-6 py-6 text-center modal-enter">
           {/* Monitor showing a mini FLOID timeline */}
           <svg
             className="mx-auto mb-4 text-[var(--color-logo-primary)]"
@@ -113,7 +113,7 @@ export function MobileNotice(): JSX.Element | null {
           </svg>
           <h2
             id="mobile-notice-title"
-            className="text-base font-semibold text-[var(--color-text-primary)] mb-1"
+            className="text-sm font-medium text-[var(--color-text-primary)] mb-1"
           >
             Best on a bigger screen
           </h2>
@@ -123,14 +123,14 @@ export function MobileNotice(): JSX.Element | null {
           </p>
           <p className="mt-3 flex items-center justify-center gap-1.5">
             <span className="text-sm text-[var(--color-text-muted)]">https://</span>
-            <span className="inline-block rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-1.5 text-sm font-semibold text-[var(--color-logo-primary)]">
+            <span className="inline-block rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-1.5 text-sm font-medium text-[var(--color-logo-primary)]">
               floid.design
             </span>
           </p>
           <button
             type="button"
             onClick={handleDismiss}
-            className="mt-4 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] underline btn-press focus-ring rounded"
+            className="mt-4 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] underline btn-press focus-ring rounded-[var(--radius-sm)]"
           >
             Continue anyway,
             <br />

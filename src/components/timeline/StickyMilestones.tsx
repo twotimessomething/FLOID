@@ -27,7 +27,7 @@ export function StickyMilestones({
   stickyMilestoneIds,
   timelineWidth,
   viewportBounds,
-}: StickyMilestonesProps) {
+}: StickyMilestonesProps): JSX.Element | null {
   const selection = useUIStore((s) => s.selection);
   const selectItem = useUIStore((s) => s.selectItem);
   const openContextMenu = useUIStore((s) => s.openContextMenu);
@@ -81,7 +81,7 @@ export function StickyMilestones({
 
   return (
     <div
-      className="sticky z-40 pointer-events-none"
+      className="sticky z-40 pointer-events-none bg-[var(--color-background)]"
       style={{ top: HEADER_HEIGHT, height: ROW_HEIGHT, marginBottom: -ROW_HEIGHT }}
     >
       {stickyMilestones.map((milestone) => (

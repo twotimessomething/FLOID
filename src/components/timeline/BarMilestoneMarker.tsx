@@ -4,6 +4,7 @@ import { useSectionStore, selectSection, selectPhase, selectTask } from '../../s
 import { useUIStore } from '../../stores/uiStore';
 import type { ContextMenuLocation } from '../../stores/uiStore';
 import { getDateFromRelativePosition, formatDate } from '../../utils/dateUtils';
+import { getReadableTextColor } from '../../utils/colorUtils';
 
 interface BarMilestoneMarkerProps {
   readonly barMilestone: BarMilestone;
@@ -187,17 +188,7 @@ export const BarMilestoneMarker = memo(function BarMilestoneMarker({
     [openContextMenu, barMilestone.id, sectionId, phaseId, taskId]
   );
 
-  // Calculate contrasting text color (simple luminance check)
-  const getContrastColor = (hexColor: string): string => {
-    const hex = hexColor.replace('#', '').slice(0, 6);
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.5 ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.95)';
-  };
-
-  const textColor = getContrastColor(color);
+  const textColor = getReadableTextColor(color);
 
   return (
     <div
@@ -225,7 +216,7 @@ export const BarMilestoneMarker = memo(function BarMilestoneMarker({
       {/* Date bubble - shown while dragging */}
       {isDragActive && dragDate && (
         <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs rounded-[var(--radius-sm)] shadow-[var(--shadow-sm)] whitespace-nowrap z-50 pointer-events-none"
           aria-hidden="true"
         >
           {dragDate}
@@ -236,13 +227,10 @@ export const BarMilestoneMarker = memo(function BarMilestoneMarker({
 
       {/* Label - positioned above the bar, also draggable */}
       <div
-        className={`absolute bottom-full left-1/2 -translate-x-1/2 px-1.5 py-0.5 text-[10px] font-medium rounded whitespace-nowrap cursor-grab active:cursor-grabbing transition-all duration-150 bg-[var(--color-surface)] text-[var(--color-text-primary)] border border-[var(--color-border)] ${
-          isSelected
-            ? 'ring-2 ring-[var(--color-focus)] ring-offset-1'
-            : ''
-        }`}
+        className="absolute bottom-full left-1/2 -translate-x-1/2 px-1.5 py-0.5 text-[10px] rounded-[var(--radius-sm)] whitespace-nowrap cursor-grab active:cursor-grabbing bg-[var(--color-surface)] text-[var(--color-text-primary)] border border-[var(--color-border)]"
         style={{
           marginBottom: 1,
+          boxShadow: isSelected ? 'inset 0 0 0 1.5px var(--color-focus)' : undefined,
         }}
       >
         {barMilestone.name || 'Milestone'}

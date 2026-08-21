@@ -1,6 +1,7 @@
 import { useCallback, useRef, useEffect, useState, useMemo, memo } from 'react';
 import type { Phase, Section, ViewportBounds } from '../../types';
 import { getPhaseColor } from '../../types';
+import { getReadableTextColor } from '../../utils/colorUtils';
 import { getNextPhaseColor } from '../../constants/colors';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
@@ -659,10 +660,10 @@ export const PhaseRow = memo(function PhaseRow({
       <div role="group" aria-label={`${phase.name} phase`} className={isDragTarget ? 'opacity-50' : ''}>
         {/* Phase label */}
         <div
-          className={`group flex items-center gap-2 pl-6 pr-3 border-b cursor-pointer row-selectable focus-ring ${
+          className={`group flex items-center gap-2 pl-6 pr-3 cursor-pointer row-selectable focus-ring ${
             isSelected ? 'selected' : ''
           }`}
-          style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
+          style={{ height: ROW_HEIGHT }}
           onClick={isEditingName ? undefined : handleLabelClick}
           onDoubleClick={isEditingName ? undefined : handleLabelDoubleClick}
           onContextMenu={handleLabelContextMenu}
@@ -716,13 +717,6 @@ export const PhaseRow = memo(function PhaseRow({
               />
             </svg>
           </button>
-          {section.isMulticolor && (
-            <span
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: effectiveColor }}
-              aria-hidden="true"
-            />
-          )}
           {isEditingName ? (
             <input
               ref={inlineEdit.inputRef}
@@ -774,11 +768,7 @@ export const PhaseRow = memo(function PhaseRow({
             </div>
           ) : (
             // Matches the empty task-creation row on the timeline side
-            <div
-              className="border-b"
-              style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
-              aria-hidden="true"
-            />
+            <div style={{ height: TASK_ROW_HEIGHT }} aria-hidden="true" />
           ))}
       </div>
     );
@@ -790,8 +780,8 @@ export const PhaseRow = memo(function PhaseRow({
       {/* Phase bar row - empty space hosts the create-phase ghost (double-click or drag) */}
       <div
         ref={phaseRowRef}
-        className={`relative border-b overflow-visible ${phaseRowGhost.ghost !== null ? 'cursor-copy' : ''}`}
-        style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
+        className={`relative overflow-visible ${phaseRowGhost.ghost !== null ? 'cursor-copy' : ''}`}
+        style={{ height: ROW_HEIGHT }}
         onDoubleClick={phaseRowGhost.handleDoubleClick}
         onMouseMove={phaseRowGhost.handleMouseMove}
         onMouseLeave={phaseRowGhost.handleMouseLeave}
@@ -807,14 +797,10 @@ export const PhaseRow = memo(function PhaseRow({
           />
         )}
         <div
-          className={`absolute top-2 bottom-2 rounded-[10px] timeline-bar group overflow-visible ${
+          className={`absolute top-2 bottom-2 timeline-bar group overflow-visible ${
             isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
-          } ${isSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''}`}
-          style={{
-            left,
-            width,
-            backgroundColor: effectiveColor,
-          }}
+          } ${isSelected ? 'timeline-bar--selected' : ''}`}
+          style={{ left, width }}
           onClick={handleClick}
           onContextMenu={handleBarContextMenu}
           onDoubleClick={handleBarDoubleClick}
@@ -827,7 +813,13 @@ export const PhaseRow = memo(function PhaseRow({
           aria-label={`${phase.name} phase bar, from ${Math.round(phase.relativeStart * 100)}% to ${Math.round(phase.relativeEnd * 100)}%${isLocked ? ', locked' : ''}`}
           aria-selected={isSelected}
         >
-          {milestoneHintX !== null && <BarMilestoneHint x={milestoneHintX} />}
+          <div className="timeline-bar__fill" style={{ backgroundColor: effectiveColor }} />
+          <span className="timeline-bar__label">
+            <span className="truncate" style={{ color: getReadableTextColor(effectiveColor) }}>
+              {phase.name}
+            </span>
+          </span>
+          {milestoneHintX !== null && <BarMilestoneHint x={milestoneHintX} color={effectiveColor} />}
           {/* Left drag handle */}
           <DragHandle
             edge="start"
@@ -849,13 +841,6 @@ export const PhaseRow = memo(function PhaseRow({
             dragDate={endDragDate}
             color={effectiveColor}
           />
-
-          {/* Phase name on bar */}
-          <div className="absolute inset-0 flex items-center px-2 overflow-hidden pointer-events-none">
-            <span className="text-xs font-medium text-white truncate drop-shadow-sm">
-              {phase.name}
-            </span>
-          </div>
 
           {/* Bar milestones */}
           {phase.barMilestones?.map((bm) => (
@@ -924,7 +909,7 @@ export const PhaseRow = memo(function PhaseRow({
           <div
             role="list"
             aria-label={`${phase.name} task bars`}
-            className={`relative ${taskGhost.ghost !== null ? 'cursor-copy' : ''}`}
+            className={`group relative ${taskGhost.ghost !== null ? 'cursor-copy' : ''}`}
             onDoubleClick={taskGhost.handleDoubleClick}
             onMouseMove={taskGhost.handleMouseMove}
             onMouseLeave={taskGhost.handleMouseLeave}
@@ -939,10 +924,7 @@ export const PhaseRow = memo(function PhaseRow({
               />
             ) : (
               <>
-                <div
-                  className="border-b pointer-events-none"
-                  style={{ height: TASK_ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
-                />
+                <div className="pointer-events-none" style={{ height: TASK_ROW_HEIGHT }} />
                 <GhostBar
                   left={taskGhost.ghost.left}
                   width={taskGhost.ghost.width}

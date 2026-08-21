@@ -8,8 +8,9 @@ import { ROW_HEIGHT, TASK_ROW_HEIGHT, getBarDimensions, getRelativeFromPosition 
 import { sectionToViewportRelative, viewportToSectionRelative } from '../../utils/dateUtils';
 import { layoutLabels, measureMilestoneLabelWidth } from '../../utils/labelLayoutUtils';
 import { createPhaseAt, createMilestoneAt, DEFAULT_PHASE_DAYS } from '../../utils/creationUtils';
-import { getNextPhaseColor, MULTICOLOR_GRADIENT } from '../../constants/colors';
+import { getNextPhaseColor } from '../../constants/colors';
 import { getPhaseColor } from '../../types';
+import { getReadableTextColor } from '../../utils/colorUtils';
 import { PhaseRow } from './PhaseRow';
 import { MilestoneMarker } from './MilestoneMarker';
 import { EmptyStateHint } from './EmptyStateHint';
@@ -88,6 +89,12 @@ export const SectionRow = memo(function SectionRow({
   // Collision-aware label placement: overlapping labels are dodged right or
   // hidden (revealed on diamond hover). Sticky milestones render their label
   // in the sticky strip, so they don't reserve space here.
+  //
+  // Labels sit in the lower half of the header row, which is empty while the
+  // section is expanded. Collapsing folds every phase bar into that same row,
+  // so the labels would land on top of the bars — hide them there and let the
+  // existing hover-reveal surface a name on demand. A collapsed section is
+  // asking for less detail, not more.
   const milestoneLabelPlacements = useMemo(() => {
     const candidates = section.milestones
       .filter((milestone) => !stickyMilestoneIds?.has(milestone.id))
@@ -98,7 +105,12 @@ export const SectionRow = memo(function SectionRow({
           timelineWidth,
         width: measureMilestoneLabelWidth(milestone.name),
       }));
-    return layoutLabels(candidates);
+    const placements = layoutLabels(candidates);
+    if (!section.isCollapsed) return placements;
+
+    return new Map(
+      [...placements].map(([id, placement]) => [id, { ...placement, isHidden: true }])
+    );
   }, [section, stickyMilestoneIds, viewportBounds, timelineWidth]);
 
   // Handle keyboard interaction for team selection
@@ -315,15 +327,15 @@ export const SectionRow = memo(function SectionRow({
     // Render label column content
     return (
       <div
-        className={`border-t-2 border-[var(--color-border)] ${isDragging ? 'opacity-50' : ''} ${isPinned ? 'border-l-2 border-l-amber-400' : ''}`}
-        style={coloredRows && !section.isMulticolor ? { backgroundColor: section.color + '0D' } : undefined}
+        className={`border-t border-[var(--color-hairline)] ${isDragging ? 'opacity-50' : ''}`}
+        style={coloredRows && !section.isMulticolor ? { backgroundColor: section.color + '08' } : undefined}
         role="group"
         aria-label={`${section.name} schedule`}
       >
         {/* Section header label */}
         <div
-          className={`flex items-center gap-2 px-3 border-b cursor-pointer row-selectable focus-ring ${isSelected ? 'selected' : ''}`}
-          style={{ height: ROW_HEIGHT, borderColor: isPinned ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
+          className={`group flex items-center gap-2 px-3 cursor-pointer row-selectable focus-ring ${isSelected ? 'selected' : ''}`}
+          style={{ height: ROW_HEIGHT }}
           onClick={isEditingName ? undefined : handleLabelClick}
           onDoubleClick={isEditingName ? undefined : handleLabelDoubleClick}
           onContextMenu={handleLabelContextMenu}
@@ -337,7 +349,7 @@ export const SectionRow = memo(function SectionRow({
           {dragHandleProps && sectionIndex !== undefined && (
             <div
               {...dragHandleProps}
-              className="flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-150"
+              className="row-affordance flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-150"
               title="Drag to reorder"
               aria-label={`Drag to reorder ${section.name}`}
             >
@@ -358,7 +370,8 @@ export const SectionRow = memo(function SectionRow({
           )}
           <button
             onClick={handleToggleCollapse}
-            className="w-6 h-6 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded-md transition-colors duration-150"
+            className="row-affordance w-6 h-6 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded-md transition-colors duration-150"
+            data-always-visible={section.isCollapsed ? 'true' : undefined}
             aria-expanded={!section.isCollapsed}
             aria-label={`${section.isCollapsed ? 'Expand' : 'Collapse'} ${section.name}`}
           >
@@ -377,19 +390,10 @@ export const SectionRow = memo(function SectionRow({
               />
             </svg>
           </button>
-          <span
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={
-              section.isMulticolor
-                ? { background: MULTICOLOR_GRADIENT }
-                : { backgroundColor: section.color }
-            }
-            aria-hidden="true"
-          />
           {isEditingName ? (
             <input
               ref={inlineEdit.inputRef}
-              className={`text-sm ${isPinned ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1`}
+              className="text-sm font-medium text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1"
               value={inlineEdit.editedName}
               onChange={inlineEdit.handleChange}
               onKeyDown={(e) => inlineEdit.handleKeyDown(e, handleSaveEdit)}
@@ -397,7 +401,7 @@ export const SectionRow = memo(function SectionRow({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className={`text-sm ${isPinned ? 'font-semibold' : 'font-medium'} text-[var(--color-text-primary)] truncate`}>
+            <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
               {section.name || 'Untitled Schedule'}
             </span>
           )}
@@ -418,10 +422,7 @@ export const SectionRow = memo(function SectionRow({
         {!section.isCollapsed && (
           <div role="list" aria-label={`${section.name} phases`} data-drag-container className="relative">
             {sortedPhases.length === 0 ? (
-              <div
-                className="border-b"
-                style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border)' }}
-              />
+              <div style={{ height: ROW_HEIGHT }} />
             ) : (
               sortedPhases.map((phase, index) => (
                 <PhaseRow
@@ -450,16 +451,16 @@ export const SectionRow = memo(function SectionRow({
   // Render timeline content
   return (
     <div
-      className={`border-t-2 border-[var(--color-border)] ${isDragging ? 'opacity-50' : ''}`}
-      style={coloredRows && !section.isMulticolor ? { backgroundColor: section.color + '0D' } : undefined}
+      className={`border-t border-[var(--color-hairline)] ${isDragging ? 'opacity-50' : ''}`}
+      style={coloredRows && !section.isMulticolor ? { backgroundColor: section.color + '08' } : undefined}
       role="group"
       aria-label={`${section.name} schedule timeline`}
     >
       {/* Section header row with collapsed phase bars when collapsed */}
       <div
         ref={headerRowRef}
-        className={`relative border-b ${ghostX !== null ? 'cursor-copy' : ''}`}
-        style={{ height: ROW_HEIGHT, borderColor: isPinned ? 'var(--color-row-border-strong)' : 'var(--color-row-border)' }}
+        className={`relative timeline-plot ${ghostX !== null ? 'cursor-copy' : ''}`}
+        style={{ height: ROW_HEIGHT }}
         onDoubleClick={handleHeaderDoubleClick}
         onContextMenu={handleHeaderContextMenu}
         onMouseMove={handleHeaderMouseMove}
@@ -471,8 +472,8 @@ export const SectionRow = memo(function SectionRow({
             style={{ left: ghostX, height: ROW_HEIGHT }}
             aria-hidden="true"
           >
-            <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rotate-45 bg-[var(--color-text-primary)] opacity-25" />
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)] whitespace-nowrap opacity-70">
+            <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[var(--color-text-primary)] opacity-25" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)] whitespace-nowrap opacity-70">
               Double-click
             </div>
             {milestoneLineHeight > 0 && (
@@ -507,14 +508,10 @@ export const SectionRow = memo(function SectionRow({
                 <div
                   key={phase.id}
                   data-phase-id={phase.id}
-                  className={`absolute top-1 bottom-1 rounded-[10px] cursor-pointer timeline-bar ${
-                    isPhaseSelected ? 'ring-2 ring-[var(--color-focus)] ring-offset-1' : ''
+                  className={`absolute top-1 bottom-1 cursor-pointer timeline-bar ${
+                    isPhaseSelected ? 'timeline-bar--selected' : ''
                   }`}
-                  style={{
-                    left,
-                    width,
-                    backgroundColor: effectiveColor,
-                  }}
+                  style={{ left, width }}
                   onClick={handleCollapsedPhaseClick}
                   onDoubleClick={handleCollapsedPhaseDoubleClick}
                   onKeyDown={handleCollapsedPhaseKeyDown}
@@ -523,11 +520,12 @@ export const SectionRow = memo(function SectionRow({
                   aria-label={`${phase.name} phase bar (collapsed view)`}
                   aria-selected={isPhaseSelected}
                 >
-                  <div className="absolute inset-0 flex items-center px-2 overflow-hidden pointer-events-none">
-                    <span className="text-xs font-medium text-white truncate drop-shadow-sm">
+                  <div className="timeline-bar__fill" style={{ backgroundColor: effectiveColor }} />
+                  <span className="timeline-bar__label">
+                    <span className="truncate" style={{ color: getReadableTextColor(effectiveColor) }}>
                       {phase.name}
                     </span>
-                  </div>
+                  </span>
                 </div>
               );
             })}
@@ -554,7 +552,7 @@ export const SectionRow = memo(function SectionRow({
         <div
           role="list"
           aria-label={`${section.name} phase bars`}
-          className={`relative ${phaseGhost.ghost !== null ? 'cursor-copy' : ''}`}
+          className={`relative timeline-plot ${phaseGhost.ghost !== null ? 'cursor-copy' : ''}`}
           onDoubleClick={phaseGhost.handleDoubleClick}
           onMouseMove={phaseGhost.handleMouseMove}
           onMouseLeave={phaseGhost.handleMouseLeave}
@@ -566,14 +564,11 @@ export const SectionRow = memo(function SectionRow({
                 <EmptyStateHint
                   text="Double-click or drag to add phase"
                   height={ROW_HEIGHT}
-                  borderClass="border-b"
+                  borderClass=""
                 />
               ) : (
                 <>
-                  <div
-                    className="border-b pointer-events-none"
-                    style={{ height: ROW_HEIGHT, borderColor: 'var(--color-row-border-light)' }}
-                  />
+                  <div className="pointer-events-none" style={{ height: ROW_HEIGHT }} />
                   <GhostBar
                     left={phaseGhost.ghost.left}
                     width={phaseGhost.ghost.width}

@@ -7,12 +7,12 @@ export const industrialDesignTemplate: ScheduleTemplate = {
   description: 'Consumer product ID process from research through production handoff',
   icon: 'palette',
   category: 'core',
-  defaultColor: '#6366F1', // Indigo
+  defaultColor: '#3A3F76', // Indigo
   phases: [
     {
       name: 'Discovery',
       description: 'Research phase to understand users, market, and project constraints',
-      color: PHASE_COLORS.discovery,
+      color: PHASE_COLORS.teal,
       order: 0,
       relativeStart: 0,
       relativeEnd: 0.12,
@@ -43,7 +43,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
     {
       name: 'Concept Exploration',
       description: 'Ideation and initial concept development with rapid visualization',
-      color: PHASE_COLORS.concept,
+      color: PHASE_COLORS.sky,
       order: 1,
       relativeStart: 0.12,
       relativeEnd: 0.28,
@@ -81,7 +81,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
     {
       name: 'Design Development',
       description: 'Detailed form development, CMF, and design refinement',
-      color: PHASE_COLORS.design,
+      color: PHASE_COLORS.blue,
       order: 2,
       relativeStart: 0.28,
       relativeEnd: 0.52,
@@ -133,7 +133,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
     {
       name: 'Engineering Collaboration',
       description: 'Design for manufacturing and engineering handoff',
-      color: PHASE_COLORS.engineering,
+      color: PHASE_COLORS.orange,
       order: 3,
       relativeStart: 0.52,
       relativeEnd: 0.72,
@@ -171,7 +171,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
     {
       name: 'Validation Support',
       description: 'Support through EVT/DVT and design verification',
-      color: PHASE_COLORS.production,
+      color: PHASE_COLORS.red,
       order: 4,
       relativeStart: 0.72,
       relativeEnd: 0.88,
@@ -202,7 +202,7 @@ export const industrialDesignTemplate: ScheduleTemplate = {
     {
       name: 'Production Release',
       description: 'Final production validation and launch support',
-      color: '#10B981', // Emerald for production
+      color: PHASE_COLORS.plum, // closes the sequence
       order: 5,
       relativeStart: 0.88,
       relativeEnd: 1,

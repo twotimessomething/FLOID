@@ -1,26 +1,38 @@
 // Phase color gradient configuration
-export const HUE_SHIFT = 15; // Degrees to shift hue across range
-export const LIGHTNESS_SHIFT = -12; // Percentage to adjust lightness
+export const HUE_SHIFT = 12; // Degrees to shift hue across range
+export const LIGHTNESS_SHIFT = -10; // Percentage to adjust lightness
 
-// Phase colors for the industrial design process
+/**
+ * The FLOID palette.
+ *
+ * Flat, printed-ink colors sampled from mid-century data-visualization work:
+ * saturated mid-tones alternating with tints so adjacent phases separate on
+ * value as well as hue. Bars multiply over the grey ground, so every colour
+ * here is chosen to stay legible after that darkening.
+ */
 export const PHASE_COLORS = {
-  discovery: '#6366F1', // Indigo
-  concept: '#8B5CF6', // Violet
-  design: '#EC4899', // Pink
-  engineering: '#F59E0B', // Amber
-  production: '#10B981', // Emerald
-};
+  teal: '#5BB5A9',
+  sky: '#B1E3F9',
+  blue: '#3264B3',
+  red: '#F34E42',
+  pink: '#F1B5D4',
+  orange: '#EA733E',
+  indigo: '#3A3F76',
+  ochre: '#E0B54A',
+  plum: '#7A184B',
+} as const;
 
-// Schedule colors palette
+// Schedule base colors — mid-value hues that hold up under the per-phase
+// gradient shift. Tints are placed last so they are picked only when needed.
 export const SCHEDULE_COLORS = [
-  '#f97316', // orange-500
-  '#14b8a6', // teal-500
-  '#8b5cf6', // violet-500
-  '#ec4899', // pink-500
-  '#06b6d4', // cyan-500
-  '#84cc16', // lime-500
-  '#f43f5e', // rose-500
-  '#6366f1', // indigo-500
+  PHASE_COLORS.teal,
+  PHASE_COLORS.blue,
+  PHASE_COLORS.orange,
+  PHASE_COLORS.indigo,
+  PHASE_COLORS.red,
+  PHASE_COLORS.plum,
+  PHASE_COLORS.ochre,
+  PHASE_COLORS.sky,
 ];
 
 export const getScheduleColor = (index: number): string => {

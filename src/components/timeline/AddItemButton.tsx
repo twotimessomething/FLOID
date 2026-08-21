@@ -24,8 +24,8 @@ export function AddItemButton({ onClick, label }: AddItemButtonProps): JSX.Eleme
     <button
       onClick={handleClick}
       onMouseDown={handleMouseDown}
-      className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[var(--color-background)] border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-30 pointer-events-auto focus-ring"
-      style={{ right: -35 }}
+      className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-70 pointer-events-auto z-30 focus-ring"
+      style={{ right: -35, backgroundColor: 'var(--color-text-primary)', color: 'var(--color-background)' }}
       aria-label={label}
       title={label}
     >

@@ -5,6 +5,7 @@ import { getDateFromRelativePosition, computeViewportBounds, sectionToViewportRe
 import { format, differenceInDays } from 'date-fns';
 import { setAppSettings } from './indexedDB';
 import { sanitizeFilename } from './stringUtils';
+import { getReadableTextColor } from './colorUtils';
 import {
   IMAGE_WIDTH,
   IMAGE_HEIGHT,
@@ -15,7 +16,6 @@ import {
   TASK_ROW_HEIGHT,
   BAR_HEIGHT,
   TASK_BAR_HEIGHT,
-  BAR_RADIUS,
 } from '../constants/exportDimensions';
 
 // Helper to compute absolute dates for phases
@@ -407,12 +407,14 @@ export const exportTimelineAsImage = async (
   };
 
   const colors = {
-    surface: getColor('--color-surface', '#ffffff'),
-    text: getColor('--color-text-primary', '#1f2937'),
-    textSecondary: getColor('--color-text-secondary', '#6b7280'),
-    textMuted: getColor('--color-text-muted', '#9ca3af'),
-    border: getColor('--color-border', '#e5e7eb'),
-    hover: getColor('--color-hover', '#f3f4f6'),
+    surface: getColor('--color-surface', '#f0f0f0'),
+    text: getColor('--color-text-primary', '#17171a'),
+    textSecondary: getColor('--color-text-secondary', '#6a6a70'),
+    textMuted: getColor('--color-text-muted', '#9e9ea4'),
+    border: getColor('--color-border', '#dcdcdc'),
+    hover: getColor('--color-hover', 'rgba(23, 23, 26, 0.04)'),
+    gridline: getColor('--color-gridline', 'rgba(255, 255, 255, 0.85)'),
+    today: getColor('--color-today', 'rgba(23, 23, 26, 0.32)'),
   };
 
   // Sort sections by order (pinned section first)
@@ -464,12 +466,6 @@ export const exportTimelineAsImage = async (
   // Draw header with month markers
   ctx.fillStyle = colors.surface;
   ctx.fillRect(0, 0, WIDTH, HEADER_HEIGHT);
-  ctx.strokeStyle = colors.border;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0, HEADER_HEIGHT);
-  ctx.lineTo(WIDTH, HEADER_HEIGHT);
-  ctx.stroke();
 
   // Draw month markers
   const monthMarkers = getMonthMarkers(viewport.startDate, viewport.endDate);
@@ -485,54 +481,33 @@ export const exportTimelineAsImage = async (
     if (x >= timelineX && x <= timelineX + timelineWidth) {
       ctx.fillText(marker.label, x, HEADER_HEIGHT - 15);
 
-      // Draw vertical grid line
-      ctx.strokeStyle = colors.border;
-      ctx.globalAlpha = 0.5;
+      // Draw vertical grid line — lighter than the ground, reads as a gap in the paper
+      ctx.strokeStyle = colors.gridline;
       ctx.beginPath();
       ctx.moveTo(x, HEADER_HEIGHT);
       ctx.lineTo(x, HEIGHT);
       ctx.stroke();
-      ctx.globalAlpha = 1;
     }
   }
 
-  // Draw year indicator
-  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+  // Draw year indicator, stacked above the first month label and sharing its
+  // centre so the two read as one axis mark (matching TimelineHeader on screen)
+  ctx.font = '11px system-ui, -apple-system, sans-serif';
   ctx.fillStyle = colors.textMuted;
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'center';
   const year = viewport.startDate.getFullYear();
-  ctx.fillText(String(year), timelineX + 5, HEADER_HEIGHT - 30);
+  const firstMarker = monthMarkers[0];
+  const yearX = firstMarker
+    ? timelineX +
+      (differenceInDays(firstMarker.date, viewport.startDate) / viewport.totalDays) * timelineWidth
+    : timelineX;
+  ctx.fillText(String(year), yearX, HEADER_HEIGHT - 30);
 
   // Draw project title
-  ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+  ctx.font = '600 16px system-ui, -apple-system, sans-serif';
   ctx.fillStyle = colors.text;
   ctx.textAlign = 'left';
   ctx.fillText(project.name, PADDING, HEADER_HEIGHT - 18);
-
-  // Helper to draw rounded rect
-  const drawRoundedRect = (x: number, y: number, w: number, h: number, r: number): void => {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  };
-
-  // Helper to get contrasting text color for a background
-  const getContrastColor = (hexColor: string): string => {
-    const hex = hexColor.replace('#', '');
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.5 ? '#000000' : '#ffffff';
-  };
 
   // Draw sections
   let y = HEADER_HEIGHT + PADDING;
@@ -542,18 +517,11 @@ export const exportTimelineAsImage = async (
     const sectionHeaderY = y; // Store for milestone positioning
 
     // Draw section label
-    ctx.font = isPinned ? 'bold 13px system-ui, -apple-system, sans-serif' : '13px system-ui, -apple-system, sans-serif';
+    ctx.font = '13px system-ui, -apple-system, sans-serif';
     ctx.fillStyle = colors.text;
     ctx.textAlign = 'left';
     const sectionLabel = section.name + (isPinned ? ' ★' : '');
     ctx.fillText(sectionLabel, PADDING, y + scaledRowHeight / 2 + 4, LABEL_WIDTH - PADDING);
-
-    // Draw section divider
-    ctx.strokeStyle = colors.border;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(WIDTH, y);
-    ctx.stroke();
 
     // Draw section milestones on the section header row
     for (const milestone of section.milestones) {
@@ -601,20 +569,20 @@ export const exportTimelineAsImage = async (
       const phaseX = timelineX + phaseStartViewport * timelineWidth;
       const phaseWidth = (phaseEndViewport - phaseStartViewport) * timelineWidth;
 
-      // Draw phase bar
+      // Draw phase bar — square corners, flat fill
       if (phaseWidth > 0) {
         ctx.fillStyle = phaseColor;
         const barY = y + (scaledRowHeight - scaledBarHeight) / 2;
-        drawRoundedRect(phaseX, barY, Math.max(phaseWidth, 2), scaledBarHeight, BAR_RADIUS * verticalScale);
-        ctx.fill();
+        ctx.fillRect(phaseX, barY, Math.max(phaseWidth, 2), scaledBarHeight);
 
-        // Draw phase label on bar (if bar is wide enough)
+        // Name on the bar, matching the on-screen treatment
         if (phaseWidth > 40) {
-          ctx.font = `bold ${Math.max(10 * verticalScale, 9)}px system-ui, -apple-system, sans-serif`;
-          ctx.fillStyle = getContrastColor(phaseColor);
+          ctx.font = `${Math.max(10 * verticalScale, 9)}px system-ui, -apple-system, sans-serif`;
+          ctx.fillStyle = getReadableTextColor(phaseColor);
           ctx.textAlign = 'left';
           ctx.fillText(phase.name, phaseX + 6, barY + scaledBarHeight / 2 + 3, phaseWidth - 12);
         }
+
       }
 
       // Draw bar milestones on phase bar
@@ -627,7 +595,7 @@ export const exportTimelineAsImage = async (
           const bmY = y + scaledRowHeight / 2;
 
           // Draw small diamond
-          ctx.fillStyle = getContrastColor(phaseColor);
+          ctx.fillStyle = getReadableTextColor(phaseColor);
           ctx.beginPath();
           const bmSize = 4 * verticalScale;
           ctx.moveTo(bmX, bmY - bmSize);
@@ -663,22 +631,22 @@ export const exportTimelineAsImage = async (
         const taskX = timelineX + taskStartViewport * timelineWidth;
         const taskWidth = (taskEndViewport - taskStartViewport) * timelineWidth;
 
-        // Draw task bar (lighter version of phase color)
+        // Draw task bar (lighter version of phase color) — square corners, flat fill
         if (taskWidth > 0) {
           ctx.fillStyle = phaseColor;
           ctx.globalAlpha = 0.6;
           const barY = y + (scaledTaskRowHeight - scaledTaskBarHeight) / 2;
-          drawRoundedRect(taskX, barY, Math.max(taskWidth, 2), scaledTaskBarHeight, BAR_RADIUS * verticalScale * 0.8);
-          ctx.fill();
+          ctx.fillRect(taskX, barY, Math.max(taskWidth, 2), scaledTaskBarHeight);
           ctx.globalAlpha = 1;
 
-          // Draw task label on bar (if bar is wide enough)
+          // Name on the bar, matching the on-screen treatment
           if (taskWidth > 30) {
             ctx.font = `${Math.max(9 * verticalScale, 8)}px system-ui, -apple-system, sans-serif`;
-            ctx.fillStyle = getContrastColor(phaseColor);
+            ctx.fillStyle = getReadableTextColor(phaseColor);
             ctx.textAlign = 'left';
             ctx.fillText(task.name, taskX + 4, barY + scaledTaskBarHeight / 2 + 3, taskWidth - 8);
           }
+
         }
 
         // Draw bar milestones on task bar
@@ -693,7 +661,7 @@ export const exportTimelineAsImage = async (
             const bmY = y + scaledTaskRowHeight / 2;
 
             // Draw small diamond
-            ctx.fillStyle = getContrastColor(phaseColor);
+            ctx.fillStyle = getReadableTextColor(phaseColor);
             ctx.globalAlpha = 0.8;
             ctx.beginPath();
             const bmSize = 3 * verticalScale;
@@ -724,18 +692,12 @@ export const exportTimelineAsImage = async (
     const todayDays = differenceInDays(today, viewport.startDate);
     const todayX = timelineX + (todayDays / viewport.totalDays) * timelineWidth;
 
-    ctx.strokeStyle = '#ef4444'; // Red color for today
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = colors.today;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(todayX, HEADER_HEIGHT);
     ctx.lineTo(todayX, HEIGHT);
     ctx.stroke();
-
-    // Draw today dot
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath();
-    ctx.arc(todayX, HEADER_HEIGHT, 4, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   // Draw label column border

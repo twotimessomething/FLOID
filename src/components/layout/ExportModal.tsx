@@ -4,6 +4,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { downloadProjectJson, downloadScheduleFloid } from '../../utils/exportUtils';
 import { loadProjectFromStorage } from '../../utils/storageUtils';
+import { Button } from '../common/Button';
 import type { Section, Project } from '../../types';
 
 type ExportMode = 'active-project' | 'schedules' | 'all-projects';
@@ -158,21 +159,21 @@ export function ExportModal(): JSX.Element | null {
       aria-labelledby="export-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/25" />
 
       {/* Modal */}
       <div
-        className="relative glass-bordered rounded-xl w-full max-w-md mx-4 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] w-full max-w-md mx-4 modal-enter"
         role="document"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-row-border-strong)]">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="export-title">
+        <div className="flex items-center justify-between px-5 py-4">
+          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="export-title">
             Export
           </h2>
           <button
             onClick={closeExportModal}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-[var(--color-hover)] focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-hover)] focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg
@@ -201,7 +202,7 @@ export function ExportModal(): JSX.Element | null {
             </label>
 
             {/* Active project option */}
-            <label className="flex items-start gap-3 p-3 rounded-lg cursor-pointer hover:bg-[var(--color-hover)] transition-colors">
+            <label className="flex items-start gap-3 p-3 rounded-[var(--radius-sm)] cursor-pointer hover:bg-[var(--color-hover)]">
               <input
                 type="radio"
                 name="exportMode"
@@ -221,7 +222,7 @@ export function ExportModal(): JSX.Element | null {
             </label>
 
             {/* Specific schedules option */}
-            <label className="flex items-start gap-3 p-3 rounded-lg cursor-pointer hover:bg-[var(--color-hover)] transition-colors">
+            <label className="flex items-start gap-3 p-3 rounded-[var(--radius-sm)] cursor-pointer hover:bg-[var(--color-hover)]">
               <input
                 type="radio"
                 name="exportMode"
@@ -266,7 +267,7 @@ export function ExportModal(): JSX.Element | null {
                   {sortedSections.map((section) => (
                     <label
                       key={section.id}
-                      className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--color-hover)] cursor-pointer"
+                      className="flex items-center gap-2 py-1.5 px-2 rounded-[var(--radius-sm)] hover:bg-[var(--color-hover)] cursor-pointer"
                     >
                       <input
                         type="checkbox"
@@ -289,7 +290,7 @@ export function ExportModal(): JSX.Element | null {
 
             {/* All projects option */}
             {projects.length > 1 && (
-              <label className="flex items-start gap-3 p-3 rounded-lg cursor-pointer hover:bg-[var(--color-hover)] transition-colors">
+              <label className="flex items-start gap-3 p-3 rounded-[var(--radius-sm)] cursor-pointer hover:bg-[var(--color-hover)]">
                 <input
                   type="radio"
                   name="exportMode"
@@ -312,20 +313,13 @@ export function ExportModal(): JSX.Element | null {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-5 py-4 border-t border-[var(--color-row-border-strong)]">
-          <button
-            onClick={closeExportModal}
-            className="px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] rounded-lg transition-colors"
-          >
+        <div className="flex justify-end gap-3 px-5 py-4">
+          <Button variant="ghost" onClick={closeExportModal}>
             Cancel
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={!canExport || isExporting}
-            className="px-4 py-2 text-sm font-medium text-white bg-[var(--color-focus)] hover:bg-[var(--color-focus-hover)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          </Button>
+          <Button variant="primary" onClick={handleExport} disabled={!canExport || isExporting}>
             {isExporting ? 'Exporting...' : 'Export'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

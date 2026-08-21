@@ -7,7 +7,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 // Label column constraints
 const MIN_LABEL_WIDTH = 120;
 const MAX_LABEL_WIDTH = 400;
-const DEFAULT_LABEL_WIDTH = 200;
+const DEFAULT_LABEL_WIDTH = 248;
 
 // Info sidebar constraints
 const MIN_INFO_SIDEBAR_WIDTH = 180;
@@ -223,12 +223,12 @@ export const useUIStore = create<UIState>((set) => ({
     }),
 
   // Left sidebar
-  isLeftSidebarOpen: true,
+  isLeftSidebarOpen: false,
   toggleLeftSidebar: () =>
     set((state) => ({ isLeftSidebarOpen: !state.isLeftSidebarOpen })),
 
   // Info sidebar (right)
-  isInfoSidebarOpen: true,
+  isInfoSidebarOpen: false,
   toggleInfoSidebar: () =>
     set((state) => ({ isInfoSidebarOpen: !state.isInfoSidebarOpen })),
   infoSidebarWidth: DEFAULT_INFO_SIDEBAR_WIDTH,

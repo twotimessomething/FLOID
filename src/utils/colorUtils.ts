@@ -134,3 +134,38 @@ export function getPhaseColorInRange(
 
   return hslToHex(h, s, l);
 }
+
+const INK = '#17171A';
+const PAPER = '#FFFFFF';
+
+/**
+ * Luminance at which ink and paper give equal contrast against a backdrop.
+ *
+ * Solving `(L + 0.05) / (Link + 0.05) = 1.05 / (L + 0.05)` for the ink above
+ * puts the crossover at 0.198 — above it, ink wins; below it, paper does.
+ * Picking this by eye lands far too high and silently hands mid-tones like
+ * teal white text at ~2.4:1 when ink would have given ~7.4:1.
+ */
+const INK_CROSSOVER_LUMINANCE = 0.198;
+
+/**
+ * Pick ink or paper for text sitting on a colored bar, whichever contrasts
+ * more. Ties go to ink: white text on color reads heavier than this design
+ * wants, and the palette's mid-tones all sit on the ink side of the line.
+ */
+export function getReadableTextColor(hex: string): string {
+  const cleanHex = hex.replace(/^#/, '').slice(0, 6);
+  if (cleanHex.length < 6) return INK;
+
+  const toLinear = (channel: number): number => {
+    const c = channel / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+
+  const r = toLinear(parseInt(cleanHex.slice(0, 2), 16));
+  const g = toLinear(parseInt(cleanHex.slice(2, 4), 16));
+  const b = toLinear(parseInt(cleanHex.slice(4, 6), 16));
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+  return luminance >= INK_CROSSOVER_LUMINANCE ? INK : PAPER;
+}

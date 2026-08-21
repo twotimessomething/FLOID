@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
+import { getReadableTextColor } from '../../utils/colorUtils';
 
 interface DragHandleProps {
   readonly edge: 'start' | 'end';
@@ -22,6 +23,8 @@ export function DragHandle({
   const isDragging = useRef(false);
   const lastX = useRef(0);
   const [showBubble, setShowBubble] = useState(false);
+
+  const gripColor = color ? getReadableTextColor(color) : 'var(--color-text-muted)';
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -81,7 +84,7 @@ export function DragHandle({
       {/* Date bubble tooltip */}
       {showBubble && dragDate && (
         <div
-          className={`absolute bottom-full mb-2 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs font-medium rounded shadow-lg whitespace-nowrap z-50 pointer-events-none ${
+          className={`absolute bottom-full mb-2 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs rounded-[var(--radius-sm)] shadow-[var(--shadow-sm)] whitespace-nowrap z-50 pointer-events-none ${
             edge === 'start' ? 'left-0 -translate-x-1/2' : 'right-0 translate-x-1/2'
           }`}
           aria-hidden="true"
@@ -96,10 +99,10 @@ export function DragHandle({
         </div>
       )}
       <div
-        className={`absolute top-1/2 -translate-y-1/2 w-1 h-4 rounded ${
+        className={`absolute top-1/2 -translate-y-1/2 w-1 h-4 ${
           edge === 'start' ? 'left-0.5' : 'right-0.5'
         }`}
-        style={{ backgroundColor: color ?? 'rgba(255, 255, 255, 0.5)' }}
+        style={{ backgroundColor: gripColor }}
         aria-hidden="true"
       />
     </div>

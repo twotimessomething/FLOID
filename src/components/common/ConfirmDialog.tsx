@@ -57,27 +57,27 @@ export function ConfirmDialog(): JSX.Element | null {
       aria-labelledby="confirm-dialog-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/25" aria-hidden="true" />
 
       {/* Dialog */}
       <div
-        className="relative glass-bordered rounded-xl max-w-sm w-full mx-4 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] max-w-sm w-full mx-4 modal-enter"
         role="alertdialog"
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-message"
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[var(--color-row-border-strong)]">
+        <div className="px-5 pt-5 pb-2">
           <h2
             id="confirm-dialog-title"
-            className="text-base font-semibold text-[var(--color-text-primary)]"
+            className="text-sm font-medium text-[var(--color-text-primary)]"
           >
             {title}
           </h2>
         </div>
 
         {/* Body */}
-        <div className="px-5 py-4">
+        <div className="px-5 pb-2">
           <p
             id="confirm-dialog-message"
             className="text-sm text-[var(--color-text-secondary)] whitespace-pre-line"
@@ -87,7 +87,7 @@ export function ConfirmDialog(): JSX.Element | null {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-5 py-4 border-t border-[var(--color-row-border-strong)]">
+        <div className="flex justify-end gap-3 px-5 pt-2 pb-5">
           <Button variant="ghost" onClick={handleCancel}>
             {cancelLabel}
           </Button>

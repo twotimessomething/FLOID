@@ -161,7 +161,7 @@ export function TaskEditor(): JSX.Element {
         />
       </div>
 
-      <div className="pt-4 border-t border-[var(--color-border)]">
+      <div className="pt-2">
         <Button variant="danger" onClick={handleDelete} className="w-full">Delete Task</Button>
       </div>
     </div>

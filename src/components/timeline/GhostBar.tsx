@@ -10,9 +10,10 @@ interface GhostBarProps {
 }
 
 /**
- * Translucent preview of the bar a create gesture would produce. Shared by
- * every hover-ghost and drag-to-draw surface so previews never drift from
- * the real bars.
+ * Dashed-outline preview of the bar a create gesture would produce. Square
+ * corners, a low-alpha fill in the phase color, and a muted label read as an
+ * unfinished sketch rather than a solid bar. Shared by every hover-ghost and
+ * drag-to-draw surface so previews never drift from the real bars.
  */
 export function GhostBar({
   left,
@@ -24,11 +25,14 @@ export function GhostBar({
 }: GhostBarProps): JSX.Element {
   return (
     <div
-      className={`absolute ${verticalClassName} ghost-enter rounded-[10px] pointer-events-none flex items-center justify-center px-2 overflow-hidden`}
-      style={{ left, width, backgroundColor: color, opacity: 0.3, ...style }}
+      className={`absolute ${verticalClassName} ghost-enter pointer-events-none overflow-hidden border border-dashed`}
+      style={{ left, width, borderColor: color, ...style }}
       aria-hidden="true"
     >
-      <span className="text-xs font-medium text-white truncate drop-shadow-sm">{label}</span>
+      <div className="absolute inset-0" style={{ backgroundColor: color, opacity: 0.16 }} />
+      <div className="relative h-full flex items-center justify-center px-2">
+        <span className="text-[11px] text-[var(--color-text-muted)] truncate">{label}</span>
+      </div>
     </div>
   );
 }

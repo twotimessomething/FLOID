@@ -122,14 +122,14 @@ export function BarMilestoneEditor(): JSX.Element {
 
       {milestoneDate && (
         <div className="text-sm text-[var(--color-text-secondary)]">
-          <span className="text-xs text-[var(--color-text-muted)]">Date</span>
-          <div className="mt-1 font-medium text-[var(--color-text-primary)]">
+          <span className="text-[11px] font-normal text-[var(--color-text-secondary)]">Date</span>
+          <div className="mt-1 text-[var(--color-text-primary)]">
             {formatDate(milestoneDate, 'MMM d, yyyy')}
           </div>
         </div>
       )}
 
-      <div className="pt-4 border-t border-[var(--color-border)]">
+      <div className="pt-2">
         <Button variant="danger" onClick={handleDelete} className="w-full">Delete</Button>
       </div>
     </div>

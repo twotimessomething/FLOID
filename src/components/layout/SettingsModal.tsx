@@ -185,21 +185,21 @@ export function SettingsModal(): JSX.Element | null {
       aria-labelledby="settings-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-black/25" />
 
       {/* Modal */}
       <div
-        className="relative glass-bordered rounded-xl w-full max-w-sm mx-4 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] w-full max-w-sm mx-4 modal-enter"
         role="document"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-row-border-strong)]">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]" id="settings-title">
+        <div className="flex items-center justify-between px-5 py-4">
+          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="settings-title">
             Settings
           </h2>
           <button
             onClick={closeSettingsModal}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-[var(--color-hover)] focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-hover)] focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg
@@ -220,7 +220,7 @@ export function SettingsModal(): JSX.Element | null {
         </div>
 
         {/* Body */}
-        <div className="px-5 py-2 divide-y divide-[var(--color-border)]">
+        <div className="px-5 py-2 flex flex-col gap-1">
           {/* Appearance section */}
           <div className="py-3">
             <label className="text-sm font-medium text-[var(--color-text-primary)]">
@@ -229,14 +229,15 @@ export function SettingsModal(): JSX.Element | null {
             <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 mb-3">
               Choose your preferred color theme
             </p>
-            <div className="flex gap-1 p-1 bg-[var(--color-background)] rounded-lg">
+            <div className="flex gap-1 p-1 bg-[var(--color-background)] rounded-[var(--radius-md)]">
               {THEME_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => setTheme(option.value)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  aria-pressed={theme === option.value}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] btn-press focus-ring ${
                     theme === option.value
-                      ? 'bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-sm'
+                      ? 'bg-[var(--color-raised)] text-[var(--color-text-primary)] border border-[var(--color-border)]'
                       : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
                   }`}
                 >
@@ -284,7 +285,7 @@ export function SettingsModal(): JSX.Element | null {
               <select
                 value={appSettings.backupReminderDays}
                 onChange={handleBackupDaysChange}
-                className="text-sm bg-[var(--color-input-bg)] border border-[var(--color-border)] rounded px-2 py-1 focus-ring"
+                className="text-sm bg-[var(--color-input-bg)] border border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 py-1 focus-ring"
               >
                 <option value={3}>3 days</option>
                 <option value={7}>7 days</option>
@@ -321,17 +322,17 @@ export function SettingsModal(): JSX.Element | null {
                       {appSettings.fileSystemFolderName}
                     </span>
                     {syncStatus === 'syncing' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-[var(--color-focus)]/10 text-[var(--color-focus)]">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--color-focus)]/10 text-[var(--color-focus)]">
                         Saving...
                       </span>
                     )}
                     {syncStatus === 'synced' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-[var(--color-success)]/10 text-[var(--color-success)]">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--color-success)]/10 text-[var(--color-success)]">
                         Saved
                       </span>
                     )}
                     {syncStatus === 'error' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-[var(--color-error)]/10 text-[var(--color-error)]">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--color-error)]/10 text-[var(--color-error)]">
                         Error
                       </span>
                     )}

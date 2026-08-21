@@ -4,120 +4,134 @@
 
 /* =========================================
    Brand Tokens
+
+   One ground, no cards. The app body sits on a single warm-neutral grey.
+   White is reserved for things that float above it (modals, menus, popovers).
+   Separation comes from whitespace, not from lines.
    ========================================= */
 :root {
-  --color-background: #fafafa;
-  --color-surface: #ffffff;
-  --color-border: #e5e7eb;
-  --color-text-primary: #111827;
-  --color-text-secondary: #6b7280;
-  --color-text-muted: #9ca3af;
+  /* Ground */
+  --color-background: #f0f0f0;
+  --color-surface: #f0f0f0; /* same as ground on purpose — no nested panels */
+  --color-raised: #ffffff; /* modals, menus, popovers only */
+
+  /* Lines — used sparingly. Prefer whitespace. */
+  --color-border: #dcdcdc;
+  --color-hairline: rgba(23, 23, 26, 0.07);
+
+  /* Ink */
+  --color-text-primary: #17171a;
+  --color-text-secondary: #6a6a70;
+  --color-text-muted: #9e9ea4;
 
   /* Interactive states */
-  --color-focus: #3b82f6;
-  --color-focus-hover: #2563eb;
-  --color-selection: #eff6ff;
-  --color-hover: #f3f4f6;
-  --color-active: #e5e7eb;
+  --color-accent: #3a3f76;
+  --color-focus: #3a3f76;
+  --color-focus-hover: #2c3060;
+  --color-selection: rgba(58, 63, 118, 0.08);
+  --color-hover: rgba(23, 23, 26, 0.04);
+  --color-active: rgba(23, 23, 26, 0.07);
 
-  /* UI elements */
-  --color-tooltip: #1f2937;
-  --color-tooltip-text: #ffffff;
-  --color-gridline: #d1d5db;
-  --color-gridline-minor: rgba(209, 213, 219, 0.3);
-  --color-gridline-major: rgba(209, 213, 219, 0.6);
-  --color-row-border-light: rgba(229, 231, 235, 0.45);
-  --color-row-border: rgba(229, 231, 235, 0.6);
-  --color-row-border-strong: rgba(229, 231, 235, 0.75);
-  --color-milestone-line: rgba(0, 0, 0, 0.15);
-  --color-today: #ef4444;
-  --color-danger: #ef4444;
-  --color-danger-hover: #fef2f2;
-  --color-locked-bg: #f9fafb;
-  --color-locked-border: #e5e7eb;
-  --color-locked-text: #6b7280;
+  /* Timeline chrome */
+  --color-tooltip: #17171a;
+  --color-tooltip-text: #f0f0f0;
+  /* Gridlines are LIGHTER than the ground — they read as gaps, not rules. */
+  --color-gridline: rgba(255, 255, 255, 0.85);
+  --color-gridline-strong: #ffffff;
+  --color-milestone-line: rgba(23, 23, 26, 0.1);
+  --color-today: rgba(23, 23, 26, 0.32);
+
+  /* Locked / disabled */
+  --color-danger: #f34e42;
+  --color-danger-hover: rgba(243, 78, 66, 0.08);
+  --color-locked-bg: rgba(23, 23, 26, 0.03);
+  --color-locked-border: var(--color-border);
+  --color-locked-text: var(--color-text-secondary);
 
   /* Status colors */
-  --color-success: #22c55e;
-  --color-success-bg: #f0fdf4;
-  --color-warning: #f59e0b;
-  --color-warning-bg: #fffbeb;
-  --color-error: #ef4444;
-  --color-error-bg: #fef2f2;
+  --color-success: #5bb5a9;
+  --color-success-bg: rgba(91, 181, 169, 0.12);
+  --color-warning: #e0b54a;
+  --color-warning-bg: rgba(224, 181, 74, 0.14);
+  --color-error: #f34e42;
+  --color-error-bg: rgba(243, 78, 66, 0.1);
 
   /* Form elements */
   --color-input-bg: #ffffff;
-  --color-toggle-off: #d1d5db;
-  --color-toggle-on: var(--color-logo-primary);
+  --color-toggle-off: #c9c9c9;
+  --color-toggle-on: var(--color-accent);
   --color-toggle-knob: #ffffff;
 
   /* Logo accent colors */
-  --color-logo-primary: #6366f1;
-  --color-logo-bar-1: #a5b4fc;
-  --color-logo-bar-2: #c4b5fd;
-  --color-logo-bar-3: #f9a8d4;
+  --color-logo-primary: #3a3f76;
+  --color-logo-bar-1: #5bb5a9;
+  --color-logo-bar-2: #b1e3f9;
+  --color-logo-bar-3: #ea733e;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  /* Geometry — bars are square, controls are barely rounded. */
+  --radius-bar: 0px;
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+  /* Elevation exists only for floating surfaces. Nothing in-page casts a shadow. */
+  --shadow-sm: 0 1px 2px rgba(23, 23, 26, 0.06);
+  --shadow-md: 0 6px 20px rgba(23, 23, 26, 0.08);
+  --shadow-lg: 0 16px 40px rgba(23, 23, 26, 0.12);
 }
 
 /* =========================================
    Dark Mode
    ========================================= */
 .dark {
-  --color-background: #0f0f0f;
-  --color-surface: #1a1a1a;
-  --color-border: #2e2e2e;
-  --color-text-primary: #f5f5f5;
-  --color-text-secondary: #a3a3a3;
-  --color-text-muted: #737373;
+  --color-background: #141416;
+  --color-surface: #141416;
+  --color-raised: #1d1d20;
 
-  /* Interactive states */
-  --color-focus: #60a5fa;
-  --color-focus-hover: #93c5fd;
-  --color-selection: #1e3a5f;
-  --color-hover: #262626;
-  --color-active: #333333;
+  --color-border: #2c2c30;
+  --color-hairline: rgba(255, 255, 255, 0.07);
 
-  /* UI elements */
-  --color-tooltip: #f5f5f5;
-  --color-tooltip-text: #111827;
-  --color-gridline: #2a2a2a;
-  --color-gridline-minor: rgba(255, 255, 255, 0.04);
-  --color-gridline-major: rgba(255, 255, 255, 0.08);
-  --color-row-border-light: rgba(255, 255, 255, 0.04);
-  --color-row-border: rgba(255, 255, 255, 0.06);
-  --color-row-border-strong: rgba(255, 255, 255, 0.1);
-  --color-milestone-line: rgba(255, 255, 255, 0.25);
-  --color-today: #f87171;
-  --color-danger: #f87171;
-  --color-danger-hover: #3b1515;
-  --color-locked-bg: #1f1f1f;
-  --color-locked-border: #2e2e2e;
-  --color-locked-text: #a3a3a3;
+  --color-text-primary: #f2f2f3;
+  --color-text-secondary: #9a9aa1;
+  --color-text-muted: #6c6c73;
 
-  /* Status colors */
-  --color-success: #4ade80;
-  --color-success-bg: #14532d;
-  --color-warning: #fbbf24;
-  --color-warning-bg: #451a03;
-  --color-error: #f87171;
-  --color-error-bg: #3b1515;
+  --color-accent: #9aa0dc;
+  --color-focus: #9aa0dc;
+  --color-focus-hover: #b4b9e8;
+  --color-selection: rgba(154, 160, 220, 0.12);
+  --color-hover: rgba(255, 255, 255, 0.05);
+  --color-active: rgba(255, 255, 255, 0.09);
 
-  /* Form elements */
-  --color-input-bg: #262626;
-  --color-toggle-off: #525252;
-  --color-toggle-on: var(--color-logo-primary);
-  --color-toggle-knob: #f5f5f5;
+  --color-tooltip: #f2f2f3;
+  --color-tooltip-text: #141416;
+  --color-gridline: rgba(255, 255, 255, 0.055);
+  --color-gridline-strong: rgba(255, 255, 255, 0.09);
+  --color-milestone-line: rgba(255, 255, 255, 0.14);
+  --color-today: rgba(255, 255, 255, 0.34);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --color-danger: #f5675c;
+  --color-danger-hover: rgba(245, 103, 92, 0.14);
+  --color-locked-bg: rgba(255, 255, 255, 0.035);
+  --color-locked-border: var(--color-border);
+  --color-locked-text: var(--color-text-secondary);
+
+  --color-success: #6cc4b8;
+  --color-success-bg: rgba(108, 196, 184, 0.16);
+  --color-warning: #e6c169;
+  --color-warning-bg: rgba(230, 193, 105, 0.16);
+  --color-error: #f5675c;
+  --color-error-bg: rgba(245, 103, 92, 0.14);
+
+  --color-input-bg: #232327;
+  --color-toggle-off: #45454b;
+  --color-toggle-on: var(--color-accent);
+  --color-toggle-knob: #f2f2f3;
+
+  --color-logo-primary: #9aa0dc;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
 }
 
 * {
@@ -142,127 +156,90 @@ body {
 }
 
 /* =========================================
-   Glass Surface Utilities
+   Typography helpers
    ========================================= */
-.glass {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
+
+/* Time-axis labels: small, uppercase, tracked out, quiet. */
+.axis-label {
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.glass-bordered {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-}
-
-.glass-overlay {
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-
-/* Dark mode glass overrides */
-.dark .glass {
-  background: rgba(30, 30, 30, 0.8);
-}
-
-.dark .glass-bordered {
-  background: rgba(30, 30, 30, 0.8);
-  border: 1.5px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-
-/* Prevent text selection during drag operations */
-.no-select {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-/* Timeline pan cursor */
-.timeline-scroll-container.panning,
-.timeline-scroll-container.panning * {
-  cursor: grabbing !important;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--color-background);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-text-muted);
-  border-radius: var(--radius-sm);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-secondary);
+/* Section-heading eyebrow used in sidebars and panels. */
+.eyebrow {
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
 }
 
 /* =========================================
-   Phase 5: Polish - Animations & Accessibility
+   Timeline bars
+
+   Flat rectangles. No radius, no shadow, no scale-on-hover.
+   Overlapping bars darken through each other like printed ink — the
+   plot area isolates the blend so it never leaks into the page stack.
    ========================================= */
-
-/* Focus ring styles for keyboard navigation */
-.focus-ring {
-  outline: none;
+.timeline-plot {
+  isolation: isolate;
 }
 
-.focus-ring:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-/* Collapse/expand animation for content */
-.collapse-content {
-  overflow: hidden;
-  transition: max-height 200ms ease-out, opacity 150ms ease-out;
-}
-
-.collapse-content.collapsed {
-  max-height: 0;
-  opacity: 0;
-}
-
-.collapse-content.expanded {
-  opacity: 1;
-}
-
-/* Smooth chevron rotation */
-.collapse-chevron {
-  transition: transform 150ms ease-out;
-}
-
-.collapse-chevron.expanded {
-  transform: rotate(90deg);
-}
-
-/* Bar hover and selection animations */
+/* The wrapper must stay free of opacity, transform, filter and z-index — any
+   of those would make it a stacking context and trap the fill's blending
+   inside the bar instead of letting it overprint its neighbours. */
 .timeline-bar {
-  transition: box-shadow 150ms ease-out, transform 150ms ease-out;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-bar);
 }
 
-.timeline-bar:hover {
-  transform: scale(1.005);
-  box-shadow: var(--shadow-md);
+/* The colour lives in its own layer so overlapping bars overprint like ink,
+   while everything stacked above it — labels, handles, milestone glyphs —
+   composites normally and stays crisp. */
+.timeline-bar__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  mix-blend-mode: multiply;
+  transition: opacity 120ms linear;
 }
 
-.timeline-bar:active {
-  transform: scale(1.0025);
+.dark .timeline-bar__fill {
+  mix-blend-mode: screen;
 }
 
-/* Drag handle visibility animation */
+.timeline-bar:hover .timeline-bar__fill {
+  opacity: 0.88;
+}
+
+/* Selection is an ink outline, not a glow. Riding on the fill puts it above
+   the colour, and the blend mode carries it correctly in both themes: ink
+   multiplied stays dark, light ink screened stays light. */
+.timeline-bar--selected .timeline-bar__fill {
+  box-shadow: inset 0 0 0 1.5px var(--color-text-primary);
+}
+
+/* Text on a bar. Regular weight — the colour beneath already gives it
+   presence, and bolding it re-introduces the heaviness this design sheds. */
+.timeline-bar__label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+  pointer-events: none;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Drag handles stay invisible until the bar is hovered. */
 .drag-handle {
   opacity: 0;
-  transition: opacity 150ms ease-out;
+  transition: opacity 120ms linear;
 }
 
 .timeline-bar:hover .drag-handle,
@@ -270,62 +247,137 @@ body {
   opacity: 1;
 }
 
-/* Sidebar slide-in animation */
-.sidebar-enter {
-  animation: slideInRight 200ms ease-out;
+/* =========================================
+   Rows
+   ========================================= */
+.row-selectable {
+  transition: background-color 120ms linear;
 }
 
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+.row-selectable:hover {
+  background-color: var(--color-hover);
 }
 
-/* Ghost bar fade-in — animates from 0 to the element's own opacity */
-.ghost-enter {
-  animation: ghostFadeIn 180ms ease-out;
+.row-selectable.selected {
+  background-color: var(--color-selection);
 }
 
-@keyframes ghostFadeIn {
-  from {
-    opacity: 0;
-  }
+.row-selectable:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--color-focus);
 }
 
-/* Modal pop-in animation */
+/* Row affordances (chevrons, grips, add buttons) fade in with the row. */
+.row-affordance {
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.group:hover .row-affordance,
+.row-affordance:focus-visible,
+.row-affordance[data-always-visible='true'] {
+  opacity: 1;
+}
+
+/* =========================================
+   Interaction utilities
+   ========================================= */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.timeline-scroll-container.panning,
+.timeline-scroll-container.panning * {
+  cursor: grabbing !important;
+}
+
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 1.5px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.collapse-chevron {
+  transition: transform 120ms ease-out;
+}
+
+.collapse-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+/* =========================================
+   Scrollbars — thin and unpainted until used
+   ========================================= */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(23, 23, 26, 0.18);
+  background-clip: content-box;
+}
+
+.dark *:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  background-clip: content-box;
+}
+
+/* =========================================
+   Motion — short, linear, and only where it carries meaning
+   ========================================= */
 .modal-enter {
-  animation: modalPopIn 150ms ease-out;
+  animation: modalRise 140ms ease-out;
 }
 
-@keyframes modalPopIn {
+@keyframes modalRise {
   from {
-    transform: scale(0.95);
+    transform: translateY(4px);
     opacity: 0;
   }
-  to {
-    transform: scale(1);
-    opacity: 1;
+}
+
+.sidebar-enter {
+  animation: fadeIn 140ms ease-out;
+}
+
+.ghost-enter {
+  animation: fadeIn 140ms ease-out;
+}
+
+.toast-slide-in {
+  animation: toastRise 160ms ease-out;
+}
+
+@keyframes toastRise {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
   }
 }
 
-/* Walkthrough slide transition */
 .walkthrough-slide-enter {
-  animation: walkthroughSlideIn 240ms ease-out;
+  animation: fadeIn 180ms ease-out;
 }
 
-@keyframes walkthroughSlideIn {
+@keyframes fadeIn {
   from {
-    transform: translateX(16px);
     opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
   }
 }
 
@@ -343,48 +395,14 @@ body {
   }
 }
 
-/* Row highlight animation for selection */
-.row-selectable {
-  transition: background-color 150ms ease-out;
-}
-
-.row-selectable:hover {
-  background-color: var(--color-background);
-}
-
-.row-selectable.selected {
-  background-color: var(--color-selection);
-}
-
-/* Keyboard focus indicator for rows */
-.row-selectable:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 2px var(--color-focus);
-}
-
-/* Button press animation */
 .btn-press {
-  transition: transform 150ms ease-out, background-color 150ms ease-out;
+  transition: background-color 120ms linear, color 120ms linear,
+    opacity 120ms linear;
 }
 
-.btn-press:active {
-  transform: scale(0.95);
-}
-
-/* Add item button pulse on hover */
-.add-btn {
-  transition: background-color 150ms ease-out, transform 150ms ease-out;
-}
-
-.add-btn:hover {
-  transform: scale(1.1);
-}
-
-.add-btn:active {
-  transform: scale(0.95);
-}
-
-/* Screen reader only - visually hidden but accessible */
+/* =========================================
+   Accessibility
+   ========================================= */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -397,17 +415,16 @@ body {
   border: 0;
 }
 
-/* Skip link for keyboard navigation */
 .skip-link {
   position: absolute;
   top: -100%;
   left: 0;
   background: var(--color-text-primary);
-  color: var(--color-surface);
+  color: var(--color-background);
   padding: 0.5rem 1rem;
   border-radius: var(--radius-sm);
   z-index: 100;
-  transition: top 200ms ease-out;
+  transition: top 160ms ease-out;
 }
 
 .skip-link:focus {
@@ -415,23 +432,6 @@ body {
   left: 0.5rem;
 }
 
-/* Toast slide-in animation */
-.toast-slide-in {
-  animation: toastSlideIn 200ms ease-out;
-}
-
-@keyframes toastSlideIn {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* Reduced motion preference support */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

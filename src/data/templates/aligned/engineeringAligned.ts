@@ -18,7 +18,7 @@ export const engineeringAlignedTemplate: ScheduleTemplate = {
   description: 'Hardware engineering cycle with rigorous EVT/DVT/PVT gates',
   icon: 'cog',
   category: 'team',
-  defaultColor: '#10B981', // Emerald
+  defaultColor: '#5BB5A9', // Teal
   phases: [
     {
       name: 'Architecture & Feasibility',

@@ -64,7 +64,7 @@ interface StatusItemRowProps {
   readonly isPhaseLevel?: boolean;
 }
 
-function StatusItemRow({ item, showDate, isPhaseLevel }: StatusItemRowProps) {
+function StatusItemRow({ item, showDate, isPhaseLevel }: StatusItemRowProps): JSX.Element | null {
   // If it's a task within a phase, show task name
   // If it's a phase-level item (no tasks), we just show the phase name in the header
   if (isPhaseLevel) {
@@ -74,9 +74,9 @@ function StatusItemRow({ item, showDate, isPhaseLevel }: StatusItemRowProps) {
   return (
     <div className="flex items-start gap-2 py-0.5 pl-4">
       <div className="min-w-0 flex-1">
-        <div className="text-sm text-[var(--color-text-primary)]">{item.name}</div>
+        <div className="text-[13px] text-[var(--color-text-primary)]">{item.name}</div>
         {showDate && item.date && (
-          <div className="text-xs text-[var(--color-text-muted)]">{format(item.date, 'MMM d')}</div>
+          <div className="text-[11px] text-[var(--color-text-muted)]">{format(item.date, 'MMM d')}</div>
         )}
       </div>
     </div>
@@ -90,7 +90,7 @@ interface PhaseGroupProps {
   readonly showDate?: boolean;
 }
 
-function PhaseGroup({ phaseName, color, items, showDate }: PhaseGroupProps) {
+function PhaseGroup({ phaseName, color, items, showDate }: PhaseGroupProps): JSX.Element {
   // Check if this is a phase-level item (the phase itself, not tasks)
   const isPhaseLevel = items.length === 1 && items[0].phaseName === items[0].name;
 
@@ -98,12 +98,12 @@ function PhaseGroup({ phaseName, color, items, showDate }: PhaseGroupProps) {
     <div className="py-1">
       <div className="flex items-center gap-2">
         <div
-          className="w-2 h-2 rounded-full flex-shrink-0"
+          className="w-[5px] h-[5px] rounded-full flex-shrink-0"
           style={{ backgroundColor: color }}
         />
-        <span className="text-sm text-[var(--color-text-primary)]">{phaseName}</span>
+        <span className="text-[13px] text-[var(--color-text-primary)]">{phaseName}</span>
         {isPhaseLevel && showDate && items[0].date && (
-          <span className="text-xs text-[var(--color-text-muted)]">{format(items[0].date, 'MMM d')}</span>
+          <span className="text-[11px] text-[var(--color-text-muted)]">{format(items[0].date, 'MMM d')}</span>
         )}
       </div>
       {!isPhaseLevel && (
@@ -123,7 +123,7 @@ interface SectionGroupProps {
   readonly showDate?: boolean;
 }
 
-function SectionGroup({ sectionName, phases, showDate }: SectionGroupProps) {
+function SectionGroup({ sectionName, phases, showDate }: SectionGroupProps): JSX.Element {
   return (
     <div className="mb-3">
       <div className="text-xs font-medium text-[var(--color-text-secondary)] mb-1">{sectionName}</div>
@@ -146,18 +146,18 @@ interface MilestoneRowProps {
   readonly item: MilestoneItem;
 }
 
-function MilestoneRow({ item }: MilestoneRowProps) {
+function MilestoneRow({ item }: MilestoneRowProps): JSX.Element {
   return (
     <div className="flex items-start gap-2 py-1">
       <div
-        className="w-2 h-2 rotate-45 mt-1 flex-shrink-0"
+        className="w-[5px] h-[5px] rotate-45 mt-1 flex-shrink-0"
         style={{ backgroundColor: item.color }}
       />
       <div className="min-w-0 flex-1">
-        <div className="text-sm text-[var(--color-text-primary)]">{item.name}</div>
+        <div className="text-[13px] text-[var(--color-text-primary)]">{item.name}</div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[var(--color-text-secondary)]">{item.sectionName}</span>
-          <span className="text-xs text-[var(--color-text-muted)]">{format(item.date, 'MMM d')}</span>
+          <span className="text-[11px] text-[var(--color-text-secondary)]">{item.sectionName}</span>
+          <span className="text-[11px] text-[var(--color-text-muted)]">{format(item.date, 'MMM d')}</span>
         </div>
       </div>
     </div>
@@ -168,15 +168,15 @@ interface SectionHeaderProps {
   readonly title: string;
 }
 
-function SectionHeader({ title }: SectionHeaderProps) {
+function SectionHeader({ title }: SectionHeaderProps): JSX.Element {
   return (
-    <div className="mb-3 pb-1.5 border-b border-[var(--color-border)]">
-      <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</h3>
+    <div className="mb-3">
+      <h3 className="eyebrow">{title}</h3>
     </div>
   );
 }
 
-export function InfoSidebar() {
+export function InfoSidebar(): JSX.Element {
   const { isInfoSidebarOpen, toggleInfoSidebar, infoSidebarWidth, setInfoSidebarWidth, openSettingsModal, openKeyboardHelpModal } = useUIStore();
   const { inFlight, nextUp, upcomingMilestones } = useTimelineStatus();
 
@@ -198,13 +198,13 @@ export function InfoSidebar() {
   useEffect(() => {
     if (!isResizing) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent): void => {
       // Dragging left increases width, dragging right decreases
       const deltaX = resizeStartX.current - e.clientX;
       setInfoSidebarWidth(resizeStartWidth.current + deltaX);
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (): void => {
       setIsResizing(false);
     };
 
@@ -221,11 +221,11 @@ export function InfoSidebar() {
     return (
       <button
         onClick={toggleInfoSidebar}
-        className="flex-shrink-0 w-10 h-full border-l border-[var(--color-border)] bg-[var(--color-background)] flex items-start justify-center pt-4 hover:bg-[var(--color-hover)] transition-colors duration-150"
+        className="group flex-shrink-0 w-8 h-full flex items-start justify-center pt-4 focus-ring"
         aria-label="Open status sidebar"
       >
         <svg
-          className="w-4 h-4 text-[var(--color-text-secondary)]"
+          className="w-4 h-4 text-[var(--color-text-muted)] opacity-40 group-hover:opacity-100 transition-opacity duration-150"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -240,7 +240,7 @@ export function InfoSidebar() {
 
   return (
     <aside
-      className="flex-shrink-0 border-l border-[var(--color-border)] bg-[var(--color-background)] flex flex-col relative"
+      className="flex-shrink-0 bg-[var(--color-background)] border-l border-[var(--color-hairline)] flex flex-col relative"
       style={{ width: infoSidebarWidth }}
     >
       {/* Resize handle */}
@@ -253,11 +253,11 @@ export function InfoSidebar() {
         role="separator"
       />
       {/* Header with collapse button */}
-      <div className="flex items-center justify-between p-3 border-b border-[var(--color-border)]">
-        <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Status</h2>
+      <div className="flex items-center justify-between p-3">
+        <h2 className="eyebrow">Status</h2>
         <button
           onClick={toggleInfoSidebar}
-          className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-active)] rounded-md transition-colors duration-150"
+          className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150 focus-ring"
           aria-label="Collapse sidebar"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -269,7 +269,7 @@ export function InfoSidebar() {
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-3">
         {!hasContent ? (
-          <div className="text-sm text-[var(--color-text-muted)] text-center py-4">
+          <div className="text-[13px] text-[var(--color-text-muted)] text-center py-4">
             No active items
           </div>
         ) : (
@@ -318,30 +318,14 @@ export function InfoSidebar() {
         )}
       </div>
 
-      {/* Tooltips section */}
-      <div className="flex-shrink-0 px-3 py-2 border-t border-[var(--color-border)]">
-        <div className="text-xs text-[var(--color-text-muted)] space-y-1">
-          <div className="flex items-center gap-2">
-            <kbd className="px-1 py-0.5 bg-[var(--color-active)] rounded text-[10px]">Shift</kbd>
-            <span>+ drag to preserve children</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <kbd className="px-1 py-0.5 bg-[var(--color-active)] rounded text-[10px]">Shift</kbd>
-            <span>+</span>
-            <kbd className="px-1 py-0.5 bg-[var(--color-active)] rounded text-[10px]">⌘</kbd>
-            <span>+ drag end to ripple</span>
-          </div>
-        </div>
-      </div>
-
       {/* Settings and help buttons */}
-      <div className="flex-shrink-0 p-3 border-t border-[var(--color-border)] flex justify-end gap-1">
+      <div className="flex-shrink-0 p-3 flex justify-end gap-1">
         <button
           onClick={openKeyboardHelpModal}
-          className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-active)] rounded-md transition-colors duration-150"
+          className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-150 focus-ring"
           aria-label="Keyboard shortcuts"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -352,10 +336,10 @@ export function InfoSidebar() {
         </button>
         <button
           onClick={openSettingsModal}
-          className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-active)] rounded-md transition-colors duration-150"
+          className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-150 focus-ring"
           aria-label="Settings"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"

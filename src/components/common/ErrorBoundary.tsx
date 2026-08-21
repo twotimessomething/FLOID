@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Button } from './Button';
 
 interface ErrorBoundaryProps {
   readonly children: ReactNode;
@@ -30,20 +31,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         return this.props.fallback;
       }
       return (
-        <div className="flex items-center justify-center p-8 text-center">
+        <div className="flex items-center justify-center p-8 text-center bg-[var(--color-background)]">
           <div>
-            <h2 className="text-lg font-medium text-[var(--color-text-primary)] mb-2">
+            <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">
               Something went wrong
             </h2>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
               {this.state.error?.message ?? 'An unexpected error occurred'}
             </p>
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="px-4 py-2 text-sm font-medium bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 transition-opacity"
-            >
+            <Button variant="primary" onClick={() => this.setState({ hasError: false, error: null })}>
               Try again
-            </button>
+            </Button>
           </div>
         </div>
       );

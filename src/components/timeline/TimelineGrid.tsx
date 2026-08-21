@@ -5,7 +5,7 @@ import { getTimeMarkers, getDaysBetween } from '../../utils/dateUtils';
 import { getPositionFromRelative, calculateSectionHeight } from '../../utils/timelineUtils';
 import { usePinnedSection } from '../../hooks/usePinnedSection';
 
-export function TimelineGrid() {
+export function TimelineGrid(): JSX.Element {
   const { viewportBounds, timelineWidth } = useViewport();
   const { zoomLevel } = useUIStore();
   const { pinnedSection, unpinnedSections } = usePinnedSection();
@@ -33,8 +33,12 @@ export function TimelineGrid() {
       className="absolute inset-0 pointer-events-none"
       style={{ height: sectionHeight }}
     >
-      {/* Vertical grid lines only - horizontal lines come from row components */}
+      {/* Vertical grid lines only - horizontal lines come from row components.
+          Only major markers render: minor lines are dropped entirely to keep
+          the sheet reading as gaps in the paper, not rules drawn on it. */}
       {markers.map((marker, index) => {
+        if (marker.isMinor) return null;
+
         const daysSinceStart = getDaysBetween(viewportBounds.startDate, marker.date);
         const relativePos = totalDays > 0 ? daysSinceStart / totalDays : 0;
         const left = getPositionFromRelative(relativePos, timelineWidth);
@@ -46,7 +50,7 @@ export function TimelineGrid() {
             style={{
               left,
               height: sectionHeight,
-              borderColor: marker.isMinor ? 'var(--color-gridline-minor)' : 'var(--color-gridline-major)'
+              borderColor: 'var(--color-gridline)',
             }}
           />
         );

@@ -18,7 +18,7 @@ export function EditorModal(): JSX.Element | null {
 
   // Close on escape key or enter key (save and close)
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         closeModal();
       }
@@ -115,7 +115,7 @@ export function EditorModal(): JSX.Element | null {
     >
       <div
         ref={modalRef}
-        className="fixed glass-bordered overflow-hidden rounded-xl modal-enter"
+        className="fixed bg-[var(--color-raised)] border border-[var(--color-border)] overflow-hidden rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] modal-enter"
         style={{
           width: MODAL_WIDTH,
           maxHeight: MODAL_MAX_HEIGHT,
@@ -123,13 +123,13 @@ export function EditorModal(): JSX.Element | null {
         }}
         role="document"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-row-border-strong)]">
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]" id="modal-title">
+        <div className="flex items-center justify-between px-4 py-3">
+          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="modal-title">
             Edit
           </h2>
           <button
             onClick={closeModal}
-            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-150 rounded-md hover:bg-[var(--color-hover)] focus-ring btn-press"
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-hover)] focus-ring btn-press"
             aria-label="Close (Escape)"
           >
             <svg

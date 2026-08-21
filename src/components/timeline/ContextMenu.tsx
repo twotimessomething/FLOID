@@ -53,13 +53,13 @@ export function ContextMenu(): JSX.Element | null {
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent): void => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         closeContextMenu();
       }
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         closeContextMenu();
       }
@@ -443,7 +443,7 @@ export function ContextMenu(): JSX.Element | null {
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[100] min-w-[140px] py-1 bg-[var(--color-surface)] rounded-lg shadow-lg border border-[var(--color-border)] animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-[100] min-w-[140px] py-1 bg-[var(--color-raised)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-[var(--color-border)]"
       style={{ left: position.x, top: position.y }}
       role="menu"
       aria-label="Context menu"
@@ -454,7 +454,7 @@ export function ContextMenu(): JSX.Element | null {
           ref={item.hasSubmenu ? colorButtonRef : undefined}
           onClick={item.disabled ? undefined : item.action}
           disabled={item.disabled}
-          className={`w-full px-3 py-1.5 text-left text-sm transition-colors ${
+          className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
             item.disabled
               ? 'text-[var(--color-text-muted)] cursor-default'
               : item.danger
@@ -476,18 +476,21 @@ export function ContextMenu(): JSX.Element | null {
       {showColorSubmenu && targetType === 'phase' && (
         <div className="px-2 py-1.5 border-t border-[var(--color-border)]">
           <div className="flex gap-1.5 flex-wrap">
-            {Object.entries(PHASE_COLORS).map(([name, color]) => (
-              <button
-                key={name}
-                onClick={() => handleColorChange(color)}
-                className={`w-6 h-6 rounded-full transition-transform hover:scale-110 ${
-                  currentPhaseColor === color ? 'ring-2 ring-offset-1 ring-[var(--color-focus)]' : ''
-                }`}
-                style={{ backgroundColor: color }}
-                title={name.charAt(0).toUpperCase() + name.slice(1)}
-                aria-label={`Set color to ${name}`}
-              />
-            ))}
+            {Object.entries(PHASE_COLORS).map(([name, color]) => {
+              const label = name.charAt(0).toUpperCase() + name.slice(1);
+              return (
+                <button
+                  key={name}
+                  onClick={() => handleColorChange(color)}
+                  className={`w-6 h-6 rounded-full transition-opacity hover:opacity-80 ${
+                    currentPhaseColor === color ? 'ring-2 ring-offset-1 ring-[var(--color-focus)]' : ''
+                  }`}
+                  style={{ backgroundColor: color }}
+                  title={label}
+                  aria-label={`Set color to ${label}`}
+                />
+              );
+            })}
           </div>
         </div>
       )}

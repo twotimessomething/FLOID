@@ -8,7 +8,34 @@ A timeline scheduling tool for industrial designers.
 
 **Design Philosophy:** Less is more. Simple, clean UX. No unnecessary information. Every interaction should feel natural and immediate.
 
-**Styling:** Use CSS variables defined in `index.css` for colors, spacing, and other design tokens. Prefer CSS vars over hardcoded Tailwind values to maintain visual consistency.
+**Visual language — flat ink on one sheet of paper.** The app is a printed Gantt
+chart, not a dashboard. Five rules carry it:
+
+1. **One ground.** Everything sits on `--color-background`. There are no cards,
+   panels, or bordered containers inside the app body. `--color-surface` is
+   deliberately identical to it. White (`--color-raised`) is only for things that
+   *float*: modals, menus, popovers, tooltips.
+2. **Almost no lines.** There are no horizontal row rules anywhere. Separation is
+   whitespace. Vertical gridlines are **white** (`--color-gridline`) — lighter
+   than the ground, so they read as gaps in the paper rather than rules drawn on
+   it. A single `--color-hairline` is allowed between schedules and beside the
+   label column; that is the whole budget.
+3. **Flat, square bars.** `--radius-bar` is `0`. No shadows, no gradients, no
+   hover scaling. Bars carry `mix-blend-mode: multiply` (`screen` in dark) so
+   overlaps darken like overprinted ink; their container must have
+   `isolation: isolate` via `.timeline-plot`. Selection is an inset ink outline
+   (`.timeline-bar--selected`), never a colored ring.
+4. **Bars are layered, never a single painted div.** A bar is a plain wrapper
+   (`.timeline-bar`) holding a blended `.timeline-bar__fill` and, above it, a
+   `.timeline-bar__label` plus any handles or glyphs. The wrapper must stay free
+   of `opacity`, `transform`, `filter`, and `z-index` — each of those makes it a
+   stacking context and traps the fill's blending inside the bar. Bar text is
+   regular weight and takes its color from `getReadableTextColor`, never white.
+5. **Affordances hide until hover.** Chevrons, drag grips, add buttons, and empty
+   -state hints use `.row-affordance` inside a `.group` row. A populated project
+   should look as empty as a blank one.
+
+**Styling:** Use CSS variables defined in `index.css` for colors, spacing, and other design tokens. Prefer CSS vars over hardcoded Tailwind values to maintain visual consistency. Never write white text on a colored bar — call `getReadableTextColor` from `utils/colorUtils.ts`, which picks ink or paper by measured contrast.
 
 ## Tech Stack
 

@@ -6,7 +6,7 @@ import { useConfirm } from '../../hooks';
 import { downloadProjectJson } from '../../utils/exportUtils';
 import { loadProjectFromStorage } from '../../utils/storageUtils';
 
-export function LeftSidebar() {
+export function LeftSidebar(): JSX.Element {
   const confirm = useConfirm();
 
   // Use selective store subscriptions to prevent unnecessary re-renders
@@ -126,7 +126,7 @@ export function LeftSidebar() {
 
   // Close menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent): void => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpenProjectId(null);
       }
@@ -189,11 +189,11 @@ export function LeftSidebar() {
     return (
       <button
         onClick={toggleLeftSidebar}
-        className="flex-shrink-0 w-10 h-full border-r border-[var(--color-border)] bg-[var(--color-background)] flex items-start justify-center pt-4 hover:bg-[var(--color-hover)] transition-colors duration-150"
+        className="group flex-shrink-0 w-8 h-full flex items-start justify-center pt-4 focus-ring"
         aria-label="Open sidebar"
       >
         <svg
-          className="w-4 h-4 text-[var(--color-text-secondary)]"
+          className="w-4 h-4 text-[var(--color-text-muted)] opacity-40 group-hover:opacity-100 transition-opacity duration-150"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -205,24 +205,25 @@ export function LeftSidebar() {
   }
 
   return (
-    <aside className="flex-shrink-0 w-56 border-r border-[var(--color-border)] bg-[var(--color-background)] flex flex-col">
+    <aside className="flex-shrink-0 w-56 bg-[var(--color-background)] border-r border-[var(--color-hairline)] flex flex-col">
       {/* Header with collapse button */}
-      <div className="flex items-center justify-between p-3 border-b border-[var(--color-border)]">
+      <div className="flex items-center justify-between p-3">
         <div className="flex items-center gap-2.5">
           <button
             onClick={handleNewProject}
             title="New Project"
-            className="w-5 h-5 flex items-center justify-center rounded-full border border-current text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
+            aria-label="New Project"
+            className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150 focus-ring"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </button>
-          <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Projects</h2>
+          <h2 className="eyebrow">Projects</h2>
         </div>
         <button
           onClick={toggleLeftSidebar}
-          className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-active)] rounded-md transition-colors duration-150"
+          className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150 focus-ring"
           aria-label="Collapse sidebar"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -240,22 +241,20 @@ export function LeftSidebar() {
             </p>
           </div>
         ) : (
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {sortedProjects.map((proj) => (
             <div
               key={proj.id}
               onClick={() => handleSelectProject(proj.id)}
-              className={`group flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors duration-150 ${
+              className={`row-selectable group flex items-center justify-between px-3 py-2 rounded-[var(--radius-sm)] cursor-pointer ${
                 proj.id === activeProjectId
-                  ? 'bg-[var(--color-active)] text-[var(--color-text-primary)]'
-                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text-primary)]'
+                  ? 'selected text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
               }`}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <svg
-                  className={`w-4 h-4 flex-shrink-0 ${
-                    proj.id === activeProjectId ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-muted)]'
-                  }`}
+                  className="w-3.5 h-3.5 flex-shrink-0 text-[var(--color-text-muted)] opacity-40"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -276,12 +275,12 @@ export function LeftSidebar() {
                     onBlur={handleSaveEdit}
                     onKeyDown={handleEditKeyDown}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sm bg-[var(--color-input-bg)] text-[var(--color-text-primary)] border border-[var(--color-border)] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)] min-w-0 flex-1"
+                    className="text-[13px] bg-[var(--color-input-bg)] text-[var(--color-text-primary)] border border-[var(--color-border)] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)] min-w-0 flex-1"
                   />
                 ) : (
                   <span
                     onDoubleClick={(e) => handleStartEditing(proj.id, proj.name, e)}
-                    className="text-sm truncate"
+                    className="text-[13px] truncate"
                   >
                     {proj.name}
                   </span>
@@ -290,9 +289,8 @@ export function LeftSidebar() {
               <div className="relative" ref={menuOpenProjectId === proj.id ? menuRef : undefined}>
                 <button
                   onClick={(e) => handleToggleMenu(proj.id, e)}
-                  className={`p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-all duration-150 ${
-                    menuOpenProjectId === proj.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  }`}
+                  className="row-affordance p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-150"
+                  data-always-visible={menuOpenProjectId === proj.id}
                   aria-label="Project options"
                   aria-haspopup="true"
                   aria-expanded={menuOpenProjectId === proj.id}
@@ -304,7 +302,7 @@ export function LeftSidebar() {
 
                 {/* Dropdown menu */}
                 {menuOpenProjectId === proj.id && (
-                  <div className="absolute right-0 top-full mt-1 w-36 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 z-10">
+                  <div className="absolute right-0 top-full mt-1 w-36 bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] py-1 z-10">
                     <button
                       onClick={(e) => handleEditProject(proj.id, e)}
                       className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
