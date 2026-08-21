@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { hexToHsl, hslToHex, getPhaseColorInRange } from '../utils/colorUtils';
+import {
+  hexToHsl,
+  hslToHex,
+  getPhaseColorInRange,
+  getReadableTextColor,
+} from '../utils/colorUtils';
+import { PHASE_COLORS } from '../constants/colors';
 
 describe('hexToHsl', () => {
   it('converts pure red', () => {
@@ -120,5 +126,60 @@ describe('getPhaseColorInRange', () => {
     }
     // First and last should differ
     expect(colors[0]).not.toBe(colors[4]);
+  });
+});
+
+describe('getReadableTextColor', () => {
+  const INK = '#17171A';
+  const PAPER = '#FFFFFF';
+
+  it('puts ink on light and cool mid-tone bars', () => {
+    expect(getReadableTextColor(PHASE_COLORS.teal)).toBe(INK);
+    expect(getReadableTextColor(PHASE_COLORS.sky)).toBe(INK);
+    expect(getReadableTextColor(PHASE_COLORS.pink)).toBe(INK);
+    expect(getReadableTextColor(PHASE_COLORS.ochre)).toBe(INK);
+  });
+
+  it('puts paper on dark bars', () => {
+    expect(getReadableTextColor(PHASE_COLORS.blue)).toBe(PAPER);
+    expect(getReadableTextColor(PHASE_COLORS.indigo)).toBe(PAPER);
+    expect(getReadableTextColor(PHASE_COLORS.plum)).toBe(PAPER);
+  });
+
+  it('puts paper on saturated red and orange despite ink measuring higher', () => {
+    expect(getReadableTextColor(PHASE_COLORS.red)).toBe(PAPER);
+    expect(getReadableTextColor(PHASE_COLORS.orange)).toBe(PAPER);
+  });
+
+  it('keeps one label color across a warm schedule gradient', () => {
+    for (const base of [PHASE_COLORS.red, PHASE_COLORS.orange]) {
+      const colors = Array.from({ length: 5 }, (_, i) => getPhaseColorInRange(base, i, 5));
+      for (const c of colors) {
+        expect(getReadableTextColor(c)).toBe(PAPER);
+      }
+    }
+  });
+
+  it('keeps ink on a cool gradient that dips below the warm crossover', () => {
+    const colors = Array.from({ length: 5 }, (_, i) =>
+      getPhaseColorInRange(PHASE_COLORS.teal, i, 5)
+    );
+    for (const c of colors) {
+      expect(getReadableTextColor(c)).toBe(INK);
+    }
+  });
+
+  it('leaves pale warm tints on ink', () => {
+    expect(getReadableTextColor('#F7D9C4')).toBe(INK);
+    expect(getReadableTextColor('#F5A623')).toBe(INK);
+  });
+
+  it('ignores hue for washed-out warms', () => {
+    // Low saturation: falls back to the measured crossover, which picks ink.
+    expect(getReadableTextColor('#9C8F86')).toBe(INK);
+  });
+
+  it('falls back to ink for malformed input', () => {
+    expect(getReadableTextColor('#abc')).toBe(INK);
   });
 });

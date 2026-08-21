@@ -1,49 +1,50 @@
-import type { Phase, Milestone, Section } from './timeline';
+import type { Section, TimelineItem } from './timeline';
 
-// Extended phase with computed absolute dates for export
-export interface ExportPhase extends Phase {
-  absoluteStart: string; // ISO date string
-  absoluteEnd: string;
-}
+/**
+ * The file formats: `.floid` for one schedule, `.floid-project` for the lot.
+ *
+ * Items already carry absolute dates, so an exported item is the runtime item
+ * verbatim — nothing is resolved on the way out and nothing recomputed on the
+ * way in. The tree is copied wholesale rather than rebuilt field by field,
+ * which is the only way a file cannot quietly lose what the writer forgot to
+ * list. Files written before the item model are migrated as they are read.
+ */
 
-// Extended milestone with computed absolute date for export
-export interface ExportMilestone extends Milestone {
-  absoluteDate: string; // ISO date string
-}
+/** An item on the wire. Identical to the runtime item, on purpose. */
+export type ExportItem = TimelineItem;
 
 export interface ScheduleExportData {
-  format: 'floid';
-  version: '2.0';
-  exportedAt: string;
+  readonly format: 'floid';
+  readonly version: '3.0';
+  readonly exportedAt: string;
 
   // Source tracking
-  sourceProjectId: string;
-  sourceProjectName: string;
+  readonly sourceProjectId: string;
+  readonly sourceProjectName: string;
 
   // Schedule metadata
-  schedule: {
-    id: string;
-    name: string;
-    templateId?: string;
-    revision: number;
-    lastModifiedAt: string;
-    color: string;
-    isMulticolor?: boolean;
+  readonly schedule: {
+    readonly id: string;
+    readonly name: string;
+    readonly templateId?: string;
+    readonly revision: number;
+    readonly lastModifiedAt: string;
+    readonly color: string;
+    readonly isMulticolor?: boolean;
+    readonly isLocked?: boolean;
   };
 
   // Date context (for import decisions)
-  projectDates: {
-    startDate: string;
-    endDate: string;
+  readonly projectDates: {
+    readonly startDate: string;
+    readonly endDate: string;
   };
-  scheduleDates: {
-    startDate: string;
-    endDate: string;
+  readonly scheduleDates: {
+    readonly startDate: string;
+    readonly endDate: string;
   };
 
-  // Content (absolute dates for portability)
-  phases: ExportPhase[];
-  milestones: ExportMilestone[];
+  readonly items: readonly ExportItem[];
 }
 
 export type ImportResultType =
@@ -54,57 +55,41 @@ export type ImportResultType =
   | 'name-collision'; // Same name but different ID
 
 export interface ImportAnalysis {
-  type: ImportResultType;
-  existingSection?: Section;
-  importData: ScheduleExportData;
-  dateMismatch: boolean;
-  revisionDelta?: number;  // positive = import is newer
+  readonly type: ImportResultType;
+  readonly existingSection?: Section;
+  readonly importData: ScheduleExportData;
+  readonly dateMismatch: boolean;
+  /** Positive when the import is newer than what is already here. */
+  readonly revisionDelta?: number;
 }
 
 export interface ImportOptions {
-  newName?: string;  // For name collision resolution
+  readonly newName?: string;  // For name collision resolution
 }
 
 export type ImportModalType = 'new-schedule' | 'update' | 'name-collision';
 
 export interface ImportModalState {
-  isOpen: boolean;
-  type: ImportModalType | null;
-  analysis: ImportAnalysis | null;
+  readonly isOpen: boolean;
+  readonly type: ImportModalType | null;
+  readonly analysis: ImportAnalysis | null;
 }
 
-// Full project export format
+/** Full project backup. Schedules are stored exactly as the app holds them. */
 export interface ProjectExportData {
-  format: 'floid-project';
-  version: '2.0';
-  exportedAt: string;
-  project: {
-    id: string;
-    name: string;
-    pinnedSectionId: string | null;
-    /** Legacy field from exports created before the pin model */
-    masterSectionId?: string;
-    projectStartDate: string;
-    projectEndDate: string;
-    createdAt: string;
-    updatedAt: string;
+  readonly format: 'floid-project';
+  readonly version: '3.0';
+  readonly exportedAt: string;
+  readonly project: {
+    readonly id: string;
+    readonly name: string;
+    readonly pinnedSectionId: string | null;
+    /** Legacy field from exports created before the pin model. */
+    readonly masterSectionId?: string;
+    readonly projectStartDate: string;
+    readonly projectEndDate: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
   };
-  sections: Array<{
-    id: string;
-    name: string;
-    type: 'schedule';
-    templateId?: string;
-    revision: number;
-    lastModifiedAt: string;
-    sourceProjectId?: string;
-    sourceProjectName?: string;
-    order: number;
-    startDate: string;
-    endDate: string;
-    color: string;
-    isMulticolor?: boolean;
-    isCollapsed: boolean;
-    phases: ExportPhase[];
-    milestones: ExportMilestone[];
-  }>;
+  readonly sections: readonly Section[];
 }

@@ -1,141 +1,138 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUIStore } from '../../stores/uiStore';
-import { useTimelineStatus, type StatusItem, type MilestoneItem } from '../../hooks/useTimelineStatus';
-import { format } from 'date-fns';
+import {
+  useTimelineStatus,
+  type Ancestry,
+  type MilestoneItem,
+  type StatusItem,
+} from '../../hooks/useTimelineStatus';
+import { formatDayKey } from '../../utils/dateUtils';
 
-interface GroupedItems {
-  sectionId: string;
-  sectionName: string;
-  sectionOrder: number;
-  phases: {
-    phaseId: string;
-    phaseName: string;
-    phaseOrder: number;
-    color: string;
-    items: StatusItem[];
-  }[];
+/** Joins trail keys. No name can contain it, so no two trails can collide. */
+const TRAIL_KEY_SEPARATOR = '\u0000';
+
+interface AncestryGroup {
+  readonly key: string;
+  readonly ancestors: Ancestry;
+  readonly items: StatusItem[];
 }
 
-function groupItemsBySection(items: StatusItem[]): GroupedItems[] {
-  const sectionMap = new Map<string, GroupedItems>();
+interface SectionBucket {
+  readonly sectionId: string;
+  readonly sectionName: string;
+  readonly groups: AncestryGroup[];
+}
 
-  items.forEach((item) => {
-    let section = sectionMap.get(item.sectionId);
-    if (!section) {
-      section = {
-        sectionId: item.sectionId,
-        sectionName: item.sectionName,
-        sectionOrder: item.sectionOrder,
-        phases: [],
-      };
-      sectionMap.set(item.sectionId, section);
+/** The ancestor trail as the editor writes it, so the two panels read alike. */
+function formatTrail(ancestors: Ancestry): string {
+  return ancestors.map((name) => name || 'Untitled').join(' / ');
+}
+
+/**
+ * Schedule first, then the trail of bars an item sits under.
+ *
+ * Items share a heading only when their whole trail matches, so an item three
+ * levels down gets its own heading instead of being folded in beside its
+ * grandparent's other descendants. Both maps preserve insertion order, which
+ * is already the order the timeline reads in.
+ */
+function groupBySection(items: readonly StatusItem[]): SectionBucket[] {
+  const buckets = new Map<string, SectionBucket>();
+
+  for (const item of items) {
+    let bucket = buckets.get(item.sectionId);
+    if (!bucket) {
+      bucket = { sectionId: item.sectionId, sectionName: item.sectionName, groups: [] };
+      buckets.set(item.sectionId, bucket);
     }
 
-    const phaseId = item.phaseId ?? item.id;
-    const phaseName = item.phaseName ?? item.name;
-    let phase = section.phases.find((p) => p.phaseId === phaseId);
-    if (!phase) {
-      phase = {
-        phaseId,
-        phaseName,
-        phaseOrder: item.phaseOrder ?? 0,
-        color: item.color,
-        items: [],
-      };
-      section.phases.push(phase);
+    const key = item.ancestors.join(TRAIL_KEY_SEPARATOR);
+    let group = bucket.groups.find((candidate) => candidate.key === key);
+    if (!group) {
+      group = { key, ancestors: item.ancestors, items: [] };
+      bucket.groups.push(group);
     }
-
-    phase.items.push(item);
-  });
-
-  // Sort sections by order, phases by order within sections
-  const result = Array.from(sectionMap.values());
-  result.sort((a, b) => a.sectionOrder - b.sectionOrder);
-  result.forEach((section) => {
-    section.phases.sort((a, b) => a.phaseOrder - b.phaseOrder);
-  });
-
-  return result;
-}
-
-interface StatusItemRowProps {
-  readonly item: StatusItem;
-  readonly showDate?: boolean;
-  readonly isPhaseLevel?: boolean;
-}
-
-function StatusItemRow({ item, showDate, isPhaseLevel }: StatusItemRowProps): JSX.Element | null {
-  // If it's a task within a phase, show task name
-  // If it's a phase-level item (no tasks), we just show the phase name in the header
-  if (isPhaseLevel) {
-    return null;
+    group.items.push(item);
   }
 
+  return [...buckets.values()];
+}
+
+function NavigateChevron(): JSX.Element {
   return (
-    <div className="flex items-start gap-2 py-0.5 pl-4">
-      <div className="min-w-0 flex-1">
-        <div className="text-[13px] text-[var(--color-text-primary)]">{item.name}</div>
-        {showDate && item.date && (
-          <div className="text-[11px] text-[var(--color-text-muted)]">{format(item.date, 'MMM d')}</div>
-        )}
-      </div>
-    </div>
+    <svg
+      className="row-affordance w-3 h-3 flex-shrink-0 text-[var(--color-text-muted)]"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+    </svg>
   );
 }
 
-interface PhaseGroupProps {
-  readonly phaseName: string;
-  readonly color: string;
-  readonly items: StatusItem[];
+interface StatusRowProps {
+  readonly item: StatusItem;
   readonly showDate?: boolean;
 }
 
-function PhaseGroup({ phaseName, color, items, showDate }: PhaseGroupProps): JSX.Element {
-  // Check if this is a phase-level item (the phase itself, not tasks)
-  const isPhaseLevel = items.length === 1 && items[0].phaseName === items[0].name;
+function StatusRow({ item, showDate }: StatusRowProps): JSX.Element {
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>): void => {
+      useUIStore.getState().selectItem(item.id, item.sectionId, { x: e.clientX, y: e.clientY });
+    },
+    [item.id, item.sectionId]
+  );
 
   return (
-    <div className="py-1">
-      <div className="flex items-center gap-2">
-        <div
-          className="w-[5px] h-[5px] rounded-full flex-shrink-0"
-          style={{ backgroundColor: color }}
-        />
-        <span className="text-[13px] text-[var(--color-text-primary)]">{phaseName}</span>
-        {isPhaseLevel && showDate && items[0].date && (
-          <span className="text-[11px] text-[var(--color-text-muted)]">{format(items[0].date, 'MMM d')}</span>
-        )}
-      </div>
-      {!isPhaseLevel && (
-        <div className="mt-0.5">
-          {items.map((item) => (
-            <StatusItemRow key={item.id} item={item} showDate={showDate} />
-          ))}
-        </div>
+    <button
+      type="button"
+      onClick={handleClick}
+      className="group row-selectable focus-ring flex w-full items-center gap-2 py-0.5 -mx-1 px-1 text-left"
+    >
+      <span
+        className="w-[5px] h-[5px] rounded-full flex-shrink-0"
+        style={{ backgroundColor: item.color }}
+      />
+      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-text-primary)]">
+        {item.name || 'Untitled'}
+      </span>
+      {showDate && (
+        <span className="text-[11px] text-[var(--color-text-muted)] flex-shrink-0">
+          {formatDayKey(item.start, 'MMM d')}
+        </span>
       )}
-    </div>
+      <NavigateChevron />
+    </button>
   );
 }
 
 interface SectionGroupProps {
-  readonly sectionName: string;
-  readonly phases: GroupedItems['phases'];
+  readonly bucket: SectionBucket;
   readonly showDate?: boolean;
 }
 
-function SectionGroup({ sectionName, phases, showDate }: SectionGroupProps): JSX.Element {
+function SectionGroup({ bucket, showDate }: SectionGroupProps): JSX.Element {
   return (
     <div className="mb-3">
-      <div className="text-xs font-medium text-[var(--color-text-secondary)] mb-1">{sectionName}</div>
+      <div className="text-xs font-medium text-[var(--color-text-secondary)] mb-1 truncate">
+        {bucket.sectionName || 'Untitled Schedule'}
+      </div>
       <div className="space-y-0.5">
-        {phases.map((phase) => (
-          <PhaseGroup
-            key={phase.phaseId}
-            phaseName={phase.phaseName}
-            color={phase.color}
-            items={phase.items}
-            showDate={showDate}
-          />
+        {bucket.groups.map((group) => (
+          <div key={group.key} className="py-0.5">
+            {group.ancestors.length > 0 && (
+              <div className="text-[11px] text-[var(--color-text-muted)] truncate">
+                {formatTrail(group.ancestors)}
+              </div>
+            )}
+            <div className={group.ancestors.length > 0 ? 'pl-3' : undefined}>
+              {group.items.map((item) => (
+                <StatusRow key={item.id} item={item} showDate={showDate} />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -147,20 +144,42 @@ interface MilestoneRowProps {
 }
 
 function MilestoneRow({ item }: MilestoneRowProps): JSX.Element {
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>): void => {
+      useUIStore.getState().selectItem(item.id, item.sectionId, { x: e.clientX, y: e.clientY });
+    },
+    [item.id, item.sectionId]
+  );
+
+  // A milestone is listed across every schedule at once, so it carries its own
+  // location: the schedule, then whichever bars it is nested inside.
+  const trail = formatTrail([item.sectionName || 'Untitled Schedule', ...item.ancestors]);
+
   return (
-    <div className="flex items-start gap-2 py-1">
-      <div
+    <button
+      type="button"
+      onClick={handleClick}
+      className="group row-selectable focus-ring flex w-full items-start gap-2 py-1 -mx-1 px-1 text-left"
+    >
+      <span
         className="w-[5px] h-[5px] rotate-45 mt-1 flex-shrink-0"
         style={{ backgroundColor: item.color }}
       />
-      <div className="min-w-0 flex-1">
-        <div className="text-[13px] text-[var(--color-text-primary)]">{item.name}</div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[var(--color-text-secondary)]">{item.sectionName}</span>
-          <span className="text-[11px] text-[var(--color-text-muted)]">{format(item.date, 'MMM d')}</span>
-        </div>
-      </div>
-    </div>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] text-[var(--color-text-primary)]">
+          {item.name || 'Milestone'}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="min-w-0 truncate text-[11px] text-[var(--color-text-secondary)]">
+            {trail}
+          </span>
+          <span className="text-[11px] text-[var(--color-text-muted)] flex-shrink-0">
+            {formatDayKey(item.date, 'MMM d')}
+          </span>
+        </span>
+      </span>
+      <NavigateChevron />
+    </button>
   );
 }
 
@@ -177,11 +196,17 @@ function SectionHeader({ title }: SectionHeaderProps): JSX.Element {
 }
 
 export function InfoSidebar(): JSX.Element {
-  const { isInfoSidebarOpen, toggleInfoSidebar, infoSidebarWidth, setInfoSidebarWidth, openSettingsModal, openKeyboardHelpModal } = useUIStore();
+  const isInfoSidebarOpen = useUIStore((state) => state.isInfoSidebarOpen);
+  const toggleInfoSidebar = useUIStore((state) => state.toggleInfoSidebar);
+  const infoSidebarWidth = useUIStore((state) => state.infoSidebarWidth);
+  const setInfoSidebarWidth = useUIStore((state) => state.setInfoSidebarWidth);
+  const openSettingsModal = useUIStore((state) => state.openSettingsModal);
+  const openKeyboardHelpModal = useUIStore((state) => state.openKeyboardHelpModal);
+
   const { inFlight, nextUp, upcomingMilestones } = useTimelineStatus();
 
-  const groupedInFlight = useMemo(() => groupItemsBySection(inFlight), [inFlight]);
-  const groupedNextUp = useMemo(() => groupItemsBySection(nextUp), [nextUp]);
+  const groupedInFlight = useMemo(() => groupBySection(inFlight), [inFlight]);
+  const groupedNextUp = useMemo(() => groupBySection(nextUp), [nextUp]);
 
   // Resize state
   const [isResizing, setIsResizing] = useState(false);
@@ -221,7 +246,7 @@ export function InfoSidebar(): JSX.Element {
     return (
       <button
         onClick={toggleInfoSidebar}
-        className="group flex-shrink-0 w-8 h-full flex items-start justify-center pt-4 focus-ring"
+        className="group flex-shrink-0 w-8 h-full flex items-start justify-center pt-4 border-l border-[var(--color-hairline)] focus-ring"
         aria-label="Open status sidebar"
       >
         <svg
@@ -290,12 +315,8 @@ export function InfoSidebar(): JSX.Element {
             {groupedInFlight.length > 0 && (
               <div>
                 <SectionHeader title="In Flight" />
-                {groupedInFlight.map((section) => (
-                  <SectionGroup
-                    key={section.sectionId}
-                    sectionName={section.sectionName}
-                    phases={section.phases}
-                  />
+                {groupedInFlight.map((bucket) => (
+                  <SectionGroup key={bucket.sectionId} bucket={bucket} />
                 ))}
               </div>
             )}
@@ -304,13 +325,8 @@ export function InfoSidebar(): JSX.Element {
             {groupedNextUp.length > 0 && (
               <div>
                 <SectionHeader title="Next Up" />
-                {groupedNextUp.map((section) => (
-                  <SectionGroup
-                    key={section.sectionId}
-                    sectionName={section.sectionName}
-                    phases={section.phases}
-                    showDate
-                  />
+                {groupedNextUp.map((bucket) => (
+                  <SectionGroup key={bucket.sectionId} bucket={bucket} showDate />
                 ))}
               </div>
             )}
@@ -323,7 +339,7 @@ export function InfoSidebar(): JSX.Element {
         <button
           onClick={openKeyboardHelpModal}
           className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-150 focus-ring"
-          aria-label="Keyboard shortcuts"
+          aria-label="Shortcuts and gestures"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

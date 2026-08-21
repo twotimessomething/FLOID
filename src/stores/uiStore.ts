@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import type { ZoomLevel, SelectionState, ModalPosition, ImportAnalysis, ImportModalType } from '../types';
+import type {
+  ZoomLevel,
+  SelectionState,
+  ModalPosition,
+  ImportAnalysis,
+  ImportModalType,
+  ItemKind,
+} from '../types';
 
 // Theme mode
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -15,19 +22,48 @@ const MAX_INFO_SIDEBAR_WIDTH = 400;
 const DEFAULT_INFO_SIDEBAR_WIDTH = 224; // w-56 = 14rem = 224px
 
 // Context menu state
-export type ContextMenuLocation = 'label' | 'bar' | 'empty' | 'header';
+/**
+ * Where the menu was opened from. `bar` is an item's bar, `row` the empty space
+ * beside it, `header` a schedule's milestone row, `label` the labels column.
+ */
+export type ContextMenuLocation = 'label' | 'bar' | 'row' | 'header';
 
 export interface ContextMenuState {
   isOpen: boolean;
   position: ModalPosition;
   targetType: SelectionState['type'];
+  /** The item, or the schedule when targetType is 'section'. */
   targetId: string | null;
   sectionId: string | null;
-  phaseId: string | null;
-  taskId: string | null;
   location: ContextMenuLocation;
-  clickRelativePosition?: number;
+  /** Day the pointer was over, so "add here" lands where the user clicked. */
+  clickDay?: string;
 }
+
+/**
+ * Live drag state, deliberately coarse.
+ *
+ * Pointer position and the running day delta are NOT here — those change on
+ * every mousemove and are written straight to the preview element's transform.
+ * Only values that change a handful of times per drag live in the store, so a
+ * drag re-renders a couple of rows instead of the whole timeline.
+ */
+export interface ItemDragState {
+  isActive: boolean;
+  itemId: string | null;
+  sectionId: string | null;
+  kind: ItemKind | null;
+  /** `dropTargetKey` of the resolved target; rows compare against their own. */
+  dropKey: string | null;
+}
+
+const IDLE_ITEM_DRAG: ItemDragState = {
+  isActive: false,
+  itemId: null,
+  sectionId: null,
+  kind: null,
+  dropKey: null,
+};
 
 // Toast state
 export type ToastType = 'success' | 'error' | 'warning';
@@ -62,23 +98,29 @@ interface UIState {
   // Zoom
   zoomLevel: ZoomLevel;
   setZoomLevel: (level: ZoomLevel) => void;
+  /** Scale of a fitted view, off the named levels. Null while a level is picked. */
+  fitPixelsPerDay: number | null;
+  setFitPixelsPerDay: (pixelsPerDay: number | null) => void;
+  /** Width available to draw the sheet, measured from the scroll container. */
+  timelineViewportWidth: number;
+  setTimelineViewportWidth: (width: number) => void;
 
-  // Selection (with parent context for O(1) lookups)
+  // Selection — an item id plus the schedule it lives in
   selection: SelectionState;
-  selectItem: (
-    type: SelectionState['type'],
-    id: string | null,
-    sectionId: string | null,
-    phaseId?: string | null,
-    position?: ModalPosition,
-    taskId?: string | null
-  ) => void;
+  selectItem: (itemId: string, sectionId: string, position?: ModalPosition) => void;
+  selectSection: (sectionId: string, position?: ModalPosition) => void;
   clearSelection: () => void;
 
   // Drag state
   isDragging: boolean;
   dragType: 'resize-start' | 'resize-end' | 'move' | 'draw' | null;
   setDragging: (isDragging: boolean, dragType?: 'resize-start' | 'resize-end' | 'move' | 'draw' | null) => void;
+
+  // Item drag (move / re-parent)
+  itemDrag: ItemDragState;
+  beginItemDrag: (itemId: string, sectionId: string, kind: ItemKind) => void;
+  setItemDropKey: (dropKey: string | null) => void;
+  endItemDrag: () => void;
 
   // Playhead (scrubber)
   playheadPosition: number | null;
@@ -124,16 +166,14 @@ interface UIState {
 
   // Context menu
   contextMenu: ContextMenuState;
-  openContextMenu: (
-    position: ModalPosition,
-    targetType: SelectionState['type'],
-    targetId: string | null,
-    sectionId: string | null,
-    phaseId?: string | null,
-    taskId?: string | null,
-    location?: ContextMenuLocation,
-    clickRelativePosition?: number
-  ) => void;
+  openContextMenu: (options: {
+    position: ModalPosition;
+    targetType: SelectionState['type'];
+    targetId: string | null;
+    sectionId: string | null;
+    location?: ContextMenuLocation;
+    clickDay?: string;
+  }) => void;
   closeContextMenu: () => void;
 
   // Toast notifications
@@ -189,25 +229,39 @@ interface UIState {
 export const useUIStore = create<UIState>((set) => ({
   // Zoom
   zoomLevel: 'month',
-  setZoomLevel: (level) => set({ zoomLevel: level }),
+  setZoomLevel: (level) => set({ zoomLevel: level, fitPixelsPerDay: null }),
+  fitPixelsPerDay: null,
+  setFitPixelsPerDay: (pixelsPerDay) => set({ fitPixelsPerDay: pixelsPerDay }),
+  timelineViewportWidth: 0,
+  setTimelineViewportWidth: (width) =>
+    set((state) => (state.timelineViewportWidth === width ? state : { timelineViewportWidth: width })),
 
   // Selection
-  selection: { type: null, id: null, sectionId: null, phaseId: null, taskId: null },
-  selectItem: (type, id, sectionId, phaseId = null, position, taskId = null) =>
-    set({
-      selection: { type, id, sectionId, phaseId, position, taskId },
-      isModalOpen: type !== null,
-    }),
+  selection: { type: null, id: null, sectionId: null },
+  selectItem: (itemId, sectionId, position) =>
+    set({ selection: { type: 'item', id: itemId, sectionId, position }, isModalOpen: true }),
+  selectSection: (sectionId, position) =>
+    set({ selection: { type: 'section', id: sectionId, sectionId, position }, isModalOpen: true }),
   clearSelection: () =>
-    set({
-      selection: { type: null, id: null, sectionId: null, phaseId: null, taskId: null },
-    }),
+    set({ selection: { type: null, id: null, sectionId: null }, isModalOpen: false }),
 
   // Drag state
   isDragging: false,
   dragType: null,
   setDragging: (isDragging, dragType = null) =>
     set({ isDragging, dragType }),
+
+  // Item drag
+  itemDrag: IDLE_ITEM_DRAG,
+  beginItemDrag: (itemId, sectionId, kind) =>
+    set({ itemDrag: { isActive: true, itemId, sectionId, kind, dropKey: null } }),
+  setItemDropKey: (dropKey) =>
+    set((state) =>
+      state.itemDrag.dropKey === dropKey
+        ? state
+        : { itemDrag: { ...state.itemDrag, dropKey } }
+    ),
+  endItemDrag: () => set({ itemDrag: IDLE_ITEM_DRAG }),
 
   // Playhead
   playheadPosition: null,
@@ -217,10 +271,7 @@ export const useUIStore = create<UIState>((set) => ({
   // Editor modal
   isModalOpen: false,
   closeModal: () =>
-    set({
-      isModalOpen: false,
-      selection: { type: null, id: null, sectionId: null, phaseId: null, taskId: null },
-    }),
+    set({ isModalOpen: false, selection: { type: null, id: null, sectionId: null } }),
 
   // Left sidebar
   isLeftSidebarOpen: false,
@@ -267,23 +318,11 @@ export const useUIStore = create<UIState>((set) => ({
     targetType: null,
     targetId: null,
     sectionId: null,
-    phaseId: null,
-    taskId: null,
     location: 'label',
   },
-  openContextMenu: (position, targetType, targetId, sectionId, phaseId = null, taskId = null, location = 'label', clickRelativePosition) =>
+  openContextMenu: ({ position, targetType, targetId, sectionId, location = 'label', clickDay }) =>
     set({
-      contextMenu: {
-        isOpen: true,
-        position,
-        targetType,
-        targetId,
-        sectionId,
-        phaseId,
-        taskId,
-        location,
-        clickRelativePosition,
-      },
+      contextMenu: { isOpen: true, position, targetType, targetId, sectionId, location, clickDay },
     }),
   closeContextMenu: () =>
     set((state) => ({

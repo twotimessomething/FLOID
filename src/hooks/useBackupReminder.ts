@@ -12,7 +12,7 @@ export function useBackupReminder(): void {
     // Wait until storage is ready and we have projects
     if (!isStorageReady || projects.length === 0) return;
 
-    const checkBackup = async () => {
+    const checkBackup = async (): Promise<void> => {
       const settings = await getAppSettings();
       if (!settings.backupReminderEnabled) return;
 

@@ -1,75 +1,68 @@
-// Section = container for phases (unified schedule type)
+/**
+ * The timeline model.
+ *
+ * One recursive item type carries everything that appears on the timeline.
+ * A schedule holds items; an item holds items. There is no separate "phase",
+ * "task" or "bar milestone" type — depth in the tree is the only difference
+ * between them, and depth is decided by dragging, not by which button made it.
+ *
+ * Positions are ABSOLUTE dates ('yyyy-MM-dd'), never relative to a parent.
+ * That is what makes drag-and-drop between parents, and between schedules,
+ * a pure list operation: re-parenting an item does not move it.
+ */
+
+export type ItemKind = 'bar' | 'milestone';
+
+export interface TimelineItem {
+  id: string;
+  /** A bar spans days and can hold children. A milestone is a single point. */
+  kind: ItemKind;
+  name: string;
+  description: string;
+  /** Inclusive left edge, 'yyyy-MM-dd'. For a milestone, its only date. */
+  start: string;
+  /** Right edge, 'yyyy-MM-dd'. Equals `start` for a milestone. */
+  end: string;
+  /** null inherits down the parent chain, ultimately from the schedule. */
+  color: string | null;
+  /** Hides this item's children. Milestones are always leaves. */
+  isCollapsed: boolean;
+  /** Blocks moving and resizing this item and everything under it. */
+  isLocked?: boolean;
+  children: TimelineItem[];
+}
+
+/** A schedule track. Its items are ordered by array position. */
 export interface Section {
   id: string;
   name: string;
-  type: 'schedule';             // Unified type - no more 'id-timeline' | 'team' distinction
-  templateId?: string;          // Which template this was created from
-  revision: number;             // Incrementing version for sync
-  lastModifiedAt: string;       // ISO timestamp
-  sourceProjectId?: string;     // If imported, where it came from
-  sourceProjectName?: string;   // For display purposes
+  type: 'schedule';
+  templateId?: string;
+  /** Incrementing version for import conflict detection. */
+  revision: number;
+  lastModifiedAt: string;
+  sourceProjectId?: string;
+  sourceProjectName?: string;
   order: number;
-  startDate: string;            // ISO date string
-  endDate: string;              // ISO date string
-  phases: Phase[];
-  milestones: Milestone[];
+  /** Declared window, 'yyyy-MM-dd'. Items may live outside it; see sectionExtent. */
+  startDate: string;
+  endDate: string;
+  items: TimelineItem[];
   color: string;
-  isMulticolor?: boolean;       // Phases use the multicolor palette instead of the schedule color
+  /** Root items take palette colours instead of a gradient of the schedule colour. */
+  isMulticolor?: boolean;
   isCollapsed: boolean;
-  isLocked?: boolean;           // Prevents moving/resizing all phases in this section
+  isLocked?: boolean;
 }
 
-// Computed viewport bounds derived from all sections
+/** Computed viewport bounds derived from every schedule and item. */
 export interface ViewportBounds {
   startDate: Date;
   endDate: Date;
+  /** The same bounds as day keys — what item positions are measured against. */
+  startKey: string;
+  endKey: string;
   totalDays: number;
-}
-
-// Phase = time segment within a section
-export interface Phase {
-  id: string;
-  sectionId: string;
-  name: string;
-  description: string;
-  color: string | null; // null = inherit from section
-  order: number;
-  isCollapsed: boolean;
-  isLocked?: boolean;   // Prevents moving/resizing this phase and its tasks
-  tasks: Task[];
-  barMilestones?: BarMilestone[]; // Optional - defaults to empty array
-  relativeStart: number;
-  relativeEnd: number;
-}
-
-// Task = item within phase
-export interface Task {
-  id: string;
-  phaseId: string;
-  name: string;
-  description: string;
-  // Relative positioning (0-1 scale within parent phase)
-  relativeStart: number;
-  relativeEnd: number;
-  order: number;
-  barMilestones?: BarMilestone[]; // Optional - defaults to empty array
-}
-
-// Milestone = single-point marker on timeline
-export interface Milestone {
-  id: string;
-  sectionId: string;
-  name: string;
-  description: string;
-  relativePosition: number; // 0-1 within section timeline
-  order: number;
-}
-
-// Bar milestone = simple label marker on a phase or task bar
-export interface BarMilestone {
-  id: string;
-  name: string;
-  relativePosition: number; // 0-1 within parent bar
 }
 
 export type ZoomLevel = 'day' | 'week' | 'month' | 'quarter';
@@ -79,16 +72,36 @@ export interface ModalPosition {
   y: number;
 }
 
-// Enhanced selection with parent context for O(1) lookups
+/**
+ * One item, or one schedule, at a time. Items know their own parents, so a
+ * selection no longer needs to carry a path tuple.
+ */
 export interface SelectionState {
-  type: 'section' | 'phase' | 'task' | 'milestone' | 'barMilestone' | null;
+  type: 'section' | 'item' | null;
   id: string | null;
-  sectionId: string | null; // Always present for lookups
-  phaseId: string | null; // Present for tasks and bar milestones
-  taskId?: string | null; // Present for bar milestones on tasks
+  /** The schedule the selection lives in. */
+  sectionId: string | null;
   position?: ModalPosition;
 }
 
-// Helper to get effective color for a phase
-// When phaseIndex and totalPhases are provided, computes a gradient color
-export { getPhaseColor } from './phaseColor';
+/**
+ * Where a dragged item will land.
+ * `into` nests it inside a bar; `slot` places it as a sibling at an index.
+ */
+export type DropTarget =
+  | { readonly kind: 'into'; readonly sectionId: string; readonly parentId: string }
+  | {
+      readonly kind: 'slot';
+      readonly sectionId: string;
+      readonly parentId: string | null;
+      readonly index: number;
+    };
+
+/** Stable string for a drop target, so rows can subscribe to "am I the target?". */
+export function dropTargetKey(target: DropTarget | null): string | null {
+  if (!target) return null;
+  if (target.kind === 'into') return `into:${target.parentId}`;
+  return `slot:${target.sectionId}:${target.parentId ?? 'root'}:${target.index}`;
+}
+
+export { getItemColor } from './itemColor';

@@ -67,6 +67,8 @@ export function useCreateGhost({
   onDrawCreate,
 }: UseCreateGhostOptions): UseCreateGhostReturn {
   const [ghost, setGhost] = useState<CreateGhostState | null>(null);
+  // A press the playhead has claimed is a date scrub, not a create
+  const isPlayheadActive = useUIStore((s) => s.playheadPosition !== null);
   const drawStateRef = useRef<DrawState | null>(null);
   const suppressUntilRef = useRef(0);
   const hoverTimerRef = useRef<number | null>(null);
@@ -84,6 +86,16 @@ export function useCreateGhost({
       hoverTimerRef.current = null;
     }
   }, []);
+
+  // Once the playhead is up the hold has been read as a date scrub, so the
+  // create preview stands down — the two gestures never share the screen. It
+  // stays down until the pointer moves again, which re-earns the hover ghost.
+  useEffect(() => {
+    if (!isPlayheadActive || drawStateRef.current?.isDrawing) return;
+    clearHoverTimer();
+    isGhostVisibleRef.current = false;
+    setGhost((prev) => (prev !== null ? null : prev));
+  }, [isPlayheadActive, clearHoverTimer]);
 
   // Abort a draw mid-gesture if the component unmounts
   useEffect(() => {

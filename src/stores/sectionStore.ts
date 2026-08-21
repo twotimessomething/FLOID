@@ -1,26 +1,37 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
-import { parseISO, differenceInDays, addDays, subDays } from 'date-fns';
-import type { Section, Phase, Task, Milestone, BarMilestone } from '../types';
-import { createDefaultIDTimelineSection, createDefaultSectionDateRange } from '../data/defaultTemplate';
+import type { Section, TimelineItem } from '../types/timeline';
+import { createDefaultIDTimelineSection } from '../data/defaultTemplate';
 import { useProjectStore } from './projectStore';
-import { getScheduleColor, getNextPhaseColor } from '../constants/colors';
+import { getScheduleColor } from '../constants/colors';
 import { generateId } from '../utils/idUtils';
-import { getSectionsDateRange, remapSectionToDateRange } from '../utils/dateUtils';
+import { addDaysToKey, dayKeyDiff, maxDayKey, minDayKey } from '../utils/dayKeys';
+import { createDefaultWindow } from '../utils/migrateLegacy';
+import {
+  findItem,
+  insertItemInto,
+  isWithin,
+  locateItem,
+  removeItemFrom,
+  sectionsExtent,
+  shiftItemDays,
+  updateItemIn,
+} from '../utils/itemTree';
 
-// Tracks auto-expansion for scroll compensation
-export interface ExpansionInfo {
-  sectionId: string;
-  expansionStartDays: number;
-  expansionEndDays: number;
-  oldTotalDays: number;
-  newTotalDays: number;
+export interface MoveItemPayload {
+  readonly itemId: string;
+  readonly fromSectionId: string;
+  readonly toSectionId: string;
+  /** null drops the item at the schedule's root. */
+  readonly toParentId: string | null;
+  readonly toIndex: number;
+  /** Whole days the subtree shifts as part of the same gesture. */
+  readonly dayDelta: number;
 }
 
 interface SectionState {
   sections: Section[];
   isInitialized: boolean;
-  lastExpansion: ExpansionInfo | null;
 
   // Drag transaction state (for undo coalescing)
   _dragSnapshot: Section[] | null;
@@ -31,1055 +42,452 @@ interface SectionState {
   loadSectionsForProject: (projectId: string) => Promise<void>;
   clearSections: () => void;
 
-  // Section operations
+  // Schedules
   setSections: (sections: Section[]) => void;
-  addSection: (name: string) => void;
+  addSection: (name: string) => string;
   addCompleteSection: (section: Section) => void;
   updateSection: (sectionId: string, updates: Partial<Omit<Section, 'id' | 'type'>>) => void;
-  updateSectionDates: (sectionId: string, startDate: string, endDate: string) => void;
+  updateSectionWindow: (sectionId: string, startDate: string, endDate: string) => void;
   setSectionMulticolor: (sectionId: string, isMulticolor: boolean) => void;
   deleteSection: (sectionId: string) => { success: boolean; reason?: string };
   toggleSectionCollapse: (sectionId: string) => void;
   toggleSectionLock: (sectionId: string) => void;
   reorderSections: (fromIndex: number, toIndex: number) => void;
-
   incrementRevision: (sectionId: string) => void;
 
-  // Phase operations
-  addPhase: (sectionId: string, phase: Omit<Phase, 'id' | 'sectionId'>) => string;
-  updatePhase: (sectionId: string, phaseId: string, updates: Partial<Phase>) => void;
-  deletePhase: (sectionId: string, phaseId: string) => void;
-  togglePhaseCollapse: (sectionId: string, phaseId: string) => void;
-  togglePhaseLock: (sectionId: string, phaseId: string) => void;
-  reorderPhases: (sectionId: string, fromIndex: number, toIndex: number) => void;
-  updatePhasePosition: (
+  // Items — one set of actions for every depth
+  addItem: (
     sectionId: string,
-    phaseId: string,
-    relativeStart: number,
-    relativeEnd: number
-  ) => void;
-  updatePhaseWithTasks: (
-    sectionId: string,
-    phaseId: string,
-    relativeStart: number,
-    relativeEnd: number,
-    taskUpdates: Array<{ id: string; relativeStart: number; relativeEnd: number }>
-  ) => void;
-  updatePhaseWithRipple: (
-    sectionId: string,
-    phaseId: string,
-    newRelativeEnd: number
-  ) => void;
-
-  reorderTasks: (sectionId: string, phaseId: string, fromIndex: number, toIndex: number) => void;
-
-  // Task operations
-  addTask: (
-    sectionId: string,
-    phaseId: string,
-    task: Omit<Task, 'id' | 'phaseId'>
+    parentId: string | null,
+    item: Omit<TimelineItem, 'id' | 'children'> & { children?: TimelineItem[] },
+    index?: number
   ) => string;
-  updateTask: (
-    sectionId: string,
-    phaseId: string,
-    taskId: string,
-    updates: Partial<Task>
-  ) => void;
-  deleteTask: (sectionId: string, phaseId: string, taskId: string) => void;
-  updateTaskPosition: (
-    sectionId: string,
-    phaseId: string,
-    taskId: string,
-    relativeStart: number,
-    relativeEnd: number
-  ) => void;
+  updateItem: (sectionId: string, itemId: string, updates: Partial<Omit<TimelineItem, 'id'>>) => void;
+  deleteItem: (sectionId: string, itemId: string) => void;
+  /** Move the item and everything under it by whole days. */
+  shiftItem: (sectionId: string, itemId: string, days: number) => void;
+  /** Set one bar's own edges. Children keep their dates. */
+  setItemDates: (sectionId: string, itemId: string, start: string, end: string) => void;
+  /** Re-parent, re-order and shift in one undoable step — the drag-and-drop commit. */
+  moveItem: (payload: MoveItemPayload) => void;
+  toggleItemCollapse: (sectionId: string, itemId: string) => void;
+  toggleItemLock: (sectionId: string, itemId: string) => void;
+  reorderItem: (sectionId: string, itemId: string, toIndex: number) => void;
 
-  // Milestone operations
-  addMilestone: (sectionId: string, milestone: Omit<Milestone, 'id' | 'sectionId'>) => string;
-  updateMilestone: (sectionId: string, milestoneId: string, updates: Partial<Milestone>) => void;
-  deleteMilestone: (sectionId: string, milestoneId: string) => void;
-
-  // Phase bar milestone operations
-  addPhaseBarMilestone: (sectionId: string, phaseId: string, barMilestone: Omit<BarMilestone, 'id'>) => string;
-  updatePhaseBarMilestone: (sectionId: string, phaseId: string, barMilestoneId: string, updates: Partial<BarMilestone>) => void;
-  deletePhaseBarMilestone: (sectionId: string, phaseId: string, barMilestoneId: string) => void;
-
-  // Task bar milestone operations
-  addTaskBarMilestone: (sectionId: string, phaseId: string, taskId: string, barMilestone: Omit<BarMilestone, 'id'>) => string;
-  updateTaskBarMilestone: (sectionId: string, phaseId: string, taskId: string, barMilestoneId: string, updates: Partial<BarMilestone>) => void;
-  deleteTaskBarMilestone: (sectionId: string, phaseId: string, taskId: string, barMilestoneId: string) => void;
-
-  // Expansion tracking for viewport stability
-  clearExpansion: () => void;
-
-  // Save state
+  // Save
   saveState: () => void;
 
-  // Drag transaction methods (for undo coalescing)
+  // Drag transactions (undo coalescing)
   beginDragTransaction: () => void;
   commitDragTransaction: () => void;
   rollbackDragTransaction: () => void;
 }
 
-// Selectors for O(1) lookups
-export const selectSection = (sectionId: string) => (state: SectionState) =>
-  state.sections.find((s) => s.id === sectionId);
+// Selectors — items know their own parents, so one lookup covers every depth
+export const selectSection = (sectionId: string | null) => (state: SectionState) =>
+  sectionId ? state.sections.find((s) => s.id === sectionId) : undefined;
 
-export const selectPhase = (sectionId: string, phaseId: string) => (state: SectionState) => {
-  const section = state.sections.find((s) => s.id === sectionId);
-  return section?.phases.find((p) => p.id === phaseId);
-};
-
-export const selectTask =
-  (sectionId: string, phaseId: string, taskId: string) => (state: SectionState) => {
+export const selectItem =
+  (sectionId: string | null, itemId: string | null) => (state: SectionState) => {
+    if (!sectionId || !itemId) return undefined;
     const section = state.sections.find((s) => s.id === sectionId);
-    const phase = section?.phases.find((p) => p.id === phaseId);
-    return phase?.tasks.find((t) => t.id === taskId);
+    return section ? (findItem(section.items, itemId) ?? undefined) : undefined;
   };
 
-export const selectMilestone = (sectionId: string, milestoneId: string) => (state: SectionState) => {
-  const section = state.sections.find((s) => s.id === sectionId);
-  return section?.milestones.find((m) => m.id === milestoneId);
-};
-
-export const selectPhaseBarMilestone =
-  (sectionId: string, phaseId: string, barMilestoneId: string) => (state: SectionState) => {
-    const section = state.sections.find((s) => s.id === sectionId);
-    const phase = section?.phases.find((p) => p.id === phaseId);
-    return phase?.barMilestones?.find((bm) => bm.id === barMilestoneId);
+/** Stamp a schedule as modified. Every item mutation goes through this. */
+function touch(section: Section, changes: Partial<Section>): Section {
+  return {
+    ...section,
+    ...changes,
+    lastModifiedAt: new Date().toISOString(),
+    revision: section.revision + 1,
   };
+}
 
-export const selectTaskBarMilestone =
-  (sectionId: string, phaseId: string, taskId: string, barMilestoneId: string) => (state: SectionState) => {
-    const section = state.sections.find((s) => s.id === sectionId);
-    const phase = section?.phases.find((p) => p.id === phaseId);
-    const task = phase?.tasks.find((t) => t.id === taskId);
-    return task?.barMilestones?.find((bm) => bm.id === barMilestoneId);
-  };
-
+function mapSection(
+  sections: readonly Section[],
+  sectionId: string,
+  fn: (section: Section) => Section
+): Section[] {
+  let changed = false;
+  const next = sections.map((section) => {
+    if (section.id !== sectionId) return section;
+    changed = true;
+    return fn(section);
+  });
+  return changed ? next : (sections as Section[]);
+}
 
 export const useSectionStore = create<SectionState>()(
   temporal(
     (set, get) => ({
-  sections: [],
-  isInitialized: false,
-  lastExpansion: null,
-  _dragSnapshot: null,
-  _dragHistoryIndex: null,
-
-  initializeFromProject: async () => {
-    const projectStore = useProjectStore.getState();
-    await projectStore.initializeProjects();
-
-    const activeProjectId = projectStore.activeProjectId;
-    if (activeProjectId) {
-      const data = await projectStore.loadProjectData(activeProjectId);
-      if (data && data.sections && data.sections.length > 0) {
-        set({
-          sections: data.sections,
-          isInitialized: true,
-        });
-        // Clear undo history after initialization so the loaded state is the base
-        useSectionStore.temporal.getState().clear();
-        return;
-      }
-    }
-
-    // No project or no sections - start with empty state
-    set({
       sections: [],
-      isInitialized: true,
-    });
-    // Clear undo history after initialization
-    useSectionStore.temporal.getState().clear();
-  },
+      isInitialized: false,
+      _dragSnapshot: null,
+      _dragHistoryIndex: null,
 
-  loadSectionsForProject: async (projectId: string) => {
-    if (!projectId) {
-      set({ sections: [] });
-      // Clear undo history when switching projects
-      useSectionStore.temporal.getState().clear();
-      return;
-    }
+      initializeFromProject: async () => {
+        const projectStore = useProjectStore.getState();
+        await projectStore.initializeProjects();
 
-    const projectStore = useProjectStore.getState();
-    const data = await projectStore.loadProjectData(projectId);
+        const activeProjectId = projectStore.activeProjectId;
+        if (activeProjectId) {
+          const data = await projectStore.loadProjectData(activeProjectId);
+          if (data && data.sections && data.sections.length > 0) {
+            set({ sections: data.sections, isInitialized: true });
+            useSectionStore.temporal.getState().clear();
+            return;
+          }
+        }
 
-    if (data && data.sections && data.sections.length > 0) {
-      set({ sections: data.sections });
-    } else {
-      set({ sections: [createDefaultIDTimelineSection()] });
-    }
-    // Clear undo history when switching projects so the loaded state is the base
-    useSectionStore.temporal.getState().clear();
-  },
+        set({ sections: [], isInitialized: true });
+        useSectionStore.temporal.getState().clear();
+      },
 
-  setSections: (sections) => set({ sections }),
+      loadSectionsForProject: async (projectId: string) => {
+        if (!projectId) {
+          set({ sections: [] });
+          useSectionStore.temporal.getState().clear();
+          return;
+        }
 
-  clearSections: () => set({ sections: [] }),
+        const data = await useProjectStore.getState().loadProjectData(projectId);
+        set({
+          sections:
+            data && data.sections && data.sections.length > 0
+              ? data.sections
+              : [createDefaultIDTimelineSection()],
+        });
+        useSectionStore.temporal.getState().clear();
+      },
 
-  addCompleteSection: (section) =>
-    set((state) => ({
-      sections: [...state.sections, section],
-    })),
+      setSections: (sections) => set({ sections }),
 
-  addSection: (name) =>
-    set((state) => {
-      const sectionCount = state.sections.length;
-      // Align with the existing schedules' combined date range, or use default
-      const { startDate, endDate } =
-        getSectionsDateRange(state.sections) ?? createDefaultSectionDateRange();
+      clearSections: () => set({ sections: [] }),
 
-      const now = new Date().toISOString();
-      const newSection: Section = {
-        id: generateId(),
-        type: 'schedule',
-        name: name || '',
-        templateId: undefined,
-        revision: 1,
-        lastModifiedAt: now,
-        color: getScheduleColor(sectionCount),
-        order: state.sections.length,
-        isCollapsed: false,
-        phases: [],
-        milestones: [],
-        startDate,
-        endDate,
-      };
-      return { sections: [...state.sections, newSection] };
-    }),
+      addCompleteSection: (section) =>
+        set((state) => ({ sections: [...state.sections, section] })),
 
-  updateSection: (sectionId, updates) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? { ...section, ...updates, lastModifiedAt: new Date().toISOString(), revision: section.revision + 1 }
-          : section
-      ),
-    })),
+      addSection: (name) => {
+        const newId = generateId();
+        set((state) => {
+          // Line a new schedule up with the ones already on screen
+          const extent = sectionsExtent(state.sections);
+          const window = extent
+            ? { startDate: extent.start, endDate: extent.end }
+            : createDefaultWindow();
 
-  updateSectionDates: (sectionId, startDate, endDate) =>
-    set((state) => ({
-      sections: state.sections.map((section) => {
-        if (section.id !== sectionId) return section;
-        // Remap positions so phases and milestones keep their absolute dates
-        const { phases, milestones } = remapSectionToDateRange(section, startDate, endDate);
-        return {
-          ...section,
-          startDate,
-          endDate,
-          phases,
-          milestones,
-          lastModifiedAt: new Date().toISOString(),
-          revision: section.revision + 1,
-        };
-      }),
-    })),
+          const section: Section = {
+            id: newId,
+            type: 'schedule',
+            name: name || '',
+            revision: 1,
+            lastModifiedAt: new Date().toISOString(),
+            color: getScheduleColor(state.sections.length),
+            order: state.sections.length,
+            isCollapsed: false,
+            items: [],
+            startDate: window.startDate,
+            endDate: window.endDate,
+          };
+          return { sections: [...state.sections, section] };
+        });
+        return newId;
+      },
 
-  setSectionMulticolor: (sectionId, isMulticolor) =>
-    set((state) => ({
-      sections: state.sections.map((section) => {
-        if (section.id !== sectionId) return section;
-        // Enabling assigns palette colors by phase order; disabling resets
-        // phases to inherit the schedule color
-        const sortedIds = [...section.phases]
-          .sort((a, b) => a.order - b.order)
-          .map((p) => p.id);
-        return {
-          ...section,
-          isMulticolor,
-          phases: section.phases.map((phase) => ({
-            ...phase,
-            color: isMulticolor ? getNextPhaseColor(sortedIds.indexOf(phase.id)) : null,
-          })),
-          lastModifiedAt: new Date().toISOString(),
-          revision: section.revision + 1,
-        };
-      }),
-    })),
+      updateSection: (sectionId, updates) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) => touch(section, updates)),
+        })),
 
-  deleteSection: (sectionId) => {
-    const state = get();
-
-    // Prevent deleting if only one section
-    if (state.sections.length <= 1) {
-      return { success: false, reason: 'Cannot delete the only schedule.' };
-    }
-
-    // Deleting a pinned schedule simply unpins it
-    const projectStore = useProjectStore.getState();
-    if (projectStore.project?.pinnedSectionId === sectionId) {
-      projectStore.setPinnedSection(null);
-    }
-
-    set({
-      sections: state.sections.filter((s) => s.id !== sectionId),
-    });
-    return { success: true };
-  },
-
-  toggleSectionCollapse: (sectionId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? { ...section, isCollapsed: !section.isCollapsed }
-          : section
-      ),
-    })),
-
-  toggleSectionLock: (sectionId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? { ...section, isLocked: !section.isLocked }
-          : section
-      ),
-    })),
-
-  reorderSections: (fromIndex, toIndex) =>
-    set((state) => {
-      const sections = [...state.sections];
-      const [removed] = sections.splice(fromIndex, 1);
-      sections.splice(toIndex, 0, removed);
-
-      // Update order values
-      const reorderedSections = sections.map((section, index) => ({
-        ...section,
-        order: index,
-      }));
-
-      return { sections: reorderedSections };
-    }),
-
-  incrementRevision: (sectionId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              revision: section.revision + 1,
-              lastModifiedAt: new Date().toISOString(),
-            }
-          : section
-      ),
-    })),
-
-  addPhase: (sectionId, phase) => {
-    const newId = generateId();
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              phases: [
-                ...section.phases,
-                { ...phase, id: newId, sectionId },
-              ],
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-            }
-          : section
-      ),
-    }));
-    return newId;
-  },
-
-  updatePhase: (sectionId, phaseId, updates) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId ? { ...phase, ...updates } : phase
-              ),
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-            }
-          : section
-      ),
-    })),
-
-  deletePhase: (sectionId, phaseId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              phases: section.phases.filter((phase) => phase.id !== phaseId),
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-            }
-          : section
-      ),
-    })),
-
-  togglePhaseCollapse: (sectionId, phaseId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? { ...phase, isCollapsed: !phase.isCollapsed }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    })),
-
-  togglePhaseLock: (sectionId, phaseId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? { ...phase, isLocked: !phase.isLocked }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    })),
-
-  reorderPhases: (sectionId, fromIndex, toIndex) =>
-    set((state) => ({
-      sections: state.sections.map((section) => {
-        if (section.id !== sectionId) return section;
-        const phases = [...section.phases];
-        const [removed] = phases.splice(fromIndex, 1);
-        phases.splice(toIndex, 0, removed);
-        // Update order values
-        const reorderedPhases = phases.map((phase, index) => ({
-          ...phase,
-          order: index,
-        }));
-        return {
-          ...section,
-          phases: reorderedPhases,
-          lastModifiedAt: new Date().toISOString(),
-        };
-      }),
-    })),
-
-  reorderTasks: (sectionId, phaseId, fromIndex, toIndex) =>
-    set((state) => ({
-      sections: state.sections.map((section) => {
-        if (section.id !== sectionId) return section;
-        return {
-          ...section,
-          lastModifiedAt: new Date().toISOString(),
-          phases: section.phases.map((phase) => {
-            if (phase.id !== phaseId) return phase;
-            const tasks = [...phase.tasks];
-            const [removed] = tasks.splice(fromIndex, 1);
-            tasks.splice(toIndex, 0, removed);
-            const reorderedTasks = tasks.map((task, index) => ({
-              ...task,
-              order: index,
-            }));
-            return { ...phase, tasks: reorderedTasks };
-          }),
-        };
-      }),
-    })),
-
-  updatePhasePosition: (sectionId, phaseId, relativeStart, relativeEnd) =>
-    set((state) => {
-      const section = state.sections.find((s) => s.id === sectionId);
-      if (!section) return state;
-
-      const needsExpansion = relativeStart < 0 || relativeEnd > 1;
-
-      if (!needsExpansion) {
-        // Simple update - no expansion needed
-        return {
-          sections: state.sections.map((s) =>
-            s.id === sectionId
-              ? {
-                  ...s,
-                  phases: s.phases.map((phase) =>
-                    phase.id === phaseId
-                      ? { ...phase, relativeStart, relativeEnd }
-                      : phase
-                  ),
-                  lastModifiedAt: new Date().toISOString(),
-                  revision: s.revision + 1,
-                }
-              : s
+      // Items hold absolute dates, so re-declaring the window never moves them.
+      updateSectionWindow: (sectionId, startDate, endDate) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) =>
+            touch(section, {
+              startDate: minDayKey(startDate, endDate),
+              endDate: maxDayKey(startDate, endDate),
+            })
           ),
-        };
-      }
+        })),
 
-      // Auto-expansion: extend the section's date range to fit the phase
-      const sectionStart = parseISO(section.startDate);
-      const sectionEnd = parseISO(section.endDate);
-      const sectionDays = differenceInDays(sectionEnd, sectionStart);
-
-      let newStartDate = sectionStart;
-      let newEndDate = sectionEnd;
-      let expansionStartDays = 0;
-      let expansionEndDays = 0;
-
-      if (relativeStart < 0) {
-        const overflowDays = Math.abs(relativeStart) * sectionDays;
-        expansionStartDays = Math.ceil(overflowDays);
-        newStartDate = subDays(sectionStart, expansionStartDays);
-      }
-
-      if (relativeEnd > 1) {
-        const overflowDays = (relativeEnd - 1) * sectionDays;
-        expansionEndDays = Math.ceil(overflowDays);
-        newEndDate = addDays(sectionEnd, expansionEndDays);
-      }
-
-      const newSectionDays = differenceInDays(newEndDate, newStartDate);
-      const oldTotalDays = sectionDays;
-
-      const oldSectionStartInNew = expansionStartDays / newSectionDays;
-      const oldSectionScaleInNew = oldTotalDays / newSectionDays;
-
-      const scalePosition = (oldRelative: number): number => {
-        return oldSectionStartInNew + oldRelative * oldSectionScaleInNew;
-      };
-
-      const newPhaseStart = scalePosition(Math.max(0, relativeStart));
-      const newPhaseEnd = scalePosition(Math.min(1, relativeEnd));
-
-      let finalPhaseStart = newPhaseStart;
-      let finalPhaseEnd = newPhaseEnd;
-
-      if (relativeStart < 0) {
-        const absoluteStartDays = relativeStart * oldTotalDays;
-        finalPhaseStart = (expansionStartDays + absoluteStartDays) / newSectionDays;
-      }
-
-      if (relativeEnd > 1) {
-        const absoluteEndDays = relativeEnd * oldTotalDays;
-        finalPhaseEnd = (expansionStartDays + absoluteEndDays) / newSectionDays;
-      }
-
-      const newStartDateStr = newStartDate.toISOString();
-      const newEndDateStr = newEndDate.toISOString();
-      const now = new Date().toISOString();
-
-      return {
-        sections: state.sections.map((s) => {
-          if (s.id === sectionId) {
-            return {
-              ...s,
-              startDate: newStartDateStr,
-              endDate: newEndDateStr,
-              lastModifiedAt: now,
-              revision: s.revision + 1,
-              phases: s.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      relativeStart: Math.max(0, finalPhaseStart),
-                      relativeEnd: Math.min(1, finalPhaseEnd),
-                    }
-                  : {
-                      ...phase,
-                      relativeStart: scalePosition(phase.relativeStart),
-                      relativeEnd: scalePosition(phase.relativeEnd),
-                    }
+      // A root bar's colour is resolved from the schedule as it renders, so
+      // switching modes only has to drop the per-item overrides that would
+      // otherwise mask whichever palette the schedule now uses.
+      setSectionMulticolor: (sectionId, isMulticolor) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) =>
+            touch(section, {
+              isMulticolor,
+              items: section.items.map((item) =>
+                item.kind === 'milestone' ? item : { ...item, color: null }
               ),
-              milestones: s.milestones.map((m) => ({
-                ...m,
-                relativePosition: scalePosition(m.relativePosition),
-              })),
+            })
+          ),
+        })),
+
+      deleteSection: (sectionId) => {
+        const state = get();
+        if (state.sections.length <= 1) {
+          return { success: false, reason: 'Cannot delete the only schedule.' };
+        }
+
+        const projectStore = useProjectStore.getState();
+        if (projectStore.project?.pinnedSectionId === sectionId) {
+          projectStore.setPinnedSection(null);
+        }
+
+        set({ sections: state.sections.filter((s) => s.id !== sectionId) });
+        return { success: true };
+      },
+
+      toggleSectionCollapse: (sectionId) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) => ({
+            ...section,
+            isCollapsed: !section.isCollapsed,
+          })),
+        })),
+
+      toggleSectionLock: (sectionId) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) => ({
+            ...section,
+            isLocked: !section.isLocked,
+          })),
+        })),
+
+      reorderSections: (fromIndex, toIndex) =>
+        set((state) => {
+          const sections = [...state.sections];
+          const [removed] = sections.splice(fromIndex, 1);
+          if (!removed) return state;
+          sections.splice(toIndex, 0, removed);
+          return { sections: sections.map((section, index) => ({ ...section, order: index })) };
+        }),
+
+      incrementRevision: (sectionId) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) => touch(section, {})),
+        })),
+
+      addItem: (sectionId, parentId, item, index) => {
+        const newId = generateId();
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) => {
+            const complete: TimelineItem = { ...item, id: newId, children: item.children ?? [] };
+            const target =
+              index ??
+              (parentId === null
+                ? section.items.length
+                : (findItem(section.items, parentId)?.children.length ?? 0));
+            return touch(section, {
+              items: insertItemInto(section.items, parentId, target, complete),
+            });
+          }),
+        }));
+        return newId;
+      },
+
+      updateItem: (sectionId, itemId, updates) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) =>
+            touch(section, {
+              items: updateItemIn(section.items, itemId, (item) => {
+                const next = { ...item, ...updates };
+                // A milestone is a point; keep its two edges in step
+                return next.kind === 'milestone' ? { ...next, end: next.start } : next;
+              }),
+            })
+          ),
+        })),
+
+      deleteItem: (sectionId, itemId) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) =>
+            touch(section, { items: removeItemFrom(section.items, itemId).items })
+          ),
+        })),
+
+      shiftItem: (sectionId, itemId, days) => {
+        if (days === 0) return;
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) =>
+            touch(section, {
+              items: updateItemIn(section.items, itemId, (item) => shiftItemDays(item, days)),
+            })
+          ),
+        }));
+      },
+
+      setItemDates: (sectionId, itemId, start, end) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) =>
+            touch(section, {
+              items: updateItemIn(section.items, itemId, (item) => {
+                if (item.kind === 'milestone') return { ...item, start, end: start };
+                const from = minDayKey(start, end);
+                const to = dayKeyDiff(from, maxDayKey(start, end)) < 1
+                  ? addDaysToKey(from, 1)
+                  : maxDayKey(start, end);
+                return { ...item, start: from, end: to };
+              }),
+            })
+          ),
+        })),
+
+      /**
+       * The one action drag-and-drop commits through. Remove the subtree from
+       * wherever it was, shift it by however far the pointer travelled, and put
+       * it back where it was dropped — across schedules if that is where it went.
+       */
+      moveItem: ({ itemId, fromSectionId, toSectionId, toParentId, toIndex, dayDelta }) =>
+        set((state) => {
+          const source = state.sections.find((s) => s.id === fromSectionId);
+          if (!source) return state;
+
+          // Nesting an item inside itself would detach the subtree from the tree
+          if (toParentId && (toParentId === itemId || isWithin(source.items, itemId, toParentId))) {
+            return state;
+          }
+
+          const location = locateItem(source.items, itemId);
+          const removal = removeItemFrom(source.items, itemId);
+          if (!removal.removed) return state;
+
+          // Joining a different group means taking that group's ink. An explicit
+          // colour is an override of wherever the item used to sit, so it stops
+          // meaning anything once the item sits somewhere else; dropping it lets
+          // the new parent — or the new schedule — resolve the colour instead.
+          // Re-ordering inside the same parent leaves a deliberate colour alone.
+          const parentChanged =
+            fromSectionId !== toSectionId || (location?.parent?.id ?? null) !== toParentId;
+          const moved = shiftItemDays(
+            parentChanged ? { ...removal.removed, color: null } : removal.removed,
+            dayDelta
+          );
+
+          // Removing from the same list first shifts every later slot left by one
+          let index = toIndex;
+          if (fromSectionId === toSectionId) {
+            const sameParent = (location?.parent?.id ?? null) === toParentId;
+            if (location && sameParent && location.index < toIndex) index -= 1;
+          }
+
+          const now = new Date().toISOString();
+
+          if (fromSectionId === toSectionId) {
+            return {
+              sections: mapSection(state.sections, toSectionId, (section) =>
+                touch(section, { items: insertItemInto(removal.items, toParentId, index, moved) })
+              ),
             };
           }
-          return s;
-        }),
-        lastExpansion: {
-          sectionId,
-          expansionStartDays,
-          expansionEndDays,
-          oldTotalDays,
-          newTotalDays: newSectionDays,
-        },
-      };
-    }),
-
-  updatePhaseWithTasks: (sectionId, phaseId, relativeStart, relativeEnd, taskUpdates) =>
-    set((state) => {
-      const section = state.sections.find((s) => s.id === sectionId);
-      if (!section) return state;
-
-      return {
-        sections: state.sections.map((s) =>
-          s.id === sectionId
-            ? {
-                ...s,
-                lastModifiedAt: new Date().toISOString(),
-                revision: s.revision + 1,
-                phases: s.phases.map((phase) =>
-                  phase.id === phaseId
-                    ? {
-                        ...phase,
-                        relativeStart,
-                        relativeEnd,
-                        tasks: phase.tasks.map((task) => {
-                          const update = taskUpdates.find((u) => u.id === task.id);
-                          return update
-                            ? { ...task, relativeStart: update.relativeStart, relativeEnd: update.relativeEnd }
-                            : task;
-                        }),
-                      }
-                    : phase
-                ),
-              }
-            : s
-        ),
-      };
-    }),
-
-  updatePhaseWithRipple: (sectionId, phaseId, newRelativeEnd) =>
-    set((state) => {
-      const section = state.sections.find((s) => s.id === sectionId);
-      if (!section) return state;
-
-      const phase = section.phases.find((p) => p.id === phaseId);
-      if (!phase) return state;
-
-      // Calculate delta from current end to new end
-      const delta = newRelativeEnd - phase.relativeEnd;
-      if (Math.abs(delta) < 0.0001) return state; // No meaningful change
-
-      // Find phases that start at or after the current phase's end (downstream phases)
-      const downstreamPhases = section.phases.filter(
-        (p) => p.id !== phaseId && p.relativeStart >= phase.relativeEnd - 0.0001
-      );
-
-      // Find milestones that are at or after the current phase's end
-      const downstreamMilestones = section.milestones.filter(
-        (m) => m.relativePosition >= phase.relativeEnd - 0.0001
-      );
-
-      const now = new Date().toISOString();
-
-      return {
-        sections: state.sections.map((s) => {
-          if (s.id !== sectionId) return s;
 
           return {
-            ...s,
-            lastModifiedAt: now,
-            revision: s.revision + 1,
-            phases: s.phases.map((p) => {
-              if (p.id === phaseId) {
-                // Update the dragged phase's end
-                return { ...p, relativeEnd: newRelativeEnd };
+            sections: state.sections.map((section) => {
+              if (section.id === fromSectionId) {
+                return { ...section, items: removal.items, lastModifiedAt: now, revision: section.revision + 1 };
               }
-              if (downstreamPhases.some((dp) => dp.id === p.id)) {
-                // Shift downstream phases by delta
+              if (section.id === toSectionId) {
                 return {
-                  ...p,
-                  relativeStart: p.relativeStart + delta,
-                  relativeEnd: p.relativeEnd + delta,
+                  ...section,
+                  items: insertItemInto(section.items, toParentId, index, moved),
+                  lastModifiedAt: now,
+                  revision: section.revision + 1,
                 };
               }
-              return p;
-            }),
-            milestones: s.milestones.map((m) => {
-              if (downstreamMilestones.some((dm) => dm.id === m.id)) {
-                // Shift downstream milestones by delta
-                return {
-                  ...m,
-                  relativePosition: m.relativePosition + delta,
-                };
-              }
-              return m;
+              return section;
             }),
           };
         }),
-      };
-    }),
 
-  addTask: (sectionId, phaseId, task) => {
-    const newId = generateId();
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      tasks: [
-                        ...phase.tasks,
-                        { ...task, id: newId, phaseId },
-                      ],
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    }));
-    return newId;
-  },
+      toggleItemCollapse: (sectionId, itemId) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) => ({
+            ...section,
+            items: updateItemIn(section.items, itemId, (item) => ({
+              ...item,
+              isCollapsed: !item.isCollapsed,
+            })),
+          })),
+        })),
 
-  updateTask: (sectionId, phaseId, taskId, updates) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      tasks: phase.tasks.map((task) =>
-                        task.id === taskId ? { ...task, ...updates } : task
-                      ),
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    })),
+      toggleItemLock: (sectionId, itemId) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) => ({
+            ...section,
+            items: updateItemIn(section.items, itemId, (item) => ({
+              ...item,
+              isLocked: !item.isLocked,
+            })),
+          })),
+        })),
 
-  deleteTask: (sectionId, phaseId, taskId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      tasks: phase.tasks.filter((task) => task.id !== taskId),
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    })),
-
-  updateTaskPosition: (sectionId, phaseId, taskId, relativeStart, relativeEnd) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      tasks: phase.tasks.map((task) =>
-                        task.id === taskId
-                          ? { ...task, relativeStart, relativeEnd }
-                          : task
-                      ),
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    })),
-
-  addMilestone: (sectionId, milestone) => {
-    const newId = generateId();
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              milestones: [
-                ...section.milestones,
-                { ...milestone, id: newId, sectionId },
-              ],
-            }
-          : section
-      ),
-    }));
-    return newId;
-  },
-
-  updateMilestone: (sectionId, milestoneId, updates) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              milestones: section.milestones.map((m) =>
-                m.id === milestoneId ? { ...m, ...updates } : m
-              ),
-            }
-          : section
-      ),
-    })),
-
-  deleteMilestone: (sectionId, milestoneId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              milestones: section.milestones.filter((m) => m.id !== milestoneId),
-            }
-          : section
-      ),
-    })),
-
-  // Phase bar milestone operations
-  addPhaseBarMilestone: (sectionId, phaseId, barMilestone) => {
-    const newId = generateId();
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      barMilestones: [...(phase.barMilestones || []), { ...barMilestone, id: newId }],
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    }));
-    return newId;
-  },
-
-  updatePhaseBarMilestone: (sectionId, phaseId, barMilestoneId, updates) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      barMilestones: (phase.barMilestones || []).map((bm) =>
-                        bm.id === barMilestoneId ? { ...bm, ...updates } : bm
-                      ),
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    })),
-
-  deletePhaseBarMilestone: (sectionId, phaseId, barMilestoneId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      barMilestones: (phase.barMilestones || []).filter((bm) => bm.id !== barMilestoneId),
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    })),
-
-  // Task bar milestone operations
-  addTaskBarMilestone: (sectionId, phaseId, taskId, barMilestone) => {
-    const newId = generateId();
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      tasks: phase.tasks.map((task) =>
-                        task.id === taskId
-                          ? {
-                              ...task,
-                              barMilestones: [...(task.barMilestones || []), { ...barMilestone, id: newId }],
-                            }
-                          : task
-                      ),
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    }));
-    return newId;
-  },
-
-  updateTaskBarMilestone: (sectionId, phaseId, taskId, barMilestoneId, updates) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      tasks: phase.tasks.map((task) =>
-                        task.id === taskId
-                          ? {
-                              ...task,
-                              barMilestones: (task.barMilestones || []).map((bm) =>
-                                bm.id === barMilestoneId ? { ...bm, ...updates } : bm
-                              ),
-                            }
-                          : task
-                      ),
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    })),
-
-  deleteTaskBarMilestone: (sectionId, phaseId, taskId, barMilestoneId) =>
-    set((state) => ({
-      sections: state.sections.map((section) =>
-        section.id === sectionId
-          ? {
-              ...section,
-              lastModifiedAt: new Date().toISOString(),
-              revision: section.revision + 1,
-              phases: section.phases.map((phase) =>
-                phase.id === phaseId
-                  ? {
-                      ...phase,
-                      tasks: phase.tasks.map((task) =>
-                        task.id === taskId
-                          ? {
-                              ...task,
-                              barMilestones: (task.barMilestones || []).filter((bm) => bm.id !== barMilestoneId),
-                            }
-                          : task
-                      ),
-                    }
-                  : phase
-              ),
-            }
-          : section
-      ),
-    })),
-
-  clearExpansion: () => set({ lastExpansion: null }),
-
-  saveState: () => {
-    const { sections } = get();
-    useProjectStore.getState().saveCurrentProject(sections);
-  },
-
-  beginDragTransaction: () => {
-    const { pastStates } = useSectionStore.temporal.getState();
-    const currentSections = get().sections;
-
-    // Save snapshot and history index before any drag changes
-    // We DON'T pause - let all intermediate states be recorded
-    // They'll be collapsed at commit time
-    set({
-      _dragSnapshot: structuredClone(currentSections),
-      _dragHistoryIndex: pastStates.length,
-    });
-  },
-
-  commitDragTransaction: () => {
-    const snapshot = get()._dragSnapshot;
-    const historyIndex = get()._dragHistoryIndex;
-    const currentSections = get().sections;
-
-    // Clear transaction state
-    set({ _dragSnapshot: null, _dragHistoryIndex: null });
-
-    // If no snapshot or index, nothing to do
-    if (snapshot === null || historyIndex === null) return;
-
-    // If no changes were made, just remove any intermediate history entries
-    const changed = JSON.stringify(snapshot) !== JSON.stringify(currentSections);
-    if (!changed) {
-      const { pastStates } = useSectionStore.temporal.getState();
-      // Remove any entries added during the drag (there shouldn't be any if unchanged)
-      if (pastStates.length > historyIndex) {
-        useSectionStore.temporal.setState({
-          pastStates: pastStates.slice(0, historyIndex),
+      reorderItem: (sectionId, itemId, toIndex) => {
+        const section = get().sections.find((s) => s.id === sectionId);
+        if (!section) return;
+        const location = locateItem(section.items, itemId);
+        if (!location) return;
+        get().moveItem({
+          itemId,
+          fromSectionId: sectionId,
+          toSectionId: sectionId,
+          toParentId: location.parent?.id ?? null,
+          toIndex,
+          dayDelta: 0,
         });
-      }
-      return;
-    }
+      },
 
-    // Get current history
-    const { pastStates } = useSectionStore.temporal.getState();
+      saveState: () => {
+        useProjectStore.getState().saveCurrentProject(get().sections);
+      },
 
-    // Remove all entries added during the drag, replace with just the pre-drag snapshot
-    // This collapses: [history..., drag1, drag2, drag3] -> [history..., snapshot]
-    const originalHistory = pastStates.slice(0, historyIndex);
+      beginDragTransaction: () => {
+        const { pastStates } = useSectionStore.temporal.getState();
+        set({
+          _dragSnapshot: structuredClone(get().sections),
+          _dragHistoryIndex: pastStates.length,
+        });
+      },
 
-    useSectionStore.temporal.setState({
-      pastStates: [...originalHistory, { sections: snapshot }],
-      futureStates: [], // Clear redo since this is a new action
-    });
-  },
+      commitDragTransaction: () => {
+        const snapshot = get()._dragSnapshot;
+        const historyIndex = get()._dragHistoryIndex;
+        const currentSections = get().sections;
 
-  rollbackDragTransaction: () => {
-    const snapshot = get()._dragSnapshot;
-    const historyIndex = get()._dragHistoryIndex;
+        set({ _dragSnapshot: null, _dragHistoryIndex: null });
+        if (snapshot === null || historyIndex === null) return;
 
-    // Restore to snapshot if available
-    if (snapshot && historyIndex !== null) {
-      const { pastStates } = useSectionStore.temporal.getState();
-      // Remove any entries added during the drag
-      useSectionStore.temporal.setState({
-        pastStates: pastStates.slice(0, historyIndex),
-      });
-      set({ sections: snapshot, _dragSnapshot: null, _dragHistoryIndex: null });
-    } else {
-      set({ _dragSnapshot: null, _dragHistoryIndex: null });
-    }
-  },
+        const { pastStates } = useSectionStore.temporal.getState();
+        const changed = JSON.stringify(snapshot) !== JSON.stringify(currentSections);
+
+        if (!changed) {
+          if (pastStates.length > historyIndex) {
+            useSectionStore.temporal.setState({ pastStates: pastStates.slice(0, historyIndex) });
+          }
+          return;
+        }
+
+        // Collapse every intermediate frame of the drag into one undo step
+        useSectionStore.temporal.setState({
+          pastStates: [...pastStates.slice(0, historyIndex), { sections: snapshot }],
+          futureStates: [],
+        });
+      },
+
+      rollbackDragTransaction: () => {
+        const snapshot = get()._dragSnapshot;
+        const historyIndex = get()._dragHistoryIndex;
+
+        if (snapshot && historyIndex !== null) {
+          const { pastStates } = useSectionStore.temporal.getState();
+          useSectionStore.temporal.setState({ pastStates: pastStates.slice(0, historyIndex) });
+          set({ sections: snapshot, _dragSnapshot: null, _dragHistoryIndex: null });
+        } else {
+          set({ _dragSnapshot: null, _dragHistoryIndex: null });
+        }
+      },
     }),
     {
       limit: 50,

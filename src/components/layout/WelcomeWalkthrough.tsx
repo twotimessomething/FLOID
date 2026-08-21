@@ -17,10 +17,17 @@ interface Slide {
   readonly illustration: ReactNode;
 }
 
-// Miniature timeline dimensions (scaled-down versions of ROW_HEIGHT / TASK_ROW_HEIGHT / HEADER_HEIGHT)
+// Scaled-down counterparts of ROW_HEIGHT / NESTED_ROW_HEIGHT / HEADER_HEIGHT and
+// the 16px-per-level label indent, so the miniatures keep the real proportions.
 const MINI_HEADER_HEIGHT = 20;
 const MINI_ROW_HEIGHT = 32;
-const MINI_TASK_ROW_HEIGHT = 22;
+const MINI_NESTED_ROW_HEIGHT = 22;
+const MINI_INDENT_PX = 9;
+
+/** Mirrors barInsetForDepth: nested rows are shorter, so their bars sit tighter. */
+function miniInsetForDepth(depth: number): number {
+  return depth === 0 ? 5 : 4;
+}
 
 const GRIDLINE_POSITIONS = [12.5, 25, 37.5, 50, 62.5, 75, 87.5];
 
@@ -74,27 +81,45 @@ function MiniChevron(): ReactElement {
 
 interface MiniLabelRowProps {
   readonly name: string;
+  /** A schedule is the root of its tree; 0 is a root item under one. */
+  readonly depth?: number;
   readonly height?: number;
+  readonly isSchedule?: boolean;
   readonly isPinned?: boolean;
-  readonly isTask?: boolean;
+  readonly isMilestone?: boolean;
   readonly chevron?: boolean;
 }
 
 function MiniLabelRow({
   name,
+  depth = 0,
   height = MINI_ROW_HEIGHT,
+  isSchedule = false,
   isPinned = false,
-  isTask = false,
+  isMilestone = false,
   chevron = false,
 }: MiniLabelRowProps): ReactElement {
   return (
     <div
-      className={`flex items-center gap-1 ${isTask ? 'pl-5 pr-1' : 'pl-1.5 pr-1'}`}
-      style={{ height }}
+      className="flex items-center gap-1 pr-1"
+      style={{
+        height,
+        paddingLeft: 6 + (isSchedule ? 0 : depth + 1) * MINI_INDENT_PX,
+      }}
     >
-      {chevron && <MiniChevron />}
+      {chevron ? (
+        <MiniChevron />
+      ) : (
+        <span className="w-2 flex-shrink-0" aria-hidden="true">
+          {isMilestone && (
+            <span className="block w-1 h-1 mx-auto rotate-45 bg-[var(--color-text-muted)]" />
+          )}
+        </span>
+      )}
       <span
-        className={`text-[9px] truncate ${isPinned ? 'font-medium' : ''} ${isTask ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}
+        className={`text-[9px] truncate ${isSchedule ? 'font-semibold' : ''} ${
+          depth === 0 ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'
+        }`}
       >
         {name}
       </span>
@@ -121,8 +146,11 @@ interface MiniBarProps {
   readonly width: number; // percent
   readonly color: string;
   readonly label?: string;
-  readonly inset?: number; // px from row top/bottom
-  readonly isGhost?: boolean;
+  readonly depth?: number;
+  /** The outline a bar leaves behind while its clone is in flight. */
+  readonly isLifted?: boolean;
+  /** The bar under the cursor, which will take the dragged item. */
+  readonly isReceiving?: boolean;
   readonly showHandles?: boolean;
 }
 
@@ -131,72 +159,134 @@ function MiniBar({
   width,
   color,
   label,
-  inset = 4,
-  isGhost = false,
+  depth = 0,
+  isLifted = false,
+  isReceiving = false,
   showHandles = false,
 }: MiniBarProps): ReactElement {
   const textColor = getReadableTextColor(color);
+  const inset = miniInsetForDepth(depth);
   return (
     <div
-      className="absolute flex items-center px-1.5 overflow-hidden"
-      style={{
-        left: `${left}%`,
-        width: `${width}%`,
-        top: inset,
-        bottom: inset,
-        backgroundColor: color,
-        opacity: isGhost ? 0.3 : undefined,
-      }}
+      className={`absolute timeline-bar ${isLifted ? 'timeline-bar--lifted' : ''} ${
+        isReceiving ? 'timeline-bar--receiving' : ''
+      }`}
+      style={{ left: `${left}%`, width: `${width}%`, top: inset, bottom: inset }}
     >
+      <div className="timeline-bar__fill" style={{ backgroundColor: color }} />
       {label && (
-        <span className="text-[9px] truncate" style={{ color: textColor }}>
-          {label}
+        <span
+          className={`absolute inset-0 flex items-center px-1.5 overflow-hidden text-[9px] ${
+            isLifted ? 'opacity-40' : ''
+          }`}
+        >
+          <span className="truncate" style={{ color: textColor }}>
+            {label}
+          </span>
         </span>
       )}
       {showHandles && (
         <>
-          <span className="absolute left-1 top-1/2 -translate-y-1/2 w-[3px] h-3 bg-white/80" />
-          <span className="absolute right-1 top-1/2 -translate-y-1/2 w-[3px] h-3 bg-white/80" />
+          <span
+            className="absolute left-0.5 top-1/2 -translate-y-1/2 w-[3px] h-2.5"
+            style={{ backgroundColor: textColor }}
+          />
+          <span
+            className="absolute right-0.5 top-1/2 -translate-y-1/2 w-[3px] h-2.5"
+            style={{ backgroundColor: textColor }}
+          />
         </>
       )}
     </div>
   );
 }
 
-interface MiniMilestoneProps {
+interface MiniGhostBarProps {
   readonly left: number; // percent
-  readonly label?: string;
-  readonly lineHeight?: number; // px extending below the marker
-  readonly isGhost?: boolean;
+  readonly width: number; // percent
+  readonly color: string;
 }
 
-function MiniMilestone({
-  left,
-  label,
-  lineHeight = 0,
-  isGhost = false,
-}: MiniMilestoneProps): ReactElement {
+/** The dashed sketch a create gesture leaves under the cursor. */
+function MiniGhostBar({ left, width, color }: MiniGhostBarProps): ReactElement {
+  return (
+    <div
+      className="absolute overflow-hidden border border-dashed"
+      style={{
+        left: `${left}%`,
+        width: `${width}%`,
+        top: miniInsetForDepth(0),
+        bottom: miniInsetForDepth(0),
+        borderColor: color,
+      }}
+    >
+      <div className="absolute inset-0" style={{ backgroundColor: color, opacity: 0.16 }} />
+    </div>
+  );
+}
+
+interface MiniMilestoneProps {
+  readonly left: number; // percent
+  /** Omitted where bars already fill the band the name would print in. */
+  readonly label?: string;
+  /** How far the reference line runs down through the schedule below. */
+  readonly lineHeight?: number;
+}
+
+function MiniMilestone({ left, label, lineHeight = 0 }: MiniMilestoneProps): ReactElement {
   return (
     <div className="absolute top-0 z-10" style={{ left: `${left}%`, height: MINI_ROW_HEIGHT }}>
       {lineHeight > 0 && (
         <div
-          className="absolute left-0 -translate-x-1/2 w-px bg-[var(--color-milestone-line)]"
-          style={{ top: 22, height: lineHeight }}
+          className="absolute left-0 top-full w-px bg-[var(--color-milestone-line)]"
+          style={{ height: lineHeight }}
         />
       )}
-      <div
-        className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[var(--color-text-primary)] ${isGhost ? 'opacity-25' : ''}`}
-      />
+      <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[var(--color-text-primary)]" />
       {label && (
-        <div
-          className={`absolute left-0 -translate-x-1/2 z-20 whitespace-nowrap ${
-            isGhost
-              ? 'top-[20px] text-[8px] text-[var(--color-text-muted)] opacity-70'
-              : 'top-[19px] px-1 py-px bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-sm)] text-[8px] text-[var(--color-text-primary)]'
-          }`}
-        >
+        <span className="absolute bottom-0 left-0 -translate-x-1/2 text-[8px] leading-none text-[var(--color-text-primary)] whitespace-nowrap">
           {label}
-        </div>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Where a released item lands among its siblings. */
+function MiniDropLine(): ReactElement {
+  return <div className="absolute left-0 right-0 top-0 h-px z-20 bg-[var(--color-accent)]" />;
+}
+
+interface MiniDragCloneProps {
+  readonly left: number; // percent
+  readonly top: number; // px, relative to the row
+  readonly width: number; // percent
+  readonly color: string;
+  readonly label: string;
+  /** Omitted where the drop, not the date, is the point of the illustration. */
+  readonly date?: string;
+}
+
+/**
+ * The bar in flight. It floats above the sheet, so unlike a placed bar it is
+ * allowed a shadow and composites normally instead of overprinting.
+ */
+function MiniDragClone({ left, top, width, color, label, date }: MiniDragCloneProps): ReactElement {
+  const textColor = getReadableTextColor(color);
+  return (
+    <div className="absolute z-30" style={{ left: `${left}%`, top, width: `${width}%` }}>
+      <div
+        className="flex items-center h-[22px] px-1.5 overflow-hidden shadow-[var(--shadow-md)]"
+        style={{ backgroundColor: color }}
+      >
+        <span className="text-[9px] truncate" style={{ color: textColor }}>
+          {label}
+        </span>
+      </div>
+      {date && (
+        <span className="absolute top-full left-0 mt-1 px-1 py-px rounded-[var(--radius-sm)] bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-[8px] leading-normal whitespace-nowrap">
+          {date}
+        </span>
       )}
     </div>
   );
@@ -231,8 +321,8 @@ function MiniFrame({ labels, children }: MiniFrameProps): ReactElement {
           ))}
         </div>
 
-        {/* Rows with gridlines */}
-        <div className="relative">
+        {/* Rows with gridlines. `timeline-plot` isolates the bars' blending. */}
+        <div className="relative timeline-plot">
           <div className="absolute inset-0 pointer-events-none">
             {GRIDLINE_POSITIONS.map((position) => (
               <div
@@ -266,11 +356,11 @@ function MiniCursor({ left, top }: { readonly left: number; readonly top: number
 /* =========================================
    Slide illustrations
 
-   Color sequencing is deliberate: siblings in the same row alternate
-   value — a mid-tone next to a light tint next to a dark saturated —
-   the same alternation the real palette (`src/constants/colors.ts`)
-   is built around. Child bars (tasks) reuse their parent phase's hue
-   at reduced alpha rather than introducing a new color.
+   Color sequencing is deliberate: siblings in the same row alternate value —
+   a mid-tone next to a light tint next to a dark saturated — the same
+   alternation the real palette (`src/constants/colors.ts`) is built around.
+   Nested bars repeat their parent's exact color, because that is what the
+   real tree does: a group reads as one block however deep it goes.
    ========================================= */
 
 function SchedulesIllustration(): ReactElement {
@@ -278,58 +368,29 @@ function SchedulesIllustration(): ReactElement {
     <MiniFrame
       labels={
         <>
-          <MiniLabelRow name="Product Timeline" isPinned chevron />
-          <MiniLabelRow name="Design" chevron />
-          <MiniLabelRow name="Engineering" chevron />
+          <MiniLabelRow name="Product Timeline" isSchedule isPinned chevron />
+          <MiniLabelRow name="Design" isSchedule chevron />
+          <MiniLabelRow name="Engineering" isSchedule chevron />
         </>
       }
     >
       {/* Today playhead */}
       <div
-        className="absolute inset-y-0 w-px bg-[var(--color-today)] opacity-70 z-20 pointer-events-none"
+        className="absolute inset-y-0 w-px z-20 pointer-events-none bg-[var(--color-today)]"
         style={{ left: '38%' }}
       />
       <MiniRow>
-        <MiniMilestone left={64} label="Design lock" lineHeight={74} />
+        <MiniMilestone left={64} lineHeight={64} />
         <MiniBar left={2} width={30} color={PHASE_COLORS.teal} label="Discover" />
         <MiniBar left={34} width={28} color={PHASE_COLORS.sky} label="Concept" />
         <MiniBar left={66} width={31} color={PHASE_COLORS.blue} label="Design" />
       </MiniRow>
       <MiniRow>
-        <MiniBar left={6} width={38} color={SCHEDULE_COLORS[0]} label="Research" />
-        <MiniBar left={48} width={34} color={SCHEDULE_COLORS[0]} label="Concepts" />
+        <MiniBar left={6} width={38} color={SCHEDULE_COLORS[2]} label="Research" />
+        <MiniBar left={48} width={34} color={SCHEDULE_COLORS[2]} label="Concepts" />
       </MiniRow>
       <MiniRow>
-        <MiniBar left={28} width={46} color={SCHEDULE_COLORS[1]} label="Feasibility" />
-      </MiniRow>
-    </MiniFrame>
-  );
-}
-
-function ItemsIllustration(): ReactElement {
-  const taskColor = `${PHASE_COLORS.sky}CC`;
-  return (
-    <MiniFrame
-      labels={
-        <>
-          <MiniLabelRow name="Product Timeline" isPinned chevron />
-          <MiniLabelRow name="Concept" chevron />
-          <MiniLabelRow name="Sketches" isTask height={MINI_TASK_ROW_HEIGHT} />
-          <MiniLabelRow name="CAD model" isTask height={MINI_TASK_ROW_HEIGHT} />
-        </>
-      }
-    >
-      <MiniRow>
-        <MiniMilestone left={76} label="Design review" lineHeight={86} />
-      </MiniRow>
-      <MiniRow>
-        <MiniBar left={8} width={62} color={PHASE_COLORS.sky} label="Concept" />
-      </MiniRow>
-      <MiniRow height={MINI_TASK_ROW_HEIGHT}>
-        <MiniBar left={10} width={28} color={taskColor} label="Sketches" inset={3} />
-      </MiniRow>
-      <MiniRow height={MINI_TASK_ROW_HEIGHT}>
-        <MiniBar left={42} width={26} color={taskColor} label="CAD model" inset={3} />
+        <MiniBar left={28} width={46} color={SCHEDULE_COLORS[3]} label="Feasibility" />
       </MiniRow>
     </MiniFrame>
   );
@@ -340,84 +401,83 @@ function CreateIllustration(): ReactElement {
     <MiniFrame
       labels={
         <>
-          <MiniLabelRow name="Product Timeline" isPinned chevron />
-          <MiniLabelRow name="Discover" chevron />
+          <MiniLabelRow name="Discover" isSchedule chevron />
+          <MiniLabelRow name="Research" />
           <MiniLabelRow name="" />
         </>
       }
     >
       <MiniRow>
-        <MiniMilestone left={24} label="Double-click" isGhost />
+        <MiniMilestone left={26} label="Kickoff" lineHeight={64} />
       </MiniRow>
       <MiniRow>
-        <MiniBar left={4} width={34} color={PHASE_COLORS.teal} label="Discover" />
+        <MiniBar left={6} width={34} color={PHASE_COLORS.teal} label="Research" />
       </MiniRow>
       <MiniRow>
-        <MiniBar left={40} width={30} color={PHASE_COLORS.sky} label="Double-click" isGhost />
-        <MiniCursor left={58} top={14} />
+        <MiniGhostBar left={46} width={30} color={PHASE_COLORS.teal} />
+        <MiniCursor left={75} top={15} />
       </MiniRow>
-
-      {/* Right-click context menu */}
-      <div className="absolute right-2 top-8 z-30 w-[88px] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-raised)] shadow-[var(--shadow-md)] py-0.5">
-        {['Add Phase', 'Add Task', 'Add Milestone'].map((item, i) => (
-          <div
-            key={item}
-            className={`px-2 py-[3px] text-[8px] ${
-              i === 0
-                ? 'bg-[var(--color-hover)] text-[var(--color-text-primary)] font-medium'
-                : 'text-[var(--color-text-secondary)]'
-            }`}
-          >
-            {item}
-          </div>
-        ))}
-      </div>
     </MiniFrame>
   );
 }
 
 function DragIllustration(): ReactElement {
-  const taskColor = `${PHASE_COLORS.orange}CC`;
   return (
     <MiniFrame
       labels={
         <>
-          <MiniLabelRow name="Product Timeline" isPinned chevron />
-          <MiniLabelRow name="Engineering" chevron />
-          <MiniLabelRow name="Tooling" isTask height={MINI_TASK_ROW_HEIGHT} />
-          <MiniLabelRow name="Samples" isTask height={MINI_TASK_ROW_HEIGHT} />
+          <MiniLabelRow name="Engineering" isSchedule chevron />
+          <MiniLabelRow name="Tooling" />
+          <MiniLabelRow name="Samples" />
         </>
       }
     >
       <MiniRow />
       <MiniRow>
+        <MiniBar left={16} width={30} color={PHASE_COLORS.orange} label="Tooling" isLifted />
+      </MiniRow>
+      <MiniRow>
+        <MiniDropLine />
+        <MiniBar left={58} width={26} color={PHASE_COLORS.orange} label="Samples" />
         <div className="walkthrough-drift absolute inset-0">
-          <MiniBar
-            left={18}
-            width={54}
+          <MiniDragClone
+            left={26}
+            top={-6}
+            width={30}
             color={PHASE_COLORS.orange}
-            label="Engineering"
-            showHandles
+            label="Tooling"
+            date="Apr 12"
           />
-          {/* Drag date bubble above the end handle */}
-          <div
-            className="absolute z-30 -top-3 -translate-x-1/2 px-1 py-px rounded-[var(--radius-sm)] bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-[8px] whitespace-nowrap pointer-events-none shadow-[var(--shadow-lg)]"
-            style={{ left: '72%' }}
-          >
-            May 28
-            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-l-transparent border-r-transparent border-t-[var(--color-tooltip)]" />
-          </div>
+          <MiniCursor left={30} top={-2} />
         </div>
       </MiniRow>
-      <MiniRow height={MINI_TASK_ROW_HEIGHT}>
-        <div className="walkthrough-drift absolute inset-0">
-          <MiniBar left={20} width={24} color={taskColor} label="Tooling" inset={3} />
-        </div>
+    </MiniFrame>
+  );
+}
+
+function GroupIllustration(): ReactElement {
+  return (
+    <MiniFrame
+      labels={
+        <>
+          <MiniLabelRow name="Engineering" isSchedule chevron />
+          <MiniLabelRow name="Tooling" chevron />
+          <MiniLabelRow name="Molds" depth={1} height={MINI_NESTED_ROW_HEIGHT} chevron />
+          <MiniLabelRow name="First shots" depth={2} height={MINI_NESTED_ROW_HEIGHT} />
+        </>
+      }
+    >
+      <MiniRow />
+      <MiniRow>
+        <MiniBar left={14} width={62} color={PHASE_COLORS.orange} label="Tooling" isReceiving />
+        <MiniDragClone left={44} top={-4} width={26} color={PHASE_COLORS.ochre} label="Samples" />
+        <MiniCursor left={48} top={0} />
       </MiniRow>
-      <MiniRow height={MINI_TASK_ROW_HEIGHT}>
-        <div className="walkthrough-drift absolute inset-0">
-          <MiniBar left={46} width={24} color={taskColor} label="Samples" inset={3} />
-        </div>
+      <MiniRow height={MINI_NESTED_ROW_HEIGHT}>
+        <MiniBar left={18} width={30} color={PHASE_COLORS.orange} label="Molds" depth={1} />
+      </MiniRow>
+      <MiniRow height={MINI_NESTED_ROW_HEIGHT}>
+        <MiniBar left={22} width={18} color={PHASE_COLORS.orange} label="First shots" depth={2} />
       </MiniRow>
     </MiniFrame>
   );
@@ -449,32 +509,32 @@ export function WelcomeWalkthrough(): ReactElement {
     () => [
       {
         title: '',
-        body: 'A lightweight way to plan product timelines. Create a schedule for each team, see them all on one shared calendar, and ship with less friction.',
+        body: 'Fluid timelines for product development.',
         illustration: <LogoMark isDark={isDark} />,
       },
       {
-        title: 'Every team on one timeline',
-        body: 'Add a schedule per team — everything lines up on the same dates. Pin the schedule that matters to keep it on top and extend its milestone lines through every schedule below.',
+        title: 'One timeline, every team',
+        body: 'Give each team a schedule. They all run on the same set of dates.',
         illustration: <SchedulesIllustration />,
       },
       {
-        title: 'Phases, tasks & milestones',
-        body: 'Phases are the big blocks of work. Tasks break them down into finer detail. Milestones pin a single date — a review, a handoff, a deadline.',
-        illustration: <ItemsIllustration />,
-      },
-      {
-        title: 'Build your timeline in clicks',
-        body: 'Hover empty space to preview, then double-click to drop in a phase — or drag to draw one exactly the size you want. Schedule headers take milestones the same way. Right-click anywhere for the full menu.',
+        title: 'Draw the work',
+        body: 'Double-click empty space for a bar, or drag out the span you want.',
         illustration: <CreateIllustration />,
       },
       {
-        title: 'Drag to move, pull edges to resize',
-        body: 'Grab a bar to move it; pull its handles to resize. Tasks and milestones travel with their phase — hold Shift while resizing to keep them pinned in place.',
+        title: 'Drag it into shape',
+        body: 'Move dates, reorder rows, or carry a bar into another schedule.',
         illustration: <DragIllustration />,
       },
       {
+        title: 'Drop a bar on a bar to group it',
+        body: 'Groups nest to any depth and travel as one.',
+        illustration: <GroupIllustration />,
+      },
+      {
         title: "You're ready to plan",
-        body: 'Create a project to set your dates and first schedule. Everything else is a double-click away.',
+        body: 'Right-click anything for the rest.',
         illustration: <LogoMark isDark={isDark} />,
       },
     ],
@@ -514,7 +574,11 @@ export function WelcomeWalkthrough(): ReactElement {
   return (
     <div className="h-full flex items-center justify-center bg-[var(--color-background)] px-6">
       {!isProjectSetupModalOpen && (
-        <div className="w-full max-w-xl modal-enter relative" role="region" aria-label="Welcome walkthrough">
+        <div
+          className="w-full max-w-xl modal-enter relative border border-[var(--color-border)] rounded-[var(--radius-lg)]"
+          role="region"
+          aria-label="Welcome walkthrough"
+        >
           {!isLast && (
             <button
               type="button"
@@ -533,7 +597,7 @@ export function WelcomeWalkthrough(): ReactElement {
                   {slide.title}
                 </h2>
               )}
-              <p className="text-[13px] text-[var(--color-text-secondary)] text-center leading-relaxed max-w-md mx-auto min-h-[3.5rem]">
+              <p className="text-[13px] text-[var(--color-text-secondary)] text-center leading-relaxed max-w-md mx-auto min-h-[2.5rem]">
                 {slide.body}
               </p>
               {isLast && (

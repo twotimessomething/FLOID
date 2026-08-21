@@ -1,6 +1,17 @@
-import type { Section, ZoomLevel } from '../types';
+import type { Section, TimelineItem, ViewportBounds, ZoomLevel } from '../types/timeline';
+import { getItemColor } from '../types/itemColor';
+import { findItemPath } from './itemTree';
+import { addDaysToKey, dayKeyDiff } from './dayKeys';
 
-// Pixels per day at each zoom level
+/**
+ * Timeline geometry.
+ *
+ * One mapping, in one direction and back: a day key is `pixelsPerDay` from the
+ * viewport's first day. Nothing nests, nothing rescales — which is why an item
+ * can be dropped into a different parent, or a different schedule, and land on
+ * exactly the same pixel it left.
+ */
+
 export const ZOOM_PIXELS_PER_DAY: Record<ZoomLevel, number> = {
   day: 40,
   week: 20,
@@ -8,65 +19,223 @@ export const ZOOM_PIXELS_PER_DAY: Record<ZoomLevel, number> = {
   quarter: 2,
 };
 
+/** Schedule header rows and root item rows. */
 export const ROW_HEIGHT = 48;
-export const TASK_ROW_HEIGHT = 28;
+/** Every item below the root, bar or milestone. */
+export const NESTED_ROW_HEIGHT = 30;
 export const LABEL_COLUMN_WIDTH = 200;
 export const HEADER_HEIGHT = 48;
+/** Reserved beneath a schedule's items so there is always somewhere to draw. */
+export const CREATE_ROW_HEIGHT = ROW_HEIGHT;
+/** Smallest bar the eye can still grab. */
+export const MIN_BAR_WIDTH = 6;
 
-export const getPixelsPerDay = (zoomLevel: ZoomLevel): number => {
-  return ZOOM_PIXELS_PER_DAY[zoomLevel];
+export const getPixelsPerDay = (zoomLevel: ZoomLevel): number => ZOOM_PIXELS_PER_DAY[zoomLevel];
+
+/** A fitted view is free of the named levels, but not of legibility. */
+export const MIN_FIT_PIXELS_PER_DAY = 0.2;
+export const MAX_FIT_PIXELS_PER_DAY = 80;
+
+/** The scale that lays `totalDays` across `width` exactly, within those bounds. */
+export const getFitPixelsPerDay = (totalDays: number, width: number): number | null => {
+  if (totalDays <= 0 || width <= 0) return null;
+  const exact = width / totalDays;
+  return Math.min(MAX_FIT_PIXELS_PER_DAY, Math.max(MIN_FIT_PIXELS_PER_DAY, exact));
 };
 
-export const getTimelineWidth = (totalDays: number, zoomLevel: ZoomLevel): number => {
-  return totalDays * getPixelsPerDay(zoomLevel);
+/**
+ * Which axis a scale should be labelled on. A fitted view lands between the
+ * named levels, so markers come from the density of the scale rather than
+ * from the level the user last picked.
+ */
+export const zoomLevelForPixelsPerDay = (pixelsPerDay: number): ZoomLevel => {
+  if (pixelsPerDay >= 25) return 'day';
+  if (pixelsPerDay >= 12) return 'week';
+  if (pixelsPerDay >= 3.5) return 'month';
+  return 'quarter';
 };
 
-export const getPositionFromRelative = (
-  relativePosition: number,
-  timelineWidth: number
-): number => {
-  return relativePosition * timelineWidth;
+export const rowHeightForDepth = (depth: number): number =>
+  depth === 0 ? ROW_HEIGHT : NESTED_ROW_HEIGHT;
+
+/** Vertical inset of a bar inside its row, so rows breathe. */
+export const barInsetForDepth = (depth: number): number => (depth === 0 ? 8 : 6);
+
+/**
+ * Label column indentation. The schedule name is the root of the tree, so it
+ * sits furthest out and every item steps in from it — the same ladder the PNG
+ * exporter draws.
+ */
+export const LABEL_ROOT_INSET = 12;
+export const LABEL_INDENT_STEP = 16;
+export const labelInsetForDepth = (depth: number): number =>
+  LABEL_ROOT_INSET + LABEL_INDENT_STEP * (depth + 1);
+
+// ---------------------------------------------------------------------------
+// Day ↔ pixel
+// ---------------------------------------------------------------------------
+
+export const dayToX = (key: string, viewport: ViewportBounds, pixelsPerDay: number): number =>
+  dayKeyDiff(viewport.startKey, key) * pixelsPerDay;
+
+export const xToDay = (x: number, viewport: ViewportBounds, pixelsPerDay: number): string =>
+  addDaysToKey(viewport.startKey, pixelsPerDay > 0 ? Math.round(x / pixelsPerDay) : 0);
+
+/**
+ * Viewport-relative 0-1 positions. Items never use these — only the playhead,
+ * which is a position on the sheet rather than a date.
+ */
+export const getPositionFromRelative = (relative: number, timelineWidth: number): number =>
+  relative * timelineWidth;
+
+export const getRelativeFromPosition = (position: number, timelineWidth: number): number =>
+  timelineWidth > 0 ? Math.max(0, Math.min(1, position / timelineWidth)) : 0;
+
+/** Fractional day offset — for hover readouts that should not jump. */
+export const xToDayOffset = (x: number, pixelsPerDay: number): number =>
+  pixelsPerDay > 0 ? x / pixelsPerDay : 0;
+
+export interface BarRect {
+  readonly left: number;
+  readonly width: number;
+}
+
+export const getBarRect = (
+  item: TimelineItem,
+  viewport: ViewportBounds,
+  pixelsPerDay: number
+): BarRect => {
+  const left = dayToX(item.start, viewport, pixelsPerDay);
+  if (item.kind === 'milestone') return { left, width: 0 };
+  const right = dayToX(item.end, viewport, pixelsPerDay);
+  return { left, width: Math.max(MIN_BAR_WIDTH, right - left) };
 };
 
-export const getRelativeFromPosition = (
-  position: number,
-  timelineWidth: number
-): number => {
-  if (timelineWidth <= 0) return 0;
-  return Math.max(0, Math.min(1, position / timelineWidth));
-};
+// ---------------------------------------------------------------------------
+// Row layout
+// ---------------------------------------------------------------------------
 
-export const getBarDimensions = (
-  relativeStart: number,
-  relativeEnd: number,
-  timelineWidth: number
-): { left: number; width: number } => {
-  const left = getPositionFromRelative(relativeStart, timelineWidth);
-  const right = getPositionFromRelative(relativeEnd, timelineWidth);
-  return {
-    left,
-    width: Math.max(4, right - left), // Minimum 4px width
-  };
-};
+/**
+ * One rendered row. Both columns — labels and bars — walk the same list, which
+ * is the only reason they stay aligned at arbitrary depth.
+ */
+export interface FlatRow {
+  readonly item: TimelineItem;
+  readonly parentId: string | null;
+  /** Index within its own sibling list — the drop slot a row represents. */
+  readonly index: number;
+  readonly siblingCount: number;
+  /** Last sibling that actually draws a row, so only it hosts a trailing slot. */
+  readonly isLastRenderedSibling: boolean;
+  readonly depth: number;
+  /** Resolved colour, inherited down the tree. */
+  readonly color: string;
+  readonly top: number;
+  readonly height: number;
+  readonly isLocked: boolean;
+}
 
-export const clampRelativePosition = (
-  value: number,
-  min: number = 0,
-  max: number = 1
-): number => {
-  return Math.max(min, Math.min(max, value));
-};
+/**
+ * Flatten a schedule into rows.
+ *
+ * Root milestones are left out on purpose: they live in the schedule's header
+ * row, drawn against the whole schedule. Every other item — including a
+ * milestone dragged inside a bar — gets a row of its own.
+ */
+export function flattenSection(section: Section): FlatRow[] {
+  const rows: FlatRow[] = [];
+  if (section.isCollapsed) return rows;
 
-export function calculateSectionHeight(section: Section): number {
-  let height = ROW_HEIGHT;
-  if (!section.isCollapsed) {
-    section.phases.forEach((phase) => {
-      height += ROW_HEIGHT;
-      if (!phase.isCollapsed) {
-        // An expanded phase with no tasks shows one empty task-creation row
-        height += Math.max(phase.tasks.length, 1) * TASK_ROW_HEIGHT;
+  const rootCount = section.items.filter((item) => item.kind === 'bar').length;
+  let top = 0;
+  let rootIndex = -1;
+
+  const walk = (
+    items: readonly TimelineItem[],
+    parentId: string | null,
+    depth: number,
+    inherited: string | undefined,
+    parentLocked: boolean
+  ): void => {
+    // Root milestones print on the schedule's own row, so the last item in the
+    // array is not necessarily the last one with a row of its own
+    const lastRenderedIndex = items.reduce(
+      (last, item, index) => (depth === 0 && item.kind === 'milestone' ? last : index),
+      -1
+    );
+
+    items.forEach((item, index) => {
+      if (depth === 0) {
+        if (item.kind === 'milestone') return; // drawn in the header row
+        rootIndex += 1;
+      }
+
+      const color = getItemColor(item, section, Math.max(0, rootIndex), rootCount, inherited);
+      const height = rowHeightForDepth(depth);
+      const isLocked = parentLocked || item.isLocked === true;
+
+      rows.push({
+        item,
+        parentId,
+        index,
+        siblingCount: items.length,
+        isLastRenderedSibling: index === lastRenderedIndex,
+        depth,
+        color,
+        top,
+        height,
+        isLocked,
+      });
+      top += height;
+
+      if (item.kind === 'bar' && !item.isCollapsed && item.children.length > 0) {
+        walk(item.children, item.id, depth + 1, color, isLocked);
       }
     });
+  };
+
+  walk(section.items, null, 0, undefined, section.isLocked === true);
+  return rows;
+}
+
+/**
+ * The colour one item paints with, walked down its own ancestry.
+ *
+ * `flattenSection` resolves this for everything on screen, but a collapsed
+ * subtree has no row — so anything asking about a single item off the timeline
+ * (the editor's swatch, for one) has to walk the chain itself.
+ */
+export function resolveItemColor(section: Section, itemId: string): string {
+  const path = findItemPath(section.items, itemId);
+  if (!path || path.length === 0) return section.color;
+
+  const rootBars = section.items.filter((item) => item.kind === 'bar');
+  const rootIndex = Math.max(
+    0,
+    rootBars.findIndex((item) => item.id === path[0].id)
+  );
+
+  let color: string | undefined;
+  for (const item of path) {
+    color = getItemColor(item, section, rootIndex, rootBars.length, color);
   }
-  return height;
+  return color ?? section.color;
+}
+
+/** Root-level milestones, which render on the schedule's header row. */
+export function headerMilestones(section: Section): TimelineItem[] {
+  return section.items.filter((item) => item.kind === 'milestone');
+}
+
+/** Height of a schedule's body, excluding its header row. */
+export function sectionBodyHeight(section: Section): number {
+  if (section.isCollapsed) return 0;
+  const rows = flattenSection(section);
+  const used = rows.reduce((sum, row) => sum + row.height, 0);
+  return used + CREATE_ROW_HEIGHT;
+}
+
+/** Full height of a schedule, header row included. */
+export function calculateSectionHeight(section: Section): number {
+  return ROW_HEIGHT + sectionBodyHeight(section);
 }

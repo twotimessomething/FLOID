@@ -1,9 +1,9 @@
 export { useViewport } from './useViewport';
-export { useDragResize } from './useDragResize';
 export { useAutoSave } from './useAutoSave';
 export { usePlayhead } from './usePlayhead';
 export { useDragReorder } from './useDragReorder';
-export { useDragAxis } from './useDragAxis';
+export { useItemDrag } from './useItemDrag';
+export { useIsDragged, useIsDropReceiver, useIsDropSlot, useIsItemDragActive } from './useDropState';
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';
 export { useTimelineStatus } from './useTimelineStatus';
 export type { StatusItem, MilestoneItem, TimelineStatus } from './useTimelineStatus';

@@ -1,179 +1,164 @@
 import { useMemo } from 'react';
 import { useSectionStore } from '../stores/sectionStore';
-import type { Section, Phase, Task, Milestone } from '../types';
-import { getPhaseColor } from '../types';
-import { parseISO, differenceInDays, addDays } from 'date-fns';
+import { getItemColor } from '../types/itemColor';
+import type { Section, TimelineItem } from '../types/timeline';
+import { todayKey } from '../utils/dayKeys';
+import { forEachItem } from '../utils/itemTree';
+
+/**
+ * What the status panel reports: what is happening today, what starts next,
+ * and which markers are still ahead.
+ *
+ * Every question here is answered by comparing day keys. They are
+ * 'yyyy-MM-dd', so lexicographic order is chronological order and a plain
+ * string comparison is the whole of the date maths.
+ */
+
+/** Names of the bars an item sits under, outermost first. */
+export type Ancestry = readonly string[];
+
+const NO_ANCESTORS: Ancestry = [];
 
 export interface StatusItem {
-  id: string;
-  name: string;
-  color: string;
-  sectionId: string;
-  sectionName: string;
-  sectionOrder: number;
-  phaseId?: string;
-  phaseName?: string;
-  phaseOrder?: number;
-  taskOrder?: number;
-  absoluteStart: number;
-  absoluteEnd: number;
-  date?: Date;
+  readonly id: string;
+  readonly name: string;
+  readonly color: string;
+  /** The item's own span, not its subtree's. */
+  readonly start: string;
+  readonly end: string;
+  readonly sectionId: string;
+  readonly sectionName: string;
+  readonly ancestors: Ancestry;
 }
 
 export interface MilestoneItem {
-  id: string;
-  name: string;
-  color: string;
-  sectionName: string;
-  relativePosition: number;
-  date: Date;
+  readonly id: string;
+  readonly name: string;
+  readonly color: string;
+  readonly date: string;
+  readonly sectionId: string;
+  readonly sectionName: string;
+  readonly ancestors: Ancestry;
 }
 
 export interface TimelineStatus {
-  inFlight: StatusItem[];
-  nextUp: StatusItem[];
-  upcomingMilestones: MilestoneItem[];
+  readonly inFlight: readonly StatusItem[];
+  readonly nextUp: readonly StatusItem[];
+  readonly upcomingMilestones: readonly MilestoneItem[];
 }
 
-function getTodayPositionInSection(section: Section): number {
-  const start = parseISO(section.startDate).getTime();
-  const end = parseISO(section.endDate).getTime();
-  const today = new Date().getTime();
-
-  const position = (today - start) / (end - start);
-  return Math.max(0, Math.min(1, position));
+interface WalkEntry {
+  readonly item: TimelineItem;
+  readonly color: string;
+  readonly ancestors: Ancestry;
+  /**
+   * A bar with no bar children. Those are the units of actual work — a bar
+   * that contains other bars is a container, and its leaves speak for it.
+   */
+  readonly isLeafBar: boolean;
 }
 
-function sectionPositionToDate(position: number, section: Section): Date {
-  const start = parseISO(section.startDate);
-  const end = parseISO(section.endDate);
-  const days = differenceInDays(end, start);
-  return addDays(start, Math.round(position * days));
+/**
+ * Visit every item in a schedule, at any depth, with its resolved colour and
+ * ancestry. Collapse state is ignored on purpose: folding a bar away hides it
+ * from the timeline, not from the schedule.
+ */
+function walkSection(section: Section, visit: (entry: WalkEntry) => void): void {
+  const rootBarCount = section.items.filter((item) => item.kind === 'bar').length;
+  // Depth-first pre-order means a parent is always resolved before its
+  // children ask what colour and trail to inherit.
+  const colors = new Map<string, string>();
+  const trails = new Map<string, Ancestry>();
+  let rootIndex = -1;
+
+  forEachItem(section.items, (item, parent, depth) => {
+    if (depth === 0 && item.kind === 'bar') rootIndex += 1;
+
+    const inherited = parent ? colors.get(parent.id) : undefined;
+    // A root milestone belongs to the schedule rather than to any one bar, so
+    // it takes the schedule's colour instead of a slot in the palette.
+    const color =
+      item.kind === 'milestone'
+        ? (item.color ?? inherited ?? section.color)
+        : getItemColor(item, section, Math.max(0, rootIndex), rootBarCount, inherited);
+    colors.set(item.id, color);
+
+    const ancestors = parent
+      ? [...(trails.get(parent.id) ?? NO_ANCESTORS), parent.name]
+      : NO_ANCESTORS;
+    trails.set(item.id, ancestors);
+
+    visit({
+      item,
+      color,
+      ancestors,
+      isLeafBar: item.kind === 'bar' && !item.children.some((child) => child.kind === 'bar'),
+    });
+  });
 }
 
 export function useTimelineStatus(): TimelineStatus {
   const sections = useSectionStore((state) => state.sections);
 
   return useMemo(() => {
+    const today = todayKey();
     const inFlight: StatusItem[] = [];
-    const nextUp: StatusItem[] = [];
     const upcomingMilestones: MilestoneItem[] = [];
+    // One "next" per schedule. The panel answers "what follows here?", so a
+    // schedule with fifty queued bars still contributes a single line.
+    const nextUpBySection = new Map<string, StatusItem>();
 
-    // Track one next-up per section
-    const nextUpBySection: Map<string, StatusItem> = new Map();
-    // Track one upcoming milestone per section
-    const milestoneBySection: Map<string, MilestoneItem> = new Map();
+    const ordered = [...sections].sort((a, b) => a.order - b.order);
 
-    sections.forEach((section: Section) => {
-      // Get today's position relative to this section
-      const sectionTodayPosition = getTodayPositionInSection(section);
-
-      section.phases.forEach((phase: Phase) => {
-        const phaseColor = getPhaseColor(phase, section);
-
-        // Check if phase has tasks
-        if (phase.tasks.length > 0) {
-          // Process tasks - convert relative-to-phase to section-relative
-          phase.tasks.forEach((task: Task) => {
-            const phaseWidth = phase.relativeEnd - phase.relativeStart;
-            const absoluteStart = phase.relativeStart + task.relativeStart * phaseWidth;
-            const absoluteEnd = phase.relativeStart + task.relativeEnd * phaseWidth;
-
-            const item: StatusItem = {
-              id: task.id,
-              name: task.name,
-              color: phaseColor,
+    for (const section of ordered) {
+      walkSection(section, ({ item, color, ancestors, isLeafBar }) => {
+        if (item.kind === 'milestone') {
+          if (item.start >= today) {
+            upcomingMilestones.push({
+              id: item.id,
+              name: item.name,
+              color,
+              date: item.start,
               sectionId: section.id,
               sectionName: section.name,
-              sectionOrder: section.order,
-              phaseId: phase.id,
-              phaseName: phase.name,
-              phaseOrder: phase.order,
-              taskOrder: task.order,
-              absoluteStart,
-              absoluteEnd,
-            };
-
-            // In flight: today is within bounds (relative to this section)
-            if (sectionTodayPosition >= absoluteStart && sectionTodayPosition <= absoluteEnd) {
-              inFlight.push(item);
-            }
-            // Next up: starts after today
-            else if (absoluteStart > sectionTodayPosition) {
-              const existing = nextUpBySection.get(section.id);
-              if (!existing || absoluteStart < existing.absoluteStart) {
-                item.date = sectionPositionToDate(absoluteStart, section);
-                nextUpBySection.set(section.id, item);
-              }
-            }
-          });
-        } else {
-          // No tasks - use the phase itself
-          const item: StatusItem = {
-            id: phase.id,
-            name: phase.name,
-            color: phaseColor,
-            sectionId: section.id,
-            sectionName: section.name,
-            sectionOrder: section.order,
-            phaseId: phase.id,
-            phaseName: phase.name,
-            phaseOrder: phase.order,
-            absoluteStart: phase.relativeStart,
-            absoluteEnd: phase.relativeEnd,
-          };
-
-          // In flight: today is within bounds
-          if (sectionTodayPosition >= phase.relativeStart && sectionTodayPosition <= phase.relativeEnd) {
-            inFlight.push(item);
-          }
-          // Next up: starts after today
-          else if (phase.relativeStart > sectionTodayPosition) {
-            const existing = nextUpBySection.get(section.id);
-            if (!existing || phase.relativeStart < existing.absoluteStart) {
-              item.date = sectionPositionToDate(phase.relativeStart, section);
-              nextUpBySection.set(section.id, item);
-            }
-          }
-        }
-      });
-
-      // Process milestones
-      section.milestones.forEach((milestone: Milestone) => {
-        if (milestone.relativePosition > sectionTodayPosition) {
-          const existing = milestoneBySection.get(section.id);
-          if (!existing || milestone.relativePosition < existing.relativePosition) {
-            milestoneBySection.set(section.id, {
-              id: milestone.id,
-              name: milestone.name,
-              color: section.color,
-              sectionName: section.name,
-              relativePosition: milestone.relativePosition,
-              date: sectionPositionToDate(milestone.relativePosition, section),
+              ancestors,
             });
           }
+          return;
+        }
+
+        if (!isLeafBar) return;
+
+        const entry: StatusItem = {
+          id: item.id,
+          name: item.name,
+          color,
+          start: item.start,
+          end: item.end,
+          sectionId: section.id,
+          sectionName: section.name,
+          ancestors,
+        };
+
+        if (item.start <= today && today <= item.end) {
+          inFlight.push(entry);
+          return;
+        }
+
+        if (item.start > today) {
+          const soonest = nextUpBySection.get(section.id);
+          if (!soonest || item.start < soonest.start) nextUpBySection.set(section.id, entry);
         }
       });
-    });
+    }
 
-    // Sort in-flight items by section order, phase order, task order
-    inFlight.sort((a, b) => {
-      if (a.sectionOrder !== b.sectionOrder) return a.sectionOrder - b.sectionOrder;
-      if ((a.phaseOrder ?? 0) !== (b.phaseOrder ?? 0)) return (a.phaseOrder ?? 0) - (b.phaseOrder ?? 0);
-      return (a.taskOrder ?? 0) - (b.taskOrder ?? 0);
-    });
-
-    // Collect next-up items sorted by section order
-    nextUpBySection.forEach((item) => nextUp.push(item));
-    nextUp.sort((a, b) => a.sectionOrder - b.sectionOrder);
-
-    // Collect milestones sorted by date
-    milestoneBySection.forEach((item) => upcomingMilestones.push(item));
-    upcomingMilestones.sort((a, b) => a.relativePosition - b.relativePosition);
+    // Schedules were walked in order and items depth-first, so in-flight and
+    // next-up already read top-to-bottom the way the timeline does.
+    upcomingMilestones.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
     return {
       inFlight,
-      nextUp,
+      nextUp: [...nextUpBySection.values()],
       upcomingMilestones,
     };
   }, [sections]);

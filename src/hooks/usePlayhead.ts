@@ -81,7 +81,7 @@ export function usePlayhead({
   );
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent): void => {
       if (!isActiveRef.current) return;
 
       // Yield to gestures that own the press (drag-to-draw, bar drags)
@@ -109,7 +109,7 @@ export function usePlayhead({
       }
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (): void => {
       if (!isActiveRef.current) return;
 
       // Clear the delay timeout if it hasn't fired yet

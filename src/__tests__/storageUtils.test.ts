@@ -26,16 +26,19 @@ import {
   saveProjectsIndexSync,
   recoverFromLocalStorage,
   migrateStoredData,
+  STORAGE_SCHEMA_VERSION,
 } from '../utils/storageUtils';
-import type { Section } from '../types';
+import type { LegacySection } from '../types/legacy';
 
+// Already on the current schema, so the load path has nothing to change.
 const mockData: StoredData = {
+  schemaVersion: STORAGE_SCHEMA_VERSION,
   project: {
     id: 'proj-1',
     name: 'Test',
     pinnedSectionId: 'sec-1',
-    projectStartDate: '2025-01-01T00:00:00.000Z',
-    projectEndDate: '2025-07-01T00:00:00.000Z',
+    projectStartDate: '2025-01-01',
+    projectEndDate: '2025-07-01',
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
   },
@@ -94,8 +97,8 @@ describe('sync fallback (localStorage)', () => {
   });
 });
 
-describe('migrateStoredData', () => {
-  const legacySection = {
+describe('the load path migrates on the way out of storage', () => {
+  const legacySection: LegacySection = {
     id: 'sec-1',
     name: 'Design',
     type: 'schedule',
@@ -108,26 +111,55 @@ describe('migrateStoredData', () => {
     milestones: [],
     color: '#3b82f6',
     isCollapsed: false,
-  } as Section;
+  };
 
-  it('maps legacy masterSectionId to pinnedSectionId', () => {
-    const legacyProject = { ...mockData.project, masterSectionId: 'sec-1' } as unknown as Record<string, unknown>;
-    delete legacyProject.pinnedSectionId;
-    const legacy = {
-      project: legacyProject as unknown as StoredData['project'],
-      sections: [legacySection],
+  const legacyStored = (): StoredData => {
+    const project = { ...mockData.project, masterSectionId: 'sec-1' } as unknown as Record<
+      string,
+      unknown
+    >;
+    delete project.pinnedSectionId;
+    delete project.schemaVersion;
+    return {
+      project: project as unknown as StoredData['project'],
+      sections: [legacySection] as never,
     };
+  };
 
-    const migrated = migrateStoredData(legacy);
+  it('maps a legacy master schedule to the pin', () => {
+    const migrated = migrateStoredData(legacyStored());
     expect(migrated.project.pinnedSectionId).toBe('sec-1');
     expect(migrated.project).not.toHaveProperty('masterSectionId');
-    // The former master keeps its multicolor phase palette
+    // The former master schedule kept a per-phase palette
     expect(migrated.sections[0].isMulticolor).toBe(true);
   });
 
-  it('leaves already-migrated data untouched', () => {
-    const migrated = migrateStoredData(mockData);
-    expect(migrated).toEqual(mockData);
+  it('stamps the schema version so the next load is a no-op', () => {
+    expect(migrateStoredData(legacyStored()).schemaVersion).toBe(STORAGE_SCHEMA_VERSION);
+    expect(migrateStoredData(mockData)).toBe(mockData);
+  });
+
+  it('runs on data read back out of storage', async () => {
+    await saveProjectToStorage('legacy-proj', legacyStored());
+    const loaded = await loadProjectFromStorage('legacy-proj');
+    expect(loaded?.schemaVersion).toBe(STORAGE_SCHEMA_VERSION);
+    expect(loaded?.sections[0]).toHaveProperty('items');
+    expect(loaded?.sections[0]).not.toHaveProperty('phases');
+  });
+
+  it('never stamps the current version onto data it has not converted', async () => {
+    // The load path trusts the stamp, so a write that lies about it would make
+    // the record permanently unreadable.
+    await saveProjectToStorage('stamped', legacyStored());
+    const raw = (await loadProjectFromStorage('stamped')) as StoredData;
+    expect(raw.sections[0]).not.toHaveProperty('phases');
+  });
+
+  it('runs on an emergency save recovered from localStorage', async () => {
+    localStorage.setItem('floid-project-legacy-2', JSON.stringify(legacyStored()));
+    const recovered = await recoverFromLocalStorage('legacy-2');
+    expect(recovered?.schemaVersion).toBe(STORAGE_SCHEMA_VERSION);
+    expect(recovered?.project.pinnedSectionId).toBe('sec-1');
   });
 });
 

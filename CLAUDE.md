@@ -29,8 +29,11 @@ chart, not a dashboard. Five rules carry it:
    (`.timeline-bar`) holding a blended `.timeline-bar__fill` and, above it, a
    `.timeline-bar__label` plus any handles or glyphs. The wrapper must stay free
    of `opacity`, `transform`, `filter`, and `z-index` — each of those makes it a
-   stacking context and traps the fill's blending inside the bar. Bar text is
-   regular weight and takes its color from `getReadableTextColor`, never white.
+   stacking context and traps the fill's blending inside the bar. `outline` and
+   `box-shadow` are safe there, which is why the drop-target ring lives on the
+   wrapper and the lifted-source state drains `.timeline-bar__fill` instead. Bar
+   text is regular weight and takes its color from `getReadableTextColor`, never
+   white.
 5. **Affordances hide until hover.** Chevrons, drag grips, add buttons, and empty
    -state hints use `.row-affordance` inside a `.group` row. A populated project
    should look as empty as a blank one.
@@ -58,16 +61,41 @@ npm run typecheck # TypeScript check
 
 ## Core Concepts
 
+Everything on the timeline is one recursive type. There is no phase type, no task
+type, and no separate marker-on-a-bar type — depth in the tree is the only
+difference between them, and depth is decided by dragging.
+
 | Term | Description |
 |------|-------------|
-| Section | A schedule track on the timeline. Projects have multiple sections. |
-| Pinned Schedule | Optional (0 or 1). Renders on top; its milestone lines extend through all schedules. Purely visual — never moves or rescales other schedules. |
-| Multicolor | Per-schedule color option. Phases get individual palette colors instead of the schedule color. |
-| Phase | Top-level timeline block within a section. Has duration. |
-| Task | Sub-item within a phase. Has duration. |
-| Milestone | Single-point marker. No duration. |
-| Relative Position | 0-1 value within parent bounds. Absolute dates computed at render. |
-| Revision | Counter incremented on section modification. Used for import conflicts. |
+| Schedule (`Section`) | A track on the timeline. Holds items. A project has several. |
+| Item (`TimelineItem`) | Anything on a schedule. Either a **bar** (spans days, holds children) or a **milestone** (a single date). Nests to any depth. |
+| Group | A bar with children. Made by dropping an item onto a bar, unmade by dragging it out. |
+| Pinned Schedule | Optional (0 or 1). Renders on top; its root milestones draw reference lines through every schedule. Purely visual — never moves or rescales anything. |
+| Multicolor | Per-schedule option. Root bars take palette colours instead of a gradient of the schedule colour; children inherit from their parent. |
+| Day key | `'yyyy-MM-dd'`. The unit of position. Every item stores absolute `start` and `end` day keys. |
+| Schedule window | A schedule's declared `startDate`/`endDate`. Items are not clamped to it; the rendered extent is the union of the two. |
+| Revision | Counter incremented on schedule modification. Used for import conflicts. |
+
+## Interaction model
+
+Drag and drop is the whole organising story.
+
+- **Create** — double-click open space for a default-length bar, or press and drag
+  to draw an exact span. The new bar joins the group of whatever row it was drawn
+  in, directly below that row; drawn on a root row, it stays at the root. Either
+  way the editor opens on it.
+- **Move** — drag a bar anywhere: sideways changes its dates, up and down changes
+  where it sits, and it can cross into another schedule. Moving a bar moves
+  everything under it.
+- **Group** — drop an item onto a bar and it becomes that bar's child, keeping the
+  dates it already had. Dragging is the only way to move something between
+  groups; there is no "add task" button.
+- **Un-group** — drag it back out onto open space.
+- **Resize** — drag a bar's edge. Only that bar's edge moves; children keep their
+  own dates.
+- **Milestones** — double-click a schedule's own row to drop one there (those draw
+  a reference line down the schedule). Everywhere else they come from the context
+  menu and take a row of their own; they are never drawn on top of a bar.
 
 ## Architecture
 
@@ -75,19 +103,61 @@ npm run typecheck # TypeScript check
 
 Three stores, one per domain:
 
-- `projectStore` — Project metadata, pinned section ID
-- `sectionStore` — Sections, phases, tasks, milestones
-- `uiStore` — Selection, zoom, collapse, modals
+- `projectStore` — Project metadata, pinned schedule id
+- `sectionStore` — Schedules and their item trees
+- `uiStore` — Selection, zoom, modals, live drag state
 
 ### Key Patterns
 
-**Relative positioning:** All items store 0-1 positions within their schedule's date range. Editing a schedule's date range remaps positions so items keep their absolute dates (`remapSectionToDateRange`).
+**Absolute positions.** Items store day keys, never positions relative to a
+parent. This is what makes drag-and-drop a list operation: re-parenting an item
+does not move it, so an item dropped into another bar — or another schedule —
+lands on exactly the pixel it left. It also removes every rescale path the
+relative model needed.
 
-**Single selection:** One item selected at a time. Opens sidebar editor.
+**One set of item actions.** `addItem` / `updateItem` / `deleteItem` /
+`shiftItem` / `setItemDates` / `moveItem` cover every depth. `moveItem` is the
+single commit point for a drag: it re-parents, re-orders and shifts in one
+undoable step. Joining a different parent also clears the item's explicit
+`color`, so a group reads as one block of ink; a plain re-order leaves a
+deliberate colour alone.
 
-**Pinned schedule:** At most one section pinned via `project.pinnedSectionId` (nullable). Renders at the top with a badge, and its milestones draw full-height reference lines through every schedule. Deleting a pinned schedule unpins it.
+**Colour is resolved, not stored.** `color: null` means inherit — a root bar
+takes the schedule's palette or gradient from its position, a nested bar takes
+its parent's. Nothing auto-assigns a colour, so an explicit one always means the
+user picked it, and reordering root bars reflows the palette.
 
-**Project dates:** `projectStartDate/EndDate` are derived from the union of all schedules' date ranges at save time; the timeline viewport is computed the same way.
+**Aim is not intent.** `dayDeltaForDrop` gives a drop onto a bar a delta of zero:
+reaching a bar means travelling to wherever on the timeline it sits, so the item
+keeps its own dates. A row spans the full width, so the pointer's position along
+one really was chosen — dropping there does move the dates.
+
+**Pure tree operations.** `utils/itemTree.ts` holds every structural operation
+(`findItem`, `locateItem`, `removeItemFrom`, `insertItemInto`, `shiftItemDays`,
+`itemExtent`, …). Store actions compose them rather than hand-writing nested
+`.map` chains.
+
+**One flatten drives everything.** `flattenSection` in `utils/timelineUtils.ts`
+turns a schedule into the rows it draws. Both columns, keyboard navigation and
+the PNG exporter all walk that same list, so they cannot disagree about what is
+on screen. Root milestones are deliberately excluded — they belong to the
+schedule's own row.
+
+**Live drag without reflow.** `useItemDrag` clones the dragged bar into a
+`position: fixed` preview that follows the cursor, and resolves the drop target
+by hit-testing `data-drop-*` attributes with `elementsFromPoint`. Nothing is
+written to the store until mouseup, so rows never move while the user is still
+choosing. Pointer position is written straight to the preview's transform; only
+the resolved drop key reaches the store, so a drag re-renders two rows rather
+than the timeline.
+
+**Single selection.** One item, or one schedule, at a time. Opens the editor.
+
+**Migration.** `utils/migrateLegacy.ts` reads the old phase/task/bar-milestone
+shape and returns item trees. It is reached from `storageUtils.migrateStoredData`
+(versioned by `STORAGE_SCHEMA_VERSION`), from the `.floid` parsers, and from the
+template factory — templates are still authored with relative positions and
+resolved to absolute dates when instantiated.
 
 **Export formats:**
 - `.floid` — Single schedule for sharing
@@ -103,13 +173,13 @@ Strict mode. No `any` types.
 
 ```typescript
 // interface for objects
-interface Phase {
+interface TimelineItem {
   id: string;
   name: string;
 }
 
 // type for unions
-type SelectionType = 'phase' | 'task' | 'milestone' | 'section';
+type ItemKind = 'bar' | 'milestone';
 ```
 
 Explicit return types for non-trivial functions. Use `readonly` for immutable data.
@@ -119,13 +189,13 @@ Explicit return types for non-trivial functions. Use `readonly` for immutable da
 Functional components only. Named exports only. One component per file.
 
 ```typescript
-interface PhaseRowProps {
-  readonly phase: Phase;
+interface ItemRowProps {
+  readonly item: TimelineItem;
   readonly isSelected: boolean;
   readonly onSelect: () => void;
 }
 
-export function PhaseRow({ phase, isSelected, onSelect }: PhaseRowProps) {
+export function ItemRow({ item, isSelected, onSelect }: ItemRowProps) {
   // ...
 }
 ```
@@ -149,27 +219,24 @@ const [user, posts] = await Promise.all([getUser(), getPosts()]);
 
 ```typescript
 // Wrong - re-renders on any store change
-const { phases, zoom, selection } = useSectionStore();
+const { sections, zoom, selection } = useSectionStore();
 
-// Correct - only re-renders when phases change
-const phases = useSectionStore(state => state.phases);
+// Correct - only re-renders when sections change
+const sections = useSectionStore(state => state.sections);
 ```
 
 **Memoize expensive work:**
 
 ```typescript
-const sortedPhases = useMemo(
-  () => phases.toSorted((a, b) => a.order - b.order),
-  [phases]
-);
+const rows = useMemo(() => flattenSection(section), [section]);
 ```
 
 **Stable callbacks for child components:**
 
 ```typescript
 const handleSelect = useCallback((id: string) => {
-  selectPhase(id);
-}, [selectPhase]);
+  selectItem(id, sectionId);
+}, [selectItem, sectionId]);
 ```
 
 **Avoid inline object/array creation in JSX:**
@@ -277,7 +344,7 @@ className="p-[17px] text-[#666]"
 
 | Item | Convention | Example |
 |------|------------|---------|
-| Components | PascalCase | `PhaseRow.tsx` |
+| Components | PascalCase | `ItemRow.tsx` |
 | Hooks | `use` prefix | `useDragResize.ts` |
 | Constants | SCREAMING_SNAKE | `MIN_PHASE_DURATION` |
 | Booleans | `is/has/can/should` | `isCollapsed` |
@@ -302,9 +369,9 @@ Import order: React → external → internal → relative → types.
 Early returns for guards. Handle loading/error states explicitly.
 
 ```typescript
-function getPhase(id: string): Phase | null {
+function getItem(id: string): TimelineItem | null {
   if (!id) return null;
-  return phases.find(p => p.id === id) ?? null;
+  return findItem(section.items, id);
 }
 ```
 
@@ -319,14 +386,14 @@ src/
 ├── index.css
 ├── components/
 │   ├── layout/          # Header, sidebars, modals
-│   ├── timeline/        # Timeline, rows, markers
-│   ├── panels/          # Editor panels
-│   ├── controls/        # Zoom, add buttons
+│   ├── timeline/        # Timeline, SectionRow, ItemRow, markers
+│   ├── panels/          # SectionEditor, ItemEditor
+│   ├── controls/        # Zoom, add schedule
 │   └── common/          # Button, Input, etc.
 ├── stores/              # Zustand stores
-├── hooks/               # Custom hooks
-├── types/               # TypeScript types
-├── utils/               # Pure utilities
+├── hooks/               # Custom hooks (useItemDrag, useCreateGhost, …)
+├── types/               # timeline.ts (the model), legacy.ts (what it replaced)
+├── utils/               # itemTree, dayKeys, timelineUtils, migrateLegacy, …
 ├── constants/           # App constants
 └── data/                # Templates, defaults
 ```

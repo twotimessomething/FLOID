@@ -3,16 +3,17 @@ import { useSectionStore, selectSection } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, ColorPicker, Button, PinBadge, DateInput } from '../common';
+import { fromDayKey, toDayKey } from '../../utils/dayKeys';
 
 export function SectionEditor(): JSX.Element {
   const { selection, closeModal, showToast } = useUIStore();
-  const { updateSection, updateSectionDates, setSectionMulticolor, deleteSection } = useSectionStore();
+  const { updateSection, updateSectionWindow, setSectionMulticolor, deleteSection } = useSectionStore();
   const setPinnedSection = useProjectStore((state) => state.setPinnedSection);
 
   const sectionId = selection.sectionId;
 
   // Memoize selector to prevent recreation on every render
-  const sectionSelector = useMemo(() => selectSection(sectionId || ''), [sectionId]);
+  const sectionSelector = useMemo(() => selectSection(sectionId), [sectionId]);
   const section = useSectionStore(sectionSelector);
   const pinnedSectionId = useProjectStore((state) => state.project?.pinnedSectionId);
 
@@ -46,17 +47,17 @@ export function SectionEditor(): JSX.Element {
   const handleStartDateChange = useCallback(
     (date: Date) => {
       if (!sectionId || !section) return;
-      updateSectionDates(sectionId, date.toISOString(), section.endDate);
+      updateSectionWindow(sectionId, toDayKey(date), section.endDate);
     },
-    [sectionId, section, updateSectionDates]
+    [sectionId, section, updateSectionWindow]
   );
 
   const handleEndDateChange = useCallback(
     (date: Date) => {
       if (!sectionId || !section) return;
-      updateSectionDates(sectionId, section.startDate, date.toISOString());
+      updateSectionWindow(sectionId, section.startDate, toDayKey(date));
     },
-    [sectionId, section, updateSectionDates]
+    [sectionId, section, updateSectionWindow]
   );
 
   const handleTogglePin = useCallback(() => {
@@ -113,22 +114,22 @@ export function SectionEditor(): JSX.Element {
           <div className="flex-1">
             <DateInput
               label="Start Date"
-              value={section.startDate}
+              value={fromDayKey(section.startDate)}
               onChange={handleStartDateChange}
-              max={section.endDate}
+              max={fromDayKey(section.endDate)}
             />
           </div>
           <div className="flex-1">
             <DateInput
               label="End Date"
-              value={section.endDate}
+              value={fromDayKey(section.endDate)}
               onChange={handleEndDateChange}
-              min={section.startDate}
+              min={fromDayKey(section.startDate)}
             />
           </div>
         </div>
         <div className="text-xs text-[var(--color-text-muted)]">
-          Changing dates adds or trims empty space — phases and milestones keep their dates.
+          Sets the schedule's window. Bars hold their own dates, so nothing moves.
         </div>
       </div>
 

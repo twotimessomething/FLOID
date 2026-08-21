@@ -4,15 +4,14 @@ import { useSectionStore } from '../stores/sectionStore';
 import { useUndoRedo } from './useUndoRedo';
 import { usePinnedSection } from './usePinnedSection';
 import { SHORTCUTS } from '../constants/shortcuts';
-import type { SelectionState, Section } from '../types';
+import { flattenSection, headerMilestones } from '../utils/timelineUtils';
+import { findItem } from '../utils/itemTree';
+import type { Section } from '../types';
 
-interface NavigableItem {
-  id: string;
-  type: SelectionState['type'];
-  sectionId: string;
-  phaseId: string | null;
-  canCollapse: boolean;
-  isCollapsed: boolean;
+interface NavigableRow {
+  readonly id: string;
+  readonly type: 'section' | 'item';
+  readonly sectionId: string;
 }
 
 /**
@@ -20,99 +19,53 @@ interface NavigableItem {
  * Supports navigation, collapse/expand, deletion, and sidebar interactions.
  */
 export function useKeyboardShortcuts(): void {
-  const { selection, selectItem, closeModal, isModalOpen, showToast } = useUIStore();
+  const selection = useUIStore((s) => s.selection);
+  const selectItem = useUIStore((s) => s.selectItem);
+  const selectSection = useUIStore((s) => s.selectSection);
+  const closeModal = useUIStore((s) => s.closeModal);
+  const isModalOpen = useUIStore((s) => s.isModalOpen);
+  const showToast = useUIStore((s) => s.showToast);
   const { undo, redo } = useUndoRedo();
 
   const { pinnedSection, unpinnedSections } = usePinnedSection();
-  const {
-    toggleSectionCollapse,
-    togglePhaseCollapse,
-    deleteSection,
-    deletePhase,
-    deleteTask,
-    deleteMilestone,
-  } = useSectionStore();
+  const sections = useSectionStore((s) => s.sections);
+  const toggleSectionCollapse = useSectionStore((s) => s.toggleSectionCollapse);
+  const toggleItemCollapse = useSectionStore((s) => s.toggleItemCollapse);
+  const deleteSection = useSectionStore((s) => s.deleteSection);
+  const deleteItem = useSectionStore((s) => s.deleteItem);
 
-  // Helper to add section items to navigable list
-  const addSectionItems = (section: Section, items: NavigableItem[], includeSectionHeader: boolean) => {
-    if (includeSectionHeader) {
-      items.push({
-        id: section.id,
-        type: 'section',
-        sectionId: section.id,
-        phaseId: null,
-        canCollapse: true,
-        isCollapsed: section.isCollapsed,
-      });
-    }
+  /**
+   * Arrow keys walk exactly what is on screen. `flattenSection` is the same
+   * function the timeline renders from, so navigation can never disagree with
+   * the rows the user is looking at — at any nesting depth.
+   */
+  const { rows: navigableItems, indexMap } = useMemo(() => {
+    const rows: NavigableRow[] = [];
 
-    if (!section.isCollapsed) {
-      // Add phases
-      section.phases.forEach((phase) => {
-        items.push({
-          id: phase.id,
-          type: 'phase',
-          sectionId: section.id,
-          phaseId: null,
-          canCollapse: true,
-          isCollapsed: phase.isCollapsed,
-        });
+    const addSection = (section: Section): void => {
+      rows.push({ id: section.id, type: 'section', sectionId: section.id });
+      if (section.isCollapsed) return;
+      for (const row of flattenSection(section)) {
+        rows.push({ id: row.item.id, type: 'item', sectionId: section.id });
+      }
+      // A schedule's own markers sit on its header row, after its bars
+      for (const milestone of headerMilestones(section)) {
+        rows.push({ id: milestone.id, type: 'item', sectionId: section.id });
+      }
+    };
 
-        if (!phase.isCollapsed) {
-          phase.tasks.forEach((task) => {
-            items.push({
-              id: task.id,
-              type: 'task',
-              sectionId: section.id,
-              phaseId: phase.id,
-              canCollapse: false,
-              isCollapsed: false,
-            });
-          });
-        }
-      });
+    if (pinnedSection) addSection(pinnedSection);
+    unpinnedSections.forEach(addSection);
 
-      // Add milestones
-      section.milestones.forEach((milestone) => {
-        items.push({
-          id: milestone.id,
-          type: 'milestone',
-          sectionId: section.id,
-          phaseId: null,
-          canCollapse: false,
-          isCollapsed: false,
-        });
-      });
-    }
-  };
-
-  // Memoize navigable items and index map for O(1) lookups
-  const { items: navigableItems, indexMap } = useMemo(() => {
-    const items: NavigableItem[] = [];
-
-    // Pinned section first, matching the rendered order
-    if (pinnedSection) {
-      addSectionItems(pinnedSection, items, true);
-    }
-
-    unpinnedSections.forEach((section) => {
-      addSectionItems(section, items, true);
-    });
-
-    // Build index map for O(1) lookups: key = "type:id"
-    const indexMap = new Map<string, number>();
-    items.forEach((item, index) => {
-      indexMap.set(`${item.type}:${item.id}`, index);
-    });
-
-    return { items, indexMap };
+    const map = new Map<string, number>();
+    rows.forEach((row, index) => map.set(row.id, index));
+    return { rows, indexMap: map };
   }, [pinnedSection, unpinnedSections]);
 
-  // Find current selection index using O(1) Map lookup
   const getCurrentIndex = useCallback((): number => {
-    if (!selection.id || !selection.type) return -1;
-    return indexMap.get(`${selection.type}:${selection.id}`) ?? -1;
-  }, [selection.id, selection.type, indexMap]);
+    if (!selection.id) return -1;
+    return indexMap.get(selection.id) ?? -1;
+  }, [selection.id, indexMap]);
 
   // Handle navigation (arrow keys)
   const handleNavigation = useCallback(
@@ -132,68 +85,48 @@ export function useKeyboardShortcuts(): void {
             : Math.max(currentIndex - 1, 0);
       }
 
-      const item = navigableItems[newIndex];
-      if (item) {
-        // Use center of screen for keyboard navigation
-        const centerPosition = {
-          x: window.innerWidth / 2,
-          y: window.innerHeight / 2,
-        };
-        selectItem(item.type, item.id, item.sectionId, item.phaseId, centerPosition);
-      }
+      const row = navigableItems[newIndex];
+      if (!row) return;
+
+      const center = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      if (row.type === 'section') selectSection(row.sectionId, center);
+      else selectItem(row.id, row.sectionId, center);
     },
-    [navigableItems, getCurrentIndex, selectItem]
+    [navigableItems, getCurrentIndex, selectItem, selectSection]
   );
 
-  // Handle collapse/expand toggle
   const handleToggleCollapse = useCallback((): void => {
-    if (!selection.id || !selection.type || !selection.sectionId) return;
-
-    switch (selection.type) {
-      case 'section':
-        toggleSectionCollapse(selection.sectionId);
-        break;
-      case 'phase':
-        togglePhaseCollapse(selection.sectionId, selection.id);
-        break;
+    if (!selection.id || !selection.sectionId) return;
+    if (selection.type === 'section') {
+      toggleSectionCollapse(selection.sectionId);
+      return;
     }
-  }, [selection, toggleSectionCollapse, togglePhaseCollapse]);
+    if (selection.type === 'item') {
+      toggleItemCollapse(selection.sectionId, selection.id);
+    }
+  }, [selection, toggleSectionCollapse, toggleItemCollapse]);
 
-  // Handle deletion
   const handleDelete = useCallback((): void => {
-    if (!selection.id || !selection.type || !selection.sectionId) return;
+    if (!selection.id || !selection.sectionId) return;
 
-    switch (selection.type) {
-      case 'section': {
-        const result = deleteSection(selection.sectionId);
-        if (!result.success && result.reason) {
-          showToast('warning', result.reason);
-        }
-        break;
-      }
-      case 'phase':
-        deletePhase(selection.sectionId, selection.id);
-        break;
-      case 'task':
-        if (selection.phaseId) {
-          deleteTask(selection.sectionId, selection.phaseId, selection.id);
-        }
-        break;
-      case 'milestone':
-        deleteMilestone(selection.sectionId, selection.id);
-        break;
+    if (selection.type === 'section') {
+      const result = deleteSection(selection.sectionId);
+      if (!result.success && result.reason) showToast('warning', result.reason);
+    } else if (selection.type === 'item') {
+      deleteItem(selection.sectionId, selection.id);
     }
 
-    // Close modal after deletion
     closeModal();
-  }, [
-    selection,
-    deleteSection,
-    deletePhase,
-    deleteTask,
-    deleteMilestone,
-    closeModal,
-  ]);
+  }, [selection, deleteSection, deleteItem, closeModal, showToast]);
+
+  /** Only a bar with children has anything to fold. */
+  const canToggleSelection = useMemo((): boolean => {
+    if (selection.type === 'section') return true;
+    if (selection.type !== 'item' || !selection.sectionId || !selection.id) return false;
+    const section = sections.find((s) => s.id === selection.sectionId);
+    const item = section ? findItem(section.items, selection.id) : null;
+    return item !== null && item.kind === 'bar' && item.children.length > 0;
+  }, [selection, sections]);
 
   // Main keyboard event handler
   const handleKeyDown = useCallback(
@@ -250,7 +183,7 @@ export function useKeyboardShortcuts(): void {
 
         case SHORTCUTS.ENTER:
         case SHORTCUTS.SPACE:
-          if (selection.type === 'section' || selection.type === 'phase') {
+          if (canToggleSelection) {
             handleToggleCollapse();
             event.preventDefault();
           }
@@ -268,6 +201,7 @@ export function useKeyboardShortcuts(): void {
     [
       isModalOpen,
       selection,
+      canToggleSelection,
       closeModal,
       handleNavigation,
       handleToggleCollapse,

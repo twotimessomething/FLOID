@@ -3,8 +3,9 @@ import { useUIStore } from '../stores/uiStore';
 import { useSectionStore } from '../stores/sectionStore';
 import { useProjectStore } from '../stores/projectStore';
 import { parseScheduleFloid, analyzeScheduleImport } from '../utils/exportUtils';
-import type { Section, Phase, Milestone, ImportOptions } from '../types';
-import type { ScheduleExportData, ExportPhase, ExportMilestone } from '../types/scheduleExport';
+import type { Section, TimelineItem } from '../types/timeline';
+import type { ExportItem, ImportOptions, ScheduleExportData } from '../types/scheduleExport';
+import { remapItemIds } from '../utils/itemTree';
 import { generateId } from '../utils/idUtils';
 
 interface UseScheduleImportReturn {
@@ -12,45 +13,13 @@ interface UseScheduleImportReturn {
   handleConfirmAction: (options: ImportOptions) => void;
 }
 
-// Convert ExportPhase to Phase; imported schedules keep their original dates
-const convertPhases = (exportPhases: ExportPhase[], newSectionId: string): Phase[] => {
-  return exportPhases.map((exportPhase) => {
-    const newPhaseId = generateId();
-
-    // Tasks keep their relative positions within the phase
-    const tasks = exportPhase.tasks.map((t) => ({
-      ...t,
-      id: generateId(),
-      phaseId: newPhaseId,
-    }));
-
-    // Create the phase without the export-specific fields
-    return {
-      id: newPhaseId,
-      sectionId: newSectionId,
-      name: exportPhase.name,
-      description: exportPhase.description,
-      color: exportPhase.color,
-      order: exportPhase.order,
-      isCollapsed: exportPhase.isCollapsed,
-      relativeStart: exportPhase.relativeStart,
-      relativeEnd: exportPhase.relativeEnd,
-      tasks,
-    };
-  });
-};
-
-// Convert ExportMilestone to Milestone
-const convertMilestones = (exportMilestones: ExportMilestone[], newSectionId: string): Milestone[] => {
-  return exportMilestones.map((exportMilestone) => ({
-    id: generateId(),
-    sectionId: newSectionId,
-    name: exportMilestone.name,
-    description: exportMilestone.description,
-    relativePosition: exportMilestone.relativePosition,
-    order: exportMilestone.order,
-  }));
-};
+/**
+ * Take the imported tree as it stands — the dates in it are absolute, so nothing
+ * needs recomputing — but remint every id in it, at every depth. An imported
+ * schedule can otherwise collide with the one it was exported from.
+ */
+const convertItems = (items: readonly ExportItem[], newId: () => string): TimelineItem[] =>
+  items.map((item) => remapItemIds(item, newId));
 
 export function useScheduleImport(): UseScheduleImportReturn {
   const { showToast, openImportModal, importModal, closeImportModal } = useUIStore();
@@ -59,12 +28,11 @@ export function useScheduleImport(): UseScheduleImportReturn {
 
   const addScheduleFromData = useCallback(
     (data: ScheduleExportData, overrideName?: string) => {
-      const newSectionId = generateId();
       const scheduleName = overrideName || data.schedule.name;
 
       const now = new Date().toISOString();
       const newSection: Section = {
-        id: newSectionId,
+        id: generateId(),
         type: 'schedule',
         name: scheduleName,
         templateId: data.schedule.templateId,
@@ -74,10 +42,10 @@ export function useScheduleImport(): UseScheduleImportReturn {
         sourceProjectName: data.sourceProjectName,
         color: data.schedule.color,
         isMulticolor: data.schedule.isMulticolor,
+        isLocked: data.schedule.isLocked,
         order: sections.length,
         isCollapsed: false,
-        phases: convertPhases(data.phases, newSectionId),
-        milestones: convertMilestones(data.milestones, newSectionId),
+        items: convertItems(data.items, generateId),
         startDate: data.scheduleDates.startDate,
         endDate: data.scheduleDates.endDate,
       };
@@ -100,10 +68,10 @@ export function useScheduleImport(): UseScheduleImportReturn {
               ...s,
               color: data.schedule.color,
               isMulticolor: data.schedule.isMulticolor,
+              isLocked: data.schedule.isLocked,
               revision: data.schedule.revision,
               lastModifiedAt: now,
-              phases: convertPhases(data.phases, existingSectionId),
-              milestones: convertMilestones(data.milestones, existingSectionId),
+              items: convertItems(data.items, generateId),
               startDate: data.scheduleDates.startDate,
               endDate: data.scheduleDates.endDate,
             }

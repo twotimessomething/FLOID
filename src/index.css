@@ -39,7 +39,7 @@
   --color-gridline: rgba(255, 255, 255, 0.85);
   --color-gridline-strong: #ffffff;
   --color-milestone-line: rgba(23, 23, 26, 0.1);
-  --color-today: rgba(23, 23, 26, 0.32);
+  --color-today: #f34e42;
 
   /* Locked / disabled */
   --color-danger: #f34e42;
@@ -107,7 +107,7 @@
   --color-gridline: rgba(255, 255, 255, 0.055);
   --color-gridline-strong: rgba(255, 255, 255, 0.09);
   --color-milestone-line: rgba(255, 255, 255, 0.14);
-  --color-today: rgba(255, 255, 255, 0.34);
+  --color-today: #f5675c;
 
   --color-danger: #f5675c;
   --color-danger-hover: rgba(245, 103, 92, 0.14);
@@ -159,13 +159,15 @@ body {
    Typography helpers
    ========================================= */
 
-/* Time-axis labels: small, uppercase, tracked out, quiet. */
+/* Time-axis labels: small, uppercase, tracked out, quiet.
+   Quiet, but not faint — at 11px uppercase, muted ink drops below readable
+   contrast on the ground, so the axis takes secondary. */
 .axis-label {
   font-size: 11px;
   line-height: 1;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -211,6 +213,24 @@ body {
   mix-blend-mode: screen;
 }
 
+/* A collapsed group's children are hidden, not gone — this line under the
+   bar says so, in the bar's own colour. It vanishes the moment the group
+   opens back up. */
+.timeline-bar__collapsed-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 2px;
+  height: 2px;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.dark .timeline-bar__collapsed-line {
+  mix-blend-mode: screen;
+}
+
 .timeline-bar:hover .timeline-bar__fill {
   opacity: 0.88;
 }
@@ -220,6 +240,61 @@ body {
    multiplied stays dark, light ink screened stays light. */
 .timeline-bar--selected .timeline-bar__fill {
   box-shadow: inset 0 0 0 1.5px var(--color-text-primary);
+}
+
+/* =========================================
+   Dragging
+
+   An item in flight leaves its outline behind and travels as a clone of
+   itself, so the sheet never reflows while the user is still deciding where
+   it lands. Nothing here touches `.timeline-bar` itself — opacity on the
+   wrapper would make it a stacking context and trap the fill's blending.
+   ========================================= */
+
+/* The row it left: the shape stays, the ink drains out of it. */
+.timeline-bar--lifted .timeline-bar__fill {
+  opacity: 0.16;
+  box-shadow: inset 0 0 0 1px var(--color-text-muted);
+}
+
+.timeline-bar--lifted .timeline-bar__label {
+  opacity: 0.35;
+}
+
+/* A bar that will take the dragged item if it is released now.
+   The outline sits OUTSIDE the bar so it still reads when the preview is
+   parked on top of it, which is exactly when the user needs to see it.
+   `outline` is safe on the wrapper — unlike opacity or transform it makes no
+   stacking context, so the fill underneath keeps overprinting its neighbours. */
+.timeline-bar--receiving {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The clone under the cursor. It floats, so it is allowed a shadow — and it
+   composites normally rather than overprinting the page behind it. */
+.drag-preview {
+  opacity: 0.94;
+  box-shadow: var(--shadow-md);
+}
+
+.drag-preview__date {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  padding: 2px 6px;
+  background: var(--color-tooltip);
+  color: var(--color-tooltip-text);
+  font-size: 11px;
+  line-height: 1.4;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+body.dragging-item,
+body.dragging-item * {
+  cursor: grabbing !important;
 }
 
 /* Text on a bar. Regular weight — the colour beneath already gives it
@@ -356,8 +431,17 @@ body {
   animation: fadeIn 140ms ease-out;
 }
 
+/* The create ghost draws itself in from the pointer outwards — the gesture it
+   is asking for, performed once, so no label has to explain it. */
 .ghost-enter {
-  animation: fadeIn 140ms ease-out;
+  animation: ghostDraw 180ms ease-out;
+}
+
+@keyframes ghostDraw {
+  from {
+    width: 0;
+    opacity: 0;
+  }
 }
 
 .toast-slide-in {

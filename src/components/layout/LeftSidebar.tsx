@@ -189,7 +189,7 @@ export function LeftSidebar(): JSX.Element {
     return (
       <button
         onClick={toggleLeftSidebar}
-        className="group flex-shrink-0 w-8 h-full flex items-start justify-center pt-4 focus-ring"
+        className="group flex-shrink-0 w-8 h-full flex items-start justify-center pt-4 border-r border-[var(--color-hairline)] focus-ring"
         aria-label="Open sidebar"
       >
         <svg

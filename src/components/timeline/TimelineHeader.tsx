@@ -1,15 +1,13 @@
 import { getQuarter } from 'date-fns';
 import { useViewport } from '../../hooks/useViewport';
-import { useUIStore } from '../../stores/uiStore';
 import {
   getTimeMarkers,
-  getDaysBetween,
   formatDate,
-  getTodayViewportPosition,
   isTodayInViewport,
 } from '../../utils/dateUtils';
 import type { TimeMarker } from '../../utils/dateUtils';
-import { getPositionFromRelative, HEADER_HEIGHT } from '../../utils/timelineUtils';
+import { HEADER_HEIGHT, dayToX } from '../../utils/timelineUtils';
+import { toDayKey, todayKey } from '../../utils/dayKeys';
 import type { ZoomLevel } from '../../types';
 
 interface HeaderLabelParts {
@@ -43,11 +41,9 @@ function getHeaderLabelParts(marker: TimeMarker, zoomLevel: ZoomLevel, isFirst: 
 }
 
 export function TimelineHeader(): JSX.Element {
-  const { viewportBounds, timelineWidth } = useViewport();
-  const { zoomLevel } = useUIStore();
+  const { viewportBounds, pixelsPerDay, markerZoom } = useViewport();
 
-  const markers = getTimeMarkers(viewportBounds.startDate, viewportBounds.endDate, zoomLevel);
-  const totalDays = getDaysBetween(viewportBounds.startDate, viewportBounds.endDate);
+  const markers = getTimeMarkers(viewportBounds.startDate, viewportBounds.endDate, markerZoom);
   const majorMarkers = markers.filter((marker) => !marker.isMinor);
 
   return (
@@ -57,10 +53,8 @@ export function TimelineHeader(): JSX.Element {
     >
       <div className="relative h-full pointer-events-none">
         {majorMarkers.map((marker, index) => {
-          const daysSinceStart = getDaysBetween(viewportBounds.startDate, marker.date);
-          const relativePos = totalDays > 0 ? daysSinceStart / totalDays : 0;
-          const left = getPositionFromRelative(relativePos, timelineWidth);
-          const { primary, year } = getHeaderLabelParts(marker, zoomLevel, index === 0);
+          const left = dayToX(toDayKey(marker.date), viewportBounds, pixelsPerDay);
+          const { primary, year } = getHeaderLabelParts(marker, markerZoom, index === 0);
 
           return (
             <div
@@ -78,13 +72,8 @@ export function TimelineHeader(): JSX.Element {
             the plot, where a collapsed schedule's bars would sit under it. */}
         {isTodayInViewport(viewportBounds) && (
           <span
-            className="axis-label absolute bottom-1.5 -translate-x-1/2 whitespace-nowrap text-[var(--color-text-secondary)]"
-            style={{
-              left: getPositionFromRelative(
-                getTodayViewportPosition(viewportBounds),
-                timelineWidth
-              ),
-            }}
+            className="axis-label absolute bottom-1.5 -translate-x-1/2 whitespace-nowrap text-[var(--color-today)]"
+            style={{ left: dayToX(todayKey(), viewportBounds, pixelsPerDay) }}
           >
             Today
           </span>

@@ -1,5 +1,4 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { getReadableTextColor } from '../../utils/colorUtils';
 
 interface DragHandleProps {
   readonly edge: 'start' | 'end';
@@ -8,7 +7,6 @@ interface DragHandleProps {
   readonly onDragEnd: () => void;
   readonly label?: string;
   readonly dragDate?: string;
-  readonly color?: string;
 }
 
 export function DragHandle({
@@ -18,13 +16,10 @@ export function DragHandle({
   onDragEnd,
   label,
   dragDate,
-  color,
 }: DragHandleProps): JSX.Element {
   const isDragging = useRef(false);
   const lastX = useRef(0);
   const [showBubble, setShowBubble] = useState(false);
-
-  const gripColor = color ? getReadableTextColor(color) : 'var(--color-text-muted)';
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -45,14 +40,14 @@ export function DragHandle({
   }, []);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent): void => {
       if (!isDragging.current) return;
       const deltaX = e.clientX - lastX.current;
       lastX.current = e.clientX;
       onDrag(deltaX);
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (): void => {
       if (!isDragging.current) return;
       isDragging.current = false;
       setShowBubble(false);
@@ -102,7 +97,7 @@ export function DragHandle({
         className={`absolute top-1/2 -translate-y-1/2 w-1 h-4 ${
           edge === 'start' ? 'left-0.5' : 'right-0.5'
         }`}
-        style={{ backgroundColor: gripColor }}
+        style={{ backgroundColor: 'var(--color-text-primary)' }}
         aria-hidden="true"
       />
     </div>

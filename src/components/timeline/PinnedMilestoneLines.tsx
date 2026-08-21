@@ -1,42 +1,36 @@
 import { memo } from 'react';
 import type { Section, ViewportBounds } from '../../types';
-import { sectionToViewportRelative } from '../../utils/dateUtils';
+import { dayToX, headerMilestones } from '../../utils/timelineUtils';
 
 interface PinnedMilestoneLinesProps {
   readonly section: Section;
-  readonly timelineWidth: number;
-  readonly viewportBounds: ViewportBounds;
+  readonly viewport: ViewportBounds;
+  readonly pixelsPerDay: number;
   readonly height: number;
 }
 
 /**
- * Full-height reference lines for the pinned schedule's milestones,
- * extending through every schedule on the timeline.
+ * Reference lines for the pinned schedule's own milestones, drawn the full
+ * height of the sheet so every other schedule can be read against them.
  */
 export const PinnedMilestoneLines = memo(function PinnedMilestoneLines({
   section,
-  timelineWidth,
-  viewportBounds,
+  viewport,
+  pixelsPerDay,
   height,
 }: PinnedMilestoneLinesProps): JSX.Element | null {
-  if (section.milestones.length === 0) return null;
+  const milestones = headerMilestones(section);
+  if (milestones.length === 0) return null;
 
   return (
     <div className="absolute inset-x-0 top-0 pointer-events-none" aria-hidden="true">
-      {section.milestones.map((milestone) => {
-        const viewportPosition = sectionToViewportRelative(
-          milestone.relativePosition,
-          section,
-          viewportBounds
-        );
-        return (
-          <div
-            key={milestone.id}
-            className="absolute top-0 w-px bg-[var(--color-milestone-line)]"
-            style={{ left: viewportPosition * timelineWidth, height }}
-          />
-        );
-      })}
+      {milestones.map((milestone) => (
+        <div
+          key={milestone.id}
+          className="absolute top-0 w-px bg-[var(--color-milestone-line)]"
+          style={{ left: dayToX(milestone.start, viewport, pixelsPerDay), height }}
+        />
+      ))}
     </div>
   );
 });

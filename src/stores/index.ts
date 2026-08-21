@@ -1,11 +1,3 @@
 export { useProjectStore } from './projectStore';
-export {
-  useSectionStore,
-  selectSection,
-  selectPhase,
-  selectTask,
-  selectMilestone,
-  selectPhaseBarMilestone,
-  selectTaskBarMilestone,
-} from './sectionStore';
+export { useSectionStore, selectSection, selectItem } from './sectionStore';
 export { useUIStore } from './uiStore';

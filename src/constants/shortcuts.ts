@@ -26,11 +26,11 @@ export const SHORTCUTS = {
 
 // Shortcut descriptions for help display
 export const SHORTCUT_DESCRIPTIONS: Record<string, string> = {
-  [SHORTCUTS.ESCAPE]: 'Close sidebar / Clear selection',
-  [SHORTCUTS.ARROW_UP]: 'Move selection up',
-  [SHORTCUTS.ARROW_DOWN]: 'Move selection down',
-  [SHORTCUTS.ENTER]: 'Toggle collapse/expand',
-  [SHORTCUTS.SPACE]: 'Toggle collapse/expand',
+  [SHORTCUTS.ESCAPE]: 'Close the editor, or cancel a drag',
+  [SHORTCUTS.ARROW_UP]: 'Select the previous row',
+  [SHORTCUTS.ARROW_DOWN]: 'Select the next row',
+  [SHORTCUTS.ENTER]: 'Expand or collapse a schedule or group',
+  [SHORTCUTS.SPACE]: 'Expand or collapse a schedule or group',
   [SHORTCUTS.DELETE]: 'Delete selected item',
   [SHORTCUTS.BACKSPACE]: 'Delete selected item',
   'Cmd/Ctrl+Z': 'Undo',

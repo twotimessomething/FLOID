@@ -1,13 +1,29 @@
 import type { Section } from '../types';
 import type { Project } from '../types/project';
+import { normalizeDayKey, todayKey } from './dayKeys';
+import { migrateSections } from './migrateLegacy';
 import * as idb from './indexedDB';
 
 const STORAGE_KEY = 'floid-project';
 const PROJECTS_INDEX_KEY = 'floid-projects-index';
 
+/**
+ * 1 — pre-versioning: a master schedule (`masterSectionId`) and phases/tasks at
+ *     relative positions.
+ * 2 — the pin replaced the master schedule.
+ * 3 — one recursive item tree per schedule, positioned by absolute day keys.
+ *
+ * Saves written before versioning carry no `schemaVersion` at all and are
+ * treated as 1, which is why every migration step below has to be safe to run
+ * against a shape it may already be in.
+ */
+export const STORAGE_SCHEMA_VERSION = 3;
+
 export interface StoredData {
   project: Project;
   sections: Section[];
+  /** Absent on anything written before versioning; see STORAGE_SCHEMA_VERSION. */
+  schemaVersion?: number;
 }
 
 export interface ProjectIndexEntry {
@@ -19,31 +35,60 @@ export interface ProjectIndexEntry {
 // Get storage key for a specific project
 const getProjectKey = (projectId: string): string => `${STORAGE_KEY}-${projectId}`;
 
+/** A stored date may be a day key, a full ISO timestamp, or missing entirely. */
+const readDayKey = (value: unknown): string =>
+  typeof value === 'string' && value.length > 0 ? normalizeDayKey(value) : todayKey();
+
 /**
- * Migrate stored data from the legacy master-schedule model to the pin model:
- * `masterSectionId` becomes `pinnedSectionId`, and the former master keeps its
- * multicolor phase palette via `isMulticolor`.
+ * Bring a saved project up to the current schema on the way out of storage, so
+ * the rest of the app only ever meets the current model.
+ *
+ * Nothing here depends on the version stamp being present or accurate — each
+ * step recognises the shape it needs to change and leaves everything else
+ * alone, so running this twice produces the same result as running it once.
  */
 export const migrateStoredData = (data: StoredData): StoredData => {
-  const rawProject = data.project as Project & { masterSectionId?: string };
-  if (rawProject.pinnedSectionId !== undefined || rawProject.masterSectionId === undefined) {
-    return data;
-  }
+  // A record with no project is beyond repair; the caller treats it as missing.
+  if (!data?.project) return data;
+  if (data.schemaVersion === STORAGE_SCHEMA_VERSION) return data;
 
-  const { masterSectionId, ...projectRest } = rawProject;
+  const rawProject = data.project as Project & { masterSectionId?: string };
+  const { masterSectionId, ...project } = rawProject;
+
+  const sections = migrateSections(data.sections ?? []).map((section) =>
+    // The former master schedule kept a per-phase palette; the pin does not,
+    // so the palette becomes an explicit opt-in on that one schedule.
+    section.id === masterSectionId && section.isMulticolor === undefined
+      ? { ...section, isMulticolor: true }
+      : section
+  );
+
   return {
-    project: { ...projectRest, pinnedSectionId: masterSectionId ?? null },
-    sections: data.sections.map((section) =>
-      section.id === masterSectionId && section.isMulticolor === undefined
-        ? { ...section, isMulticolor: true }
-        : section
-    ),
+    schemaVersion: STORAGE_SCHEMA_VERSION,
+    project: {
+      ...project,
+      // An explicit null means the user unpinned; only an absent field falls
+      // back to the master schedule this project was saved with.
+      pinnedSectionId:
+        project.pinnedSectionId !== undefined ? project.pinnedSectionId : (masterSectionId ?? null),
+      projectStartDate: readDayKey(rawProject.projectStartDate),
+      projectEndDate: readDayKey(rawProject.projectEndDate),
+    },
+    sections,
   };
 };
 
-// Async primary storage using IndexedDB
+/**
+ * Async primary storage using IndexedDB.
+ *
+ * The write path migrates before it stamps. Stamping whatever it was handed
+ * would make the version a claim rather than a fact, and the load path trusts
+ * that claim — one write of un-migrated data through this door and the record
+ * is unreadable forever. Migration is idempotent, so current data pays nothing.
+ */
 export const saveProjectToStorage = async (projectId: string, data: StoredData): Promise<void> => {
-  await idb.setProjectData(projectId, data);
+  const current = migrateStoredData(data);
+  await idb.setProjectData(projectId, { ...current, schemaVersion: STORAGE_SCHEMA_VERSION });
 };
 
 export const loadProjectFromStorage = async (projectId: string): Promise<StoredData | null> => {
@@ -67,7 +112,10 @@ export const loadProjectsIndex = async (): Promise<ProjectIndexEntry[]> => {
 // IndexedDB can't complete during beforeunload, so we use localStorage as fallback
 export const saveProjectToStorageSync = (projectId: string, data: StoredData): void => {
   try {
-    localStorage.setItem(getProjectKey(projectId), JSON.stringify(data));
+    localStorage.setItem(
+      getProjectKey(projectId),
+      JSON.stringify({ ...migrateStoredData(data), schemaVersion: STORAGE_SCHEMA_VERSION })
+    );
   } catch (error) {
     console.error('Emergency sync save failed:', error);
   }
@@ -91,7 +139,6 @@ export const recoverFromLocalStorage = async (projectId: string): Promise<Stored
       // Save to IndexedDB and remove from localStorage
       await idb.setProjectData(projectId, parsed);
       localStorage.removeItem(key);
-      console.log(`Recovered project ${projectId} from localStorage emergency save`);
       return parsed;
     }
     return null;

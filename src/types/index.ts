@@ -2,19 +2,17 @@ export type { Project, ProjectSettings } from './project';
 export { DEFAULT_PROJECT_SETTINGS } from './project';
 export type {
   Section,
-  Phase,
-  Task,
-  Milestone,
-  BarMilestone,
+  TimelineItem,
+  ItemKind,
+  DropTarget,
   ZoomLevel,
   SelectionState,
   ModalPosition,
   ViewportBounds,
 } from './timeline';
-export { getPhaseColor } from './timeline';
+export { dropTargetKey, getItemColor } from './timeline';
 export type {
-  ExportPhase,
-  ExportMilestone,
+  ExportItem,
   ScheduleExportData,
   ImportResultType,
   ImportAnalysis,

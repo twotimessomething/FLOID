@@ -1,37 +1,50 @@
 import { useCallback, useEffect } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 
+interface Gesture {
+  readonly description: string;
+  readonly action: string;
+}
+
 interface Shortcut {
-  keys: string[];
-  description: string;
-  combo?: boolean; // true = keys joined with "+", false/undefined = alternatives
+  readonly keys: readonly string[];
+  readonly description: string;
+  readonly combo?: boolean; // true = keys joined with "+", false/undefined = alternatives
 }
 
 interface ShortcutGroup {
-  title: string;
-  shortcuts: Shortcut[];
+  readonly title: string;
+  readonly shortcuts: readonly Shortcut[];
 }
 
-const SHORTCUT_GROUPS: ShortcutGroup[] = [
-  {
-    title: 'Drag Modifiers',
-    shortcuts: [
-      { keys: ['Shift'], description: 'Preserve children positions while dragging' },
-      { keys: ['Shift', '⌘'], description: 'Ripple siblings when resizing end', combo: true },
-    ],
-  },
+/**
+ * Mouse gestures carry the timeline, so they lead. They are listed as plain
+ * ink rather than keycaps — a drag is not a key, and printing it as one reads
+ * as a control that can be pressed.
+ */
+const GESTURES: readonly Gesture[] = [
+  { description: 'Draw a bar in empty space', action: 'Double-click' },
+  { description: 'Draw a bar to an exact span', action: 'Drag' },
+  { description: 'Add a milestone to a schedule row', action: 'Double-click' },
+  { description: 'Move an item, or carry it to another schedule', action: 'Drag' },
+  { description: 'Group an item inside a bar', action: 'Drop it on the bar' },
+  { description: 'Take an item back out of its group', action: 'Drop it on open space' },
+  { description: 'Resize a bar', action: 'Drag its edge' },
+  { description: 'Open or close a group', action: 'Double-click the bar' },
+  { description: 'Color, lock, move out of group, export', action: 'Right-click' },
+];
+
+const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
   {
     title: 'Navigation',
-    shortcuts: [
-      { keys: ['↑', '↓'], description: 'Select previous / next item' },
-      { keys: ['Esc'], description: 'Clear selection / Close sidebar' },
-    ],
+    shortcuts: [{ keys: ['↑', '↓'], description: 'Select previous / next row' }],
   },
   {
     title: 'Actions',
     shortcuts: [
-      { keys: ['Enter', 'Space'], description: 'Expand / Collapse section or phase' },
+      { keys: ['Enter', 'Space'], description: 'Expand / Collapse a schedule or group' },
       { keys: ['Delete', '⌫'], description: 'Delete selected item' },
+      { keys: ['Esc'], description: 'Close the editor, or cancel a drag' },
     ],
   },
   {
@@ -102,8 +115,11 @@ export function KeyboardHelpModal(): JSX.Element | null {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
-          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="keyboard-help-title">
-            Keyboard Shortcuts
+          <h2
+            className="text-sm font-medium text-[var(--color-text-primary)]"
+            id="keyboard-help-title"
+          >
+            Shortcuts &amp; Gestures
           </h2>
           <button
             onClick={closeKeyboardHelpModal}
@@ -130,14 +146,31 @@ export function KeyboardHelpModal(): JSX.Element | null {
         {/* Body */}
         <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
           <div className="space-y-5">
+            <div>
+              <h3 className="eyebrow mb-2">Gestures</h3>
+              <div className="space-y-2">
+                {GESTURES.map((gesture) => (
+                  <div
+                    key={gesture.description}
+                    className="flex items-center justify-between gap-4 py-1"
+                  >
+                    <span className="text-sm text-[var(--color-text-primary)]">
+                      {gesture.description}
+                    </span>
+                    <span className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">
+                      {gesture.action}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {SHORTCUT_GROUPS.map((group) => (
               <div key={group.title}>
-                <h3 className="eyebrow mb-2">
-                  {group.title}
-                </h3>
+                <h3 className="eyebrow mb-2">{group.title}</h3>
                 <div className="space-y-2">
                   {group.shortcuts.map((shortcut, index) => (
-                    <div key={index} className="flex items-center justify-between py-1">
+                    <div key={index} className="flex items-center justify-between gap-4 py-1">
                       <span className="text-sm text-[var(--color-text-primary)]">
                         {shortcut.description}
                       </span>

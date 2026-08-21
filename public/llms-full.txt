@@ -21,13 +21,13 @@ Product development is FLOID's home turf: coordinating parallel workstreams — 
 
 ### Timeline Scheduling
 - Visual drag-and-drop timeline with phases, tasks, and milestones
-- Resize phases and tasks by dragging edges
+- Resize any bar by dragging its edges; move it by dragging it anywhere, including into another schedule
 - Zoom in/out to adjust timeline granularity
 - Scroll and navigate large timelines fluidly
 
 ### Multiple Schedules
 - Create multiple schedule tracks within a single project — one per team or workstream
-- Each schedule has its own set of phases, tasks, and milestones
+- Each schedule has its own set of bars and milestones, nested however you drag them
 - Color-code schedules for visual organization, or enable the multicolor option to give each phase its own palette color
 - Collapse or expand schedules to manage complexity
 - Drag to rearrange schedules
@@ -43,10 +43,11 @@ Product development is FLOID's home turf: coordinating parallel workstreams — 
 - Or start from a blank schedule and build your own
 
 ### Phases, Tasks, and Milestones
-- Phases are top-level timeline blocks with duration
-- Tasks are sub-items within phases, also with duration
-- Milestones are single-point markers (no duration) for key dates and deadlines
-- All items use relative positioning — resizing a parent cascades to children, and editing a schedule's date range keeps items on their absolute dates
+- Everything on the timeline is a bar (a block with duration) or a milestone (a single-point marker for a key date or deadline)
+- Bars nest: drop one onto another and it becomes a sub-item of it, which is how phases and tasks are built
+- There is no separate "add task" step — you draw a bar and drag it into the phase it belongs to, and drag it back out to promote it
+- Every item holds its own dates, so dragging one into another group, or into another schedule, never moves it in time
+- Moving a bar moves everything grouped under it; resizing a bar moves only that edge
 
 ### Export and Sharing
 - Export individual schedules as .floid files to share with collaborators
@@ -88,7 +89,7 @@ Rapidly sketch out a project timeline to estimate duration and identify scheduli
 FLOID is focused purely on visual timeline scheduling. It does not include task assignment, communication, or workflow automation. This makes it faster and simpler for teams that just need to plan and visualize a schedule without the overhead of a full project management platform.
 
 ### FLOID vs. Gantt Chart Software (Microsoft Project, TeamGantt)
-FLOID's timeline model is simpler than traditional Gantt charts. It uses relative positioning instead of rigid date dependencies, which makes it easier to quickly sketch and adjust timelines. It also supports multiple parallel schedules in a single view, which is uncommon in Gantt tools.
+FLOID's timeline model is simpler than traditional Gantt charts. Work is organised by dragging blocks onto each other rather than by wiring up date dependencies, which makes it easier to quickly sketch and adjust timelines. It also supports multiple parallel schedules in a single view, which is uncommon in Gantt tools.
 
 ### FLOID vs. Spreadsheet-Based Scheduling
 Many teams use Excel or Google Sheets for scheduling. FLOID provides the same visual timeline layout but with drag-and-drop interaction, automatic date calculation, and proper export formats — without the manual formatting work.
@@ -119,7 +120,7 @@ Yes. FLOID is optimized for product development, but its timeline scheduling wor
 Yes. FLOID began as a tool for industrial designers and includes a dedicated industrial design schedule template. Its multi-schedule timeline model matches how physical product development projects are structured, with parallel workstreams for design, engineering, tooling, testing, and regulatory.
 
 ### Does FLOID support Gantt chart dependencies?
-FLOID uses a relative positioning model rather than rigid task dependencies. This makes timelines more flexible and easier to adjust, but it means there are no automatic dependency arrows between tasks.
+FLOID organises work by dragging blocks onto each other rather than by wiring up task dependencies. This makes timelines more flexible and easier to adjust, but it means there are no automatic dependency arrows between tasks.
 
 ### Where is my data stored?
 Your project data stays in your browser. FLOID does not send your data to any server.

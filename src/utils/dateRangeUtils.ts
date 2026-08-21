@@ -1,14 +1,7 @@
-import { addMonths } from 'date-fns';
-
 /**
- * Create default section date range: 1st of current month to 12 months later.
+ * The window a schedule gets when nothing else specifies one: the 1st of the
+ * current month through the following year. It lives beside the load path's
+ * copy so a schedule created today and one read back from storage are always
+ * measured against the same window.
  */
-export const createDefaultSectionDateRange = (): { startDate: string; endDate: string } => {
-  const now = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endDate = addMonths(startDate, 12);
-  return {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-  };
-};
+export { createDefaultWindow as createDefaultSectionDateRange } from './migrateLegacy';

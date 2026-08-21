@@ -4,68 +4,69 @@ import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { downloadScheduleFloid } from '../../utils/exportUtils';
-import { createPhaseAt, createTaskAt, createMilestoneAt, createBarMilestoneAt } from '../../utils/creationUtils';
+import { createBarAt, createMilestoneAt } from '../../utils/creationUtils';
+import { findItem, locateItem } from '../../utils/itemTree';
 import { PHASE_COLORS } from '../../constants/colors';
 
 interface MenuItem {
-  label: string;
-  action: () => void;
-  danger?: boolean;
-  disabled?: boolean;
-  hasSubmenu?: boolean;
+  readonly label: string;
+  readonly action: () => void;
+  readonly danger?: boolean;
+  readonly disabled?: boolean;
+  readonly hasSubmenu?: boolean;
 }
 
+/**
+ * The context menu.
+ *
+ * With one item type the menu is built from capabilities rather than from a
+ * type × location matrix: anything can be renamed, locked, nested into,
+ * reordered and deleted. Only one entry is genuinely exclusive to this menu —
+ * adding a milestone anywhere other than a schedule's own row, which is
+ * deliberately not a click-anywhere gesture.
+ */
 export function ContextMenu(): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement>(null);
-  const { contextMenu, closeContextMenu, selectItem, showToast } = useUIStore();
-  const {
-    deletePhase,
-    deleteTask,
-    deleteMilestone,
-    deleteSection,
-    reorderPhases,
-    sections,
-    togglePhaseCollapse,
-    togglePhaseLock,
-    toggleSectionCollapse,
-    toggleSectionLock,
-    deletePhaseBarMilestone,
-    deleteTaskBarMilestone,
-    updatePhase,
-  } = useSectionStore();
+  const contextMenu = useUIStore((s) => s.contextMenu);
+  const closeContextMenu = useUIStore((s) => s.closeContextMenu);
+  const selectItem = useUIStore((s) => s.selectItem);
+  const selectSection = useUIStore((s) => s.selectSection);
+  const showToast = useUIStore((s) => s.showToast);
+
+  const sections = useSectionStore((s) => s.sections);
+  const updateItem = useSectionStore((s) => s.updateItem);
+  const deleteItem = useSectionStore((s) => s.deleteItem);
+  const deleteSection = useSectionStore((s) => s.deleteSection);
+  const toggleItemCollapse = useSectionStore((s) => s.toggleItemCollapse);
+  const toggleItemLock = useSectionStore((s) => s.toggleItemLock);
+  const toggleSectionCollapse = useSectionStore((s) => s.toggleSectionCollapse);
+  const toggleSectionLock = useSectionStore((s) => s.toggleSectionLock);
+  const reorderItem = useSectionStore((s) => s.reorderItem);
+  const moveItem = useSectionStore((s) => s.moveItem);
+
   const project = useProjectStore((state) => state.project);
   const setPinnedSection = useProjectStore((state) => state.setPinnedSection);
 
-  const { isOpen, position, targetType, targetId, sectionId, phaseId, taskId, location, clickRelativePosition } = contextMenu;
+  const { isOpen, position, targetType, targetId, sectionId, location, clickDay } = contextMenu;
 
-  // Color submenu state
   const [showColorSubmenu, setShowColorSubmenu] = useState(false);
   const colorButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Reset color submenu when menu closes
   useEffect(() => {
-    if (!isOpen) {
-      setShowColorSubmenu(false);
-    }
+    if (!isOpen) setShowColorSubmenu(false);
   }, [isOpen]);
 
-  // Close on click outside
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent): void => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        closeContextMenu();
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) closeContextMenu();
     };
-
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        closeContextMenu();
-      }
+      if (e.key === 'Escape') closeContextMenu();
     };
 
-    // Delay adding listener to avoid immediate close from the same click
+    // Deferred so the click that opened the menu does not immediately close it
     const timeoutId = setTimeout(() => {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
@@ -78,24 +79,14 @@ export function ContextMenu(): JSX.Element | null {
     };
   }, [isOpen, closeContextMenu]);
 
-  // Adjust position to keep menu in viewport
   useEffect(() => {
     if (!isOpen || !menuRef.current) return;
-
     const menu = menuRef.current;
     const rect = menu.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
 
-    let adjustedX = position.x;
-    let adjustedY = position.y;
-
-    if (rect.right > viewportWidth) {
-      adjustedX = viewportWidth - rect.width - 8;
-    }
-    if (rect.bottom > viewportHeight) {
-      adjustedY = viewportHeight - rect.height - 8;
-    }
+    const adjustedX = rect.right > window.innerWidth ? window.innerWidth - rect.width - 8 : position.x;
+    const adjustedY =
+      rect.bottom > window.innerHeight ? window.innerHeight - rect.height - 8 : position.y;
 
     if (adjustedX !== position.x || adjustedY !== position.y) {
       menu.style.left = `${adjustedX}px`;
@@ -103,377 +94,248 @@ export function ContextMenu(): JSX.Element | null {
     }
   }, [isOpen, position]);
 
-  const handleEdit = useCallback(() => {
-    if (!targetId || !sectionId) return;
-    selectItem(targetType, targetId, sectionId, phaseId, position, taskId);
-    closeContextMenu();
-  }, [targetType, targetId, sectionId, phaseId, taskId, position, selectItem, closeContextMenu]);
+  const section = useMemo(
+    () => sections.find((s) => s.id === sectionId),
+    [sections, sectionId]
+  );
+  const item = useMemo(
+    () => (section && targetType === 'item' && targetId ? findItem(section.items, targetId) : null),
+    [section, targetType, targetId]
+  );
+  const itemLocation = useMemo(
+    () => (section && targetId && targetType === 'item' ? locateItem(section.items, targetId) : null),
+    [section, targetId, targetType]
+  );
 
-  const handleDelete = useCallback(() => {
-    if (!targetId || !sectionId) return;
+  const close = useCallback(() => closeContextMenu(), [closeContextMenu]);
 
-    switch (targetType) {
-      case 'phase':
-        deletePhase(sectionId, targetId);
-        break;
-      case 'task':
-        if (phaseId) {
-          deleteTask(sectionId, phaseId, targetId);
-        }
-        break;
-      case 'milestone':
-        deleteMilestone(sectionId, targetId);
-        break;
-      case 'section': {
-        const result = deleteSection(targetId);
-        if (!result.success && result.reason) {
-          showToast('warning', result.reason);
-        }
-        break;
-      }
-      case 'barMilestone':
-        if (phaseId) {
-          if (taskId) {
-            deleteTaskBarMilestone(sectionId, phaseId, taskId, targetId);
-          } else {
-            deletePhaseBarMilestone(sectionId, phaseId, targetId);
-          }
-        }
-        break;
-    }
-    closeContextMenu();
-  }, [targetType, targetId, sectionId, phaseId, taskId, deletePhase, deleteTask, deleteMilestone, deleteSection, deletePhaseBarMilestone, deleteTaskBarMilestone, closeContextMenu]);
+  const run = useCallback(
+    (fn: () => void) => () => {
+      fn();
+      close();
+    },
+    [close]
+  );
 
-  const handleAddPhase = useCallback(() => {
-    if (!sectionId) return;
-    // No click position on the label side — continues after the last phase
-    createPhaseAt(sectionId, {}, position);
-    closeContextMenu();
-  }, [sectionId, position, closeContextMenu]);
-
-  const handleAddTask = useCallback(() => {
-    if (!sectionId || !targetId) return;
-    // No click position — default-width task at the phase start
-    createTaskAt(sectionId, targetId, {}, position);
-    closeContextMenu();
-  }, [sectionId, targetId, position, closeContextMenu]);
-
-  const handleMovePhaseUp = useCallback(() => {
-    if (!sectionId || !targetId || targetType !== 'phase') return;
-
-    const section = sections.find((s) => s.id === sectionId);
-    if (!section) return;
-
-    const phaseIndex = section.phases.findIndex((p) => p.id === targetId);
-    if (phaseIndex > 0) {
-      reorderPhases(sectionId, phaseIndex, phaseIndex - 1);
-    }
-
-    closeContextMenu();
-  }, [sectionId, targetId, targetType, sections, reorderPhases, closeContextMenu]);
-
-  const handleMovePhaseDown = useCallback(() => {
-    if (!sectionId || !targetId || targetType !== 'phase') return;
-
-    const section = sections.find((s) => s.id === sectionId);
-    if (!section) return;
-
-    const phaseIndex = section.phases.findIndex((p) => p.id === targetId);
-    if (phaseIndex < section.phases.length - 1) {
-      reorderPhases(sectionId, phaseIndex, phaseIndex + 1);
-    }
-
-    closeContextMenu();
-  }, [sectionId, targetId, targetType, sections, reorderPhases, closeContextMenu]);
-
-  const handleExportSchedule = useCallback(() => {
-    if (!sectionId) return;
-
-    const section = sections.find((s) => s.id === sectionId);
-    if (section) {
-      downloadScheduleFloid(project, section);
-    }
-    closeContextMenu();
-  }, [sectionId, sections, project, closeContextMenu]);
-
-  const handleTogglePin = useCallback(() => {
-    if (!sectionId) return;
-    const isPinned = project?.pinnedSectionId === sectionId;
-    setPinnedSection(isPinned ? null : sectionId);
-    closeContextMenu();
-  }, [sectionId, project?.pinnedSectionId, setPinnedSection, closeContextMenu]);
-
-  // Toggle collapse for phases
-  const handleTogglePhaseCollapse = useCallback(() => {
-    if (!sectionId || !targetId) return;
-    togglePhaseCollapse(sectionId, targetId);
-    closeContextMenu();
-  }, [sectionId, targetId, togglePhaseCollapse, closeContextMenu]);
-
-  // Toggle collapse for sections
-  const handleToggleSectionCollapse = useCallback(() => {
-    if (!sectionId) return;
-    toggleSectionCollapse(sectionId);
-    closeContextMenu();
-  }, [sectionId, toggleSectionCollapse, closeContextMenu]);
-
-  // Toggle lock for phases
-  const handleTogglePhaseLock = useCallback(() => {
-    if (!sectionId || !targetId) return;
-    togglePhaseLock(sectionId, targetId);
-    closeContextMenu();
-  }, [sectionId, targetId, togglePhaseLock, closeContextMenu]);
-
-  // Toggle lock for sections
-  const handleToggleSectionLock = useCallback(() => {
-    if (!sectionId) return;
-    toggleSectionLock(sectionId);
-    closeContextMenu();
-  }, [sectionId, toggleSectionLock, closeContextMenu]);
-
-  // Add bar milestone at click position (for phase bar)
-  const handleAddBarMilestoneHere = useCallback(() => {
-    if (!sectionId || !phaseId || clickRelativePosition === undefined) return;
-    createBarMilestoneAt(sectionId, phaseId, taskId ?? null, clickRelativePosition, position);
-    closeContextMenu();
-  }, [sectionId, phaseId, taskId, clickRelativePosition, position, closeContextMenu]);
-
-  // Add section milestone at click position (for section header)
-  const handleAddMilestoneHere = useCallback(() => {
-    if (!sectionId || clickRelativePosition === undefined) return;
-    createMilestoneAt(sectionId, clickRelativePosition, position);
-    closeContextMenu();
-  }, [sectionId, clickRelativePosition, position, closeContextMenu]);
-
-  // Change phase color
-  const handleColorChange = useCallback((color: string) => {
-    if (!sectionId || !targetId) return;
-    updatePhase(sectionId, targetId, { color });
-    closeContextMenu();
-  }, [sectionId, targetId, updatePhase, closeContextMenu]);
-
-  // Add phase at click position (for empty row area)
-  const handleAddPhaseHere = useCallback(() => {
-    if (!sectionId || clickRelativePosition === undefined) return;
-    // phaseId carries the context phase when clicking in a phase row area
-    createPhaseAt(
-      sectionId,
-      { startAt: clickRelativePosition, afterPhaseId: phaseId ?? undefined },
-      position
-    );
-    closeContextMenu();
-  }, [sectionId, phaseId, clickRelativePosition, position, closeContextMenu]);
-
-  // Add task at click position (for empty task area)
-  const handleAddTaskHere = useCallback(() => {
-    if (!sectionId || !phaseId || clickRelativePosition === undefined) return;
-    createTaskAt(sectionId, phaseId, { startAt: clickRelativePosition }, position);
-    closeContextMenu();
-  }, [sectionId, phaseId, clickRelativePosition, position, closeContextMenu]);
-
-  // Memoize menu items to avoid recalculating on every render
   const menuItems = useMemo((): MenuItem[] => {
-    const items: MenuItem[] = [];
-    const section = sections.find((s) => s.id === sectionId);
-    const isPinnedSection = section?.id === project?.pinnedSectionId;
+    if (!sectionId || !section) return [];
 
-    // Bar milestone context menu
-    if (targetType === 'barMilestone') {
-      items.push({ label: 'Edit', action: handleEdit });
-      items.push({ label: 'Delete', action: handleDelete, danger: true });
-      return items;
-    }
+    // ---- an item -------------------------------------------------------
+    if (targetType === 'item' && item && targetId) {
+      const items: MenuItem[] = [
+        { label: 'Edit', action: run(() => selectItem(targetId, sectionId, position)) },
+      ];
 
-    // Phase context menu
-    if (targetType === 'phase' && section) {
-      const phase = section.phases.find((p) => p.id === targetId);
-
-      if (location === 'label') {
-        // Label area: Edit, Collapse/Expand, Lock/Unlock, Add Task, Move Up/Down, Delete
-        items.push({ label: 'Edit', action: handleEdit });
-
-        // Collapse/Expand toggle with dynamic label
-        if (phase) {
+      if (item.kind === 'bar') {
+        if (item.children.length > 0) {
           items.push({
-            label: phase.isCollapsed ? 'Expand' : 'Collapse',
-            action: handleTogglePhaseCollapse,
+            label: item.isCollapsed ? 'Expand' : 'Collapse',
+            action: run(() => toggleItemCollapse(sectionId, targetId)),
           });
         }
-
-        // Lock/Unlock toggle (disabled if section is locked)
-        if (phase) {
-          items.push({
-            label: phase.isLocked ? 'Unlock' : 'Lock',
-            action: handleTogglePhaseLock,
-            disabled: section.isLocked,
-          });
-        }
-
-        items.push({ label: 'Add Task', action: handleAddTask });
-
-        const phaseIndex = section.phases.findIndex((p) => p.id === targetId);
-        const isFirstPhase = phaseIndex === 0;
-        const isLastPhase = phaseIndex === section.phases.length - 1;
-
         items.push({
-          label: 'Move Up',
-          action: handleMovePhaseUp,
-          disabled: isFirstPhase,
+          label: 'Add bar inside',
+          action: run(() => createBarAt(sectionId, { parentId: targetId }, position)),
         });
         items.push({
-          label: 'Move Down',
-          action: handleMovePhaseDown,
-          disabled: isLastPhase,
+          label: 'Add milestone inside',
+          action: run(() =>
+            createMilestoneAt(sectionId, { day: clickDay ?? item.start, parentId: targetId }, position)
+          ),
         });
-
-        items.push({ label: 'Delete', action: handleDelete, danger: true });
-      } else if (location === 'bar') {
-        // Bar area: Edit, Add Task, Add Milestone Here, Color, Delete
-        items.push({ label: 'Edit', action: handleEdit });
-        items.push({ label: 'Add Task', action: handleAddTask });
-
-        if (clickRelativePosition !== undefined) {
-          items.push({ label: 'Add Milestone Here', action: handleAddBarMilestoneHere });
-        }
-
-        // Color submenu (only for multicolor schedule phases)
-        if (section.isMulticolor) {
-          items.push({ label: 'Color', action: () => setShowColorSubmenu(!showColorSubmenu), hasSubmenu: true });
-        }
-
-        items.push({ label: 'Delete', action: handleDelete, danger: true });
-      } else if (location === 'empty') {
-        // Empty area (task container): Add Task Here
-        if (clickRelativePosition !== undefined) {
-          items.push({ label: 'Add Task Here', action: handleAddTaskHere });
-        }
+        items.push({
+          label: 'Color',
+          action: () => setShowColorSubmenu((open) => !open),
+          hasSubmenu: true,
+        });
       }
 
-      return items;
-    }
-
-    // Task context menu
-    if (targetType === 'task') {
-      if (location === 'label') {
-        // Label area: Edit, Delete
-        items.push({ label: 'Edit', action: handleEdit });
-        items.push({ label: 'Delete', action: handleDelete, danger: true });
-      } else if (location === 'bar') {
-        // Bar area: Edit, Add Milestone Here, Delete
-        items.push({ label: 'Edit', action: handleEdit });
-
-        if (clickRelativePosition !== undefined) {
-          items.push({ label: 'Add Milestone Here', action: handleAddBarMilestoneHere });
-        }
-
-        items.push({ label: 'Delete', action: handleDelete, danger: true });
-      }
-
-      return items;
-    }
-
-    // Section context menu
-    if (targetType === 'section' && section) {
-      if (location === 'header') {
-        // Header area (timeline side): Add Milestone Here only
-        if (clickRelativePosition !== undefined) {
-          items.push({ label: 'Add Milestone Here', action: handleAddMilestoneHere });
-        }
-        return items;
-      }
-
-      if (location === 'empty') {
-        // Empty area (phase row background): Add Phase Here, Add Milestone Here
-        if (clickRelativePosition !== undefined) {
-          items.push({ label: 'Add Phase Here', action: handleAddPhaseHere });
-          items.push({ label: 'Add Milestone Here', action: handleAddMilestoneHere });
-        }
-        return items;
-      }
-
-      // Label area: Full section menu
-      items.push({ label: 'Edit', action: handleEdit });
-
-      // Collapse/Expand toggle with dynamic label
       items.push({
-        label: section.isCollapsed ? 'Expand' : 'Collapse',
-        action: handleToggleSectionCollapse,
+        label: item.isLocked ? 'Unlock' : 'Lock',
+        action: run(() => toggleItemLock(sectionId, targetId)),
+        disabled: section.isLocked === true,
       });
 
-      // Lock/Unlock toggle
+      if (itemLocation && itemLocation.parent !== null) {
+        items.push({
+          label: 'Move out of group',
+          action: run(() =>
+            moveItem({
+              itemId: targetId,
+              fromSectionId: sectionId,
+              toSectionId: sectionId,
+              toParentId: null,
+              toIndex: section.items.length,
+              dayDelta: 0,
+            })
+          ),
+        });
+      }
+
+      if (itemLocation) {
+        items.push({
+          label: 'Move up',
+          action: run(() => reorderItem(sectionId, targetId, itemLocation.index - 1)),
+          disabled: itemLocation.index === 0,
+        });
+        items.push({
+          label: 'Move down',
+          action: run(() => reorderItem(sectionId, targetId, itemLocation.index + 2)),
+          disabled: itemLocation.index >= itemLocation.siblings.length - 1,
+        });
+      }
+
       items.push({
-        label: section.isLocked ? 'Unlock Schedule' : 'Lock Schedule',
-        action: handleToggleSectionLock,
+        label: 'Delete',
+        action: run(() => deleteItem(sectionId, targetId)),
+        danger: true,
       });
-
-      // Add Phase is available for all sections
-      items.push({ label: 'Add Phase', action: handleAddPhase });
-
-      // Pin the schedule to the top of the timeline
-      items.push({
-        label: isPinnedSection ? 'Unpin' : 'Pin to Top',
-        action: handleTogglePin,
-      });
-
-      // Export Schedule is available for all sections
-      items.push({ label: 'Export Schedule', action: handleExportSchedule });
-
-      items.push({ label: 'Delete', action: handleDelete, danger: true });
 
       return items;
     }
 
-    // Milestone context menu (regular section milestones)
-    if (targetType === 'milestone') {
-      items.push({ label: 'Edit', action: handleEdit });
-      items.push({ label: 'Delete', action: handleDelete, danger: true });
-      return items;
+    // ---- a schedule ----------------------------------------------------
+    if (targetType === 'section') {
+      // Both the schedule's own row and the open space below it can seed
+      // something at the exact day that was right-clicked
+      if (location === 'header' || location === 'row') {
+        return [
+          {
+            label: 'Add bar here',
+            action: run(() =>
+              createBarAt(sectionId, { startDay: clickDay ?? section.startDate }, position)
+            ),
+          },
+          {
+            label: 'Add milestone here',
+            action: run(() =>
+              createMilestoneAt(sectionId, { day: clickDay ?? section.startDate }, position)
+            ),
+          },
+        ];
+      }
+
+      return [
+        { label: 'Edit', action: run(() => selectSection(sectionId, position)) },
+        {
+          label: section.isCollapsed ? 'Expand' : 'Collapse',
+          action: run(() => toggleSectionCollapse(sectionId)),
+        },
+        {
+          label: section.isLocked ? 'Unlock schedule' : 'Lock schedule',
+          action: run(() => toggleSectionLock(sectionId)),
+        },
+        { label: 'Add bar', action: run(() => createBarAt(sectionId, {}, position)) },
+        {
+          label: 'Add milestone',
+          action: run(() => createMilestoneAt(sectionId, { day: section.startDate }, position)),
+        },
+        {
+          label: project?.pinnedSectionId === sectionId ? 'Unpin' : 'Pin to top',
+          action: run(() =>
+            setPinnedSection(project?.pinnedSectionId === sectionId ? null : sectionId)
+          ),
+        },
+        {
+          label: 'Export schedule',
+          action: run(() => {
+            if (project) void downloadScheduleFloid(project, section);
+          }),
+        },
+        {
+          label: 'Delete',
+          danger: true,
+          action: () => {
+            const result = deleteSection(sectionId);
+            if (!result.success && result.reason) showToast('warning', result.reason);
+            close();
+          },
+        },
+      ];
     }
 
-    return items;
-  }, [sections, sectionId, targetId, phaseId, taskId, project?.pinnedSectionId, targetType, location, clickRelativePosition, showColorSubmenu, handleEdit, handleAddPhase, handleAddTask, handleMovePhaseUp, handleMovePhaseDown, handleTogglePin, handleExportSchedule, handleDelete, handleTogglePhaseCollapse, handleTogglePhaseLock, handleToggleSectionCollapse, handleToggleSectionLock, handleAddBarMilestoneHere, handleAddMilestoneHere, handleAddPhaseHere, handleAddTaskHere]);
+    return [];
+  }, [
+    sectionId,
+    section,
+    targetType,
+    targetId,
+    item,
+    itemLocation,
+    location,
+    clickDay,
+    position,
+    project,
+    run,
+    close,
+    selectItem,
+    selectSection,
+    toggleItemCollapse,
+    toggleItemLock,
+    toggleSectionCollapse,
+    toggleSectionLock,
+    reorderItem,
+    moveItem,
+    deleteItem,
+    deleteSection,
+    setPinnedSection,
+    showToast,
+  ]);
 
-  if (!isOpen) return null;
+  const handleColorChange = useCallback(
+    (color: string) => {
+      if (!sectionId || !targetId) return;
+      updateItem(sectionId, targetId, { color });
+      setShowColorSubmenu(false);
+      close();
+    },
+    [sectionId, targetId, updateItem, close]
+  );
 
-  // Get current phase color for highlighting in submenu
-  const section = sections.find((s) => s.id === sectionId);
-  const currentPhase = section?.phases.find((p) => p.id === targetId);
-  const currentPhaseColor = currentPhase?.color;
+  if (!isOpen || menuItems.length === 0) return null;
 
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[100] min-w-[140px] py-1 bg-[var(--color-raised)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-[var(--color-border)]"
+      className="fixed z-[100] min-w-[160px] py-1 bg-[var(--color-raised)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-[var(--color-border)]"
       style={{ left: position.x, top: position.y }}
       role="menu"
       aria-label="Context menu"
     >
-      {menuItems.map((item, index) => (
+      {menuItems.map((menuItem, index) => (
         <button
-          key={index}
-          ref={item.hasSubmenu ? colorButtonRef : undefined}
-          onClick={item.disabled ? undefined : item.action}
-          disabled={item.disabled}
+          key={`${menuItem.label}-${index}`}
+          ref={menuItem.hasSubmenu ? colorButtonRef : undefined}
+          onClick={menuItem.disabled ? undefined : menuItem.action}
+          disabled={menuItem.disabled}
           className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
-            item.disabled
+            menuItem.disabled
               ? 'text-[var(--color-text-muted)] cursor-default'
-              : item.danger
+              : menuItem.danger
                 ? 'text-[var(--color-error)] hover:bg-[var(--color-error-bg)]'
                 : 'text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
-          } ${item.hasSubmenu ? 'flex items-center justify-between' : ''}`}
+          } ${menuItem.hasSubmenu ? 'flex items-center justify-between' : ''}`}
           role="menuitem"
         >
-          {item.label}
-          {item.hasSubmenu && (
-            <svg className="w-4 h-4 text-[var(--color-text-muted)]" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+          {menuItem.label}
+          {menuItem.hasSubmenu && (
+            <svg
+              className="w-4 h-4 text-[var(--color-text-muted)]"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                clipRule="evenodd"
+              />
             </svg>
           )}
         </button>
       ))}
 
-      {/* Color submenu */}
-      {showColorSubmenu && targetType === 'phase' && (
+      {showColorSubmenu && item && (
         <div className="px-2 py-1.5 border-t border-[var(--color-border)]">
           <div className="flex gap-1.5 flex-wrap">
             {Object.entries(PHASE_COLORS).map(([name, color]) => {
@@ -483,7 +345,7 @@ export function ContextMenu(): JSX.Element | null {
                   key={name}
                   onClick={() => handleColorChange(color)}
                   className={`w-6 h-6 rounded-full transition-opacity hover:opacity-80 ${
-                    currentPhaseColor === color ? 'ring-2 ring-offset-1 ring-[var(--color-focus)]' : ''
+                    item.color === color ? 'ring-2 ring-offset-1 ring-[var(--color-focus)]' : ''
                   }`}
                   style={{ backgroundColor: color }}
                   title={label}

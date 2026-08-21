@@ -1,4 +1,4 @@
-import type { Section, Phase, Milestone } from '../types';
+import type { Section } from '../types';
 import { getScheduleColor } from '../constants/colors';
 
 // Re-export types and individual templates
@@ -46,6 +46,7 @@ import type { ScheduleTemplate, ProjectTemplate } from './templates';
 
 import { generateId } from '../utils/idUtils';
 import { createDefaultSectionDateRange } from '../utils/dateRangeUtils';
+import { migrateLegacySection } from '../utils/migrateLegacy';
 
 /**
  * Aggregated list of all schedule templates.
@@ -92,7 +93,13 @@ export function getTemplatesByCategory(category: ScheduleTemplate['category']): 
 }
 
 /**
- * Create a section from a template.
+ * Instantiate a template into a schedule.
+ *
+ * Templates describe positions as 0-1 fractions of whatever window they are
+ * dropped into — the same description saved projects used before items carried
+ * absolute dates. Both therefore need the same resolution step, and both run it
+ * through `migrateLegacySection` so a fraction turns into a date in exactly one
+ * place and the two can never drift apart.
  */
 export function createSectionFromTemplate(
   template: ScheduleTemplate,
@@ -103,63 +110,34 @@ export function createSectionFromTemplate(
     nameOverride?: string;
   }
 ): Section {
-  const sectionId = generateId();
   const { startDate, endDate } = options?.dateRange ?? createDefaultSectionDateRange();
-  const now = new Date().toISOString();
 
-  const phases: Phase[] = template.phases.map((phaseTemplate) => {
-    const phaseId = generateId();
-
-    const tasks = phaseTemplate.tasks.map((task) => ({
-      id: generateId(),
-      phaseId,
-      name: task.name,
-      description: task.description,
-      relativeStart: task.relativeStart,
-      relativeEnd: task.relativeEnd,
-      order: task.order,
-    }));
-
-    return {
-      id: phaseId,
-      sectionId,
-      name: phaseTemplate.name,
-      description: phaseTemplate.description,
-      color: phaseTemplate.color ?? null,
-      order: phaseTemplate.order,
-      isCollapsed: false,
-      tasks,
-      relativeStart: phaseTemplate.relativeStart,
-      relativeEnd: phaseTemplate.relativeEnd,
-    };
-  });
-
-  const milestones: Milestone[] = template.milestones.map((milestoneTemplate) => ({
+  return migrateLegacySection({
     id: generateId(),
-    sectionId,
-    name: milestoneTemplate.name,
-    description: milestoneTemplate.description,
-    relativePosition: milestoneTemplate.relativePosition,
-    order: milestoneTemplate.order,
-  }));
-
-  return {
-    id: sectionId,
     type: 'schedule',
     name: options?.nameOverride ?? template.name,
     templateId: template.id,
     revision: 1,
-    lastModifiedAt: now,
-    color: options?.colorOverride ?? (sectionIndex === 0 ? template.defaultColor : getScheduleColor(sectionIndex - 1)),
+    lastModifiedAt: new Date().toISOString(),
+    color:
+      options?.colorOverride ??
+      (sectionIndex === 0 ? template.defaultColor : getScheduleColor(sectionIndex - 1)),
     // Templates with per-phase colors use the multicolor palette
     isMulticolor: template.phases.some((p) => p.color != null),
     order: sectionIndex,
     isCollapsed: false,
-    phases,
-    milestones,
     startDate,
     endDate,
-  };
+    phases: template.phases.map((phase) => ({
+      ...phase,
+      id: generateId(),
+      tasks: phase.tasks.map((task) => ({ ...task, id: generateId() })),
+    })),
+    milestones: template.milestones.map((milestone) => ({
+      ...milestone,
+      id: generateId(),
+    })),
+  });
 }
 
 /**

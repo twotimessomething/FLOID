@@ -5,7 +5,7 @@ import { saveProjectToStorageSync, saveProjectsIndexSync } from '../utils/storag
 
 const DEBOUNCE_MS = 1000;
 
-export function useAutoSave() {
+export function useAutoSave(): void {
   const sections = useSectionStore((state) => state.sections);
   const isInitialized = useSectionStore((state) => state.isInitialized);
   const project = useProjectStore((state) => state.project);
@@ -80,14 +80,14 @@ export function useAutoSave() {
 
   // Save immediately when tab becomes hidden or page is about to unload
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = (): void => {
       if (document.visibilityState === 'hidden' && pendingSaveRef.current) {
         // Try async save first when going hidden (not unloading)
         saveImmediately().catch(console.error);
       }
     };
 
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = (): void => {
       if (pendingSaveRef.current) {
         // Use sync fallback for beforeunload since IndexedDB can't complete
         saveSync();

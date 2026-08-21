@@ -1,16 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  exportProjectToJson,
-  parseProjectJson,
-  exportScheduleToFloid,
-  parseScheduleFloid,
   analyzeScheduleImport,
   convertImportedProject,
+  exportProjectToJson,
+  exportScheduleToFloid,
+  parseProjectJson,
+  parseScheduleFloid,
 } from '../utils/exportUtils';
-import type { Project, Section } from '../types';
+import type { Project, Section, TimelineItem } from '../types';
 import type { ScheduleExportData } from '../types/scheduleExport';
 
-// Mock indexedDB module
 vi.mock('../utils/indexedDB', () => ({
   setAppSettings: vi.fn().mockResolvedValue(undefined),
 }));
@@ -20,15 +19,40 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     id: 'proj-1',
     name: 'Test Project',
     pinnedSectionId: 'sec-1',
-    projectStartDate: '2025-01-01T00:00:00.000Z',
-    projectEndDate: '2025-07-01T00:00:00.000Z',
+    projectStartDate: '2025-01-01',
+    projectEndDate: '2025-07-01',
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
     ...overrides,
   };
 }
 
+/** A schedule with a bar, a nested bar, a nested milestone and a root milestone. */
 function makeSection(overrides: Partial<Section> = {}): Section {
+  const task: TimelineItem = {
+    id: 'task-1',
+    kind: 'bar',
+    name: 'User Research',
+    description: '',
+    start: '2025-01-05',
+    end: '2025-01-20',
+    color: null,
+    isCollapsed: false,
+    children: [],
+  };
+
+  const marker: TimelineItem = {
+    id: 'bm-1',
+    kind: 'milestone',
+    name: 'Findings in',
+    description: '',
+    start: '2025-01-18',
+    end: '2025-01-18',
+    color: null,
+    isCollapsed: false,
+    children: [],
+  };
+
   return {
     id: 'sec-1',
     name: 'Design',
@@ -37,40 +61,31 @@ function makeSection(overrides: Partial<Section> = {}): Section {
     revision: 3,
     lastModifiedAt: '2025-01-15T00:00:00.000Z',
     order: 0,
-    startDate: '2025-01-01T00:00:00.000Z',
-    endDate: '2025-07-01T00:00:00.000Z',
-    phases: [
+    startDate: '2025-01-01',
+    endDate: '2025-07-01',
+    items: [
       {
         id: 'ph-1',
-        sectionId: 'sec-1',
+        kind: 'bar',
         name: 'Discovery',
         description: 'Research phase',
+        start: '2025-01-01',
+        end: '2025-03-01',
         color: null,
-        order: 0,
         isCollapsed: false,
-        tasks: [
-          {
-            id: 'task-1',
-            phaseId: 'ph-1',
-            name: 'User Research',
-            description: '',
-            relativeStart: 0.0,
-            relativeEnd: 0.5,
-            order: 0,
-          },
-        ],
-        relativeStart: 0.0,
-        relativeEnd: 0.3,
+        isLocked: true,
+        children: [task, marker],
       },
-    ],
-    milestones: [
       {
         id: 'ms-1',
-        sectionId: 'sec-1',
+        kind: 'milestone',
         name: 'Kick-off',
         description: '',
-        relativePosition: 0.0,
-        order: 0,
+        start: '2025-01-01',
+        end: '2025-01-01',
+        color: null,
+        isCollapsed: false,
+        children: [],
       },
     ],
     color: '#3b82f6',
@@ -80,10 +95,10 @@ function makeSection(overrides: Partial<Section> = {}): Section {
 }
 
 describe('exportProjectToJson', () => {
-  it('produces v2.0 floid-project format', () => {
+  it('writes the current project format', () => {
     const result = exportProjectToJson(makeProject(), [makeSection()]);
     expect(result.format).toBe('floid-project');
-    expect(result.version).toBe('2.0');
+    expect(result.version).toBe('3.0');
     expect(result.exportedAt).toBeDefined();
   });
 
@@ -95,133 +110,150 @@ describe('exportProjectToJson', () => {
     expect(result.project.pinnedSectionId).toBe(project.pinnedSectionId);
   });
 
-  it('computes absolute dates for phases', () => {
+  it('writes items as they are, at every depth', () => {
     const result = exportProjectToJson(makeProject(), [makeSection()]);
-    const phase = result.sections[0].phases[0];
-    expect(phase.absoluteStart).toBeDefined();
-    expect(phase.absoluteEnd).toBeDefined();
-    // Phase at relativeStart 0 should be near section start (±1 day for timezone)
-    expect(phase.absoluteStart).toMatch(/^2025-01-0[12]|2024-12-31$/);
-  });
-
-  it('computes absolute dates for milestones', () => {
-    const result = exportProjectToJson(makeProject(), [makeSection()]);
-    const milestone = result.sections[0].milestones[0];
-    expect(milestone.absoluteDate).toBeDefined();
-    // Milestone at relativePosition 0 should be near section start (±1 day for timezone)
-    expect(milestone.absoluteDate).toMatch(/^2025-01-0[12]|2024-12-31$/);
+    const [discovery, kickoff] = result.sections[0].items;
+    expect(discovery.start).toBe('2025-01-01');
+    expect(discovery.children.map((c) => c.name)).toEqual(['User Research', 'Findings in']);
+    expect(kickoff.kind).toBe('milestone');
   });
 });
 
 describe('parseProjectJson', () => {
-  it('parses v2.0 format', () => {
-    const exported = exportProjectToJson(makeProject(), [makeSection()]);
-    const json = JSON.stringify(exported);
+  it('parses what it wrote', () => {
+    const json = JSON.stringify(exportProjectToJson(makeProject(), [makeSection()]));
     const parsed = parseProjectJson(json);
     expect(parsed).not.toBeNull();
     expect(parsed!.format).toBe('floid-project');
-    expect(parsed!.sections.length).toBe(1);
-  });
-
-  it('parses legacy v2 format', () => {
-    const legacyJson = JSON.stringify({
-      version: 2,
-      exportedAt: new Date().toISOString(),
-      project: makeProject(),
-      sections: [makeSection()],
-    });
-    const result = parseProjectJson(legacyJson);
-    expect(result).not.toBeNull();
-    expect(result!.format).toBe('floid-project');
-    expect(result!.version).toBe('2.0');
+    expect(parsed!.sections).toHaveLength(1);
   });
 
   it('returns null for invalid JSON', () => {
     expect(parseProjectJson('not json')).toBeNull();
   });
 
-  it('returns null for unknown format', () => {
+  it('returns null for an unknown format', () => {
     expect(parseProjectJson(JSON.stringify({ foo: 'bar' }))).toBeNull();
   });
 
-  it('maps legacy masterSectionId to pinnedSectionId and marks the section multicolor', () => {
-    const exported = exportProjectToJson(makeProject(), [makeSection()]);
-    const raw = JSON.parse(JSON.stringify(exported));
-    delete raw.project.pinnedSectionId;
-    raw.project.masterSectionId = 'sec-1';
-    delete raw.sections[0].isMulticolor;
+  it('reads a 2.0 file written before the item model', () => {
+    const legacy = JSON.stringify({
+      format: 'floid-project',
+      version: '2.0',
+      exportedAt: new Date().toISOString(),
+      project: { ...makeProject(), pinnedSectionId: 'sec-1' },
+      sections: [
+        {
+          id: 'sec-1',
+          name: 'Design',
+          type: 'schedule',
+          revision: 3,
+          lastModifiedAt: '',
+          order: 0,
+          startDate: '2025-01-01',
+          endDate: '2025-03-02',
+          color: '#3b82f6',
+          isCollapsed: false,
+          phases: [
+            {
+              id: 'ph-1',
+              name: 'Discovery',
+              order: 0,
+              relativeStart: 0,
+              relativeEnd: 0.5,
+              tasks: [{ id: 't-1', name: 'Research', relativeStart: 0, relativeEnd: 1, order: 0 }],
+              barMilestones: [{ id: 'bm-1', name: 'Mid', relativePosition: 0.5 }],
+            },
+          ],
+          milestones: [{ id: 'ms-1', name: 'Kick-off', relativePosition: 0, order: 0 }],
+        },
+      ],
+    });
 
-    const parsed = parseProjectJson(JSON.stringify(raw));
-    expect(parsed!.project.pinnedSectionId).toBe('sec-1');
-    expect(parsed!.sections[0].isMulticolor).toBe(true);
+    const parsed = parseProjectJson(legacy);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.version).toBe('3.0');
+    const items = parsed!.sections[0].items;
+    expect(items.map((i) => i.name)).toEqual(['Discovery', 'Kick-off']);
+    expect(items[0].children.map((c) => c.name)).toEqual(['Research', 'Mid']);
+    expect(items[0].start).toBe('2025-01-01');
+    expect(items[0].end).toBe('2025-01-31');
   });
 
-  it('defaults isCollapsed to false', () => {
+  it('reads a numbered legacy file and promotes its master schedule to the pin', () => {
+    const legacy = JSON.stringify({
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      project: { ...makeProject(), pinnedSectionId: undefined, masterSectionId: 'sec-1' },
+      sections: [
+        {
+          id: 'sec-1',
+          name: 'Design',
+          type: 'schedule',
+          revision: 1,
+          lastModifiedAt: '',
+          order: 0,
+          startDate: '2025-01-01',
+          endDate: '2025-07-01',
+          color: '#3b82f6',
+          phases: [],
+          milestones: [],
+        },
+      ],
+    });
+
+    const parsed = parseProjectJson(legacy);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.project.pinnedSectionId).toBe('sec-1');
+    expect(parsed!.sections[0].items).toEqual([]);
+  });
+
+  it('defaults isCollapsed when a file omits it', () => {
     const exported = exportProjectToJson(makeProject(), [makeSection()]);
-    // Remove isCollapsed to test default
-    delete (exported.sections[0] as Record<string, unknown>).isCollapsed;
-    const json = JSON.stringify(exported);
-    const parsed = parseProjectJson(json);
-    expect(parsed!.sections[0].isCollapsed).toBe(false);
+    const raw = JSON.parse(JSON.stringify(exported));
+    delete raw.sections[0].isCollapsed;
+    expect(parseProjectJson(JSON.stringify(raw))!.sections[0].isCollapsed).toBe(false);
   });
 });
 
-describe('exportProjectToJson → parseProjectJson → convertImportedProject round-trip', () => {
-  it('preserves all section data through full round-trip', () => {
+describe('project round-trip', () => {
+  it('loses nothing on the way out and back', () => {
     const project = makeProject();
     const section = makeSection();
 
-    const exported = exportProjectToJson(project, [section]);
-    const json = JSON.stringify(exported);
-    const parsed = parseProjectJson(json);
-    const { project: importedProject, sections: importedSections } = convertImportedProject(parsed!);
+    const parsed = parseProjectJson(JSON.stringify(exportProjectToJson(project, [section])));
+    const { project: imported, sections } = convertImportedProject(parsed!);
 
-    expect(importedProject.id).toBe(project.id);
-    expect(importedProject.name).toBe(project.name);
-    expect(importedSections.length).toBe(1);
-    expect(importedSections[0].id).toBe(section.id);
-    expect(importedSections[0].phases[0].relativeStart).toBe(section.phases[0].relativeStart);
-    expect(importedSections[0].phases[0].relativeEnd).toBe(section.phases[0].relativeEnd);
-    expect(importedSections[0].milestones[0].relativePosition).toBe(section.milestones[0].relativePosition);
-  });
-
-  it('preserves task data through round-trip', () => {
-    const project = makeProject();
-    const section = makeSection();
-
-    const exported = exportProjectToJson(project, [section]);
-    const json = JSON.stringify(exported);
-    const parsed = parseProjectJson(json);
-    const { sections } = convertImportedProject(parsed!);
-
-    const task = sections[0].phases[0].tasks[0];
-    expect(task.id).toBe('task-1');
-    expect(task.name).toBe('User Research');
-    expect(task.relativeStart).toBe(0.0);
-    expect(task.relativeEnd).toBe(0.5);
+    expect(imported.id).toBe(project.id);
+    expect(imported.name).toBe(project.name);
+    expect(sections).toHaveLength(1);
+    // The whole tree survives, including the flags a field-by-field rebuild
+    // used to drop on the way back in
+    expect(sections[0].items).toEqual(section.items);
+    expect(sections[0].items[0].isLocked).toBe(true);
+    expect(sections[0].items[0].children[1].kind).toBe('milestone');
   });
 });
 
 describe('exportScheduleToFloid / parseScheduleFloid', () => {
-  it('produces v2.0 floid format', () => {
+  it('writes the current schedule format', () => {
     const result = exportScheduleToFloid(makeProject(), makeSection());
     expect(result.format).toBe('floid');
-    expect(result.version).toBe('2.0');
+    expect(result.version).toBe('3.0');
     expect(result.sourceProjectId).toBe('proj-1');
   });
 
   it('round-trips through parse', () => {
     const exported = exportScheduleToFloid(makeProject(), makeSection());
-    const json = JSON.stringify(exported);
-    const parsed = parseScheduleFloid(json);
+    const parsed = parseScheduleFloid(JSON.stringify(exported));
     expect(parsed).not.toBeNull();
     expect(parsed!.schedule.id).toBe('sec-1');
     expect(parsed!.schedule.name).toBe('Design');
-    expect(parsed!.phases.length).toBe(1);
-    expect(parsed!.milestones.length).toBe(1);
+    expect(parsed!.items).toHaveLength(2);
+    expect(parsed!.items[0].children).toHaveLength(2);
   });
 
-  it('parseScheduleFloid returns null for invalid data', () => {
+  it('returns null for invalid data', () => {
     expect(parseScheduleFloid('not json')).toBeNull();
     expect(parseScheduleFloid(JSON.stringify({ format: 'wrong' }))).toBeNull();
   });
@@ -233,7 +265,7 @@ describe('analyzeScheduleImport', () => {
   function makeImportData(overrides: Partial<ScheduleExportData> = {}): ScheduleExportData {
     return {
       format: 'floid',
-      version: '2.0',
+      version: '3.0',
       exportedAt: new Date().toISOString(),
       sourceProjectId: 'other-proj',
       sourceProjectName: 'Other Project',
@@ -244,73 +276,60 @@ describe('analyzeScheduleImport', () => {
         lastModifiedAt: new Date().toISOString(),
         color: '#3b82f6',
       },
-      projectDates: {
-        startDate: project.projectStartDate,
-        endDate: project.projectEndDate,
-      },
-      scheduleDates: {
-        startDate: '2025-01-01T00:00:00.000Z',
-        endDate: '2025-07-01T00:00:00.000Z',
-      },
-      phases: [],
-      milestones: [],
+      projectDates: { startDate: project.projectStartDate, endDate: project.projectEndDate },
+      scheduleDates: { startDate: '2025-01-01', endDate: '2025-07-01' },
+      items: [],
       ...overrides,
     };
   }
 
-  it('detects new schedule (no existing match)', () => {
-    const data = makeImportData({ schedule: { id: 'new-id', name: 'New', revision: 1, lastModifiedAt: '', color: '#000' } });
-    const result = analyzeScheduleImport(data, project, [makeSection()]);
-    expect(result.type).toBe('new-schedule');
+  it('detects a schedule it has never seen', () => {
+    const data = makeImportData({
+      schedule: { id: 'new-id', name: 'New', revision: 1, lastModifiedAt: '', color: '#000' },
+    });
+    expect(analyzeScheduleImport(data, project, [makeSection()]).type).toBe('new-schedule');
   });
 
-  it('detects newer update', () => {
-    const existing = makeSection({ revision: 3 });
-    const data = makeImportData({ schedule: { id: 'sec-1', name: 'Design', revision: 5, lastModifiedAt: '', color: '#000' } });
-    const result = analyzeScheduleImport(data, project, [existing]);
+  it('detects a newer revision', () => {
+    const result = analyzeScheduleImport(makeImportData(), project, [makeSection({ revision: 3 })]);
     expect(result.type).toBe('update-newer');
     expect(result.revisionDelta).toBe(2);
   });
 
-  it('detects older update', () => {
-    const existing = makeSection({ revision: 5 });
-    const data = makeImportData({ schedule: { id: 'sec-1', name: 'Design', revision: 3, lastModifiedAt: '', color: '#000' } });
-    const result = analyzeScheduleImport(data, project, [existing]);
+  it('detects an older revision', () => {
+    const data = makeImportData({
+      schedule: { id: 'sec-1', name: 'Design', revision: 3, lastModifiedAt: '', color: '#000' },
+    });
+    const result = analyzeScheduleImport(data, project, [makeSection({ revision: 5 })]);
     expect(result.type).toBe('update-older');
     expect(result.revisionDelta).toBe(-2);
   });
 
-  it('detects same revision', () => {
-    const existing = makeSection({ revision: 5 });
-    const data = makeImportData();
-    const result = analyzeScheduleImport(data, project, [existing]);
+  it('detects the same revision', () => {
+    const result = analyzeScheduleImport(makeImportData(), project, [makeSection({ revision: 5 })]);
     expect(result.type).toBe('update-same');
     expect(result.revisionDelta).toBe(0);
   });
 
-  it('detects name collision', () => {
+  it('detects a name collision on a different schedule', () => {
     const existing = makeSection({ id: 'different-id', name: 'Design' });
-    const data = makeImportData({ schedule: { id: 'sec-1', name: 'Design', revision: 1, lastModifiedAt: '', color: '#000' } });
-    const result = analyzeScheduleImport(data, project, [existing]);
-    expect(result.type).toBe('name-collision');
+    const data = makeImportData({
+      schedule: { id: 'sec-1', name: 'Design', revision: 1, lastModifiedAt: '', color: '#000' },
+    });
+    expect(analyzeScheduleImport(data, project, [existing]).type).toBe('name-collision');
   });
 
-  it('detects date mismatch', () => {
+  it('flags a schedule that was drawn against different dates', () => {
     const data = makeImportData({
-      scheduleDates: { startDate: '2024-01-01T00:00:00.000Z', endDate: '2024-07-01T00:00:00.000Z' },
+      scheduleDates: { startDate: '2024-01-01', endDate: '2024-07-01' },
     });
-    const result = analyzeScheduleImport(data, project, []);
-    expect(result.dateMismatch).toBe(true);
+    expect(analyzeScheduleImport(data, project, []).dateMismatch).toBe(true);
   });
 
-  it('detects no date mismatch when aligned', () => {
+  it('does not flag one that lines up', () => {
     const data = makeImportData({
-      scheduleDates: {
-        startDate: project.projectStartDate,
-        endDate: project.projectEndDate,
-      },
+      scheduleDates: { startDate: project.projectStartDate, endDate: project.projectEndDate },
     });
-    const result = analyzeScheduleImport(data, project, []);
-    expect(result.dateMismatch).toBe(false);
+    expect(analyzeScheduleImport(data, project, []).dateMismatch).toBe(false);
   });
 });

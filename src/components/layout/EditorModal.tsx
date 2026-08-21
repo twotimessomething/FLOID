@@ -1,12 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useUIStore } from '../../stores/uiStore';
-import {
-  PhaseEditor,
-  TaskEditor,
-  MilestoneEditor,
-  SectionEditor,
-  BarMilestoneEditor,
-} from '../panels';
+import { SectionEditor } from '../panels/SectionEditor';
+import { ItemEditor } from '../panels/ItemEditor';
 
 const MODAL_WIDTH = 280;
 const MODAL_MAX_HEIGHT = 400;
@@ -92,14 +87,8 @@ export function EditorModal(): JSX.Element | null {
     switch (selection.type) {
       case 'section':
         return <SectionEditor />;
-      case 'phase':
-        return <PhaseEditor />;
-      case 'task':
-        return <TaskEditor />;
-      case 'milestone':
-        return <MilestoneEditor />;
-      case 'barMilestone':
-        return <BarMilestoneEditor />;
+      case 'item':
+        return <ItemEditor />;
       default:
         return null;
     }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, Section, ProjectSettings } from '../types';
+import type { Project, Section, TimelineItem, ProjectSettings } from '../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../types';
 import { createDefaultProject, createDefaultIDTimelineSection } from '../data/defaultTemplate';
 import { generateId } from '../utils/idUtils';
@@ -19,6 +19,8 @@ import {
   type ProjectIndexEntry,
 } from '../utils/storageUtils';
 import { getSectionsDateRange } from '../utils/dateUtils';
+import { toDayKey } from '../utils/dayKeys';
+import { remapItemIds } from '../utils/itemTree';
 
 // Configuration for creating a new project
 export interface NewProjectConfig {
@@ -58,27 +60,29 @@ interface ProjectState {
   loadProjectData: (projectId: string) => Promise<{ sections: Section[] } | null>;
 }
 
-// Inject a "Start" milestone at relativePosition 0 to seed the milestone affordance.
-// Skips if a milestone already exists at that position (e.g. from a template).
+// A schedule opens with one milestone on its first day, so the marker
+// affordance is visible before the user has drawn anything. Templates that
+// already mark that day keep their own.
 const seedStartMilestone = (section: Section): Section => {
-  if (section.milestones.some((m) => m.relativePosition === 0)) {
-    return section;
-  }
-  const startMilestone = {
+  const hasStartMarker = section.items.some(
+    (item) => item.kind === 'milestone' && item.start === section.startDate
+  );
+  if (hasStartMarker) return section;
+
+  const startMilestone: TimelineItem = {
     id: generateId(),
-    sectionId: section.id,
+    kind: 'milestone',
     name: 'Start',
     description: '',
-    relativePosition: 0,
-    order: 0,
+    start: section.startDate,
+    end: section.startDate,
+    color: null,
+    isCollapsed: false,
+    children: [],
   };
-  return {
-    ...section,
-    milestones: [
-      startMilestone,
-      ...section.milestones.map((m) => ({ ...m, order: m.order + 1 })),
-    ],
-  };
+  // Root milestones sit on the schedule's own row, so appending leaves the
+  // order of the bar rows below it untouched.
+  return { ...section, items: [...section.items, startMilestone] };
 };
 
 // Helper to create a default project with its first (pinned) section
@@ -204,8 +208,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   createProject: async (config) => {
-    const startDateStr = config.startDate.toISOString();
-    const endDateStr = config.endDate.toISOString();
+    const startDateStr = toDayKey(config.startDate);
+    const endDateStr = toDayKey(config.endDate);
     const dateRange = { startDate: startDateStr, endDate: endDateStr };
 
     let projectSections: Section[];
@@ -294,18 +298,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       updatedAt: now,
     };
 
-    // Update sections with new IDs
+    // Every id in the file is regenerated, item trees included, so an imported
+    // copy can sit alongside the project it was exported from.
     const newSections: Section[] = importedSections.map((section) => ({
       ...section,
       id: sectionIdMap.get(section.id) ?? section.id,
-      phases: section.phases.map((phase) => ({
-        ...phase,
-        sectionId: sectionIdMap.get(section.id) ?? section.id,
-      })),
-      milestones: section.milestones.map((milestone) => ({
-        ...milestone,
-        sectionId: sectionIdMap.get(section.id) ?? section.id,
-      })),
+      items: section.items.map((item) => remapItemIds(item, generateId)),
     }));
 
     const projectEntry: ProjectIndexEntry = {

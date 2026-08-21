@@ -7,6 +7,7 @@ import { useScheduleImport } from '../../hooks/useScheduleImport';
 import { useFileSystemAutoSave } from '../../hooks/useFileSystemAutoSave';
 import { isFileSystemAccessSupported } from '../../utils/fileSystemUtils';
 import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
+import { ZoomControls } from '../controls/ZoomControls';
 
 function Logo(): JSX.Element {
   const theme = useUIStore((state) => state.theme);
@@ -156,6 +157,7 @@ export function Header(): JSX.Element {
       </div>
 
       <div className="flex items-center gap-4">
+        {project && <ZoomControls />}
         <SyncStatusIndicator />
         <button
           onClick={handleImport}

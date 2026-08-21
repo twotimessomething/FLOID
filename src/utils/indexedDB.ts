@@ -195,30 +195,33 @@ export async function setFileHandle(handle: FileSystemDirectoryHandle | null): P
   }
 }
 
-// Validate that project data has required date fields
+/**
+ * A shallow "is this a project at all?" check, deliberately blind to the shape
+ * of a schedule's contents. Records written by older versions are still valid
+ * projects — they are brought up to date on the way out of storage, and
+ * anything stricter here would discard them before that can happen.
+ */
 function isValidStoredData(data: unknown): data is StoredData {
   if (!data || typeof data !== 'object') return false;
-  const d = data as Record<string, unknown>;
+  const record = data as Record<string, unknown>;
 
-  // Check project exists and has required date fields
-  if (!d.project || typeof d.project !== 'object') return false;
-  const project = d.project as Record<string, unknown>;
-  if (typeof project.projectStartDate !== 'string' || typeof project.projectEndDate !== 'string') {
+  const project = record.project;
+  if (!project || typeof project !== 'object') return false;
+  const projectFields = project as Record<string, unknown>;
+  if (
+    typeof projectFields.projectStartDate !== 'string' ||
+    typeof projectFields.projectEndDate !== 'string'
+  ) {
     return false;
   }
 
-  // Check sections array exists
-  if (!Array.isArray(d.sections)) return false;
+  if (!Array.isArray(record.sections)) return false;
 
-  // Validate each section has date fields
-  for (const section of d.sections) {
+  return record.sections.every((section: unknown) => {
     if (!section || typeof section !== 'object') return false;
-    if (typeof section.startDate !== 'string' || typeof section.endDate !== 'string') {
-      return false;
-    }
-  }
-
-  return true;
+    const fields = section as Record<string, unknown>;
+    return typeof fields.startDate === 'string' && typeof fields.endDate === 'string';
+  });
 }
 
 // Migration helper: Check if localStorage has data to migrate
@@ -251,8 +254,10 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
       const projectDataStr = localStorage.getItem(projectKey);
       if (projectDataStr) {
         try {
-          const projectData = JSON.parse(projectDataStr);
+          const projectData: unknown = JSON.parse(projectDataStr);
           if (isValidStoredData(projectData)) {
+            // Copied across verbatim; loadProjectFromStorage migrates on read,
+            // so nothing is rewritten until the user next saves.
             await setProjectData(entry.id, projectData);
             validEntries.push(entry);
           } else {
@@ -267,7 +272,6 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
     // Only migrate valid entries
     if (validEntries.length > 0) {
       await setProjectsIndex(validEntries);
-      console.log(`Migrated ${validEntries.length} projects from localStorage to IndexedDB`);
     }
 
     return validEntries.length > 0;

@@ -1,17 +1,15 @@
 import { useMemo } from 'react';
 import { useViewport } from '../../hooks/useViewport';
-import { useUIStore } from '../../stores/uiStore';
-import { getTimeMarkers, getDaysBetween } from '../../utils/dateUtils';
-import { getPositionFromRelative, calculateSectionHeight } from '../../utils/timelineUtils';
+import { getTimeMarkers } from '../../utils/dateUtils';
+import { calculateSectionHeight, dayToX } from '../../utils/timelineUtils';
+import { toDayKey } from '../../utils/dayKeys';
 import { usePinnedSection } from '../../hooks/usePinnedSection';
 
 export function TimelineGrid(): JSX.Element {
-  const { viewportBounds, timelineWidth } = useViewport();
-  const { zoomLevel } = useUIStore();
+  const { viewportBounds, pixelsPerDay, markerZoom } = useViewport();
   const { pinnedSection, unpinnedSections } = usePinnedSection();
 
-  const markers = getTimeMarkers(viewportBounds.startDate, viewportBounds.endDate, zoomLevel);
-  const totalDays = viewportBounds.totalDays;
+  const markers = getTimeMarkers(viewportBounds.startDate, viewportBounds.endDate, markerZoom);
 
   // Calculate total height for vertical gridlines (exact section height, no minimum)
   const sectionHeight = useMemo(() => {
@@ -39,9 +37,7 @@ export function TimelineGrid(): JSX.Element {
       {markers.map((marker, index) => {
         if (marker.isMinor) return null;
 
-        const daysSinceStart = getDaysBetween(viewportBounds.startDate, marker.date);
-        const relativePos = totalDays > 0 ? daysSinceStart / totalDays : 0;
-        const left = getPositionFromRelative(relativePos, timelineWidth);
+        const left = dayToX(toDayKey(marker.date), viewportBounds, pixelsPerDay);
 
         return (
           <div

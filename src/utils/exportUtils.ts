@@ -1,8 +1,15 @@
-import type { Project, Section } from '../types';
-import { getPhaseColor } from '../types';
-import type { ScheduleExportData, ImportAnalysis, ExportPhase, ExportMilestone, ProjectExportData } from '../types/scheduleExport';
-import { getDateFromRelativePosition, computeViewportBounds, sectionToViewportRelative, getMonthMarkers } from './dateUtils';
-import { format, differenceInDays } from 'date-fns';
+import type { Project } from '../types/project';
+import type { Section, TimelineItem } from '../types/timeline';
+import type { LegacySection } from '../types/legacy';
+import type {
+  ImportAnalysis,
+  ProjectExportData,
+  ScheduleExportData,
+} from '../types/scheduleExport';
+import { computeViewportBounds, getMonthMarkers, getSectionsDateRange } from './dateUtils';
+import { dayKeyDiff, normalizeDayKey, toDayKey, todayKey } from './dayKeys';
+import { migrateSections } from './migrateLegacy';
+import { flattenSection, headerMilestones, type FlatRow } from './timelineUtils';
 import { setAppSettings } from './indexedDB';
 import { sanitizeFilename } from './stringUtils';
 import { getReadableTextColor } from './colorUtils';
@@ -13,93 +20,85 @@ import {
   LABEL_WIDTH,
   HEADER_HEIGHT,
   ROW_HEIGHT,
-  TASK_ROW_HEIGHT,
+  NESTED_ROW_HEIGHT,
   BAR_HEIGHT,
-  TASK_BAR_HEIGHT,
+  NESTED_BAR_HEIGHT,
+  NESTED_BAR_ALPHA,
 } from '../constants/exportDimensions';
 
-// Helper to compute absolute dates for phases
-const computePhaseAbsoluteDates = (phase: Section['phases'][0], section: Section): ExportPhase => {
-  const startDate = getDateFromRelativePosition(
-    section.startDate,
-    section.endDate,
-    phase.relativeStart
-  );
-  const endDate = getDateFromRelativePosition(
-    section.startDate,
-    section.endDate,
-    phase.relativeEnd
-  );
+/**
+ * Reading and writing files.
+ *
+ * Items hold absolute dates, so a written file is the item tree as it stands —
+ * no field-by-field rebuild on either side, which is what used to drop whatever
+ * the format had not been taught about. Anything older than the item model is
+ * handed to `migrateLegacy` on the way in and is v3 by the time it is returned.
+ */
 
-  return {
-    ...phase,
-    absoluteStart: format(startDate, 'yyyy-MM-dd'),
-    absoluteEnd: format(endDate, 'yyyy-MM-dd'),
+/** Loosely typed view of a parsed project file, whatever version wrote it. */
+interface RawProjectFile {
+  readonly format?: unknown;
+  readonly version?: unknown;
+  readonly exportedAt?: unknown;
+  readonly project?: {
+    readonly id?: string;
+    readonly name?: string;
+    readonly pinnedSectionId?: string | null;
+    readonly masterSectionId?: string;
+    readonly projectStartDate?: string;
+    readonly projectEndDate?: string;
+    readonly createdAt?: string;
+    readonly updatedAt?: string;
   };
-};
-
-// Helper to compute absolute dates for milestones
-const computeMilestoneAbsoluteDate = (milestone: Section['milestones'][0], section: Section): ExportMilestone => {
-  const date = getDateFromRelativePosition(
-    section.startDate,
-    section.endDate,
-    milestone.relativePosition
-  );
-
-  return {
-    ...milestone,
-    absoluteDate: format(date, 'yyyy-MM-dd'),
-  };
-};
-
-// Full project export (v2.0 format)
-export const exportProjectToJson = (project: Project, sections: Section[]): ProjectExportData => {
-  return {
-    format: 'floid-project',
-    version: '2.0',
-    exportedAt: new Date().toISOString(),
-    project: {
-      id: project.id,
-      name: project.name,
-      pinnedSectionId: project.pinnedSectionId,
-      projectStartDate: project.projectStartDate,
-      projectEndDate: project.projectEndDate,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
-    },
-    sections: sections.map((section) => ({
-      id: section.id,
-      name: section.name,
-      type: section.type,
-      templateId: section.templateId,
-      revision: section.revision,
-      lastModifiedAt: section.lastModifiedAt,
-      sourceProjectId: section.sourceProjectId,
-      sourceProjectName: section.sourceProjectName,
-      order: section.order,
-      startDate: section.startDate,
-      endDate: section.endDate,
-      color: section.color,
-      isMulticolor: section.isMulticolor,
-      isCollapsed: section.isCollapsed,
-      phases: section.phases.map((phase) => computePhaseAbsoluteDates(phase, section)),
-      milestones: section.milestones.map((milestone) => computeMilestoneAbsoluteDate(milestone, section)),
-    })),
-  };
-};
-
-// Legacy export format for backwards compatibility during transition
-export interface LegacyExportData {
-  version: number;
-  exportedAt: string;
-  project: Project & { masterSectionId?: string };
-  sections: Section[];
+  readonly sections?: unknown;
 }
 
-export const exportToJson = (project: Project, sections: Section[]): string => {
-  const data = exportProjectToJson(project, sections);
-  return JSON.stringify(data, null, 2);
-};
+/** Loosely typed view of a parsed `.floid` file, v2 or v3. */
+interface RawScheduleFile {
+  readonly format?: unknown;
+  readonly version?: unknown;
+  readonly exportedAt?: unknown;
+  readonly sourceProjectId?: string;
+  readonly sourceProjectName?: string;
+  readonly schedule?: {
+    readonly id?: string;
+    readonly name?: string;
+    readonly templateId?: string;
+    readonly revision?: number;
+    readonly lastModifiedAt?: string;
+    readonly color?: string;
+    readonly isMulticolor?: boolean;
+    readonly isLocked?: boolean;
+  };
+  readonly projectDates?: { readonly startDate?: string; readonly endDate?: string };
+  readonly scheduleDates?: { readonly startDate?: string; readonly endDate?: string };
+  readonly items?: unknown;
+  readonly phases?: unknown;
+  readonly milestones?: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Full project — .floid
+// ---------------------------------------------------------------------------
+
+export const exportProjectToJson = (project: Project, sections: Section[]): ProjectExportData => ({
+  format: 'floid-project',
+  version: '3.0',
+  exportedAt: new Date().toISOString(),
+  project: {
+    id: project.id,
+    name: project.name,
+    pinnedSectionId: project.pinnedSectionId,
+    projectStartDate: project.projectStartDate,
+    projectEndDate: project.projectEndDate,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt,
+  },
+  sections,
+});
+
+export const exportToJson = (project: Project, sections: Section[]): string =>
+  JSON.stringify(exportProjectToJson(project, sections), null, 2);
 
 export const downloadProjectJson = async (project: Project, sections: Section[]): Promise<void> => {
   const json = exportToJson(project, sections);
@@ -120,83 +119,60 @@ export const downloadProjectJson = async (project: Project, sections: Section[])
   await setAppSettings({ lastBackupDate: new Date().toISOString() });
 };
 
-
+/**
+ * Read a project file: v3.0, v2.0, and the numeric `version: 2` shape that
+ * predates the string versions. Everything comes back as v3.0.
+ */
 export const parseProjectJson = (json: string): ProjectExportData | null => {
   try {
-    const data = JSON.parse(json);
+    const raw = JSON.parse(json) as RawProjectFile;
 
-    // Support v2.0 format
-    if (data.format === 'floid-project' && data.version === '2.0') {
-      // Ensure isCollapsed has a default value
-      const result = data as ProjectExportData;
-      // Map legacy master exports to the pin model
-      result.project.pinnedSectionId =
-        result.project.pinnedSectionId ?? result.project.masterSectionId ?? null;
-      result.sections = result.sections.map((section) => ({
-        ...section,
-        isMulticolor:
-          section.isMulticolor ??
-          (section.id === result.project.pinnedSectionId ? true : undefined),
-        isCollapsed: section.isCollapsed ?? false,
-      }));
-      return result;
-    }
+    const isTagged = raw.format === 'floid-project' && (raw.version === '3.0' || raw.version === '2.0');
+    const isNumbered = raw.version === 2;
+    if (!isTagged && !isNumbered) throw new Error('Unknown format');
 
-    // Support legacy format (version: 2)
-    if (data.version === 2 && data.project && data.sections) {
-      // Convert legacy format to v2.0
-      const legacyData = data as LegacyExportData;
-      return {
-        format: 'floid-project',
-        version: '2.0',
-        exportedAt: legacyData.exportedAt,
-        project: {
-          id: legacyData.project.id,
-          name: legacyData.project.name,
-          pinnedSectionId: legacyData.project.pinnedSectionId ?? legacyData.project.masterSectionId ?? null,
-          projectStartDate: legacyData.project.projectStartDate,
-          projectEndDate: legacyData.project.projectEndDate,
-          createdAt: legacyData.project.createdAt,
-          updatedAt: legacyData.project.updatedAt,
-        },
-        sections: legacyData.sections.map((section) => ({
-          id: section.id,
-          name: section.name,
-          type: section.type,
-          templateId: section.templateId,
-          revision: section.revision,
-          lastModifiedAt: section.lastModifiedAt,
-          sourceProjectId: section.sourceProjectId,
-          sourceProjectName: section.sourceProjectName,
-          order: section.order,
-          startDate: section.startDate,
-          endDate: section.endDate,
-          color: section.color,
-          isMulticolor: section.isMulticolor ?? (section.id === legacyData.project.masterSectionId ? true : undefined),
-          isCollapsed: section.isCollapsed ?? false,
-          // Legacy format doesn't have absolute dates, so we compute them
-          phases: section.phases.map((phase) => ({
-            ...phase,
-            absoluteStart: format(getDateFromRelativePosition(section.startDate, section.endDate, phase.relativeStart), 'yyyy-MM-dd'),
-            absoluteEnd: format(getDateFromRelativePosition(section.startDate, section.endDate, phase.relativeEnd), 'yyyy-MM-dd'),
-          })),
-          milestones: section.milestones.map((milestone) => ({
-            ...milestone,
-            absoluteDate: format(getDateFromRelativePosition(section.startDate, section.endDate, milestone.relativePosition), 'yyyy-MM-dd'),
-          })),
-        })),
-      };
-    }
+    const rawProject = raw.project;
+    if (!rawProject || !Array.isArray(raw.sections)) throw new Error('Missing project or sections');
 
-    throw new Error('Unknown format');
+    // Exports written before the pin model named the same schedule differently
+    const pinnedSectionId = rawProject.pinnedSectionId ?? rawProject.masterSectionId ?? null;
+
+    const sections = migrateSections(raw.sections).map((section) => ({
+      ...section,
+      // A master schedule always drew its phases in palette colours; a pinned one opts in
+      isMulticolor: section.isMulticolor ?? (section.id === pinnedSectionId ? true : undefined),
+    }));
+
+    const derived = getSectionsDateRange(sections);
+
+    return {
+      format: 'floid-project',
+      version: '3.0',
+      exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : new Date().toISOString(),
+      project: {
+        id: rawProject.id ?? '',
+        name: rawProject.name ?? 'Imported Project',
+        pinnedSectionId,
+        // Old files stored full ISO timestamps; the app compares day keys
+        projectStartDate: normalizeDayKey(
+          rawProject.projectStartDate ?? derived?.startDate ?? todayKey()
+        ),
+        projectEndDate: normalizeDayKey(rawProject.projectEndDate ?? derived?.endDate ?? todayKey()),
+        createdAt: rawProject.createdAt ?? new Date().toISOString(),
+        updatedAt: rawProject.updatedAt ?? new Date().toISOString(),
+      },
+      sections,
+    };
   } catch (error) {
     console.error('Failed to parse project JSON:', error);
     return null;
   }
 };
 
-// Convert ProjectExportData back to runtime types (strips absolute dates from phases/milestones)
-export const convertImportedProject = (data: ProjectExportData): { project: Project; sections: Section[] } => {
+/** Turn a parsed file back into the runtime shapes the stores hold. */
+export const convertImportedProject = (
+  data: ProjectExportData
+): { project: Project; sections: Section[] } => {
   const project: Project = {
     id: data.project.id,
     name: data.project.name,
@@ -207,79 +183,41 @@ export const convertImportedProject = (data: ProjectExportData): { project: Proj
     updatedAt: data.project.updatedAt,
   };
 
-  const sections: Section[] = data.sections.map((section) => ({
+  // Migrating again is a no-op on v3 sections, and covers a caller that built
+  // the export data by hand rather than through parseProjectJson.
+  return { project, sections: migrateSections(data.sections) };
+};
+
+// ---------------------------------------------------------------------------
+// Single schedule — .floid
+// ---------------------------------------------------------------------------
+
+export const exportScheduleToFloid = (project: Project, section: Section): ScheduleExportData => ({
+  format: 'floid',
+  version: '3.0',
+  exportedAt: new Date().toISOString(),
+  sourceProjectId: project.id,
+  sourceProjectName: project.name,
+  schedule: {
     id: section.id,
     name: section.name,
-    type: section.type,
     templateId: section.templateId,
     revision: section.revision,
     lastModifiedAt: section.lastModifiedAt,
-    sourceProjectId: section.sourceProjectId,
-    sourceProjectName: section.sourceProjectName,
-    order: section.order,
-    startDate: section.startDate,
-    endDate: section.endDate,
     color: section.color,
     isMulticolor: section.isMulticolor,
-    isCollapsed: section.isCollapsed,
-    // Strip absolute dates from phases (keep relative positions)
-    phases: section.phases.map((phase) => ({
-      id: phase.id,
-      sectionId: phase.sectionId,
-      name: phase.name,
-      description: phase.description,
-      color: phase.color,
-      order: phase.order,
-      isCollapsed: phase.isCollapsed,
-      relativeStart: phase.relativeStart,
-      relativeEnd: phase.relativeEnd,
-      tasks: phase.tasks,
-    })),
-    // Strip absolute dates from milestones (keep relative positions)
-    milestones: section.milestones.map((milestone) => ({
-      id: milestone.id,
-      sectionId: milestone.sectionId,
-      name: milestone.name,
-      description: milestone.description,
-      relativePosition: milestone.relativePosition,
-      order: milestone.order,
-    })),
-  }));
-
-  return { project, sections };
-};
-
-
-// Schedule-specific export/import functions for .floid files
-
-export const exportScheduleToFloid = (project: Project, section: Section): ScheduleExportData => {
-  return {
-    format: 'floid',
-    version: '2.0',
-    exportedAt: new Date().toISOString(),
-    sourceProjectId: project.id,
-    sourceProjectName: project.name,
-    schedule: {
-      id: section.id,
-      name: section.name,
-      templateId: section.templateId,
-      revision: section.revision,
-      lastModifiedAt: section.lastModifiedAt,
-      color: section.color,
-      isMulticolor: section.isMulticolor,
-    },
-    projectDates: {
-      startDate: project.projectStartDate,
-      endDate: project.projectEndDate,
-    },
-    scheduleDates: {
-      startDate: section.startDate,
-      endDate: section.endDate,
-    },
-    phases: section.phases.map((phase) => computePhaseAbsoluteDates(phase, section)),
-    milestones: section.milestones.map((milestone) => computeMilestoneAbsoluteDate(milestone, section)),
-  };
-};
+    isLocked: section.isLocked,
+  },
+  projectDates: {
+    startDate: project.projectStartDate,
+    endDate: project.projectEndDate,
+  },
+  scheduleDates: {
+    startDate: section.startDate,
+    endDate: section.endDate,
+  },
+  items: section.items,
+});
 
 export const downloadScheduleFloid = async (project: Project, section: Section): Promise<void> => {
   const data = exportScheduleToFloid(project, section);
@@ -301,24 +239,74 @@ export const downloadScheduleFloid = async (project: Project, section: Section):
   await setAppSettings({ lastBackupDate: new Date().toISOString() });
 };
 
+/**
+ * One reader for both wire versions. A v2 file carries `phases`/`milestones`
+ * and a v3 file carries `items`, which is exactly the test the legacy migration
+ * already makes — so the file is handed over as a section and read back.
+ */
+const readScheduleItems = (raw: RawScheduleFile): TimelineItem[] => {
+  const candidate: Partial<LegacySection> & { items?: unknown } = {
+    id: raw.schedule?.id,
+    name: raw.schedule?.name,
+    color: raw.schedule?.color,
+    startDate: raw.scheduleDates?.startDate,
+    endDate: raw.scheduleDates?.endDate,
+    items: raw.items,
+    phases: raw.phases as LegacySection['phases'],
+    milestones: raw.milestones as LegacySection['milestones'],
+  };
+  const [section] = migrateSections([candidate]);
+  return section.items;
+};
+
 export const parseScheduleFloid = (json: string): ScheduleExportData | null => {
   try {
-    const data = JSON.parse(json);
-    // Validate .floid format (v2.0)
-    if (
-      data.format === 'floid' &&
-      data.version === '2.0' &&
-      data.sourceProjectId &&
-      data.sourceProjectName &&
-      data.schedule?.id &&
-      data.schedule?.name &&
-      data.scheduleDates?.startDate &&
-      data.scheduleDates?.endDate &&
-      data.phases
-    ) {
-      return data as ScheduleExportData;
-    }
-    throw new Error('Invalid .floid v2.0 format');
+    const raw = JSON.parse(json) as RawScheduleFile;
+
+    const hasContent = Array.isArray(raw.items) || Array.isArray(raw.phases);
+    const isReadable =
+      raw.format === 'floid' &&
+      (raw.version === '3.0' || raw.version === '2.0') &&
+      Boolean(raw.sourceProjectId) &&
+      Boolean(raw.sourceProjectName) &&
+      Boolean(raw.schedule?.id) &&
+      Boolean(raw.schedule?.name) &&
+      Boolean(raw.scheduleDates?.startDate) &&
+      Boolean(raw.scheduleDates?.endDate) &&
+      hasContent;
+
+    if (!isReadable) throw new Error('Invalid .floid format');
+
+    const schedule = raw.schedule as NonNullable<RawScheduleFile['schedule']>;
+    const scheduleDates = raw.scheduleDates as NonNullable<RawScheduleFile['scheduleDates']>;
+    const projectDates = raw.projectDates ?? scheduleDates;
+
+    return {
+      format: 'floid',
+      version: '3.0',
+      exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : new Date().toISOString(),
+      sourceProjectId: raw.sourceProjectId ?? '',
+      sourceProjectName: raw.sourceProjectName ?? '',
+      schedule: {
+        id: schedule.id ?? '',
+        name: schedule.name ?? '',
+        templateId: schedule.templateId,
+        revision: schedule.revision ?? 1,
+        lastModifiedAt: schedule.lastModifiedAt ?? new Date().toISOString(),
+        color: schedule.color ?? '#3b82f6',
+        isMulticolor: schedule.isMulticolor,
+        isLocked: schedule.isLocked,
+      },
+      projectDates: {
+        startDate: normalizeDayKey(projectDates.startDate ?? scheduleDates.startDate ?? todayKey()),
+        endDate: normalizeDayKey(projectDates.endDate ?? scheduleDates.endDate ?? todayKey()),
+      },
+      scheduleDates: {
+        startDate: normalizeDayKey(scheduleDates.startDate ?? todayKey()),
+        endDate: normalizeDayKey(scheduleDates.endDate ?? todayKey()),
+      },
+      items: readScheduleItems(raw),
+    };
   } catch (error) {
     console.error('Failed to parse .floid file:', error);
     return null;
@@ -389,8 +377,38 @@ export const analyzeScheduleImport = (
   };
 };
 
-// Export timeline as image (1920x1080 PNG)
-// Renders the FULL timeline programmatically - all sections, phases, and tasks
+// ---------------------------------------------------------------------------
+// Image — .png
+// ---------------------------------------------------------------------------
+
+/** The image is drawn tighter than the screen, but on the same two-step scale. */
+const imageRowHeight = (depth: number): number => (depth === 0 ? ROW_HEIGHT : NESTED_ROW_HEIGHT);
+const imageBarHeight = (depth: number): number => (depth === 0 ? BAR_HEIGHT : NESTED_BAR_HEIGHT);
+
+/** A schedule with its rows, measured once and drawn from the same list. */
+interface SectionPlan {
+  readonly section: Section;
+  readonly rows: readonly FlatRow[];
+  readonly bodyHeight: number;
+}
+
+/** A PNG has nothing to click open, so everything is drawn expanded. */
+const expandItems = (items: readonly TimelineItem[]): TimelineItem[] =>
+  items.map((item) => ({ ...item, isCollapsed: false, children: expandItems(item.children) }));
+
+const expandSection = (section: Section): Section => ({
+  ...section,
+  isCollapsed: false,
+  items: expandItems(section.items),
+});
+
+/**
+ * Draw the whole timeline to a 1920x1080 PNG.
+ *
+ * The rows come from `flattenSection`, the same function the screen lays out
+ * with, so an item nested four deep needs nothing added here — it arrives with
+ * its depth and its resolved colour already worked out.
+ */
 export const exportTimelineAsImage = async (
   project: Project,
   sections: Section[]
@@ -412,9 +430,9 @@ export const exportTimelineAsImage = async (
     textSecondary: getColor('--color-text-secondary', '#6a6a70'),
     textMuted: getColor('--color-text-muted', '#9e9ea4'),
     border: getColor('--color-border', '#dcdcdc'),
-    hover: getColor('--color-hover', 'rgba(23, 23, 26, 0.04)'),
     gridline: getColor('--color-gridline', 'rgba(255, 255, 255, 0.85)'),
-    today: getColor('--color-today', 'rgba(23, 23, 26, 0.32)'),
+    milestoneLine: getColor('--color-milestone-line', 'rgba(23, 23, 26, 0.1)'),
+    today: getColor('--color-today', '#f34e42'),
   };
 
   // Sort sections by order (pinned section first)
@@ -424,16 +442,18 @@ export const exportTimelineAsImage = async (
     return a.order - b.order;
   });
 
-  // Calculate total content height (all expanded)
-  let totalHeight = HEADER_HEIGHT;
-  for (const section of sortedSections) {
-    totalHeight += ROW_HEIGHT; // Section row
-    for (const phase of section.phases) {
-      totalHeight += ROW_HEIGHT; // Phase row
-      totalHeight += phase.tasks.length * TASK_ROW_HEIGHT; // Task rows
-    }
-  }
-  totalHeight += PADDING; // Bottom padding
+  const plans: SectionPlan[] = sortedSections.map((section) => {
+    const expanded = expandSection(section);
+    const rows = flattenSection(expanded);
+    const bodyHeight = rows.reduce((sum, row) => sum + imageRowHeight(row.depth), 0);
+    return { section: expanded, rows, bodyHeight };
+  });
+
+  // Calculate total content height
+  const totalHeight =
+    HEADER_HEIGHT +
+    plans.reduce((sum, plan) => sum + ROW_HEIGHT + plan.bodyHeight, 0) +
+    PADDING;
 
   // Create canvas
   const canvas = document.createElement('canvas');
@@ -450,18 +470,29 @@ export const exportTimelineAsImage = async (
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   // Calculate viewport bounds from all sections
-  const viewport = computeViewportBounds(sortedSections);
+  const viewport = computeViewportBounds(plans.map((plan) => plan.section));
   const timelineWidth = WIDTH - LABEL_WIDTH - PADDING * 2;
   const timelineX = LABEL_WIDTH + PADDING;
+
+  const xForKey = (key: string): number =>
+    timelineX + (dayKeyDiff(viewport.startKey, key) / viewport.totalDays) * timelineWidth;
 
   // Calculate vertical scaling if content is taller than canvas
   const availableHeight = HEIGHT - HEADER_HEIGHT - PADDING * 2;
   const contentHeight = totalHeight - HEADER_HEIGHT;
   const verticalScale = contentHeight > availableHeight ? availableHeight / contentHeight : 1;
-  const scaledRowHeight = ROW_HEIGHT * verticalScale;
-  const scaledTaskRowHeight = TASK_ROW_HEIGHT * verticalScale;
-  const scaledBarHeight = BAR_HEIGHT * verticalScale;
-  const scaledTaskBarHeight = TASK_BAR_HEIGHT * verticalScale;
+  const scaledSectionRowHeight = ROW_HEIGHT * verticalScale;
+
+  const drawDiamond = (x: number, y: number, size: number, fill: string): void => {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x + size, y);
+    ctx.lineTo(x, y + size);
+    ctx.lineTo(x - size, y);
+    ctx.closePath();
+    ctx.fill();
+  };
 
   // Draw header with month markers
   ctx.fillStyle = colors.surface;
@@ -474,11 +505,10 @@ export const exportTimelineAsImage = async (
   ctx.textAlign = 'center';
 
   for (const marker of monthMarkers) {
-    const days = differenceInDays(marker.date, viewport.startDate);
-    const relativeX = days / viewport.totalDays;
-    const x = timelineX + relativeX * timelineWidth;
+    const x = xForKey(toDayKey(marker.date));
 
     if (x >= timelineX && x <= timelineX + timelineWidth) {
+      ctx.fillStyle = colors.textSecondary;
       ctx.fillText(marker.label, x, HEADER_HEIGHT - 15);
 
       // Draw vertical grid line — lighter than the ground, reads as a gap in the paper
@@ -495,13 +525,9 @@ export const exportTimelineAsImage = async (
   ctx.font = '11px system-ui, -apple-system, sans-serif';
   ctx.fillStyle = colors.textMuted;
   ctx.textAlign = 'center';
-  const year = viewport.startDate.getFullYear();
   const firstMarker = monthMarkers[0];
-  const yearX = firstMarker
-    ? timelineX +
-      (differenceInDays(firstMarker.date, viewport.startDate) / viewport.totalDays) * timelineWidth
-    : timelineX;
-  ctx.fillText(String(year), yearX, HEADER_HEIGHT - 30);
+  const yearX = firstMarker ? xForKey(toDayKey(firstMarker.date)) : timelineX;
+  ctx.fillText(String(viewport.startDate.getFullYear()), yearX, HEADER_HEIGHT - 30);
 
   // Draw project title
   ctx.font = '600 16px system-ui, -apple-system, sans-serif';
@@ -512,185 +538,98 @@ export const exportTimelineAsImage = async (
   // Draw sections
   let y = HEADER_HEIGHT + PADDING;
 
-  for (const section of sortedSections) {
+  for (const plan of plans) {
+    const { section, rows } = plan;
     const isPinned = section.id === project.pinnedSectionId;
-    const sectionHeaderY = y; // Store for milestone positioning
+    const scaledBodyHeight = plan.bodyHeight * verticalScale;
 
-    // Draw section label
-    ctx.font = '13px system-ui, -apple-system, sans-serif';
+    // Draw section label — the schedule is the parent of every row under it
+    ctx.font = '600 13px system-ui, -apple-system, sans-serif';
     ctx.fillStyle = colors.text;
     ctx.textAlign = 'left';
     const sectionLabel = section.name + (isPinned ? ' ★' : '');
-    ctx.fillText(sectionLabel, PADDING, y + scaledRowHeight / 2 + 4, LABEL_WIDTH - PADDING);
+    ctx.fillText(sectionLabel, PADDING, y + scaledSectionRowHeight / 2 + 4, LABEL_WIDTH - PADDING);
 
-    // Draw section milestones on the section header row
-    for (const milestone of section.milestones) {
-      const milestoneViewport = sectionToViewportRelative(milestone.relativePosition, section, viewport);
-      const milestoneX = timelineX + milestoneViewport * timelineWidth;
-      const milestoneY = sectionHeaderY + scaledRowHeight / 2;
+    // Root milestones sit on the schedule's own row and rule a line down past
+    // its items; the pinned schedule's lines run the whole sheet, as on screen.
+    const milestoneY = y + scaledSectionRowHeight / 2;
+    const lineBottom = isPinned ? HEIGHT : y + scaledSectionRowHeight + scaledBodyHeight;
 
-      // Draw milestone diamond
-      ctx.fillStyle = section.color;
-      ctx.beginPath();
+    for (const milestone of headerMilestones(section)) {
+      const x = xForKey(milestone.start);
       const size = 6 * verticalScale;
-      ctx.moveTo(milestoneX, milestoneY - size);
-      ctx.lineTo(milestoneX + size, milestoneY);
-      ctx.lineTo(milestoneX, milestoneY + size);
-      ctx.lineTo(milestoneX - size, milestoneY);
-      ctx.closePath();
-      ctx.fill();
 
-      // Draw milestone label
+      ctx.strokeStyle = colors.milestoneLine;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, milestoneY + size);
+      ctx.lineTo(x, lineBottom);
+      ctx.stroke();
+
+      drawDiamond(x, milestoneY, size, milestone.color ?? section.color);
+
       ctx.font = `${Math.max(9 * verticalScale, 8)}px system-ui, -apple-system, sans-serif`;
       ctx.fillStyle = colors.text;
       ctx.textAlign = 'left';
-      ctx.fillText(milestone.name, milestoneX + size + 4, milestoneY + 3, 100);
+      ctx.fillText(milestone.name, x + size + 4, milestoneY + 3, 100);
     }
 
-    y += scaledRowHeight;
+    y += scaledSectionRowHeight;
 
-    // Draw phases
-    const totalPhases = section.phases.length;
-    const sortedPhases = [...section.phases].sort((a, b) => a.order - b.order);
+    // Draw every item row, at whatever depth it sits
+    for (const row of rows) {
+      const { item, depth, color } = row;
+      const rowHeight = imageRowHeight(depth) * verticalScale;
+      const centerY = y + rowHeight / 2;
+      const indent = PADDING + 16 * (depth + 1);
 
-    for (let phaseIndex = 0; phaseIndex < sortedPhases.length; phaseIndex++) {
-      const phase = sortedPhases[phaseIndex];
-      const phaseColor = getPhaseColor(phase, section, phaseIndex, totalPhases);
-
-      // Draw phase label in left column
-      ctx.font = '12px system-ui, -apple-system, sans-serif';
-      ctx.fillStyle = colors.textSecondary;
+      // Label in the left column, one step lighter and smaller per level down
+      ctx.font = `${Math.max(10, 12 - depth)}px system-ui, -apple-system, sans-serif`;
+      ctx.fillStyle = depth === 0 ? colors.textSecondary : colors.textMuted;
       ctx.textAlign = 'left';
-      ctx.fillText(phase.name, PADDING + 16, y + scaledRowHeight / 2 + 4, LABEL_WIDTH - PADDING - 20);
+      ctx.fillText(item.name, indent, centerY + (depth === 0 ? 4 : 3), LABEL_WIDTH - indent - 4);
 
-      // Calculate phase position in viewport
-      const phaseStartViewport = sectionToViewportRelative(phase.relativeStart, section, viewport);
-      const phaseEndViewport = sectionToViewportRelative(phase.relativeEnd, section, viewport);
-      const phaseX = timelineX + phaseStartViewport * timelineWidth;
-      const phaseWidth = (phaseEndViewport - phaseStartViewport) * timelineWidth;
+      if (item.kind === 'bar') {
+        const left = xForKey(item.start);
+        const width = Math.max(2, xForKey(item.end) - left);
+        const barHeight = imageBarHeight(depth) * verticalScale;
+        const barY = y + (rowHeight - barHeight) / 2;
 
-      // Draw phase bar — square corners, flat fill
-      if (phaseWidth > 0) {
-        ctx.fillStyle = phaseColor;
-        const barY = y + (scaledRowHeight - scaledBarHeight) / 2;
-        ctx.fillRect(phaseX, barY, Math.max(phaseWidth, 2), scaledBarHeight);
+        // Square corners, flat fill; nested bars wash back against their parent
+        ctx.globalAlpha = depth === 0 ? 1 : NESTED_BAR_ALPHA;
+        ctx.fillStyle = color;
+        ctx.fillRect(left, barY, width, barHeight);
+        ctx.globalAlpha = 1;
 
         // Name on the bar, matching the on-screen treatment
-        if (phaseWidth > 40) {
-          ctx.font = `${Math.max(10 * verticalScale, 9)}px system-ui, -apple-system, sans-serif`;
-          ctx.fillStyle = getReadableTextColor(phaseColor);
+        const minLabelWidth = depth === 0 ? 40 : 30;
+        if (item.name && width > minLabelWidth) {
+          const size = depth === 0 ? 10 : 9;
+          ctx.font = `${Math.max(size * verticalScale, size - 1)}px system-ui, -apple-system, sans-serif`;
+          ctx.fillStyle = getReadableTextColor(color);
           ctx.textAlign = 'left';
-          ctx.fillText(phase.name, phaseX + 6, barY + scaledBarHeight / 2 + 3, phaseWidth - 12);
+          ctx.fillText(item.name, left + 6, barY + barHeight / 2 + 3, width - 12);
         }
+      } else {
+        const x = xForKey(item.start);
+        const size = 4 * verticalScale;
 
-      }
+        drawDiamond(x, centerY, size, color);
 
-      // Draw bar milestones on phase bar
-      if (phase.barMilestones) {
-        for (const barMilestone of phase.barMilestones) {
-          // Bar milestone position is relative to the phase bar
-          const bmRelativeSection = phase.relativeStart + barMilestone.relativePosition * (phase.relativeEnd - phase.relativeStart);
-          const bmViewport = sectionToViewportRelative(bmRelativeSection, section, viewport);
-          const bmX = timelineX + bmViewport * timelineWidth;
-          const bmY = y + scaledRowHeight / 2;
-
-          // Draw small diamond
-          ctx.fillStyle = getReadableTextColor(phaseColor);
-          ctx.beginPath();
-          const bmSize = 4 * verticalScale;
-          ctx.moveTo(bmX, bmY - bmSize);
-          ctx.lineTo(bmX + bmSize, bmY);
-          ctx.lineTo(bmX, bmY + bmSize);
-          ctx.lineTo(bmX - bmSize, bmY);
-          ctx.closePath();
-          ctx.fill();
-
-          // Draw bar milestone label
-          ctx.font = `${Math.max(8 * verticalScale, 7)}px system-ui, -apple-system, sans-serif`;
-          ctx.textAlign = 'left';
-          ctx.fillText(barMilestone.name, bmX + bmSize + 2, bmY + 2, 60);
-        }
-      }
-
-      y += scaledRowHeight;
-
-      // Draw tasks
-      const sortedTasks = [...phase.tasks].sort((a, b) => a.order - b.order);
-      for (const task of sortedTasks) {
-        // Draw task label in left column
-        ctx.font = '11px system-ui, -apple-system, sans-serif';
+        ctx.font = `${Math.max(8 * verticalScale, 7)}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = colors.textMuted;
         ctx.textAlign = 'left';
-        ctx.fillText(task.name, PADDING + 32, y + scaledTaskRowHeight / 2 + 3, LABEL_WIDTH - PADDING - 36);
-
-        // Calculate task position (task is relative to phase, need to convert to section then viewport)
-        const taskStartSection = phase.relativeStart + task.relativeStart * (phase.relativeEnd - phase.relativeStart);
-        const taskEndSection = phase.relativeStart + task.relativeEnd * (phase.relativeEnd - phase.relativeStart);
-        const taskStartViewport = sectionToViewportRelative(taskStartSection, section, viewport);
-        const taskEndViewport = sectionToViewportRelative(taskEndSection, section, viewport);
-        const taskX = timelineX + taskStartViewport * timelineWidth;
-        const taskWidth = (taskEndViewport - taskStartViewport) * timelineWidth;
-
-        // Draw task bar (lighter version of phase color) — square corners, flat fill
-        if (taskWidth > 0) {
-          ctx.fillStyle = phaseColor;
-          ctx.globalAlpha = 0.6;
-          const barY = y + (scaledTaskRowHeight - scaledTaskBarHeight) / 2;
-          ctx.fillRect(taskX, barY, Math.max(taskWidth, 2), scaledTaskBarHeight);
-          ctx.globalAlpha = 1;
-
-          // Name on the bar, matching the on-screen treatment
-          if (taskWidth > 30) {
-            ctx.font = `${Math.max(9 * verticalScale, 8)}px system-ui, -apple-system, sans-serif`;
-            ctx.fillStyle = getReadableTextColor(phaseColor);
-            ctx.textAlign = 'left';
-            ctx.fillText(task.name, taskX + 4, barY + scaledTaskBarHeight / 2 + 3, taskWidth - 8);
-          }
-
-        }
-
-        // Draw bar milestones on task bar
-        if (task.barMilestones) {
-          for (const barMilestone of task.barMilestones) {
-            // Bar milestone position is relative to the task bar (which is relative to the phase)
-            const taskBarStart = phase.relativeStart + task.relativeStart * (phase.relativeEnd - phase.relativeStart);
-            const taskBarEnd = phase.relativeStart + task.relativeEnd * (phase.relativeEnd - phase.relativeStart);
-            const bmRelativeSection = taskBarStart + barMilestone.relativePosition * (taskBarEnd - taskBarStart);
-            const bmViewport = sectionToViewportRelative(bmRelativeSection, section, viewport);
-            const bmX = timelineX + bmViewport * timelineWidth;
-            const bmY = y + scaledTaskRowHeight / 2;
-
-            // Draw small diamond
-            ctx.fillStyle = getReadableTextColor(phaseColor);
-            ctx.globalAlpha = 0.8;
-            ctx.beginPath();
-            const bmSize = 3 * verticalScale;
-            ctx.moveTo(bmX, bmY - bmSize);
-            ctx.lineTo(bmX + bmSize, bmY);
-            ctx.lineTo(bmX, bmY + bmSize);
-            ctx.lineTo(bmX - bmSize, bmY);
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = 1;
-
-            // Draw bar milestone label
-            ctx.font = `${Math.max(7 * verticalScale, 6)}px system-ui, -apple-system, sans-serif`;
-            ctx.fillStyle = colors.textMuted;
-            ctx.textAlign = 'left';
-            ctx.fillText(barMilestone.name, bmX + bmSize + 2, bmY + 2, 50);
-          }
-        }
-
-        y += scaledTaskRowHeight;
+        ctx.fillText(item.name, x + size + 2, centerY + 2, 60);
       }
+
+      y += rowHeight;
     }
   }
 
   // Draw today line if in range
-  const today = new Date();
-  if (today >= viewport.startDate && today <= viewport.endDate) {
-    const todayDays = differenceInDays(today, viewport.startDate);
-    const todayX = timelineX + (todayDays / viewport.totalDays) * timelineWidth;
+  const today = todayKey();
+  if (today >= viewport.startKey && today <= viewport.endKey) {
+    const todayX = xForKey(today);
 
     ctx.strokeStyle = colors.today;
     ctx.lineWidth = 1;

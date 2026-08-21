@@ -1,4 +1,4 @@
-import { useRef, useMemo, useCallback, useEffect, useState } from 'react';
+import { useRef, useMemo, useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
@@ -6,18 +6,28 @@ import { useViewport } from '../../hooks/useViewport';
 import { usePlayhead } from '../../hooks/usePlayhead';
 import { useTimelinePan } from '../../hooks/useTimelinePan';
 import { useDragReorder } from '../../hooks/useDragReorder';
+import { usePinnedSection } from '../../hooks/usePinnedSection';
 import { TimelineHeader } from './TimelineHeader';
 import { TimelineGrid } from './TimelineGrid';
 import { SectionRow } from './SectionRow';
 import { StickyMilestones } from './StickyMilestones';
 import { Playhead } from './Playhead';
 import { PinnedMilestoneLines } from './PinnedMilestoneLines';
-import { AddScheduleButton, ZoomControls } from '../controls';
+import { AddScheduleButton } from '../controls';
 import { WelcomeWalkthrough } from '../layout/WelcomeWalkthrough';
-import { HEADER_HEIGHT, ROW_HEIGHT, getPositionFromRelative, calculateSectionHeight } from '../../utils/timelineUtils';
-import { getTodayViewportPosition, isTodayInViewport } from '../../utils/dateUtils';
-import { usePinnedSection } from '../../hooks/usePinnedSection';
+import {
+  HEADER_HEIGHT,
+  ROW_HEIGHT,
+  calculateSectionHeight,
+  dayToX,
+  headerMilestones,
+} from '../../utils/timelineUtils';
+import { isTodayInViewport } from '../../utils/dateUtils';
+import { dayKeyDiff, todayKey } from '../../utils/dayKeys';
 import type { Section } from '../../types';
+
+/** Air left of the first item when a project opens — enough to clear a milestone's label. */
+const INITIAL_LEAD_IN_PX = 32;
 
 export function Timeline(): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -25,91 +35,125 @@ export function Timeline(): JSX.Element {
   const labelsContentRef = useRef<HTMLDivElement>(null);
 
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
-
   const { pinnedSection, unpinnedSections } = usePinnedSection();
   const reorderSections = useSectionStore((s) => s.reorderSections);
 
   const labelColumnWidth = useUIStore((state) => state.labelColumnWidth);
   const setLabelColumnWidth = useUIStore((state) => state.setLabelColumnWidth);
   const scrollToTodayTrigger = useUIStore((state) => state.scrollToTodayTrigger);
-  const { viewportBounds, timelineWidth } = useViewport();
+
+  const { viewportBounds, timelineWidth, pixelsPerDay, contentStartKey } = useViewport();
   const { handleMouseDown: handlePlayheadMouseDown } = usePlayhead({
     timelineWidth,
     containerRef: scrollContainerRef,
   });
-  const { isPanning } = useTimelinePan({
-    containerRef: scrollContainerRef,
-  });
+  const { isPanning } = useTimelinePan({ containerRef: scrollContainerRef });
 
-  // Label column resize state
+  // Label column resize
   const [isResizing, setIsResizing] = useState(false);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
 
-  // Scroll position ref for sticky milestone computation (avoids re-renders on every scroll)
   const scrollTopRef = useRef(0);
   const stickyIdsRef = useRef<ReadonlySet<string>>(new Set());
-  const [stickyMilestoneIds, setStickyMilestoneIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [stickyMilestoneIds, setStickyMilestoneIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
 
-  // Handle label column resize
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-    resizeStartX.current = e.clientX;
-    resizeStartWidth.current = labelColumnWidth;
-  }, [labelColumnWidth]);
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsResizing(true);
+      resizeStartX.current = e.clientX;
+      resizeStartWidth.current = labelColumnWidth;
+    },
+    [labelColumnWidth]
+  );
 
   useEffect(() => {
     if (!isResizing) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaX = e.clientX - resizeStartX.current;
-      setLabelColumnWidth(resizeStartWidth.current + deltaX);
+    const handleMouseMove = (e: MouseEvent): void => {
+      setLabelColumnWidth(resizeStartWidth.current + (e.clientX - resizeStartX.current));
     };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
+    const handleMouseUp = (): void => setIsResizing(false);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isResizing, setLabelColumnWidth]);
 
-  // Scroll to today when triggered
+  /**
+   * Dragging an item past the left edge of the sheet grows the viewport
+   * leftward, which would otherwise shove everything sideways under the
+   * cursor. Absorbing the shift into scrollLeft keeps the paper still while
+   * its edge moves — the same fix covers zooming and deletions.
+   */
+  const previousStartKey = useRef(viewportBounds.startKey);
+  useLayoutEffect(() => {
+    const previous = previousStartKey.current;
+    if (previous === viewportBounds.startKey) return;
+    const shiftedDays = dayKeyDiff(viewportBounds.startKey, previous);
+    previousStartKey.current = viewportBounds.startKey;
+    if (shiftedDays !== 0 && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft += shiftedDays * pixelsPerDay;
+    }
+  }, [viewportBounds.startKey, pixelsPerDay]);
+
+  /**
+   * The sheet carries a month of air before the first item so there is always
+   * somewhere to drag to, but opening on an empty month reads as a mistake.
+   * Open with the work against the left edge and only a gutter of lead-in
+   * showing; the rest of that month is still there, one scroll back. Once per
+   * project — after that the scroll position is the user's.
+   */
+  const anchoredRef = useRef<{ projectId: string; onContent: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || !activeProjectId) return;
+    const anchored = anchoredRef.current;
+    // An empty project is parked on today until it has content to anchor to,
+    // so a project still loading its schedules does not settle on the wrong day.
+    if (anchored?.projectId === activeProjectId && (anchored.onContent || !contentStartKey)) return;
+    const anchorKey = contentStartKey ?? (isTodayInViewport(viewportBounds) ? todayKey() : null);
+    if (!anchorKey) return;
+    anchoredRef.current = { projectId: activeProjectId, onContent: contentStartKey !== null };
+    const x = dayToX(anchorKey, viewportBounds, pixelsPerDay);
+    el.scrollLeft = Math.max(0, x - INITIAL_LEAD_IN_PX);
+  }, [activeProjectId, contentStartKey, viewportBounds, pixelsPerDay]);
+
+  /**
+   * Fit is measured, not guessed: the scroll container reports the width the
+   * sheet actually has, so the button in the header can solve for it.
+   */
+  const setTimelineViewportWidth = useUIStore((state) => state.setTimelineViewportWidth);
   useEffect(() => {
-    if (scrollToTodayTrigger === 0) return;
-    if (!scrollContainerRef.current) return;
-
-    if (!isTodayInViewport(viewportBounds)) return;
-
-    const todayPosition = getTodayViewportPosition(viewportBounds);
-    const todayPixel = getPositionFromRelative(todayPosition, timelineWidth);
-    const containerWidth = scrollContainerRef.current.clientWidth;
-    const scrollTarget = todayPixel - containerWidth / 2;
-
-    scrollContainerRef.current.scrollTo({
-      left: Math.max(0, scrollTarget),
-      behavior: 'smooth',
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    setTimelineViewportWidth(el.clientWidth);
+    const observer = new ResizeObserver(([entry]) => {
+      setTimelineViewportWidth(entry.target.clientWidth);
     });
-  }, [scrollToTodayTrigger, viewportBounds, timelineWidth]);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [setTimelineViewportWidth, activeProjectId]);
 
-  // Calculate individual unpinned section heights for proper drop indicator positioning
-  const sectionHeights = useMemo(() => {
-    return unpinnedSections.map((section) => calculateSectionHeight(section));
-  }, [unpinnedSections]);
+  useEffect(() => {
+    if (scrollToTodayTrigger === 0 || !scrollContainerRef.current) return;
+    if (!isTodayInViewport(viewportBounds)) return;
+    const todayPixel = dayToX(todayKey(), viewportBounds, pixelsPerDay);
+    const target = todayPixel - scrollContainerRef.current.clientWidth / 2;
+    scrollContainerRef.current.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+  }, [scrollToTodayTrigger, viewportBounds, pixelsPerDay]);
 
-  // Use drag reorder for unpinned sections
-  const {
-    state: dragState,
-    getDragHandleProps,
-  } = useDragReorder({
+  const sectionHeights = useMemo(
+    () => unpinnedSections.map((section) => calculateSectionHeight(section)),
+    [unpinnedSections]
+  );
+
+  const { state: dragState, getDragHandleProps } = useDragReorder({
     onReorder: (from, to) => {
-      // Map visible (unpinned) indices back to indices in the sections array
       const allSections = useSectionStore.getState().sections;
       const pinnedId = useProjectStore.getState().project?.pinnedSectionId;
       const visible = allSections.filter((s) => s.id !== pinnedId);
@@ -122,25 +166,23 @@ export function Timeline(): JSX.Element {
       );
     },
     itemCount: unpinnedSections.length,
-    rowHeight: ROW_HEIGHT, // Movement threshold
+    rowHeight: ROW_HEIGHT,
   });
 
-  // Custom drop indicator style using actual cumulative heights
-  const getDropIndicatorStyle = useCallback((): React.CSSProperties | null => {
-    if (!dragState.isDragging || dragState.dropIndex === null || dragState.dropIndex === dragState.dragIndex) {
+  const dropIndicatorStyle = useMemo((): React.CSSProperties | null => {
+    if (
+      !dragState.isDragging ||
+      dragState.dropIndex === null ||
+      dragState.dropIndex === dragState.dragIndex
+    ) {
       return null;
     }
-
-    // Calculate position based on cumulative section heights
-    const targetIndex = dragState.dropIndex > (dragState.dragIndex ?? 0)
-      ? dragState.dropIndex + 1
-      : dragState.dropIndex;
-
+    const targetIndex =
+      dragState.dropIndex > (dragState.dragIndex ?? 0)
+        ? dragState.dropIndex + 1
+        : dragState.dropIndex;
     let top = 0;
-    for (let i = 0; i < targetIndex && i < sectionHeights.length; i++) {
-      top += sectionHeights[i];
-    }
-
+    for (let i = 0; i < targetIndex && i < sectionHeights.length; i += 1) top += sectionHeights[i];
     return {
       position: 'absolute',
       left: 0,
@@ -153,65 +195,61 @@ export function Timeline(): JSX.Element {
     };
   }, [dragState.isDragging, dragState.dropIndex, dragState.dragIndex, sectionHeights]);
 
-  const dropIndicatorStyle = getDropIndicatorStyle();
-
-  // Combine all sections in order for sticky milestones
   const allSections = useMemo(() => {
-    const sections: Section[] = [];
-    if (pinnedSection) sections.push(pinnedSection);
-    sections.push(...unpinnedSections);
-    return sections;
+    const list: Section[] = [];
+    if (pinnedSection) list.push(pinnedSection);
+    list.push(...unpinnedSections);
+    return list;
   }, [pinnedSection, unpinnedSections]);
 
-  // Precompute scroll thresholds so the scroll handler only does cheap comparisons
+  // Precompute scroll thresholds so the scroll handler only compares numbers
   const sectionThresholds = useMemo(() => {
     let cumulativeY = 0;
     return allSections.map((section) => {
       const enterY = cumulativeY;
       const height = calculateSectionHeight(section);
       const exitY = cumulativeY + height - ROW_HEIGHT;
-      const milestoneIds = section.milestones.map((m) => m.id);
+      const milestoneIds = headerMilestones(section).map((m) => m.id);
       cumulativeY += height;
       return { enterY, exitY, milestoneIds };
     });
   }, [allSections]);
 
-  const computeStickyIds = useCallback((scrollTop: number): ReadonlySet<string> => {
-    const ids = new Set<string>();
-    for (const { enterY, exitY, milestoneIds } of sectionThresholds) {
-      if (scrollTop > enterY && scrollTop <= exitY) {
-        for (const id of milestoneIds) ids.add(id);
+  const computeStickyIds = useCallback(
+    (scrollTop: number): ReadonlySet<string> => {
+      const ids = new Set<string>();
+      for (const { enterY, exitY, milestoneIds } of sectionThresholds) {
+        if (scrollTop > enterY && scrollTop <= exitY) {
+          for (const id of milestoneIds) ids.add(id);
+        }
       }
-    }
-    return ids;
-  }, [sectionThresholds]);
+      return ids;
+    },
+    [sectionThresholds]
+  );
 
-  // Recompute when sections change
   useEffect(() => {
-    const newIds = computeStickyIds(scrollTopRef.current);
-    stickyIdsRef.current = newIds;
-    setStickyMilestoneIds(newIds);
+    const next = computeStickyIds(scrollTopRef.current);
+    stickyIdsRef.current = next;
+    setStickyMilestoneIds(next);
   }, [computeStickyIds]);
 
   useEffect(() => {
     const labelsEl = labelsColumnRef.current;
     if (!labelsEl) return;
-
-    const handleWheel = (e: WheelEvent) => {
+    const handleWheel = (e: WheelEvent): void => {
       e.preventDefault();
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTop += e.deltaY;
         scrollContainerRef.current.scrollLeft += e.deltaX;
       }
     };
-
     labelsEl.addEventListener('wheel', handleWheel, { passive: false });
     return () => labelsEl.removeEventListener('wheel', handleWheel);
   }, []);
 
   const handleTimelineScroll = useCallback(() => {
     if (!scrollContainerRef.current) return;
-
     const newScrollTop = scrollContainerRef.current.scrollTop;
     scrollTopRef.current = newScrollTop;
 
@@ -219,17 +257,20 @@ export function Timeline(): JSX.Element {
       labelsContentRef.current.style.transform = `translateY(-${newScrollTop}px)`;
     }
 
-    const newIds = computeStickyIds(newScrollTop);
-    const prev = stickyIdsRef.current;
-    let changed = newIds.size !== prev.size;
+    const next = computeStickyIds(newScrollTop);
+    const previous = stickyIdsRef.current;
+    let changed = next.size !== previous.size;
     if (!changed) {
-      for (const id of newIds) {
-        if (!prev.has(id)) { changed = true; break; }
+      for (const id of next) {
+        if (!previous.has(id)) {
+          changed = true;
+          break;
+        }
       }
     }
     if (changed) {
-      stickyIdsRef.current = newIds;
-      setStickyMilestoneIds(newIds);
+      stickyIdsRef.current = next;
+      setStickyMilestoneIds(next);
     }
   }, [computeStickyIds]);
 
@@ -239,26 +280,20 @@ export function Timeline(): JSX.Element {
     unpinnedSections.forEach((section) => {
       height += calculateSectionHeight(section);
     });
-    height += ROW_HEIGHT;
-    return Math.max(height, 200);
+    return Math.max(height + ROW_HEIGHT, 200);
   }, [pinnedSection, unpinnedSections]);
 
-  // Welcome walkthrough when no active project exists
-  if (!activeProjectId) {
-    return <WelcomeWalkthrough />;
-  }
+  if (!activeProjectId) return <WelcomeWalkthrough />;
 
   return (
     <div className="h-full flex flex-col relative" role="application" aria-label="Timeline editor">
-      {/* Two-column layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Fixed Labels Column */}
+        {/* Labels column */}
         <nav
           className="flex-shrink-0 border-r border-[var(--color-hairline)] bg-[var(--color-background)] flex flex-col relative"
           style={{ width: labelColumnWidth }}
           aria-label="Timeline labels"
         >
-          {/* Resize handle - invisible at rest, tints on hover/active */}
           <div
             className={`absolute top-0 -right-0.5 w-1 h-full cursor-col-resize z-10 transition-colors ${
               isResizing ? 'bg-[var(--color-hairline)]' : 'hover:bg-[var(--color-hairline)]'
@@ -267,29 +302,26 @@ export function Timeline(): JSX.Element {
             aria-label="Resize labels column"
             role="separator"
           />
-          {/* Header spacer: add-schedule control and zoom controls */}
           <div
-            className="flex-shrink-0 flex items-center justify-between px-3"
+            className="flex-shrink-0 flex items-center px-3"
             style={{ height: HEADER_HEIGHT }}
           >
             <AddScheduleButton />
-            <ZoomControls />
           </div>
 
-          {/* Section and Phase labels */}
           <div
             ref={labelsColumnRef}
             className="flex-1 min-h-0 overflow-hidden"
             role="list"
-            aria-label="Sections and phases"
+            aria-label="Schedules and items"
           >
             <div ref={labelsContentRef} style={{ willChange: 'transform' }}>
               {pinnedSection && (
                 <SectionRow
                   section={pinnedSection}
                   isLabel
-                  timelineWidth={timelineWidth}
-                  viewportBounds={viewportBounds}
+                  viewport={viewportBounds}
+                  pixelsPerDay={pixelsPerDay}
                 />
               )}
 
@@ -299,8 +331,8 @@ export function Timeline(): JSX.Element {
                     key={section.id}
                     section={section}
                     isLabel
-                    timelineWidth={timelineWidth}
-                    viewportBounds={viewportBounds}
+                    viewport={viewportBounds}
+                    pixelsPerDay={pixelsPerDay}
                     sectionIndex={index}
                     dragHandleProps={getDragHandleProps(index)}
                     isDragging={dragState.isDragging && dragState.dragIndex === index}
@@ -312,10 +344,9 @@ export function Timeline(): JSX.Element {
               <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
             </div>
           </div>
-
         </nav>
 
-        {/* Scrollable Timeline Column */}
+        {/* Timeline column */}
         <div
           ref={scrollContainerRef}
           className={`flex-1 overflow-auto timeline-scroll-container${isPanning ? ' panning' : ''}`}
@@ -324,77 +355,67 @@ export function Timeline(): JSX.Element {
           aria-label="Timeline content"
         >
           <div style={{ minWidth: timelineWidth }}>
-            {/* Timeline Header with date markers */}
             <TimelineHeader />
 
-            {/* Sticky milestones that stay visible when scrolling */}
             <StickyMilestones
               sections={allSections}
               stickyMilestoneIds={stickyMilestoneIds}
-              timelineWidth={timelineWidth}
-              viewportBounds={viewportBounds}
+              viewport={viewportBounds}
+              pixelsPerDay={pixelsPerDay}
             />
 
-            {/* Timeline content */}
             <div
               className="relative cursor-crosshair timeline-plot"
               role="list"
               aria-label="Timeline bars"
               onMouseDown={handlePlayheadMouseDown}
             >
-              {/* Background grid */}
               <TimelineGrid />
 
-              {/* Pinned schedule milestone lines through all schedules */}
               {pinnedSection && (
                 <PinnedMilestoneLines
                   section={pinnedSection}
-                  timelineWidth={timelineWidth}
-                  viewportBounds={viewportBounds}
+                  viewport={viewportBounds}
+                  pixelsPerDay={pixelsPerDay}
                   height={contentHeight - ROW_HEIGHT}
                 />
               )}
 
-              {/* Today line — a bare hairline; the axis header carries its label */}
               {isTodayInViewport(viewportBounds) && (
                 <div
                   className="absolute top-0 w-px bg-[var(--color-today)] z-20 pointer-events-none"
                   style={{
-                    left: getPositionFromRelative(getTodayViewportPosition(viewportBounds), timelineWidth),
+                    left: dayToX(todayKey(), viewportBounds, pixelsPerDay),
                     height: contentHeight,
                   }}
                 />
               )}
 
-              {/* Playhead (scrubber) */}
               <Playhead height={contentHeight} />
 
-              {/* Pinned section bars */}
               {pinnedSection && (
                 <SectionRow
                   section={pinnedSection}
                   isLabel={false}
-                  timelineWidth={timelineWidth}
-                  viewportBounds={viewportBounds}
+                  viewport={viewportBounds}
+                  pixelsPerDay={pixelsPerDay}
                   stickyMilestoneIds={stickyMilestoneIds}
                 />
               )}
 
-              {/* Unpinned section bars */}
               {unpinnedSections.map((section, index) => (
                 <SectionRow
                   key={section.id}
                   section={section}
                   isLabel={false}
-                  timelineWidth={timelineWidth}
-                  viewportBounds={viewportBounds}
+                  viewport={viewportBounds}
+                  pixelsPerDay={pixelsPerDay}
                   sectionIndex={index}
                   isDragging={dragState.isDragging && dragState.dragIndex === index}
                   stickyMilestoneIds={stickyMilestoneIds}
                 />
               ))}
 
-              {/* Spacer row to match labels column */}
               <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
             </div>
           </div>

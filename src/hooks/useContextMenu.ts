@@ -1,82 +1,48 @@
 import { useCallback } from 'react';
 import { useUIStore } from '../stores/uiStore';
-
-type SelectionType = 'section' | 'phase' | 'task' | 'milestone';
-type MenuLocation = 'label' | 'bar' | 'empty' | 'header';
+import type { ContextMenuLocation } from '../stores/uiStore';
+import type { SelectionState } from '../types/timeline';
 
 /**
- * Hook to create context menu handlers for timeline items.
- * Returns handlers for label, bar, and optionally empty area context menus.
+ * Opens the context menu for one target. Items no longer carry a parent path,
+ * so a menu needs an id, the schedule it belongs to, and where it was opened.
  */
 export function useContextMenu(
-  type: SelectionType,
-  id: string,
-  sectionId: string,
-  phaseId?: string | null,
-  taskId?: string | null
+  targetType: SelectionState['type'],
+  targetId: string,
+  sectionId: string
 ): {
   handleLabelContextMenu: (e: React.MouseEvent) => void;
   handleBarContextMenu: (e: React.MouseEvent) => void;
-  openAtPosition: (e: React.MouseEvent, location: MenuLocation, clickRelativePosition?: number) => void;
+  openAt: (e: React.MouseEvent, location: ContextMenuLocation, clickDay?: string) => void;
 } {
   const openContextMenu = useUIStore((s) => s.openContextMenu);
 
-  const handleLabelContextMenu = useCallback(
-    (e: React.MouseEvent): void => {
+  const openAt = useCallback(
+    (e: React.MouseEvent, location: ContextMenuLocation, clickDay?: string): void => {
       e.preventDefault();
       e.stopPropagation();
-      openContextMenu(
-        { x: e.clientX, y: e.clientY },
-        type,
-        id,
+      openContextMenu({
+        position: { x: e.clientX, y: e.clientY },
+        targetType,
+        targetId,
         sectionId,
-        phaseId ?? null,
-        taskId ?? null,
-        'label'
-      );
+        location,
+        clickDay,
+      });
     },
-    [openContextMenu, type, id, sectionId, phaseId, taskId]
+    [openContextMenu, targetType, targetId, sectionId]
+  );
+
+  const handleLabelContextMenu = useCallback(
+    (e: React.MouseEvent): void => openAt(e, 'label'),
+    [openAt]
   );
 
   const handleBarContextMenu = useCallback(
-    (e: React.MouseEvent): void => {
-      e.preventDefault();
-      e.stopPropagation();
-      const barElement = e.currentTarget as HTMLElement;
-      const barRect = barElement.getBoundingClientRect();
-      const clickX = e.clientX - barRect.left;
-      const clickRelativePosition = Math.max(0, Math.min(1, clickX / barRect.width));
-      openContextMenu(
-        { x: e.clientX, y: e.clientY },
-        type,
-        id,
-        sectionId,
-        phaseId ?? null,
-        taskId ?? null,
-        'bar',
-        clickRelativePosition
-      );
-    },
-    [openContextMenu, type, id, sectionId, phaseId, taskId]
+    (e: React.MouseEvent): void => openAt(e, 'bar'),
+    [openAt]
   );
 
-  const openAtPosition = useCallback(
-    (e: React.MouseEvent, location: MenuLocation, clickRelativePosition?: number): void => {
-      e.preventDefault();
-      e.stopPropagation();
-      openContextMenu(
-        { x: e.clientX, y: e.clientY },
-        type,
-        id,
-        sectionId,
-        phaseId ?? null,
-        taskId ?? null,
-        location,
-        clickRelativePosition
-      );
-    },
-    [openContextMenu, type, id, sectionId, phaseId, taskId]
-  );
-
-  return { handleLabelContextMenu, handleBarContextMenu, openAtPosition };
+  return { handleLabelContextMenu, handleBarContextMenu, openAt };
 }

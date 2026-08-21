@@ -149,9 +149,29 @@ const PAPER = '#FFFFFF';
 const INK_CROSSOVER_LUMINANCE = 0.198;
 
 /**
+ * Saturated reds and oranges are the deliberate exception.
+ *
+ * Measured contrast still favours ink there — black on the palette's orange is
+ * 5.98:1 against white's 2.99:1 — but the numbers do not describe how the bars
+ * read: on a hot mid-tone the dark label sinks into the fill, while paper stays
+ * crisp. Those bars are given paper up to a much higher crossover, at the cost
+ * of failing AA for small text on the lightest of them.
+ *
+ * The window is kept tight on purpose — hue 350°–40° at 50%+ saturation, below
+ * 0.35 luminance. That covers the palette's red and orange and every step of
+ * their gradients, so a schedule never switches label colour halfway down its
+ * own ramp, and it leaves ochre (43°) and every cool hue on the measured rule.
+ */
+const WARM_HUE_MIN = 350;
+const WARM_HUE_MAX = 40;
+const WARM_SATURATION_MIN = 50;
+const WARM_INK_CROSSOVER_LUMINANCE = 0.35;
+
+/**
  * Pick ink or paper for text sitting on a colored bar, whichever contrasts
  * more. Ties go to ink: white text on color reads heavier than this design
- * wants, and the palette's mid-tones all sit on the ink side of the line.
+ * wants, and the palette's cool mid-tones all sit on the ink side of the line.
+ * Saturated warm bars are the exception — see the crossover constants above.
  */
 export function getReadableTextColor(hex: string): string {
   const cleanHex = hex.replace(/^#/, '').slice(0, 6);
@@ -167,5 +187,9 @@ export function getReadableTextColor(hex: string): string {
   const b = toLinear(parseInt(cleanHex.slice(4, 6), 16));
   const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
-  return luminance >= INK_CROSSOVER_LUMINANCE ? INK : PAPER;
+  const { h, s } = hexToHsl(cleanHex);
+  const isWarm = (h >= WARM_HUE_MIN || h <= WARM_HUE_MAX) && s >= WARM_SATURATION_MIN;
+  const crossover = isWarm ? WARM_INK_CROSSOVER_LUMINANCE : INK_CROSSOVER_LUMINANCE;
+
+  return luminance >= crossover ? INK : PAPER;
 }
