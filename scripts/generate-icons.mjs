@@ -79,7 +79,7 @@ function createIco(pngBuffer, width, height) {
 async function generateOgImage() {
   const width = 1200;
   const height = 630;
-  const brandColor = '#6466f1';
+  const brandColor = '#3a3f76';
 
   // Render the favicon SVG at a reasonable size for the OG image
   const logoSize = 160;
