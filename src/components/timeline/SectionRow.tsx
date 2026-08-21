@@ -18,6 +18,7 @@ import {
 import { layoutLabels, measureMilestoneLabelWidth } from '../../utils/labelLayoutUtils';
 import { createBarAt, createMilestoneAt, DEFAULT_BAR_DAYS } from '../../utils/creationUtils';
 import { getItemColor } from '../../types';
+import { snapKeyToBusinessDay } from '../../utils/dayKeys';
 import { getReadableTextColor } from '../../utils/colorUtils';
 import { useInlineEdit } from '../../hooks/useInlineEdit';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
@@ -67,6 +68,9 @@ export const SectionRow = memo(function SectionRow({
   const pinnedSectionId = useProjectStore((s) => s.project?.pinnedSectionId ?? null);
   const coloredRows = useProjectStore(
     (s) => s.project?.settings?.coloredRows ?? DEFAULT_PROJECT_SETTINGS.coloredRows
+  );
+  const skipWeekends = useProjectStore(
+    (s) => s.project?.settings?.skipWeekends ?? DEFAULT_PROJECT_SETTINGS.skipWeekends
   );
 
   const selectSection = useUIStore((s) => s.selectSection);
@@ -230,26 +234,37 @@ export const SectionRow = memo(function SectionRow({
     setMilestoneGhostX((previous) => (previous === null ? previous : null));
   }, [isPlayheadActive]);
 
+  // "Skip weekends" belongs to the commit, not the gesture: the ghost tracks
+  // the cursor exactly, and the day it lands on is squared up once, here.
+  const snapCreateDay = useCallback(
+    (key: string): string => (skipWeekends ? snapKeyToBusinessDay(key) : key),
+    [skipWeekends]
+  );
+
   // Double-clicking the schedule's own row drops a milestone there
   const handleHeaderDoubleClick = useCallback(
     (e: React.MouseEvent): void => {
       if (e.target !== e.currentTarget) return;
       createMilestoneAt(
         section.id,
-        { day: dayAtEvent(e, headerRef.current) },
+        { day: snapCreateDay(dayAtEvent(e, headerRef.current)) },
         { x: e.clientX, y: e.clientY }
       );
     },
-    [section.id, dayAtEvent]
+    [section.id, dayAtEvent, snapCreateDay]
   );
 
   // -- creating in the schedule's open space --------------------------------
 
   const handleBodyGhostDoubleClick = useCallback(
     ({ startPx, point }: CreateGestureInfo): void => {
-      createBarAt(section.id, { startDay: xToDay(startPx, viewport, pixelsPerDay) }, point);
+      createBarAt(
+        section.id,
+        { startDay: snapCreateDay(xToDay(startPx, viewport, pixelsPerDay)) },
+        point
+      );
     },
-    [section.id, viewport, pixelsPerDay]
+    [section.id, viewport, pixelsPerDay, snapCreateDay]
   );
 
   const handleBodyGhostDraw = useCallback(
@@ -257,15 +272,17 @@ export const SectionRow = memo(function SectionRow({
       createBarAt(
         section.id,
         {
+          // Both drawn edges were chosen, so each squares up on its own — the
+          // same bargain resize strikes. `createBarAt` holds the one-day floor.
           span: {
-            start: xToDay(startPx, viewport, pixelsPerDay),
-            end: xToDay(endPx, viewport, pixelsPerDay),
+            start: snapCreateDay(xToDay(startPx, viewport, pixelsPerDay)),
+            end: snapCreateDay(xToDay(endPx, viewport, pixelsPerDay)),
           },
         },
         point
       );
     },
-    [section.id, viewport, pixelsPerDay]
+    [section.id, viewport, pixelsPerDay, snapCreateDay]
   );
 
   const bodyGhost = useCreateGhost({

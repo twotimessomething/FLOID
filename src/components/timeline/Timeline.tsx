@@ -43,8 +43,9 @@ export function Timeline(): JSX.Element {
   const scrollToTodayTrigger = useUIStore((state) => state.scrollToTodayTrigger);
 
   const { viewportBounds, timelineWidth, pixelsPerDay, contentStartKey } = useViewport();
-  const { handleMouseDown: handlePlayheadMouseDown } = usePlayhead({
+  const { hoverProps: playheadHover, handle: playheadHandle } = usePlayhead({
     timelineWidth,
+    viewportBounds,
     containerRef: scrollContainerRef,
   });
   const { isPanning } = useTimelinePan({ containerRef: scrollContainerRef });
@@ -377,7 +378,7 @@ export function Timeline(): JSX.Element {
           aria-label="Timeline content"
         >
           <div style={{ minWidth: timelineWidth }}>
-            <TimelineHeader />
+            <TimelineHeader playheadHover={playheadHover} playheadHandle={playheadHandle} />
 
             <StickyMilestones
               sections={allSections}
@@ -390,7 +391,6 @@ export function Timeline(): JSX.Element {
               className="relative cursor-crosshair timeline-plot"
               role="list"
               aria-label="Timeline bars"
-              onMouseDown={handlePlayheadMouseDown}
             >
               <TimelineGrid />
 
@@ -413,7 +413,7 @@ export function Timeline(): JSX.Element {
                 />
               )}
 
-              <Playhead height={contentHeight} />
+              <Playhead height={contentHeight} handle={playheadHandle} />
 
               {pinnedSection && (
                 <SectionRow

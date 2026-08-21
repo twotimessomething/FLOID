@@ -1,12 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   analyzeScheduleImport,
   convertImportedProject,
+  downloadProjectJson,
+  downloadScheduleFloid,
   exportProjectToJson,
   exportScheduleToFloid,
   parseProjectJson,
   parseScheduleFloid,
 } from '../utils/exportUtils';
+import { setAppSettings } from '../utils/indexedDB';
 import type { Project, Section, TimelineItem } from '../types';
 import type { ScheduleExportData } from '../types/scheduleExport';
 
@@ -331,5 +334,40 @@ describe('analyzeScheduleImport', () => {
       scheduleDates: { startDate: project.projectStartDate, endDate: project.projectEndDate },
     });
     expect(analyzeScheduleImport(data, project, []).dateMismatch).toBe(false);
+  });
+});
+
+/**
+ * What a download claims about the user's data.
+ *
+ * A whole project leaving the app is a backup and may stamp the date; a single
+ * schedule is a share, and stamping it would silence the backup reminder while
+ * every project still sits unwritten in IndexedDB.
+ */
+describe('backup date stamping', () => {
+  beforeEach(() => {
+    vi.mocked(setAppSettings).mockClear();
+
+    // jsdom has no object URLs and does not follow anchor clicks
+    URL.createObjectURL = vi.fn(() => 'blob:test');
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('records a backup when a whole project is exported', async () => {
+    await downloadProjectJson(makeProject(), [makeSection()]);
+
+    expect(setAppSettings).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(setAppSettings).mock.calls[0][0]).toHaveProperty('lastBackupDate');
+  });
+
+  it('does not record a backup when a single schedule is exported', async () => {
+    await downloadScheduleFloid(makeProject(), makeSection());
+
+    expect(setAppSettings).not.toHaveBeenCalled();
   });
 });

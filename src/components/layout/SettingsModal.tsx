@@ -117,13 +117,6 @@ export function SettingsModal(): JSX.Element | null {
     [updateSettings]
   );
 
-  const handleMilestoneSnapChange = useCallback(
-    (checked: boolean) => {
-      updateSettings({ milestoneSnap: checked });
-    },
-    [updateSettings]
-  );
-
   const handleColoredRowsChange = useCallback(
     (checked: boolean) => {
       updateSettings({ coloredRows: checked });
@@ -258,13 +251,6 @@ export function SettingsModal(): JSX.Element | null {
             onChange={handleSkipWeekendsChange}
           />
           <SettingRow
-            id="milestone-snap"
-            label="Milestone snap"
-            description="Snap milestones to nearby phase boundaries"
-            checked={settings.milestoneSnap}
-            onChange={handleMilestoneSnapChange}
-          />
-          <SettingRow
             id="colored-rows"
             label="Colored rows"
             description="Tint schedule rows with their assigned color"
@@ -297,13 +283,17 @@ export function SettingsModal(): JSX.Element | null {
             </div>
           )}
 
-          {appSettings.lastBackupDate && (
-            <div className="py-3">
-              <p className="text-xs text-[var(--color-text-muted)]">
+          {/* Why the reminder exists at all — said once, quietly. */}
+          <div className="py-3">
+            <p className="text-meta text-[var(--color-text-muted)]">
+              FLOID keeps everything in this browser. Clearing site data deletes it.
+            </p>
+            {appSettings.lastBackupDate && (
+              <p className="text-meta text-[var(--color-text-muted)] mt-1">
                 Last backup: {format(new Date(appSettings.lastBackupDate), 'MMM d, yyyy')}
               </p>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* File System Access API section (Chrome/Edge only) */}
           {isFileSystemAccessSupported() && (
@@ -387,6 +377,9 @@ export function SettingsModal(): JSX.Element | null {
               </svg>
               support@floid.design
             </a>
+            <p className="text-meta text-[var(--color-text-muted)] mt-3">
+              FLOID collects anonymous usage analytics — page views only, never your project data.
+            </p>
           </div>
         </div>
       </div>

@@ -3,8 +3,6 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useConfirm } from '../../hooks';
-import { downloadProjectJson } from '../../utils/exportUtils';
-import { loadProjectFromStorage } from '../../utils/storageUtils';
 import { POPOVER_EXIT_MS } from '../../hooks/usePresence';
 
 /**
@@ -21,7 +19,6 @@ export function LeftSidebar(): JSX.Element {
   // Use selective store subscriptions to prevent unnecessary re-renders
   const projects = useProjectStore((state) => state.projects);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
-  const project = useProjectStore((state) => state.project);
   const { selectProject, deleteProject, saveCurrentProject, updateProjectIndex, updateProject } = useProjectStore();
 
   const sections = useSectionStore((state) => state.sections);
@@ -29,6 +26,7 @@ export function LeftSidebar(): JSX.Element {
 
   const isLeftSidebarOpen = useUIStore((state) => state.isLeftSidebarOpen);
   const { toggleLeftSidebar, closeModal, openProjectSetupModal, openProjectEditModal } = useUIStore();
+  const openExportModal = useUIStore((state) => state.openExportModal);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -184,22 +182,16 @@ export function LeftSidebar(): JSX.Element {
     openProjectEditModal(projectId);
   }, [activeProjectId, sections, saveCurrentProject, closeModal, selectProject, loadSectionsForProject, openProjectEditModal]);
 
-  const handleExportProject = useCallback(async (projectId: string, e: React.MouseEvent) => {
+  /**
+   * Every project export goes through the one dialog, scoped to the row it was
+   * opened from. Scoping is not opening: a project other than the active one is
+   * read from storage by the modal, and the user stays where they were.
+   */
+  const handleExportProject = useCallback((projectId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setMenuOpenProjectId(null);
-
-    // If it's the active project, use current project and sections from store
-    if (projectId === activeProjectId) {
-      await downloadProjectJson(project, sections);
-      return;
-    }
-
-    // For non-active projects, load directly from storage without switching
-    const projectData = await loadProjectFromStorage(projectId);
-    if (projectData) {
-      await downloadProjectJson(projectData.project, projectData.sections);
-    }
-  }, [activeProjectId, project, sections]);
+    openExportModal(projectId);
+  }, [openExportModal]);
 
   // Sort projects by most recently updated - memoize to avoid recalculating on every render
   const sortedProjects = useMemo(

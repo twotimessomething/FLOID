@@ -33,6 +33,7 @@ const GESTURES: readonly Gesture[] = [
   { description: 'Resize a bar', action: 'Drag its edge' },
   { description: 'Open or close a group', action: 'Double-click the bar' },
   { description: 'Color, lock, move out of group, export', action: 'Right-click' },
+  { description: 'Move around the timeline', action: 'Middle-drag or right-drag' },
 ];
 
 const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [

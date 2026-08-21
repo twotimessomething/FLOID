@@ -1,12 +1,10 @@
 export interface ProjectSettings {
   skipWeekends: boolean;
-  milestoneSnap: boolean;
   coloredRows: boolean;
 }
 
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   skipWeekends: true,
-  milestoneSnap: true,
   coloredRows: true,
 };
 

@@ -219,6 +219,11 @@ export const exportScheduleToFloid = (project: Project, section: Section): Sched
   items: section.items,
 });
 
+/**
+ * A single schedule is a share, not a backup — it leaves every project sitting
+ * unwritten in IndexedDB, so it deliberately does not stamp `lastBackupDate`.
+ * Only `downloadProjectJson` may claim the project is backed up.
+ */
 export const downloadScheduleFloid = async (project: Project, section: Section): Promise<void> => {
   const data = exportScheduleToFloid(project, section);
   const json = JSON.stringify(data, null, 2);
@@ -234,9 +239,6 @@ export const downloadScheduleFloid = async (project: Project, section: Section):
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-
-  // Update last backup date
-  await setAppSettings({ lastBackupDate: new Date().toISOString() });
 };
 
 /**

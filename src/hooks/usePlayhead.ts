@@ -1,145 +1,194 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { addDays } from 'date-fns';
 import { useUIStore } from '../stores/uiStore';
-import { getRelativeFromPosition } from '../utils/timelineUtils';
+import { getPositionFromRelative, getRelativeFromPosition } from '../utils/timelineUtils';
+import { formatDate } from '../utils/dateUtils';
+import type { ViewportBounds } from '../types';
+
+/** Where the ruler stands, and the day it is standing on. */
+export interface PlayheadPoint {
+  /** Pixels from the sheet's left edge — what both elements are moved by. */
+  readonly left: number;
+  /** The same point as a 0–1 fraction of the sheet. */
+  readonly relative: number;
+  readonly label: string;
+}
+
+/**
+ * The two pieces the ruler is made of — the rule through the plot and the date
+ * that hangs from the axis — plus the point they are drawn at.
+ *
+ * They travel as refs rather than props because the ruler follows the cursor:
+ * a mousemove writes straight to these nodes, so React only ever sees the ruler
+ * go up and come down. The same bargain the drag preview strikes.
+ */
+export interface PlayheadHandle {
+  readonly lineRef: React.RefObject<HTMLDivElement>;
+  readonly readoutRef: React.RefObject<HTMLDivElement>;
+  readonly pointRef: React.MutableRefObject<PlayheadPoint | null>;
+}
+
+export interface PlayheadHoverProps {
+  readonly onMouseMove: (e: React.MouseEvent) => void;
+  readonly onMouseLeave: () => void;
+}
 
 interface UsePlayheadOptions {
-  timelineWidth: number;
-  containerRef: React.RefObject<HTMLDivElement>;
+  readonly timelineWidth: number;
+  readonly viewportBounds: ViewportBounds;
+  readonly containerRef: React.RefObject<HTMLDivElement>;
 }
 
 interface UsePlayheadReturn {
-  isActive: boolean;
-  playheadPosition: number | null;
-  handleMouseDown: (e: React.MouseEvent) => void;
+  /** Spread on the date axis — hovering it is the whole gesture. */
+  readonly hoverProps: PlayheadHoverProps;
+  readonly handle: PlayheadHandle;
 }
 
-const PLAYHEAD_DELAY_MS = 300;
+/**
+ * Put the ruler where the cursor is.
+ *
+ * Called from the hook's own animation frame, and again by each element the
+ * moment it mounts, so the first frame is already in the right place and React
+ * never has to describe a position it would then have to keep up with.
+ */
+export function paintPlayhead(handle: PlayheadHandle): void {
+  const point = handle.pointRef.current;
+  if (!point) return;
 
+  const line = handle.lineRef.current;
+  if (line) line.style.transform = `translate3d(${point.left}px, 0, 0)`;
+
+  const readout = handle.readoutRef.current;
+  if (readout) {
+    // The date reads centred on the rule, so it carries its own half-width back.
+    readout.style.transform = `translate3d(${point.left}px, 0, 0) translateX(-50%)`;
+    if (readout.textContent !== point.label) readout.textContent = point.label;
+  }
+}
+
+/**
+ * The date ruler.
+ *
+ * Hovering the axis raises a rule through every schedule and names the day it
+ * lands on. There is nothing to press and nothing to learn — the axis is where
+ * dates live, so reading one off it is the obvious thing to try.
+ */
 export function usePlayhead({
   timelineWidth,
+  viewportBounds,
   containerRef,
 }: UsePlayheadOptions): UsePlayheadReturn {
-  const { playheadPosition, setPlayheadPosition } = useUIStore();
-  const isActiveRef = useRef(false);
-  const delayTimeoutRef = useRef<number | null>(null);
-  const pendingPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const setPlayheadPosition = useUIStore((state) => state.setPlayheadPosition);
 
-  const getRelativePosition = useCallback(
-    (clientX: number): number => {
-      if (!containerRef.current) return 0;
-
-      const rect = containerRef.current.getBoundingClientRect();
-      const scrollLeft = containerRef.current.scrollLeft;
-      const x = clientX - rect.left + scrollLeft;
-
-      return getRelativeFromPosition(x, timelineWidth);
-    },
-    [containerRef, timelineWidth]
+  const lineRef = useRef<HTMLDivElement>(null);
+  const readoutRef = useRef<HTMLDivElement>(null);
+  const pointRef = useRef<PlayheadPoint | null>(null);
+  const handle = useMemo<PlayheadHandle>(
+    () => ({ lineRef, readoutRef, pointRef }),
+    [lineRef, readoutRef, pointRef]
   );
 
-  const getYPosition = useCallback(
-    (clientY: number): number => {
-      if (!containerRef.current) return 0;
+  const clientXRef = useRef<number | null>(null);
+  const frameRef = useRef(0);
 
-      const rect = containerRef.current.getBoundingClientRect();
-      const scrollTop = containerRef.current.scrollTop;
-      return clientY - rect.top + scrollTop;
+  const measure = useCallback(
+    (clientX: number): PlayheadPoint | null => {
+      const container = containerRef.current;
+      if (!container) return null;
+
+      // The sheet slides under a fixed viewport, so the day under the cursor is
+      // its offset into the scrolled content — the window position alone would
+      // name a different day the moment anything has been scrolled.
+      const rect = container.getBoundingClientRect();
+      const x = clientX - rect.left + container.scrollLeft;
+
+      const relative = getRelativeFromPosition(x, timelineWidth);
+      const left = getPositionFromRelative(relative, timelineWidth);
+      const date = addDays(
+        viewportBounds.startDate,
+        Math.round(relative * viewportBounds.totalDays)
+      );
+
+      return { left, relative, label: formatDate(date, 'MMM d, yyyy') };
     },
-    [containerRef]
+    [containerRef, timelineWidth, viewportBounds]
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      // Only respond to left mouse button
-      if (e.button !== 0) return;
+  const paintFrame = useCallback((): void => {
+    frameRef.current = 0;
+    const clientX = clientXRef.current;
+    if (clientX === null) return;
+    const point = measure(clientX);
+    if (!point) return;
+    pointRef.current = point;
+    paintPlayhead(handle);
+  }, [measure, handle]);
 
-      isActiveRef.current = true;
-      document.body.classList.add('no-select');
+  const schedulePaint = useCallback((): void => {
+    if (frameRef.current === 0) frameRef.current = requestAnimationFrame(paintFrame);
+  }, [paintFrame]);
 
-      // Store the initial position for use after the delay
-      const position = getRelativePosition(e.clientX);
-      const y = getYPosition(e.clientY);
-      pendingPositionRef.current = { x: position, y };
+  const cancelPaint = useCallback((): void => {
+    if (frameRef.current === 0) return;
+    cancelAnimationFrame(frameRef.current);
+    frameRef.current = 0;
+  }, []);
 
-      // Delay showing the playhead to distinguish click from click-and-hold
-      delayTimeoutRef.current = window.setTimeout(() => {
-        // Another gesture (drag-to-draw, bar drag) claimed this press — stand down
-        if (useUIStore.getState().isDragging) {
-          isActiveRef.current = false;
-          pendingPositionRef.current = null;
-          delayTimeoutRef.current = null;
-          document.body.classList.remove('no-select');
-          return;
-        }
-        if (pendingPositionRef.current) {
-          setPlayheadPosition(pendingPositionRef.current.x, pendingPositionRef.current.y);
-        }
-        delayTimeoutRef.current = null;
-      }, PLAYHEAD_DELAY_MS);
-    },
-    [getRelativePosition, getYPosition, setPlayheadPosition]
-  );
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent): void => {
+      clientXRef.current = e.clientX;
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent): void => {
-      if (!isActiveRef.current) return;
-
-      // Yield to gestures that own the press (drag-to-draw, bar drags)
-      if (useUIStore.getState().isDragging) {
-        if (delayTimeoutRef.current !== null) {
-          window.clearTimeout(delayTimeoutRef.current);
-          delayTimeoutRef.current = null;
-        }
-        isActiveRef.current = false;
-        pendingPositionRef.current = null;
-        setPlayheadPosition(null, null);
-        document.body.classList.remove('no-select');
+      if (useUIStore.getState().playheadPosition !== null) {
+        schedulePaint();
         return;
       }
 
-      const position = getRelativePosition(e.clientX);
-      const y = getYPosition(e.clientY);
+      // First contact. Measure before the ruler is raised so its opening frame
+      // is already under the cursor; after that the position is the DOM's.
+      const point = measure(e.clientX);
+      if (!point) return;
+      pointRef.current = point;
+      setPlayheadPosition(point.relative);
+    },
+    [measure, schedulePaint, setPlayheadPosition]
+  );
 
-      // If still in delay period, update pending position
-      if (delayTimeoutRef.current !== null) {
-        pendingPositionRef.current = { x: position, y };
-      } else {
-        // Delay has passed, update position directly
-        setPlayheadPosition(position, y);
-      }
+  const handleMouseLeave = useCallback((): void => {
+    cancelPaint();
+    clientXRef.current = null;
+    pointRef.current = null;
+    setPlayheadPosition(null);
+  }, [cancelPaint, setPlayheadPosition]);
+
+  /**
+   * The sheet can move while the cursor holds still — a wheel across the axis,
+   * or a pan's momentum still running out. The day under the cursor changes
+   * with it, so a scroll repaints from the last position the cursor was at.
+   */
+  useEffect(() => {
+    const handleScroll = (): void => {
+      if (clientXRef.current === null) return;
+      schedulePaint();
     };
+    document.addEventListener('scroll', handleScroll, true);
+    return () => document.removeEventListener('scroll', handleScroll, true);
+  }, [schedulePaint]);
 
-    const handleMouseUp = (): void => {
-      if (!isActiveRef.current) return;
-
-      // Clear the delay timeout if it hasn't fired yet
-      if (delayTimeoutRef.current !== null) {
-        window.clearTimeout(delayTimeoutRef.current);
-        delayTimeoutRef.current = null;
+  useEffect(
+    () => () => {
+      cancelPaint();
+      if (useUIStore.getState().playheadPosition !== null) {
+        useUIStore.getState().setPlayheadPosition(null);
       }
+    },
+    [cancelPaint]
+  );
 
-      isActiveRef.current = false;
-      pendingPositionRef.current = null;
-      setPlayheadPosition(null, null);
-      document.body.classList.remove('no-select');
-    };
+  const hoverProps = useMemo<PlayheadHoverProps>(
+    () => ({ onMouseMove: handleMouseMove, onMouseLeave: handleMouseLeave }),
+    [handleMouseMove, handleMouseLeave]
+  );
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      // Clean up timeout on unmount
-      if (delayTimeoutRef.current !== null) {
-        window.clearTimeout(delayTimeoutRef.current);
-      }
-    };
-  }, [getRelativePosition, getYPosition, setPlayheadPosition]);
-
-  return {
-    isActive: isActiveRef.current,
-    playheadPosition,
-    handleMouseDown,
-  };
+  return { hoverProps, handle };
 }

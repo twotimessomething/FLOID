@@ -5,6 +5,7 @@ import { useProjectStore, type NewProjectConfig } from '../../stores/projectStor
 import { useSectionStore } from '../../stores/sectionStore';
 import { SCHEDULE_TEMPLATES, type ScheduleTemplate } from '../../data/scheduleTemplates';
 import { Button, Input, DateInput } from '../common';
+import { TemplateIcon } from '../common/TemplateIcon';
 import { usePresence } from '../../hooks/usePresence';
 
 type Step = 'details' | 'template';
@@ -28,83 +29,47 @@ const getDefaultFormData = (): ProjectFormData => {
   };
 };
 
-// Template icon components
-function TemplateIcon({ icon }: { readonly icon: ScheduleTemplate['icon'] }): JSX.Element {
-  switch (icon) {
-    case 'palette':
-      return (
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
-        </svg>
-      );
-    case 'cog':
-      return (
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      );
-    case 'megaphone':
-      return (
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" />
-        </svg>
-      );
-    case 'code':
-      return (
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
-        </svg>
-      );
-    case 'clipboard':
-      return (
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
-        </svg>
-      );
-    case 'plus':
-      return (
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-      );
-    default:
-      return (
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-        </svg>
-      );
-  }
-}
-
-interface TemplateCardProps {
+interface TemplateOptionProps {
   readonly template: ScheduleTemplate;
   readonly isSelected: boolean;
   readonly onSelect: () => void;
 }
 
-function TemplateCard({ template, isSelected, onSelect }: TemplateCardProps): JSX.Element {
+/**
+ * A template reads as a row on the sheet, not a card. The chosen one takes the
+ * selection ground and an ink outline — the same pair the timeline uses for a
+ * selected row and a selected bar — and its name and glyph step up to full ink.
+ */
+function TemplateOption({ template, isSelected, onSelect }: TemplateOptionProps): JSX.Element {
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={isSelected}
-      className={`
-        relative flex flex-col items-start p-4 rounded-[var(--radius-md)] text-left w-full focus-ring
-        ${isSelected
-          ? 'border-[1.5px] border-[var(--color-accent)] bg-[var(--color-selection)]'
-          : 'border border-[var(--color-border)] hover:bg-[var(--color-hover)]'
-        }
-      `}
+      className={`group row-selectable focus-ring flex w-full items-start gap-3 px-2 py-2 text-left ${
+        isSelected ? 'selected shadow-[inset_0_0_0_1.5px_var(--color-text-primary)]' : ''
+      }`}
     >
-      <div
-        className="p-2 rounded-[var(--radius-sm)] mb-2"
-        style={{ backgroundColor: `${template.defaultColor}15`, color: template.defaultColor }}
-      >
-        <TemplateIcon icon={template.icon} />
-      </div>
-      <h3 className="text-sm font-medium text-[var(--color-text-primary)]">{template.name}</h3>
-      <p className="text-xs text-[var(--color-text-muted)] mt-1 line-clamp-2">{template.description}</p>
+      <TemplateIcon
+        icon={template.icon}
+        className={`w-4 h-4 mt-px flex-shrink-0 ${
+          isSelected ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'
+        }`}
+      />
+      <span className="min-w-0">
+        <span
+          className={`block text-body ${
+            isSelected
+              ? 'text-[var(--color-text-primary)]'
+              : 'text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-primary)]'
+          }`}
+        >
+          {template.name}
+        </span>
+        <span className="block text-meta text-[var(--color-text-muted)]">
+          {template.description}
+        </span>
+      </span>
     </button>
   );
 }
@@ -319,11 +284,11 @@ export function NewProjectModal(): JSX.Element | null {
 
                 {/* Duration info */}
                 <div>
-                  <p className="text-xs text-[var(--color-text-muted)]">
+                  <p className="text-meta text-[var(--color-text-muted)]">
                     Project duration: {Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24))} days
                   </p>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                    These dates can be changed later in project settings.
+                  <p className="text-meta text-[var(--color-text-muted)] mt-1">
+                    Sets the starting window — each schedule keeps its own dates and can be changed later.
                   </p>
                 </div>
               </div>
@@ -351,15 +316,16 @@ export function NewProjectModal(): JSX.Element | null {
                 <h3 className="text-sm font-medium text-[var(--color-text-primary)]">
                   Choose a Starting Schedule
                 </h3>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                <p className="text-meta text-[var(--color-text-muted)] mt-1">
                   Your first schedule, pinned to the top. Add more schedules anytime.
                 </p>
               </div>
 
-              {/* Template Grid */}
-              <div className="grid grid-cols-2 gap-3 max-h-[320px] overflow-y-auto pr-1">
+              {/* Template list. The rows bleed past the body's padding so the
+                  selection ground has room to sit behind the text. */}
+              <div className="-mx-2 max-h-80 overflow-y-auto">
                 {availableTemplates.map((template) => (
-                  <TemplateCard
+                  <TemplateOption
                     key={template.id}
                     template={template}
                     isSelected={formData.templateId === template.id}

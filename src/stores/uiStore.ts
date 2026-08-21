@@ -220,7 +220,13 @@ interface UIState {
 
   // Export modal
   isExportModalOpen: boolean;
-  openExportModal: () => void;
+  /**
+   * The project the modal is scoped to, or null for the active project.
+   * A scoped modal exports that project without switching to it, and hides
+   * the "every project" mode, which means nothing once a project is named.
+   */
+  exportModalProjectId: string | null;
+  openExportModal: (projectId?: string) => void;
   closeExportModal: () => void;
 
   // Keyboard help modal
@@ -416,7 +422,11 @@ export const useUIStore = create<UIState>((set) => ({
 
   // Export modal
   isExportModalOpen: false,
-  openExportModal: () => set({ isExportModalOpen: true }),
+  exportModalProjectId: null,
+  openExportModal: (projectId) =>
+    set({ isExportModalOpen: true, exportModalProjectId: projectId ?? null }),
+  // The scope outlives the close: clearing it here would re-label the panel
+  // mid-exit. Every open sets it, so a closed modal's leftover id is inert.
   closeExportModal: () => set({ isExportModalOpen: false }),
 
   // Keyboard help modal

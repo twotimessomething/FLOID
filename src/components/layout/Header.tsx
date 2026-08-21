@@ -72,8 +72,9 @@ export function Header(): JSX.Element {
     if (!project || sections.length === 0) return;
 
     setIsExportDropdownOpen(false);
-    showToast('success', 'Exporting timeline...');
 
+    // No toast until there is something to report: the export is fast, and a
+    // 'success' that only means 'started' is a lie the user has to unlearn.
     try {
       await exportTimelineAsImage(project, sections);
       showToast('success', 'Timeline exported as image');
@@ -188,20 +189,20 @@ export function Header(): JSX.Element {
                   onClick={handleExportProject}
                   className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                 >
-                  Export Project
+                  Export project...
                 </button>
                 <button
                   onClick={handleExportAsImage}
                   className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                 >
-                  Export as Image
+                  Export as image
                 </button>
                 {isFileSystemAccessSupported() && (
                   <button
                     onClick={handleSaveToFolder}
                     className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                   >
-                    Save to Folder
+                    Save to folder
                   </button>
                 )}
               </div>

@@ -8,4 +8,5 @@ export { Toast } from './Toast';
 export { MobileNotice } from './MobileNotice';
 export { PinBadge } from './PinBadge';
 export { Toggle } from './Toggle';
+export { TemplateIcon } from './TemplateIcon';
 export { SyncStatusIndicator } from './SyncStatusIndicator';

@@ -277,29 +277,39 @@ export const ItemRow = memo(function ItemRow({
   // belongs beats drawing it at the root and dragging it in afterwards.
   const canCreateHere = !isLabel;
 
+  // "Skip weekends" belongs to the commit, not the gesture: the ghost tracks
+  // the cursor exactly, and the day it lands on is squared up once, here.
+  const snapCreateDay = useCallback(
+    (key: string): string => (skipWeekends ? snapKeyToBusinessDay(key) : key),
+    [skipWeekends]
+  );
+
   const handleGhostDoubleClick = useCallback(
     ({ startPx, point }: CreateGestureInfo): void => {
       createBarAt(
         section.id,
         {
-          startDay: xToDay(startPx, viewport, pixelsPerDay),
+          startDay: snapCreateDay(xToDay(startPx, viewport, pixelsPerDay)),
           parentId: row.parentId,
           index: row.index + 1,
         },
         point
       );
     },
-    [section.id, viewport, pixelsPerDay, row.parentId, row.index]
+    [section.id, viewport, pixelsPerDay, row.parentId, row.index, snapCreateDay]
   );
 
   const handleGhostDraw = useCallback(
     ({ startPx, endPx, point }: CreateGestureInfo): void => {
+      // Both drawn edges were chosen, so each squares up on its own — the same
+      // bargain resize strikes. A span drawn across a weekend can collapse onto
+      // a single Monday that way; `createBarAt` holds the floor of one day.
       createBarAt(
         section.id,
         {
           span: {
-            start: xToDay(startPx, viewport, pixelsPerDay),
-            end: xToDay(endPx, viewport, pixelsPerDay),
+            start: snapCreateDay(xToDay(startPx, viewport, pixelsPerDay)),
+            end: snapCreateDay(xToDay(endPx, viewport, pixelsPerDay)),
           },
           parentId: row.parentId,
           index: row.index + 1,
@@ -307,7 +317,7 @@ export const ItemRow = memo(function ItemRow({
         point
       );
     },
-    [section.id, viewport, pixelsPerDay, row.parentId, row.index]
+    [section.id, viewport, pixelsPerDay, row.parentId, row.index, snapCreateDay]
   );
 
   const ghost = useCreateGhost({

@@ -573,9 +573,11 @@ export function WelcomeWalkthrough(): ReactElement {
 
   return (
     <div className="h-full flex items-center justify-center bg-[var(--color-background)] px-6">
+      {/* Ink on the sheet, not a card resting on it: the walkthrough sits
+          straight on the app ground, held together by whitespace. */}
       {!isProjectSetupModalOpen && (
         <div
-          className="w-full max-w-xl modal-enter relative border border-[var(--color-border)] rounded-[var(--radius-lg)]"
+          className="w-full max-w-xl modal-enter relative"
           role="region"
           aria-label="Welcome walkthrough"
         >
@@ -583,13 +585,13 @@ export function WelcomeWalkthrough(): ReactElement {
             <button
               type="button"
               onClick={openProjectSetupModal}
-              className="absolute top-3 right-4 z-10 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-fast focus-ring rounded-[var(--radius-sm)] px-1.5 py-0.5"
+              className="absolute top-2 right-6 z-10 text-meta text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-fast focus-ring rounded-[var(--radius-sm)] px-1.5 py-0.5"
             >
               Skip
             </button>
           )}
 
-          <div className="px-10 pt-10 pb-7">
+          <div className="px-8 pt-10 pb-6">
             <div key={index} className="walkthrough-slide-enter">
               <div className="h-40 mb-6 flex items-center justify-center">{slide.illustration}</div>
               {slide.title && (
@@ -610,7 +612,7 @@ export function WelcomeWalkthrough(): ReactElement {
             </div>
           </div>
 
-          <div className="px-8 py-4 border-t border-[var(--color-hairline)] flex items-center justify-between">
+          <div className="px-8 pt-4 pb-6 flex items-center justify-between">
             <div className="min-w-[72px]">
               {!isFirst && (
                 <Button variant="ghost" onClick={goBack} aria-label="Previous slide">

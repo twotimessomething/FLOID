@@ -10,16 +10,33 @@ import { usePresence } from '../../hooks/usePresence';
 
 type ExportMode = 'active-project' | 'schedules' | 'all-projects';
 
+/** A schedule list is only ever read here, so one empty array serves them all. */
+const NO_SECTIONS: readonly Section[] = [];
+
+/** The project a scoped modal is exporting, once it has been read off disk. */
+interface ScopedProject {
+  readonly project: Project;
+  readonly sections: Section[];
+}
+
 export function ExportModal(): JSX.Element | null {
-  const { isExportModalOpen, closeExportModal } = useUIStore();
+  const isExportModalOpen = useUIStore((state) => state.isExportModalOpen);
+  const closeExportModal = useUIStore((state) => state.closeExportModal);
+  const scopedProjectId = useUIStore((state) => state.exportModalProjectId);
   const project = useProjectStore((state) => state.project);
   const projects = useProjectStore((state) => state.projects);
+  const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const sections = useSectionStore((state) => state.sections);
   const showToast = useUIStore((state) => state.showToast);
 
   const [exportMode, setExportMode] = useState<ExportMode>('active-project');
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
+  const [scoped, setScoped] = useState<ScopedProject | null>(null);
+
+  const isScoped = scopedProjectId !== null;
+  /** Scoped to a project that is not open: it has to be read from storage. */
+  const isScopedElsewhere = isScoped && scopedProjectId !== activeProjectId;
 
   // Reset state when modal opens
   useEffect(() => {
@@ -30,10 +47,47 @@ export function ExportModal(): JSX.Element | null {
     }
   }, [isExportModalOpen]);
 
+  /**
+   * Read a scoped project straight from storage. Opening its export dialog is
+   * not opening the project, so nothing here touches the active project.
+   */
+  useEffect(() => {
+    if (!isScopedElsewhere || !scopedProjectId) {
+      setScoped(null);
+      return;
+    }
+
+    // Held through the exit so the leaving panel keeps its contents; the next
+    // open re-reads, so a rename made in the meantime is never exported stale.
+    if (!isExportModalOpen) return;
+
+    let isCurrent = true;
+    void loadFullProject(scopedProjectId).then((data) => {
+      if (isCurrent) setScoped(data);
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [isExportModalOpen, isScopedElsewhere, scopedProjectId]);
+
+  // What this dialog actually exports: the scoped project, or the open one
+  const targetProject = isScopedElsewhere ? scoped?.project ?? null : project;
+  const targetSections = isScopedElsewhere ? scoped?.sections ?? NO_SECTIONS : sections;
+
+  /**
+   * The index already knows what the scoped project is called, so the dialog
+   * can name it on the first frame rather than waiting out the storage read.
+   */
+  const scopedIndexName = useMemo(
+    () => (scopedProjectId ? projects.find((p) => p.id === scopedProjectId)?.name ?? null : null),
+    [projects, scopedProjectId]
+  );
+
   // Sorted sections for display
   const sortedSections = useMemo(
-    () => [...sections].sort((a, b) => a.order - b.order),
-    [sections]
+    () => [...targetSections].sort((a, b) => a.order - b.order),
+    [targetSections]
   );
 
   const handleBackdropClick = useCallback(
@@ -58,22 +112,22 @@ export function ExportModal(): JSX.Element | null {
   }, []);
 
   const handleSelectAllSchedules = useCallback(() => {
-    setSelectedScheduleIds(new Set(sections.map((s) => s.id)));
-  }, [sections]);
+    setSelectedScheduleIds(new Set(targetSections.map((s) => s.id)));
+  }, [targetSections]);
 
   const handleDeselectAllSchedules = useCallback(() => {
     setSelectedScheduleIds(new Set());
   }, []);
 
   const handleExport = useCallback(async () => {
-    if (!project) return;
+    if (!targetProject) return;
 
     setIsExporting(true);
 
     try {
       if (exportMode === 'active-project') {
-        await downloadProjectJson(project, sections);
-        showToast('success', `Exported "${project.name}"`);
+        await downloadProjectJson(targetProject, [...targetSections]);
+        showToast('success', `Exported "${targetProject.name}"`);
       } else if (exportMode === 'schedules') {
         if (selectedScheduleIds.size === 0) {
           showToast('error', 'Please select at least one schedule');
@@ -81,11 +135,11 @@ export function ExportModal(): JSX.Element | null {
           return;
         }
 
-        const selectedSections = sections.filter((s) => selectedScheduleIds.has(s.id));
+        const selectedSections = targetSections.filter((s) => selectedScheduleIds.has(s.id));
 
         // Export each schedule as a separate file
         for (const section of selectedSections) {
-          await downloadScheduleFloid(project, section);
+          await downloadScheduleFloid(targetProject, section);
         }
 
         const count = selectedSections.length;
@@ -95,8 +149,8 @@ export function ExportModal(): JSX.Element | null {
 
         for (const projectEntry of projects) {
           // For the active project, use current state
-          if (projectEntry.id === project.id) {
-            await downloadProjectJson(project, sections);
+          if (projectEntry.id === targetProject.id) {
+            await downloadProjectJson(targetProject, [...targetSections]);
             exportedCount++;
           } else {
             // Load the full project from storage
@@ -119,8 +173,8 @@ export function ExportModal(): JSX.Element | null {
       setIsExporting(false);
     }
   }, [
-    project,
-    sections,
+    targetProject,
+    targetSections,
     projects,
     exportMode,
     selectedScheduleIds,
@@ -144,13 +198,18 @@ export function ExportModal(): JSX.Element | null {
 
   // Held on screen through the exit so the panel and its scrim can leave
   // together, the way they arrived.
-  const { isMounted, isLeaving } = usePresence(isExportModalOpen && project !== null);
+  const { isMounted, isLeaving } = usePresence(
+    isExportModalOpen && (project !== null || isScopedElsewhere)
+  );
   if (!isMounted) return null;
 
+  const projectName = targetProject?.name ?? scopedIndexName ?? '';
+
   const canExport =
-    exportMode === 'active-project' ||
-    exportMode === 'all-projects' ||
-    (exportMode === 'schedules' && selectedScheduleIds.size > 0);
+    targetProject !== null &&
+    (exportMode === 'active-project' ||
+      exportMode === 'all-projects' ||
+      (exportMode === 'schedules' && selectedScheduleIds.size > 0));
 
   return (
     <div
@@ -215,10 +274,12 @@ export function ExportModal(): JSX.Element | null {
               />
               <div>
                 <span className="text-sm text-[var(--color-text-primary)] font-medium">
-                  Active project
+                  {isScoped ? projectName : 'Active project'}
                 </span>
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  Export "{project.name}" as a .floid file
+                  {isScoped
+                    ? 'Export this project as a .floid file'
+                    : `Export "${projectName}" as a .floid file`}
                 </p>
               </div>
             </label>
@@ -238,7 +299,9 @@ export function ExportModal(): JSX.Element | null {
                   Specific schedules
                 </span>
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  Export individual schedules from the active project
+                  {isScoped
+                    ? 'Export individual schedules from this project'
+                    : 'Export individual schedules from the active project'}
                 </p>
               </div>
             </label>
@@ -248,7 +311,7 @@ export function ExportModal(): JSX.Element | null {
               <div className="ml-6 pl-3 border-l-2 border-[var(--color-border)]">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-[var(--color-text-muted)]">
-                    {selectedScheduleIds.size} of {sections.length} selected
+                    {selectedScheduleIds.size} of {targetSections.length} selected
                   </span>
                   <div className="flex gap-2">
                     <button
@@ -290,8 +353,8 @@ export function ExportModal(): JSX.Element | null {
               </div>
             )}
 
-            {/* All projects option */}
-            {projects.length > 1 && (
+            {/* Every project — meaningless once the dialog is scoped to one */}
+            {!isScoped && projects.length > 1 && (
               <label className="flex items-start gap-3 p-3 rounded-[var(--radius-sm)] cursor-pointer hover:bg-[var(--color-hover)]">
                 <input
                   type="radio"

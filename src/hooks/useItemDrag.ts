@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { DropTarget, TimelineItem } from '../types/timeline';
 import { dropTargetKey } from '../types/timeline';
+import { DEFAULT_PROJECT_SETTINGS } from '../types/project';
 import { useSectionStore } from '../stores/sectionStore';
+import { useProjectStore } from '../stores/projectStore';
 import { useUIStore } from '../stores/uiStore';
-import { addDaysToKey } from '../utils/dayKeys';
+import { addDaysToKey, dayKeyDiff, snapKeyToBusinessDay } from '../utils/dayKeys';
 import { formatDayKey } from '../utils/dateUtils';
 import { collectIds } from '../utils/itemTree';
 import { createDragPreview, type DragPreview } from '../utils/dragPreview';
@@ -304,7 +306,15 @@ export function dayDeltaForDrop(
   return Math.round(pointerDeltaPx / pixelsPerDay);
 }
 
-/** Apply the drop. A drag with nowhere to land still keeps its day shift. */
+/**
+ * Apply the drop. A drag with nowhere to land still keeps its day shift.
+ *
+ * "Skip weekends" is honoured here and nowhere earlier: the store is not
+ * written to until mouseup, so squaring the dates up any sooner would move the
+ * bar under a pointer that is still choosing. One delta covers the whole move —
+ * the item's end and everything under it travel on the same number of days — so
+ * landing the start on a business day cannot stretch or shrink anything.
+ */
 function commitDrag(
   item: TimelineItem,
   sectionId: string,
@@ -312,9 +322,10 @@ function commitDrag(
   dayDelta: number
 ): void {
   const store = useSectionStore.getState();
+  const days = snappedDayDelta(item.start, dayDelta);
 
   if (!target) {
-    store.shiftItem(sectionId, item.id, dayDelta);
+    store.shiftItem(sectionId, item.id, days);
     store.commitDragTransaction();
     return;
   }
@@ -328,9 +339,26 @@ function commitDrag(
     toSectionId: target.sectionId,
     toParentId: parentId,
     toIndex: index,
-    dayDelta,
+    dayDelta: days,
   });
   store.commitDragTransaction();
+}
+
+/**
+ * The shift a drop actually commits, once "skip weekends" has had its say.
+ *
+ * A delta of zero is a drop that never asked to move — joining a group, a plain
+ * re-order, a drag out of the labels column — and nudging that onto a Monday
+ * would be the app rescheduling work nobody touched. Anything else lands its
+ * start on a weekday and hands the rest of the move the same delta.
+ */
+function snappedDayDelta(start: string, dayDelta: number): number {
+  if (dayDelta === 0) return 0;
+  const skipWeekends =
+    useProjectStore.getState().project?.settings?.skipWeekends ??
+    DEFAULT_PROJECT_SETTINGS.skipWeekends;
+  if (!skipWeekends) return dayDelta;
+  return dayKeyDiff(start, snapKeyToBusinessDay(addDaysToKey(start, dayDelta)));
 }
 
 /**

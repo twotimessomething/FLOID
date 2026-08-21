@@ -1,72 +1,54 @@
-import { useMemo } from 'react';
-import { formatDistanceToNow } from 'date-fns';
-import { useSyncStore, type SyncStatus } from '../../stores/syncStore';
-import { isFileSystemAccessSupported } from '../../utils/fileSystemUtils';
+import { useSyncStore } from '../../stores/syncStore';
 
-interface StatusConfig {
-  dotClass: string;
-  label: string;
-}
-
-const STATUS_CONFIG: Record<Exclude<SyncStatus, 'disabled'>, StatusConfig> = {
-  idle: {
-    dotClass: 'bg-[var(--color-text-muted)] opacity-40',
-    label: 'Ready to sync',
-  },
-  syncing: {
-    dotClass: 'bg-[var(--color-text-muted)] opacity-40 animate-pulse',
-    label: 'Saving...',
-  },
-  synced: {
-    dotClass: 'bg-[var(--color-text-muted)] opacity-40',
-    label: 'Saved',
-  },
-  error: {
-    dotClass: 'bg-[var(--color-error)]',
-    label: 'Sync failed',
-  },
-};
-
+/**
+ * Folder sync speaks only when it has something to say.
+ *
+ * `idle`, `synced` and `disabled` render nothing at all: a dot that is always
+ * there and always the same is decoration, not information. That leaves the two
+ * states that carry any — a write in flight, and a write that failed — and the
+ * failure says so in words, because an error a user has to hover to discover is
+ * an error they never find. IndexedDB auto-save keeps no indicator here; it is
+ * silent by design.
+ */
 export function SyncStatusIndicator(): JSX.Element | null {
   const syncStatus = useSyncStore((state) => state.syncStatus);
-  const lastSyncedAt = useSyncStore((state) => state.lastSyncedAt);
   const folderName = useSyncStore((state) => state.folderName);
   const errorMessage = useSyncStore((state) => state.errorMessage);
 
-  const relativeTime = useMemo(() => {
-    if (!lastSyncedAt) return null;
-    try {
-      return formatDistanceToNow(new Date(lastSyncedAt), { addSuffix: true });
-    } catch {
-      return null;
-    }
-  }, [lastSyncedAt]);
-
-  // Don't show if File System API is not supported or sync is disabled
-  if (!isFileSystemAccessSupported() || syncStatus === 'disabled') {
-    return null;
+  if (syncStatus === 'syncing') {
+    const label = folderName ? `Saving to ${folderName}` : 'Saving';
+    return (
+      <div className="flex items-center" role="status" aria-label={label} title={label}>
+        <span
+          className="block w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)] opacity-40 animate-pulse"
+          aria-hidden="true"
+        />
+      </div>
+    );
   }
 
-  const config = STATUS_CONFIG[syncStatus];
+  if (syncStatus === 'error') {
+    // The store's messages are short ('Permission lost', 'Folder not found'),
+    // so the folder can ride along beside one without crowding the header.
+    const detail = [errorMessage, folderName].filter(Boolean).join(' · ');
 
-  // Build tooltip text
-  let tooltipText = config.label;
-  if (folderName) {
-    tooltipText = `${folderName}`;
-    if (syncStatus === 'synced' && relativeTime) {
-      tooltipText += ` • Saved ${relativeTime}`;
-    } else if (syncStatus === 'error' && errorMessage) {
-      tooltipText += ` • ${errorMessage}`;
-    }
+    return (
+      <div
+        className="flex items-center gap-1.5 min-w-0 max-w-xs text-meta"
+        role="alert"
+        title={detail ? `Sync failed · ${detail}` : 'Sync failed'}
+      >
+        <span
+          className="block w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[var(--color-error)]"
+          aria-hidden="true"
+        />
+        <span className="flex-shrink-0 text-[var(--color-error)]">Sync failed</span>
+        {detail && (
+          <span className="min-w-0 truncate text-[var(--color-text-muted)]">{detail}</span>
+        )}
+      </div>
+    );
   }
 
-  return (
-    <div
-      className="flex items-center"
-      title={tooltipText}
-      aria-label={tooltipText}
-    >
-      <span className={`block w-1.5 h-1.5 rounded-full transition-opacity duration-fast ${config.dotClass}`} />
-    </div>
-  );
+  return null;
 }
