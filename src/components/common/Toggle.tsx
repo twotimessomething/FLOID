@@ -18,7 +18,7 @@ export function Toggle({ id, checked, onChange }: ToggleProps): JSX.Element {
     >
       <span
         aria-hidden="true"
-        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-[var(--color-toggle-knob)] shadow-[var(--shadow-sm)] transition-transform duration-fast ${
+        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-[var(--color-toggle-knob)] shadow-sm transition-transform duration-fast ${
           checked ? 'translate-x-4' : 'translate-x-0'
         }`}
       />

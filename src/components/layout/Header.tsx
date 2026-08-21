@@ -181,7 +181,7 @@ export function Header(): JSX.Element {
             </button>
             {exportDropdown.isMounted && (
               <div
-                className={`absolute right-0 top-full mt-1 py-1 min-w-[160px] bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] z-[70] [--popover-origin:top_right] ${
+                className={`absolute right-0 top-full mt-1 py-1 min-w-[160px] bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-md)] shadow-md z-[70] [--popover-origin:top_right] ${
                   exportDropdown.isLeaving ? 'popover-leave' : 'popover-enter'
                 }`}
               >

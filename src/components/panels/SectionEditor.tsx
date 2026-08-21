@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectSection } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
-import { useUIStore } from '../../stores/uiStore';
+import { useUIStore, showSectionDeletedToast } from '../../stores/uiStore';
 import { Input, ColorPicker, Button, PinBadge, DateInput } from '../common';
 import { fromDayKey, toDayKey } from '../../utils/dayKeys';
 import type { SelectionState } from '../../types';
@@ -73,14 +73,18 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
   }, [sectionId, isPinned, setPinnedSection]);
 
   const handleDelete = useCallback(() => {
-    if (!sectionId) return;
+    if (!sectionId || !section) return;
+    // Held before the delete: the notice names it, and undo re-pins it
+    const deleted = section;
+    const wasPinned = isPinned;
     const result = deleteSection(sectionId);
     if (!result.success && result.reason) {
       showToast('warning', result.reason);
       return;
     }
+    showSectionDeletedToast(deleted, wasPinned);
     closeModal();
-  }, [sectionId, deleteSection, closeModal, showToast]);
+  }, [sectionId, section, isPinned, deleteSection, closeModal, showToast]);
 
   if (!section) {
     return <div className="text-sm text-[var(--color-text-secondary)]">Schedule not found</div>;

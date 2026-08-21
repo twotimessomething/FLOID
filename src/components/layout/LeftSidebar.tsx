@@ -25,7 +25,7 @@ export function LeftSidebar(): JSX.Element {
   const loadSectionsForProject = useSectionStore((state) => state.loadSectionsForProject);
 
   const isLeftSidebarOpen = useUIStore((state) => state.isLeftSidebarOpen);
-  const { toggleLeftSidebar, closeModal, openProjectSetupModal, openProjectEditModal } = useUIStore();
+  const { toggleLeftSidebar, closeModal, openProjectSetupModal } = useUIStore();
   const openExportModal = useUIStore((state) => state.openExportModal);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState('');
@@ -165,22 +165,6 @@ export function LeftSidebar(): JSX.Element {
     e.stopPropagation();
     setMenuOpenProjectId((prev) => (prev === projectId ? null : projectId));
   }, []);
-
-  const handleEditProject = useCallback((projectId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpenProjectId(null);
-
-    // If not the active project, switch to it first
-    if (projectId !== activeProjectId) {
-      saveCurrentProject(sections);
-      closeModal();
-      selectProject(projectId);
-      loadSectionsForProject(projectId);
-    }
-
-    // Open the edit modal
-    openProjectEditModal(projectId);
-  }, [activeProjectId, sections, saveCurrentProject, closeModal, selectProject, loadSectionsForProject, openProjectEditModal]);
 
   /**
    * Every project export goes through the one dialog, scoped to the row it was
@@ -329,16 +313,10 @@ export function LeftSidebar(): JSX.Element {
                   {/* Dropdown menu */}
                   {(menuOpenProjectId === proj.id || leavingMenuProjectId === proj.id) && (
                     <div
-                      className={`absolute right-0 top-full mt-1 w-36 bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] py-1 z-10 [--popover-origin:top_right] ${
+                      className={`absolute right-0 top-full mt-1 w-36 bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-md)] shadow-md py-1 z-10 [--popover-origin:top_right] ${
                         menuOpenProjectId === proj.id ? 'popover-enter' : 'popover-leave'
                       }`}
                     >
-                      <button
-                        onClick={(e) => handleEditProject(proj.id, e)}
-                        className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
-                      >
-                        Edit project...
-                      </button>
                       <button
                         onClick={(e) => handleExportProject(proj.id, e)}
                         className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"

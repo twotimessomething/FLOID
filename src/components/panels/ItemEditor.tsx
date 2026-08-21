@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectItem, selectSection } from '../../stores/sectionStore';
-import { useUIStore } from '../../stores/uiStore';
+import { useUIStore, showItemDeletedToast } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, ColorPicker, Button } from '../common';
-import { findItemPath } from '../../utils/itemTree';
+import { countItems, findItemPath } from '../../utils/itemTree';
 import { resolveItemColor } from '../../utils/timelineUtils';
 import { fromDayKey, toDayKey } from '../../utils/dayKeys';
 import type { SelectionState } from '../../types';
@@ -88,17 +88,20 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
   );
 
   const handleDelete = useCallback(() => {
-    if (!sectionId || !itemId) return;
+    if (!sectionId || !itemId || !item) return;
+    // Read it while it still exists, so the notice can name what it cost
+    showItemDeletedToast(item);
     deleteItem(sectionId, itemId);
     closeModal();
-  }, [sectionId, itemId, deleteItem, closeModal]);
+  }, [sectionId, itemId, item, deleteItem, closeModal]);
 
   if (!item || !section) {
     return <div className="text-sm text-[var(--color-text-secondary)]">Nothing selected</div>;
   }
 
   const isMilestone = item.kind === 'milestone';
-  const childCount = item.children.length;
+  // The whole subtree, not just the first level — that is what a delete takes
+  const childCount = countItems(item.children);
   // What the bar actually paints with — an inherited colour, not the schedule's
   const effectiveColor = resolveItemColor(section, item.id);
 

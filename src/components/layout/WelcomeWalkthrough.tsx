@@ -276,7 +276,7 @@ function MiniDragClone({ left, top, width, color, label, date }: MiniDragClonePr
   return (
     <div className="absolute z-30" style={{ left: `${left}%`, top, width: `${width}%` }}>
       <div
-        className="flex items-center h-[22px] px-1.5 overflow-hidden shadow-[var(--shadow-md)]"
+        className="flex items-center h-[22px] px-1.5 overflow-hidden shadow-md"
         style={{ backgroundColor: color }}
       >
         <span className="text-[0.5625rem] truncate" style={{ color: textColor }}>

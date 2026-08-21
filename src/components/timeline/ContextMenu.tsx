@@ -1,6 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useUIStore } from '../../stores/uiStore';
+import {
+  useUIStore,
+  showItemDeletedToast,
+  showSectionDeletedToast,
+} from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { downloadScheduleFloid } from '../../utils/exportUtils';
@@ -198,7 +202,11 @@ export function ContextMenu(): JSX.Element | null {
 
       items.push({
         label: 'Delete',
-        action: run(() => deleteItem(sectionId, targetId)),
+        action: run(() => {
+          // Named while it still exists — a group takes its children with it
+          showItemDeletedToast(item);
+          deleteItem(sectionId, targetId);
+        }),
         danger: true,
       });
 
@@ -257,8 +265,10 @@ export function ContextMenu(): JSX.Element | null {
           label: 'Delete',
           danger: true,
           action: () => {
+            const wasPinned = project?.pinnedSectionId === sectionId;
             const result = deleteSection(sectionId);
-            if (!result.success && result.reason) showToast('warning', result.reason);
+            if (result.success) showSectionDeletedToast(section, wasPinned);
+            else if (result.reason) showToast('warning', result.reason);
             close();
           },
         },
@@ -308,7 +318,7 @@ export function ContextMenu(): JSX.Element | null {
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[100] min-w-[160px] py-1 bg-[var(--color-raised)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-[var(--color-border)] popover-enter"
+      className="fixed z-[100] min-w-[160px] py-1 bg-[var(--color-raised)] rounded-[var(--radius-md)] shadow-md border border-[var(--color-border)] popover-enter"
       style={{ left: position.x, top: position.y }}
       role="menu"
       aria-label="Context menu"

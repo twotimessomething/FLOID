@@ -98,7 +98,7 @@ export function DragHandle({
       {/* Date bubble tooltip */}
       {isDragging && dragDate && (
         <div
-          className={`absolute bottom-full mb-2 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs rounded-[var(--radius-sm)] shadow-[var(--shadow-sm)] whitespace-nowrap z-50 pointer-events-none ${
+          className={`absolute bottom-full mb-2 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs rounded-[var(--radius-sm)] shadow-sm whitespace-nowrap z-50 pointer-events-none ${
             edge === 'start' ? 'left-0 -translate-x-1/2' : 'right-0 translate-x-1/2'
           }`}
           aria-hidden="true"

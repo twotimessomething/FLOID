@@ -114,7 +114,7 @@ export function EditorModal(): JSX.Element | null {
     >
       <div
         ref={modalRef}
-        className="fixed bg-[var(--color-raised)] border border-[var(--color-border)] overflow-hidden rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] modal-enter"
+        className="fixed bg-[var(--color-raised)] border border-[var(--color-border)] overflow-hidden rounded-[var(--radius-lg)] shadow-lg modal-enter"
         style={{
           width: MODAL_WIDTH,
           maxHeight: MODAL_MAX_HEIGHT,

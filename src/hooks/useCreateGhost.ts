@@ -54,9 +54,7 @@ interface DrawState {
 /**
  * "The ghost is the system": hovering empty timeline space previews the item
  * that lives there; double-click commits it at default size; press-and-drag
- * draws it at an exact size. Coordinates with the playhead — a hold that the
- * playhead claims first (visible scrubber) cancels the pending draw, and an
- * activated draw makes the playhead stand down via uiStore.isDragging.
+ * draws it at an exact size.
  */
 export function useCreateGhost({
   defaultWidth,
@@ -67,8 +65,6 @@ export function useCreateGhost({
   onDrawCreate,
 }: UseCreateGhostOptions): UseCreateGhostReturn {
   const [ghost, setGhost] = useState<CreateGhostState | null>(null);
-  // A press the playhead has claimed is a date scrub, not a create
-  const isPlayheadActive = useUIStore((s) => s.playheadPosition !== null);
   const drawStateRef = useRef<DrawState | null>(null);
   const suppressUntilRef = useRef(0);
   const hoverTimerRef = useRef<number | null>(null);
@@ -86,16 +82,6 @@ export function useCreateGhost({
       hoverTimerRef.current = null;
     }
   }, []);
-
-  // Once the playhead is up the hold has been read as a date scrub, so the
-  // create preview stands down — the two gestures never share the screen. It
-  // stays down until the pointer moves again, which re-earns the hover ghost.
-  useEffect(() => {
-    if (!isPlayheadActive || drawStateRef.current?.isDrawing) return;
-    clearHoverTimer();
-    isGhostVisibleRef.current = false;
-    setGhost((prev) => (prev !== null ? null : prev));
-  }, [isPlayheadActive, clearHoverTimer]);
 
   // Abort a draw mid-gesture if the component unmounts
   useEffect(() => {
@@ -181,8 +167,8 @@ export function useCreateGhost({
       if (!isEligible(e.target as HTMLElement, container)) return;
       clearHoverTimer();
 
-      // Stop text selection; let the event propagate so the playhead can
-      // still win a motionless hold
+      // Stop text selection. The event still propagates — a press that never
+      // travels is not a draw, and whatever else is listening may want it.
       e.preventDefault();
 
       const rect = container.getBoundingClientRect();
@@ -192,11 +178,6 @@ export function useCreateGhost({
         if (!draw) return;
         if (!draw.isDrawing) {
           if (Math.abs(me.clientX - draw.anchorClientX) < DRAW_THRESHOLD_PX) return;
-          // The playhead claimed this hold-and-drag first
-          if (useUIStore.getState().playheadPosition !== null) {
-            draw.cleanup();
-            return;
-          }
           draw.isDrawing = true;
           useUIStore.getState().setDragging(true, 'draw');
           document.body.classList.add('no-select');

@@ -32,6 +32,7 @@ const GESTURES: readonly Gesture[] = [
   { description: 'Take an item back out of its group', action: 'Drop it on open space' },
   { description: 'Resize a bar', action: 'Drag its edge' },
   { description: 'Open or close a group', action: 'Double-click the bar' },
+  { description: 'Rename a schedule, item, or project', action: 'Double-click its name' },
   { description: 'Color, lock, move out of group, export', action: 'Right-click' },
   { description: 'Move around the timeline', action: 'Middle-drag or right-drag' },
 ];
@@ -113,7 +114,7 @@ export function KeyboardHelpModal(): JSX.Element | null {
 
       {/* Modal */}
       <div
-        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] w-full max-w-md mx-4 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-md mx-4 modal-enter"
         role="document"
       >
         {/* Header */}

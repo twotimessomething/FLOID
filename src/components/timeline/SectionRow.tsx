@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import type { Section, ViewportBounds } from '../../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { useSectionStore } from '../../stores/sectionStore';
@@ -78,9 +78,6 @@ export const SectionRow = memo(function SectionRow({
   const isSelected = useUIStore(
     (s) => s.selection.type === 'section' && s.selection.id === section.id
   );
-  // A press the playhead has claimed is a date scrub, not a create
-  const isPlayheadActive = useUIStore((s) => s.playheadPosition !== null);
-
   const headerRef = useRef<HTMLDivElement>(null);
   const [milestoneGhostX, setMilestoneGhostX] = useState<number | null>(null);
   const inlineEdit = useInlineEdit();
@@ -226,13 +223,6 @@ export const SectionRow = memo(function SectionRow({
   const handleHeaderMouseLeave = useCallback((): void => {
     setMilestoneGhostX(null);
   }, []);
-
-  // Same bargain the bar ghost strikes: once the playhead is up the hold reads
-  // as a date scrub, so the milestone preview stands down until the next move
-  useEffect(() => {
-    if (!isPlayheadActive) return;
-    setMilestoneGhostX((previous) => (previous === null ? previous : null));
-  }, [isPlayheadActive]);
 
   // "Skip weekends" belongs to the commit, not the gesture: the ghost tracks
   // the cursor exactly, and the day it lands on is squared up once, here.

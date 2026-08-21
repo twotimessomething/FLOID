@@ -74,7 +74,7 @@ export function MobileNotice(): JSX.Element | null {
         className="fixed top-0 h-full flex items-center justify-center"
         style={{ left: `${visibleArea.left}px`, width: `${visibleArea.width}px` }}
       >
-        <div className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] max-w-xs w-full mx-4 px-6 py-6 text-center modal-enter">
+        <div className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg max-w-xs w-full mx-4 px-6 py-6 text-center modal-enter">
           {/* Monitor showing a mini FLOID timeline */}
           <svg
             className="mx-auto mb-4 text-[var(--color-logo-primary)]"

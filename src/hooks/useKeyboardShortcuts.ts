@@ -1,5 +1,9 @@
 import { useEffect, useCallback, useMemo } from 'react';
-import { useUIStore } from '../stores/uiStore';
+import {
+  useUIStore,
+  showItemDeletedToast,
+  showSectionDeletedToast,
+} from '../stores/uiStore';
 import { useSectionStore } from '../stores/sectionStore';
 import { useUndoRedo } from './useUndoRedo';
 import { usePinnedSection } from './usePinnedSection';
@@ -108,16 +112,22 @@ export function useKeyboardShortcuts(): void {
 
   const handleDelete = useCallback((): void => {
     if (!selection.id || !selection.sectionId) return;
+    // Read before the delete: the notice names what went, and offers it back
+    const section = sections.find((s) => s.id === selection.sectionId);
 
     if (selection.type === 'section') {
+      const wasPinned = pinnedSection?.id === selection.sectionId;
       const result = deleteSection(selection.sectionId);
-      if (!result.success && result.reason) showToast('warning', result.reason);
+      if (result.success && section) showSectionDeletedToast(section, wasPinned);
+      else if (result.reason) showToast('warning', result.reason);
     } else if (selection.type === 'item') {
+      const item = section ? findItem(section.items, selection.id) : null;
+      if (item) showItemDeletedToast(item);
       deleteItem(selection.sectionId, selection.id);
     }
 
     closeModal();
-  }, [selection, deleteSection, deleteItem, closeModal, showToast]);
+  }, [selection, sections, pinnedSection, deleteSection, deleteItem, closeModal, showToast]);
 
   /** Only a bar with children has anything to fold. */
   const canToggleSelection = useMemo((): boolean => {

@@ -1,4 +1,7 @@
 import { create } from 'zustand';
+import { useProjectStore } from './projectStore';
+import { useSectionStore } from './sectionStore';
+import { countItems } from '../utils/itemTree';
 import type {
   ZoomLevel,
   SelectionState,
@@ -6,6 +9,8 @@ import type {
   ImportAnalysis,
   ImportModalType,
   ItemKind,
+  Section,
+  TimelineItem,
 } from '../types';
 
 // Theme mode
@@ -68,12 +73,30 @@ const IDLE_ITEM_DRAG: ItemDragState = {
 // Toast state
 export type ToastType = 'success' | 'error' | 'warning';
 
+/** A toast carries at most one thing to do about it. Two would be a dialog. */
+export interface ToastAction {
+  readonly label: string;
+  readonly onClick: () => void;
+}
+
 export interface ToastState {
   isVisible: boolean;
   type: ToastType;
   message: string;
   duration: number;
+  /** Rendered as a button beside the message. Null for a plain notice. */
+  action: ToastAction | null;
 }
+
+export interface ShowToastOptions {
+  readonly duration?: number;
+  readonly action?: ToastAction;
+}
+
+/** Long enough to read a sentence you did not ask for. */
+export const TOAST_DURATION = 3000;
+/** Long enough to read it, decide, and reach for the button. */
+export const TOAST_ACTION_DURATION = 8000;
 
 // Import modal state
 export interface UIImportModalState {
@@ -144,8 +167,7 @@ interface UIState {
 
   // Playhead (scrubber)
   playheadPosition: number | null;
-  playheadY: number | null;
-  setPlayheadPosition: (position: number | null, y?: number | null) => void;
+  setPlayheadPosition: (position: number | null) => void;
 
   // Editor modal
   isModalOpen: boolean;
@@ -165,11 +187,6 @@ interface UIState {
   isProjectSetupModalOpen: boolean;
   openProjectSetupModal: () => void;
   closeProjectSetupModal: () => void;
-
-  // Project edit modal
-  editingProjectId: string | null;
-  openProjectEditModal: (projectId: string) => void;
-  closeProjectEditModal: () => void;
 
   // Label column width
   labelColumnWidth: number;
@@ -198,7 +215,16 @@ interface UIState {
 
   // Toast notifications
   toast: ToastState;
-  showToast: (type: ToastType, message: string, duration?: number) => void;
+  /**
+   * The third argument was a duration and still may be, so the ~15 existing
+   * two-argument callers keep working and a duration-only caller need not
+   * learn an object.
+   */
+  showToast: (
+    type: ToastType,
+    message: string,
+    options?: number | ShowToastOptions
+  ) => void;
   hideToast: () => void;
 
   // Import modal
@@ -297,8 +323,7 @@ export const useUIStore = create<UIState>((set) => ({
 
   // Playhead
   playheadPosition: null,
-  playheadY: null,
-  setPlayheadPosition: (position, y = null) => set({ playheadPosition: position, playheadY: y }),
+  setPlayheadPosition: (position) => set({ playheadPosition: position }),
 
   // Editor modal
   isModalOpen: false,
@@ -322,11 +347,6 @@ export const useUIStore = create<UIState>((set) => ({
   isProjectSetupModalOpen: false,
   openProjectSetupModal: () => set({ isProjectSetupModalOpen: true }),
   closeProjectSetupModal: () => set({ isProjectSetupModalOpen: false }),
-
-  // Project edit modal
-  editingProjectId: null,
-  openProjectEditModal: (projectId) => set({ editingProjectId: projectId }),
-  closeProjectEditModal: () => set({ editingProjectId: null }),
 
   // Label column width
   labelColumnWidth: DEFAULT_LABEL_WIDTH,
@@ -369,17 +389,24 @@ export const useUIStore = create<UIState>((set) => ({
     isVisible: false,
     type: 'success' as ToastType,
     message: '',
-    duration: 3000,
+    duration: TOAST_DURATION,
+    action: null,
   },
-  showToast: (type, message, duration = 3000) =>
+  showToast: (type, message, options) => {
+    const settings: ShowToastOptions =
+      typeof options === 'number' ? { duration: options } : (options ?? {});
+    const action = settings.action ?? null;
     set({
       toast: {
         isVisible: true,
         type,
         message,
-        duration,
+        // A toast worth acting on has to outlast one worth only reading
+        duration: settings.duration ?? (action ? TOAST_ACTION_DURATION : TOAST_DURATION),
+        action,
       },
-    }),
+    });
+  },
   hideToast: () =>
     set((state) => ({
       toast: {
@@ -472,3 +499,62 @@ export const useUIStore = create<UIState>((set) => ({
       },
     })),
 }));
+
+/* ------------------------------------------------------------------ *
+ * Delete notices
+ *
+ * Deleting is instant and takes the whole subtree with it, so the way back
+ * has to be on screen rather than in a shortcut nobody has read. Three paths
+ * delete an item and three delete a schedule; the wording and the undo wiring
+ * live here so they cannot drift apart.
+ *
+ * `useUndoRedo` is a hook, so the button reaches the same temporal store the
+ * way the section store does — directly.
+ * ------------------------------------------------------------------ */
+
+function undoAction(restore?: () => void): ToastAction {
+  return {
+    label: 'Undo',
+    onClick: () => {
+      useSectionStore.temporal.getState().undo();
+      restore?.();
+    },
+  };
+}
+
+function displayName(name: string): string {
+  return name.trim() || 'Untitled';
+}
+
+/**
+ * Call before deleting: the count has to be read while the subtree still
+ * exists, and a lone bar and a group are not the same loss.
+ */
+export function showItemDeletedToast(item: TimelineItem): void {
+  const buried = countItems(item.children);
+  const noun = item.kind === 'milestone' ? 'milestone' : 'bar';
+  const message =
+    buried > 0
+      ? `Deleted "${displayName(item.name)}" and the ${buried} ${buried === 1 ? 'item' : 'items'} inside it`
+      : `Deleted ${noun} "${displayName(item.name)}"`;
+  useUIStore.getState().showToast('success', message, { action: undoAction() });
+}
+
+/**
+ * `deleteSection` clears the pin as a side effect, and the pin lives in
+ * another store than the one undo rewinds — so undo has to put it back.
+ */
+export function showSectionDeletedToast(section: Section, wasPinned: boolean): void {
+  const count = countItems(section.items);
+  const message =
+    count > 0
+      ? `Deleted schedule "${displayName(section.name)}" and the ${count} ${count === 1 ? 'item' : 'items'} on it`
+      : `Deleted schedule "${displayName(section.name)}"`;
+  useUIStore.getState().showToast('success', message, {
+    action: undoAction(
+      wasPinned
+        ? () => useProjectStore.getState().setPinnedSection(section.id)
+        : undefined
+    ),
+  });
+}

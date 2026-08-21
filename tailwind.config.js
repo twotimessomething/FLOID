@@ -28,6 +28,20 @@ export default {
         display: ['1.375rem', { lineHeight: '1.15', letterSpacing: '-0.018em' }],
       },
       /**
+       * Elevation. These override Tailwind's own sm/md/lg so the only shadows
+       * reachable from a class are the three the design system defines.
+       *
+       * They must live here rather than as `shadow-[var(--shadow-lg)]`: given a
+       * bare `var()` Tailwind cannot see a length, assumes a colour, and emits
+       * `--tw-shadow-color` — which sets no box-shadow at all. Every floating
+       * surface in the app was flat for exactly that reason.
+       */
+      boxShadow: {
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+      },
+      /**
        * Three durations, named for what is moving rather than for a number.
        * They resolve to the same custom properties the stylesheet uses, so a
        * change lands in both at once.

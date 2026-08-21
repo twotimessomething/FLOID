@@ -1,19 +1,14 @@
-import { useEffect, useCallback, type DragEvent } from 'react';
+import { lazy, Suspense, useEffect, useCallback, useState, type DragEvent } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { Header } from './components/layout/Header';
 import { TimelineContainer } from './components/layout/TimelineContainer';
-import { EditorModal } from './components/layout/EditorModal';
 import { LeftSidebar } from './components/layout/LeftSidebar';
 import { InfoSidebar } from './components/layout/InfoSidebar';
 import { NewProjectModal } from './components/layout/NewProjectModal';
-import { ProjectEditModal } from './components/layout/ProjectEditModal';
-import { AddScheduleModal } from './components/layout/AddScheduleModal';
-import { ImportConfirmModal } from './components/layout/ImportConfirmModal';
-import { SettingsModal } from './components/layout/SettingsModal';
-import { ExportModal } from './components/layout/ExportModal';
-import { KeyboardHelpModal } from './components/layout/KeyboardHelpModal';
-import { ContextMenu } from './components/timeline';
-import { Toast, ConfirmDialog, MobileNotice } from './components/common';
+import { ContextMenu } from './components/timeline/ContextMenu';
+import { Toast } from './components/common/Toast';
+import { ConfirmDialog } from './components/common/ConfirmDialog';
+import { MobileNotice } from './components/common/MobileNotice';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { useAutoSave, useKeyboardShortcuts, useScheduleImport, useTheme } from './hooks';
 import { useBackupReminder } from './hooks/useBackupReminder';
@@ -22,6 +17,56 @@ import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
 import { useUIStore } from './stores/uiStore';
 import { parseProjectJson, convertImportedProject } from './utils/exportUtils';
+
+/**
+ * Overlays arrive when they are asked for.
+ *
+ * Everything below is a surface that is absent until something opens it, so
+ * none of it belongs in the chunk that draws the first bar. Each gets its own
+ * boundary with a `null` fallback: a modal that has not loaded yet is
+ * indistinguishable from a modal that is closed, and one boundary per surface
+ * means a slow chunk cannot blank a sibling that is already on screen.
+ *
+ * Mounting late does not clip the way they arrive. `usePresence` seeds its
+ * mounted flag from the open flag, and `.modal-enter` is a CSS animation that
+ * runs on mount, so a lazily mounted modal plays its rise in full — it simply
+ * starts a moment later.
+ */
+const loadEditorModal = (): Promise<typeof import('./components/layout/EditorModal')> =>
+  import('./components/layout/EditorModal');
+const EditorModal = lazy(() => loadEditorModal().then((m) => ({ default: m.EditorModal })));
+const AddScheduleModal = lazy(() =>
+  import('./components/layout/AddScheduleModal').then((m) => ({ default: m.AddScheduleModal }))
+);
+const ImportConfirmModal = lazy(() =>
+  import('./components/layout/ImportConfirmModal').then((m) => ({ default: m.ImportConfirmModal }))
+);
+const SettingsModal = lazy(() =>
+  import('./components/layout/SettingsModal').then((m) => ({ default: m.SettingsModal }))
+);
+const ExportModal = lazy(() =>
+  import('./components/layout/ExportModal').then((m) => ({ default: m.ExportModal }))
+);
+const KeyboardHelpModal = lazy(() =>
+  import('./components/layout/KeyboardHelpModal').then((m) => ({ default: m.KeyboardHelpModal }))
+);
+
+/**
+ * True from the first time a surface is wanted, and true from then on.
+ *
+ * A lazy chunk is fetched the moment React renders its element, not when the
+ * surface opens — so mounting every modal unconditionally would download all
+ * of them at boot and leave the split doing nothing. Gating on the
+ * open flag alone would go too far the other way and tear a modal off screen
+ * the instant it closed, before `usePresence` could play its exit. Latching
+ * gives both: nothing is fetched until it is first asked for, and once a
+ * surface exists it stays mounted to leave on its own terms.
+ */
+function useOnceWanted(isWanted: boolean): boolean {
+  const [wasWanted, setWasWanted] = useState(false);
+  if (isWanted && !wasWanted) setWasWanted(true);
+  return wasWanted || isWanted;
+}
 
 function App(): JSX.Element {
   const { initializeFromProject, loadSectionsForProject } = useSectionStore();
@@ -35,6 +80,16 @@ function App(): JSX.Element {
   const isDraggingFile = useUIStore((state) => state.isDraggingFile);
   const setDraggingFile = useUIStore((state) => state.setDraggingFile);
   const showToast = useUIStore((state) => state.showToast);
+
+  // Each lazy overlay is mounted only once something has asked for it — see
+  // `useOnceWanted`. Read as individual selectors so opening one modal does
+  // not re-render the others.
+  const wantsEditor = useOnceWanted(useUIStore((state) => state.isModalOpen));
+  const wantsAddSchedule = useOnceWanted(useUIStore((state) => state.isAddScheduleModalOpen));
+  const wantsImportConfirm = useOnceWanted(useUIStore((state) => state.importModal.isOpen));
+  const wantsSettings = useOnceWanted(useUIStore((state) => state.isSettingsModalOpen));
+  const wantsExport = useOnceWanted(useUIStore((state) => state.isExportModalOpen));
+  const wantsKeyboardHelp = useOnceWanted(useUIStore((state) => state.isKeyboardHelpModalOpen));
 
   const { handleImport: handleScheduleImport, handleConfirmAction } = useScheduleImport();
 
@@ -63,6 +118,20 @@ function App(): JSX.Element {
       loadSectionsForProject(activeProjectId);
     }
   }, [activeProjectId, loadSectionsForProject]);
+
+  /**
+   * The editor is the one overlay that sits on the timeline's own path —
+   * drawing a bar opens it — so it is fetched as soon as the sheet is drawn
+   * rather than at the click that needs it. Off the first paint, ahead of the
+   * first open.
+   */
+  useEffect(() => {
+    if (!isStorageReady) return;
+    const timer = window.setTimeout(() => {
+      void loadEditorModal();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isStorageReady]);
 
   // Disable default browser context menu app-wide
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -185,14 +254,42 @@ function App(): JSX.Element {
           <InfoSidebar />
         </main>
       </ErrorBoundary>
-      <EditorModal />
+      {wantsEditor && (
+        <Suspense fallback={null}>
+          <EditorModal />
+        </Suspense>
+      )}
+      {/* Eager: the walkthrough removes itself the instant this opens, so a
+          fallback here would blank the screen rather than hide behind it. */}
       <NewProjectModal />
-      <ProjectEditModal />
-      <AddScheduleModal />
-      <ImportConfirmModal onConfirm={handleConfirmAction} />
-      <SettingsModal />
-      <ExportModal />
-      <KeyboardHelpModal />
+      {wantsAddSchedule && (
+        <Suspense fallback={null}>
+          <AddScheduleModal />
+        </Suspense>
+      )}
+      {wantsImportConfirm && (
+        <Suspense fallback={null}>
+          <ImportConfirmModal onConfirm={handleConfirmAction} />
+        </Suspense>
+      )}
+      {wantsSettings && (
+        <Suspense fallback={null}>
+          <SettingsModal />
+        </Suspense>
+      )}
+      {wantsExport && (
+        <Suspense fallback={null}>
+          <ExportModal />
+        </Suspense>
+      )}
+      {wantsKeyboardHelp && (
+        <Suspense fallback={null}>
+          <KeyboardHelpModal />
+        </Suspense>
+      )}
+      {/* Eager: these four answer a gesture or a state the app is already in —
+          a right-click, a toast, a confirm, a narrow window — and none of them
+          can afford to arrive a round trip late. */}
       <ContextMenu />
       <Toast />
       <ConfirmDialog />

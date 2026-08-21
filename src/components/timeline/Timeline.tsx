@@ -1,4 +1,13 @@
-import { useRef, useMemo, useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useRef,
+  useMemo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useState,
+} from 'react';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
@@ -14,7 +23,6 @@ import { StickyMilestones } from './StickyMilestones';
 import { Playhead } from './Playhead';
 import { PinnedMilestoneLines } from './PinnedMilestoneLines';
 import { AddScheduleButton } from '../controls';
-import { WelcomeWalkthrough } from '../layout/WelcomeWalkthrough';
 import {
   HEADER_HEIGHT,
   ROW_HEIGHT,
@@ -25,6 +33,15 @@ import {
 import { isTodayInViewport } from '../../utils/dateUtils';
 import { dayKeyDiff, todayKey } from '../../utils/dayKeys';
 import type { Section } from '../../types';
+
+/**
+ * The walkthrough is the first run and only the first run: a returning user
+ * never sees it, so its illustrations have no business in the chunk that draws
+ * the timeline. It arrives on its own, and only when there is no project.
+ */
+const WelcomeWalkthrough = lazy(() =>
+  import('../layout/WelcomeWalkthrough').then((m) => ({ default: m.WelcomeWalkthrough }))
+);
 
 /** Air left of the first item when a project opens — enough to clear a milestone's label. */
 const INITIAL_LEAD_IN_PX = 32;
@@ -306,7 +323,16 @@ export function Timeline(): JSX.Element {
     return Math.max(height + ROW_HEIGHT, 200);
   }, [pinnedSection, unpinnedSections]);
 
-  if (!activeProjectId) return <WelcomeWalkthrough />;
+  if (!activeProjectId) {
+    // An empty sheet, not a spinner: the walkthrough opens on the same ground it
+    // will occupy, so the wait reads as paper waiting for ink rather than as a
+    // loading state that appears and vanishes in a frame.
+    return (
+      <Suspense fallback={<div className="h-full" aria-hidden="true" />}>
+        <WelcomeWalkthrough />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col relative" role="application" aria-label="Timeline editor">

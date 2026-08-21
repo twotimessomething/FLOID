@@ -141,11 +141,6 @@ export function useItemDrag(): {
         const dx = Math.abs(moveEvent.clientX - session.startClientX);
         const dy = Math.abs(moveEvent.clientY - session.startClientY);
         if (dx < DRAG_THRESHOLD_PX && dy < DRAG_THRESHOLD_PX) return;
-        // A hold the playhead already claimed is a scrub, not a drag
-        if (useUIStore.getState().playheadPosition !== null) {
-          session.cleanup();
-          return;
-        }
         activate();
       }
       session.pointerX = moveEvent.clientX;

@@ -216,7 +216,7 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
 
       {/* Modal */}
       <div
-        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] max-w-md w-full mx-4 p-6 modal-enter"
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg max-w-md w-full mx-4 p-6 modal-enter"
         role="dialog"
         aria-modal="true"
         aria-labelledby="import-modal-title"
