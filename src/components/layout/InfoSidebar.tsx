@@ -11,6 +11,12 @@ import { formatDayKey } from '../../utils/dateUtils';
 /** Joins trail keys. No name can contain it, so no two trails can collide. */
 const TRAIL_KEY_SEPARATOR = '\u0000';
 
+/**
+ * The rail the panel folds down to. The open width is the user's own, so the
+ * contents are pinned to it while the box narrows — clipped, never re-wrapped.
+ */
+const RAIL_WIDTH = 32;
+
 interface AncestryGroup {
   readonly key: string;
   readonly ancestors: Ancestry;
@@ -95,11 +101,11 @@ function StatusRow({ item, showDate }: StatusRowProps): JSX.Element {
         className="w-[5px] h-[5px] rounded-full flex-shrink-0"
         style={{ backgroundColor: item.color }}
       />
-      <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-text-primary)]">
+      <span className="min-w-0 flex-1 truncate text-body text-[var(--color-text-primary)]">
         {item.name || 'Untitled'}
       </span>
       {showDate && (
-        <span className="text-[11px] text-[var(--color-text-muted)] flex-shrink-0">
+        <span className="text-meta text-[var(--color-text-muted)] flex-shrink-0">
           {formatDayKey(item.start, 'MMM d')}
         </span>
       )}
@@ -123,7 +129,7 @@ function SectionGroup({ bucket, showDate }: SectionGroupProps): JSX.Element {
         {bucket.groups.map((group) => (
           <div key={group.key} className="py-0.5">
             {group.ancestors.length > 0 && (
-              <div className="text-[11px] text-[var(--color-text-muted)] truncate">
+              <div className="text-meta text-[var(--color-text-muted)] truncate">
                 {formatTrail(group.ancestors)}
               </div>
             )}
@@ -166,14 +172,14 @@ function MilestoneRow({ item }: MilestoneRowProps): JSX.Element {
         style={{ backgroundColor: item.color }}
       />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] text-[var(--color-text-primary)]">
+        <span className="block truncate text-body text-[var(--color-text-primary)]">
           {item.name || 'Milestone'}
         </span>
         <span className="flex items-center gap-2">
-          <span className="min-w-0 truncate text-[11px] text-[var(--color-text-secondary)]">
+          <span className="min-w-0 truncate text-meta text-[var(--color-text-secondary)]">
             {trail}
           </span>
-          <span className="text-[11px] text-[var(--color-text-muted)] flex-shrink-0">
+          <span className="text-meta text-[var(--color-text-muted)] flex-shrink-0">
             {formatDayKey(item.date, 'MMM d')}
           </span>
         </span>
@@ -244,20 +250,25 @@ export function InfoSidebar(): JSX.Element {
 
   if (!isInfoSidebarOpen) {
     return (
-      <button
-        onClick={toggleInfoSidebar}
-        className="group flex-shrink-0 w-8 h-full flex items-start justify-center pt-4 border-l border-[var(--color-hairline)] focus-ring"
-        aria-label="Open status sidebar"
+      <aside
+        className="flex-shrink-0 h-full overflow-hidden bg-[var(--color-background)] border-l border-[var(--color-hairline)] sidebar-fold"
+        style={{ width: RAIL_WIDTH }}
       >
-        <svg
-          className="w-4 h-4 text-[var(--color-text-muted)] opacity-40 group-hover:opacity-100 transition-opacity duration-150"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+        <button
+          onClick={toggleInfoSidebar}
+          className="sidebar-enter group w-8 h-full flex items-start justify-center pt-4 focus-ring"
+          aria-label="Open status sidebar"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
+          <svg
+            className="w-4 h-4 text-[var(--color-text-muted)] opacity-40 group-hover:opacity-100 transition-opacity duration-fast"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      </aside>
     );
   }
 
@@ -265,111 +276,122 @@ export function InfoSidebar(): JSX.Element {
 
   return (
     <aside
-      className="flex-shrink-0 bg-[var(--color-background)] border-l border-[var(--color-hairline)] flex flex-col relative"
-      style={{ width: infoSidebarWidth }}
+      className="relative flex-shrink-0 h-full overflow-hidden bg-[var(--color-background)] border-l border-[var(--color-hairline)] sidebar-fold"
+      style={{
+        width: infoSidebarWidth,
+        // A resize drag writes the width on every mousemove; easing those would
+        // make the edge lag the cursor. The fold only applies to the toggle.
+        transitionDuration: isResizing ? '0ms' : undefined,
+      }}
     >
-      {/* Resize handle */}
+      {/* Resize handle. Inside the panel's edge — the fold clips whatever
+          overflows it, and a handle hanging outside would lose half its width. */}
       <div
-        className={`absolute top-0 -left-0.5 w-1 h-full cursor-col-resize z-10 transition-colors ${
+        className={`absolute top-0 left-0 w-1 h-full cursor-col-resize z-10 transition-colors duration-fast ${
           isResizing ? 'bg-[var(--color-focus)]' : 'hover:bg-[var(--color-focus)]/70'
         }`}
         onMouseDown={handleResizeMouseDown}
         aria-label="Resize status sidebar"
         role="separator"
       />
-      {/* Header with collapse button */}
-      <div className="flex items-center justify-between p-3">
-        <h2 className="eyebrow">Status</h2>
-        <button
-          onClick={toggleInfoSidebar}
-          className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150 focus-ring"
-          aria-label="Collapse sidebar"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
+      <div
+        className="sidebar-enter h-full flex flex-col"
+        style={{ width: infoSidebarWidth }}
+      >
+        {/* Header with collapse button */}
+        <div className="flex items-center justify-between p-3">
+          <h2 className="eyebrow">Status</h2>
+          <button
+            onClick={toggleInfoSidebar}
+            className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-fast focus-ring"
+            aria-label="Collapse sidebar"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto p-3">
-        {!hasContent ? (
-          <div className="text-[13px] text-[var(--color-text-muted)] text-center py-4">
-            No active items
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {/* Upcoming Milestones section - now at top */}
-            {upcomingMilestones.length > 0 && (
-              <div>
-                <SectionHeader title="Milestones" />
-                <div className="space-y-0.5">
-                  {upcomingMilestones.map((item) => (
-                    <MilestoneRow key={item.id} item={item} />
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {!hasContent ? (
+            <div className="text-body text-[var(--color-text-muted)] text-center py-4">
+              No active items
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Upcoming Milestones section - now at top */}
+              {upcomingMilestones.length > 0 && (
+                <div>
+                  <SectionHeader title="Milestones" />
+                  <div className="space-y-0.5">
+                    {upcomingMilestones.map((item) => (
+                      <MilestoneRow key={item.id} item={item} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* In Flight section */}
+              {groupedInFlight.length > 0 && (
+                <div>
+                  <SectionHeader title="In Flight" />
+                  {groupedInFlight.map((bucket) => (
+                    <SectionGroup key={bucket.sectionId} bucket={bucket} />
                   ))}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* In Flight section */}
-            {groupedInFlight.length > 0 && (
-              <div>
-                <SectionHeader title="In Flight" />
-                {groupedInFlight.map((bucket) => (
-                  <SectionGroup key={bucket.sectionId} bucket={bucket} />
-                ))}
-              </div>
-            )}
+              {/* Next Up section */}
+              {groupedNextUp.length > 0 && (
+                <div>
+                  <SectionHeader title="Next Up" />
+                  {groupedNextUp.map((bucket) => (
+                    <SectionGroup key={bucket.sectionId} bucket={bucket} showDate />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-            {/* Next Up section */}
-            {groupedNextUp.length > 0 && (
-              <div>
-                <SectionHeader title="Next Up" />
-                {groupedNextUp.map((bucket) => (
-                  <SectionGroup key={bucket.sectionId} bucket={bucket} showDate />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Settings and help buttons */}
-      <div className="flex-shrink-0 p-3 flex justify-end gap-1">
-        <button
-          onClick={openKeyboardHelpModal}
-          className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-150 focus-ring"
-          aria-label="Shortcuts and gestures"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"
-            />
-          </svg>
-        </button>
-        <button
-          onClick={openSettingsModal}
-          className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-150 focus-ring"
-          aria-label="Settings"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
-        </button>
+        {/* Settings and help buttons */}
+        <div className="flex-shrink-0 p-3 flex justify-end gap-1">
+          <button
+            onClick={openKeyboardHelpModal}
+            className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-fast focus-ring"
+            aria-label="Shortcuts and gestures"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={openSettingsModal}
+            className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-fast focus-ring"
+            aria-label="Settings"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
     </aside>
   );

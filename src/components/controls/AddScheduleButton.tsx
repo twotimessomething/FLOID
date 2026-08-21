@@ -12,7 +12,7 @@ export function AddScheduleButton(): JSX.Element {
       onClick={handleAddSchedule}
       title="Add Schedule"
       aria-label="Add Schedule"
-      className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-150 focus-ring"
+      className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-fast focus-ring"
     >
       <svg
         className="w-3.5 h-3.5"

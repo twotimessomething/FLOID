@@ -23,7 +23,7 @@ export function ColorPicker({
   return (
     <div className="flex flex-col gap-2">
       {label && (
-        <span className="text-[11px] font-normal text-[var(--color-text-secondary)]">{label}</span>
+        <span className="text-meta font-normal text-[var(--color-text-secondary)]">{label}</span>
       )}
       <div className="flex flex-wrap gap-2">
         {colors.map((color) => {

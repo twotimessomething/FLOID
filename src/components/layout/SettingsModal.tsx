@@ -9,6 +9,7 @@ import type { AppSettings } from '../../types/storage';
 import { DEFAULT_APP_SETTINGS } from '../../types/storage';
 import { getAppSettings, setAppSettings, setFileHandle } from '../../utils/indexedDB';
 import { isFileSystemAccessSupported, requestDirectoryAccess } from '../../utils/fileSystemUtils';
+import { usePresence } from '../../hooks/usePresence';
 
 // Theme option type
 interface ThemeOption {
@@ -172,13 +173,14 @@ export function SettingsModal(): JSX.Element | null {
     }
   }, [isSettingsModalOpen, closeSettingsModal]);
 
-  if (!isSettingsModalOpen) {
-    return null;
-  }
+  // Held on screen through the exit so the panel and its scrim can leave
+  // together, the way they arrived.
+  const { isMounted, isLeaving } = usePresence(isSettingsModalOpen);
+  if (!isMounted) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"

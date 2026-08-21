@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { usePresence } from '../../hooks/usePresence';
 
 // Phones in portrait/landscape, plus small touch tablets
 const MOBILE_MEDIA_QUERY =
@@ -53,11 +54,14 @@ export function MobileNotice(): JSX.Element | null {
     setIsDismissed(true);
   }, []);
 
-  if (!isMobile || isDismissed) return null;
+  // Held on screen through the exit so the panel and its scrim can leave
+  // together, the way they arrived.
+  const { isMounted, isLeaving } = usePresence(isMobile && !isDismissed);
+  if (!isMounted) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[300]"
+      className={`modal-layer fixed inset-0 z-[300] ${isLeaving ? 'is-leaving' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="mobile-notice-title"

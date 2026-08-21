@@ -11,7 +11,7 @@ export function MilestoneGlyph({ isSelected }: MilestoneGlyphProps): JSX.Element
   return (
     <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" aria-hidden="true">
       <div
-        className={`w-2 h-2 rotate-45 transition-opacity duration-150 group-hover:opacity-80 ${
+        className={`w-2 h-2 rotate-45 transition-opacity duration-fast group-hover:opacity-80 ${
           isSelected ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-primary)]'
         }`}
       />

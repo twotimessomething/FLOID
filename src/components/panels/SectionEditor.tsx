@@ -4,9 +4,16 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { Input, ColorPicker, Button, PinBadge, DateInput } from '../common';
 import { fromDayKey, toDayKey } from '../../utils/dayKeys';
+import type { SelectionState } from '../../types';
 
-export function SectionEditor(): JSX.Element {
-  const { selection, closeModal, showToast } = useUIStore();
+interface SectionEditorProps {
+  /** See `ItemEditor` — the modal supplies this so the exit is not blank. */
+  readonly selection?: SelectionState;
+}
+
+export function SectionEditor({ selection: given }: SectionEditorProps = {}): JSX.Element {
+  const { selection: live, closeModal, showToast } = useUIStore();
+  const selection = given ?? live;
   const { updateSection, updateSectionWindow, setSectionMulticolor, deleteSection } = useSectionStore();
   const setPinnedSection = useProjectStore((state) => state.setPinnedSection);
 

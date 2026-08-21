@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
@@ -79,19 +79,30 @@ export function ContextMenu(): JSX.Element | null {
     };
   }, [isOpen, closeContextMenu]);
 
-  useEffect(() => {
+  /**
+   * Keep the menu on screen, and tell it which corner it grew from.
+   *
+   * Measured with offsetWidth rather than a client rect: the entrance scales
+   * the menu, and a rect read mid-scale would clamp against a menu 3% smaller
+   * than the real one. A layout effect, so the corrected corner is the one the
+   * first painted frame plays from rather than a frame late.
+   */
+  useLayoutEffect(() => {
     if (!isOpen || !menuRef.current) return;
     const menu = menuRef.current;
-    const rect = menu.getBoundingClientRect();
+    // Measured where it stands. A fixed box is sized against the room it has,
+    // so moving it first to read a "natural" width only makes it balloon.
+    const { offsetWidth: width, offsetHeight: height } = menu;
 
-    const adjustedX = rect.right > window.innerWidth ? window.innerWidth - rect.width - 8 : position.x;
-    const adjustedY =
-      rect.bottom > window.innerHeight ? window.innerHeight - rect.height - 8 : position.y;
+    const flipX = position.x + width > window.innerWidth;
+    const flipY = position.y + height > window.innerHeight;
 
-    if (adjustedX !== position.x || adjustedY !== position.y) {
-      menu.style.left = `${adjustedX}px`;
-      menu.style.top = `${adjustedY}px`;
-    }
+    menu.style.left = `${flipX ? Math.max(8, window.innerWidth - width - 8) : position.x}px`;
+    menu.style.top = `${flipY ? Math.max(8, window.innerHeight - height - 8) : position.y}px`;
+    menu.style.setProperty(
+      '--popover-origin',
+      `${flipY ? 'bottom' : 'top'} ${flipX ? 'right' : 'left'}`
+    );
   }, [isOpen, position]);
 
   const section = useMemo(
@@ -297,7 +308,7 @@ export function ContextMenu(): JSX.Element | null {
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[100] min-w-[160px] py-1 bg-[var(--color-raised)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-[var(--color-border)]"
+      className="fixed z-[100] min-w-[160px] py-1 bg-[var(--color-raised)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-[var(--color-border)] popover-enter"
       style={{ left: position.x, top: position.y }}
       role="menu"
       aria-label="Context menu"
@@ -308,7 +319,7 @@ export function ContextMenu(): JSX.Element | null {
           ref={menuItem.hasSubmenu ? colorButtonRef : undefined}
           onClick={menuItem.disabled ? undefined : menuItem.action}
           disabled={menuItem.disabled}
-          className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
+          className={`w-full px-3 py-1.5 text-left text-xs transition-colors duration-fast ${
             menuItem.disabled
               ? 'text-[var(--color-text-muted)] cursor-default'
               : menuItem.danger
@@ -344,7 +355,7 @@ export function ContextMenu(): JSX.Element | null {
                 <button
                   key={name}
                   onClick={() => handleColorChange(color)}
-                  className={`w-6 h-6 rounded-full transition-opacity hover:opacity-80 ${
+                  className={`w-6 h-6 rounded-full transition-opacity duration-fast hover:opacity-80 ${
                     item.color === color ? 'ring-2 ring-offset-1 ring-[var(--color-focus)]' : ''
                   }`}
                   style={{ backgroundColor: color }}

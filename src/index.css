@@ -78,6 +78,17 @@
   --shadow-sm: 0 1px 2px rgba(23, 23, 26, 0.06);
   --shadow-md: 0 6px 20px rgba(23, 23, 26, 0.08);
   --shadow-lg: 0 16px 40px rgba(23, 23, 26, 0.12);
+
+  /* Motion — one curve for surfaces that appear, one for surfaces that slide. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Three durations, named for what is moving. Anything timed in this app is
+     one of these; a value that fits none of them is a decision to argue with,
+     not a number to invent. */
+  --duration-fast: 120ms; /* a state changing: hover, press, a chevron turning */
+  --duration-base: 160ms; /* a surface arriving or leaving */
+  --duration-slow: 200ms; /* the layout itself changing shape */
 }
 
 /* =========================================
@@ -163,7 +174,7 @@ body {
    Quiet, but not faint — at 11px uppercase, muted ink drops below readable
    contrast on the ground, so the axis takes secondary. */
 .axis-label {
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -173,7 +184,7 @@ body {
 
 /* Section-heading eyebrow used in sidebars and panels. */
 .eyebrow {
-  font-size: 10px;
+  font-size: 0.625rem;
   line-height: 1;
   letter-spacing: 0.11em;
   text-transform: uppercase;
@@ -206,7 +217,7 @@ body {
   inset: 0;
   border-radius: inherit;
   mix-blend-mode: multiply;
-  transition: opacity 120ms linear;
+  transition: opacity var(--duration-fast) linear;
 }
 
 .dark .timeline-bar__fill {
@@ -286,7 +297,7 @@ body {
   padding: 2px 6px;
   background: var(--color-tooltip);
   color: var(--color-tooltip-text);
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.4;
   border-radius: var(--radius-sm);
   white-space: nowrap;
@@ -307,14 +318,14 @@ body.dragging-item * {
   padding: 0 8px;
   overflow: hidden;
   pointer-events: none;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1;
 }
 
 /* Drag handles stay invisible until the bar is hovered. */
 .drag-handle {
   opacity: 0;
-  transition: opacity 120ms linear;
+  transition: opacity var(--duration-fast) linear;
 }
 
 .timeline-bar:hover .drag-handle,
@@ -326,7 +337,7 @@ body.dragging-item * {
    Rows
    ========================================= */
 .row-selectable {
-  transition: background-color 120ms linear;
+  transition: background-color var(--duration-fast) linear;
 }
 
 .row-selectable:hover {
@@ -345,7 +356,7 @@ body.dragging-item * {
 /* Row affordances (chevrons, grips, add buttons) fade in with the row. */
 .row-affordance {
   opacity: 0;
-  transition: opacity 120ms linear;
+  transition: opacity var(--duration-fast) linear;
 }
 
 .group:hover .row-affordance,
@@ -377,7 +388,7 @@ body.dragging-item * {
 }
 
 .collapse-chevron {
-  transition: transform 120ms ease-out;
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
 .collapse-chevron.expanded {
@@ -416,8 +427,16 @@ body.dragging-item * {
 /* =========================================
    Motion — short, linear, and only where it carries meaning
    ========================================= */
+/* A modal and its scrim are one surface. Both halves are driven from one class
+   on the layer that holds them, which is the only way the dimming and the panel
+   stay on the same clock — and it leaves each modal with a single thing to say
+   about whether it is arriving or going. */
+.modal-layer {
+  animation: fadeIn var(--duration-base) var(--ease-out);
+}
+
 .modal-enter {
-  animation: modalRise 140ms ease-out;
+  animation: modalRise var(--duration-base) var(--ease-out);
 }
 
 @keyframes modalRise {
@@ -427,14 +446,77 @@ body.dragging-item * {
   }
 }
 
+/* It leaves by the way it came in: down, and out. `both` holds the last frame
+   so nothing flashes back to full before React takes the node away, and the
+   layer stops taking clicks the moment it is no longer really there. */
+.modal-layer.is-leaving {
+  animation: fadeOut var(--duration-fast) var(--ease-out) both;
+  pointer-events: none;
+}
+
+.modal-layer.is-leaving .modal-enter {
+  animation: modalSink var(--duration-fast) var(--ease-out) both;
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes modalSink {
+  to {
+    transform: translateY(4px);
+  }
+}
+
+/* Menus shrink back into the corner they grew from. */
+.popover-leave {
+  animation: popoverShrink var(--duration-fast) var(--ease-out) both;
+  transform-origin: var(--popover-origin, top left);
+  pointer-events: none;
+}
+
+@keyframes popoverShrink {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* Menus and dropdowns grow from the corner they were opened at. They were the
+   only floating surfaces arriving with no entrance at all — every other one
+   rises or fades. Fast and shallow on purpose: this is the most-opened surface
+   in the app, and anything slower would read as a delay. */
+.popover-enter {
+  animation: popoverGrow var(--duration-fast) var(--ease-out);
+  transform-origin: var(--popover-origin, top left);
+}
+
+@keyframes popoverGrow {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* A sidebar folds to its rail rather than vanishing. The contents keep their
+   own width, so the panel is clipped as it narrows instead of reflowing its
+   own text on every frame. */
+.sidebar-fold {
+  transition: width var(--duration-slow) var(--ease-drawer);
+}
+
+/* Whatever the fold reveals — the rail chevron, or the panel itself — arrives
+   once the width has nearly settled. Out first, in last, from one state change. */
 .sidebar-enter {
-  animation: fadeIn 140ms ease-out;
+  animation: fadeIn var(--duration-fast) var(--ease-out) 80ms both;
 }
 
 /* The create ghost draws itself in from the pointer outwards — the gesture it
    is asking for, performed once, so no label has to explain it. */
 .ghost-enter {
-  animation: ghostDraw 180ms ease-out;
+  animation: ghostDraw var(--duration-base) var(--ease-out);
 }
 
 @keyframes ghostDraw {
@@ -445,7 +527,7 @@ body.dragging-item * {
 }
 
 .toast-slide-in {
-  animation: toastRise 160ms ease-out;
+  animation: toastRise var(--duration-base) var(--ease-out);
 }
 
 @keyframes toastRise {
@@ -455,8 +537,21 @@ body.dragging-item * {
   }
 }
 
+/* It leaves the way it came, by the same edge. `both` holds the last frame so
+   the toast cannot flash back at full opacity before React unmounts it. */
+.toast-slide-out {
+  animation: toastSink var(--duration-base) var(--ease-out) both;
+}
+
+@keyframes toastSink {
+  to {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
 .walkthrough-slide-enter {
-  animation: fadeIn 180ms ease-out;
+  animation: fadeIn var(--duration-base) var(--ease-out);
 }
 
 @keyframes fadeIn {
@@ -480,8 +575,8 @@ body.dragging-item * {
 }
 
 .btn-press {
-  transition: background-color 120ms linear, color 120ms linear,
-    opacity 120ms linear;
+  transition: background-color var(--duration-fast) linear,
+    color var(--duration-fast) linear, opacity var(--duration-fast) linear;
 }
 
 /* =========================================
@@ -508,7 +603,7 @@ body.dragging-item * {
   padding: 0.5rem 1rem;
   border-radius: var(--radius-sm);
   z-index: 100;
-  transition: top 160ms ease-out;
+  transition: top var(--duration-base) var(--ease-out);
 }
 
 .skip-link:focus {
@@ -516,12 +611,81 @@ body.dragging-item * {
   left: 0.5rem;
 }
 
+/* Reduced motion asks for less travel, not less feedback.
+   Keyframes are cut to their final frame, and transitions are narrowed to the
+   properties that carry no motion — a chevron stops rotating and a drawer stops
+   sliding, while the affordances this design hides until hover still fade in
+   rather than snapping. An element that declared no transition still has a
+   duration of zero, so naming these properties turns nothing on that was off. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-property: opacity, color, background-color, border-color,
+      outline-color, box-shadow, fill, stroke !important;
+  }
+
+  /* Nothing should be mid-flight when the page settles. */
+  .walkthrough-drift {
+    transform: none !important;
+  }
+
+  html {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================
+   High contrast
+
+   This design carries its structure in almost-invisible values: gridlines
+   lighter than the ground, hairlines at seven percent, three greys of ink.
+   Asked for more contrast, the sheet keeps its shape but draws every one of
+   those in a value that survives — and bars, which normally separate only by
+   overprinting, take a real edge.
+   ========================================= */
+@media (prefers-contrast: more) {
+  :root {
+    --color-hairline: rgba(23, 23, 26, 0.4);
+    --color-border: #6f6f77;
+    --color-text-secondary: #35353b;
+    --color-text-muted: #4a4a52;
+    --color-gridline: #ffffff;
+    --color-gridline-strong: #ffffff;
+    --color-milestone-line: rgba(23, 23, 26, 0.45);
+    --color-selection: rgba(58, 63, 118, 0.18);
+    --color-hover: rgba(23, 23, 26, 0.1);
+    --color-active: rgba(23, 23, 26, 0.16);
+  }
+
+  .dark {
+    --color-hairline: rgba(255, 255, 255, 0.4);
+    --color-border: #9a9aa2;
+    --color-text-secondary: #d5d5d9;
+    --color-text-muted: #b4b4bb;
+    --color-gridline: rgba(255, 255, 255, 0.22);
+    --color-gridline-strong: rgba(255, 255, 255, 0.32);
+    --color-milestone-line: rgba(255, 255, 255, 0.45);
+    --color-selection: rgba(154, 160, 220, 0.26);
+    --color-hover: rgba(255, 255, 255, 0.14);
+    --color-active: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Overprinting alone stops telling two bars apart once colours are pushed
+     together, so each one gets an edge of its own. */
+  .timeline-bar__fill {
+    box-shadow: inset 0 0 0 1px var(--color-text-primary);
+  }
+
+  .timeline-bar--selected .timeline-bar__fill {
+    box-shadow: inset 0 0 0 2.5px var(--color-text-primary);
+  }
+
+  /* An outline this thin disappears against a busy sheet at high contrast. */
+  .focus-ring:focus-visible {
+    outline-width: 2.5px;
   }
 }

@@ -152,7 +152,7 @@ function App(): JSX.Element {
   if (!isStorageReady) {
     return (
       <div className="h-full flex items-center justify-center bg-[var(--color-background)]">
-        <div className="text-[13px] text-[var(--color-text-secondary)]">Loading...</div>
+        <div className="text-body text-[var(--color-text-secondary)]">Loading...</div>
       </div>
     );
   }
@@ -202,7 +202,7 @@ function App(): JSX.Element {
       {isDraggingFile && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-accent)]/5 border border-dashed border-[var(--color-accent)] pointer-events-none">
           <div className="bg-[var(--color-raised)] px-6 py-4 rounded-[var(--radius-md)]">
-            <p className="text-[13px] font-normal text-[var(--color-accent)]">
+            <p className="text-body font-normal text-[var(--color-accent)]">
               Drop .floid file to import
             </p>
           </div>

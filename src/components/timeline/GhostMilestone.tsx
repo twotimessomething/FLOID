@@ -25,7 +25,7 @@ export function GhostMilestone({ x, lineHeight }: GhostMilestoneProps): JSX.Elem
       {/* Above the diamond, mirroring where the name will print below it, so
           the hint never sits in the space it is describing. Same type scale as
           MilestoneLabel; only the colour is muted. */}
-      <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[11px] leading-none text-[var(--color-text-muted)] whitespace-nowrap">
+      <div className="absolute top-1 left-1/2 -translate-x-1/2 text-meta leading-none text-[var(--color-text-muted)] whitespace-nowrap">
         Double-click
       </div>
       {lineHeight > 0 && (

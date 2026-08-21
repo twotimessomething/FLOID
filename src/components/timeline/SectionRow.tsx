@@ -121,6 +121,16 @@ export const SectionRow = memo(function SectionRow({
     [selectSection, section.id]
   );
 
+  /** The highlight lands on the press; only the editor waits out the rename. */
+  const handlePressSelectSection = useCallback(
+    (e: React.MouseEvent): void => {
+      // Secondary and middle buttons belong to the context menu and to panning
+      if (e.button !== 0) return;
+      selectSection(section.id, { x: e.clientX, y: e.clientY }, { openEditor: false });
+    },
+    [selectSection, section.id]
+  );
+
   const handleRenameSection = useCallback((): void => {
     inlineEdit.startEditing(section.id, section.name || '');
   }, [inlineEdit, section.id, section.name]);
@@ -291,6 +301,7 @@ export const SectionRow = memo(function SectionRow({
             isSelected ? 'selected' : ''
           }`}
           style={{ height: ROW_HEIGHT, paddingLeft: LABEL_ROOT_INSET }}
+          onMouseDown={isEditingName ? undefined : handlePressSelectSection}
           onClick={isEditingName ? undefined : labelClick.handleClick}
           onDoubleClick={isEditingName ? undefined : labelClick.handleDoubleClick}
           onContextMenu={handleLabelContextMenu}
@@ -302,7 +313,7 @@ export const SectionRow = memo(function SectionRow({
         >
           <button
             onClick={handleToggleCollapse}
-            className="row-affordance w-5 h-5 flex-shrink-0 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded transition-colors duration-150"
+            className="row-affordance w-5 h-5 flex-shrink-0 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded transition-colors duration-fast"
             data-always-visible={section.isCollapsed ? 'true' : undefined}
             aria-expanded={!section.isCollapsed}
             aria-label={`${section.isCollapsed ? 'Expand' : 'Collapse'} ${section.name}`}
@@ -354,7 +365,7 @@ export const SectionRow = memo(function SectionRow({
           {dragHandleProps && sectionIndex !== undefined && (
             <div
               {...dragHandleProps}
-              className="row-affordance flex-shrink-0 flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-150"
+              className="row-affordance flex-shrink-0 flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-fast"
               title="Drag to reorder"
               aria-label={`Drag to reorder ${section.name}`}
             >

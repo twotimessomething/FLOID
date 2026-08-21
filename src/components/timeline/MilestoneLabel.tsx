@@ -30,8 +30,8 @@ export function MilestoneLabel({
 
   return (
     <div
-      className={`absolute bottom-1 left-1/2 -translate-x-1/2 text-[11px] leading-none text-[var(--color-text-primary)] whitespace-nowrap pointer-events-none ${
-        isHoverReveal ? 'opacity-0 transition-opacity duration-150 group-hover:opacity-100' : ''
+      className={`absolute bottom-1 left-1/2 -translate-x-1/2 text-meta leading-none text-[var(--color-text-primary)] whitespace-nowrap pointer-events-none ${
+        isHoverReveal ? 'opacity-0 transition-opacity duration-fast group-hover:opacity-100' : ''
       }`}
       style={placement.offsetX !== 0 ? { marginLeft: placement.offsetX } : undefined}
       role="tooltip"

@@ -1,6 +1,6 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useUIStore, type ToastType } from '../../stores/uiStore';
+import { useUIStore, type ToastState, type ToastType } from '../../stores/uiStore';
 
 const DOT_COLORS: Record<ToastType, string> = {
   success: 'bg-[var(--color-success)]',
@@ -8,34 +8,56 @@ const DOT_COLORS: Record<ToastType, string> = {
   warning: 'bg-[var(--color-warning)]',
 };
 
-export function Toast(): JSX.Element | null {
-  const { toast, hideToast } = useUIStore();
-  const { isVisible, type, message, duration } = toast;
+/** How long the toast takes to leave. Must match `.toast-slide-out`. */
+const EXIT_MS = 160;
 
-  const handleDismiss = useCallback(() => {
-    hideToast();
-  }, [hideToast]);
+export function Toast(): JSX.Element | null {
+  const toast = useUIStore((state) => state.toast);
+  const hideToast = useUIStore((state) => state.hideToast);
+
+  /**
+   * The toast on its way out, held by identity rather than as a flag.
+   * `showToast` replaces the whole object, so the next toast is never mistaken
+   * for the one leaving and there is no stale flag to clear between them.
+   */
+  const [leaving, setLeaving] = useState<ToastState | null>(null);
+  const isLeaving = leaving === toast;
 
   useEffect(() => {
-    if (!isVisible) return;
+    if (!toast.isVisible) return;
 
-    const timer = setTimeout(() => {
-      hideToast();
-    }, duration);
+    const leaveTimer = setTimeout(() => setLeaving(toast), toast.duration);
+    const removeTimer = setTimeout(hideToast, toast.duration + EXIT_MS);
 
-    return () => clearTimeout(timer);
-  }, [isVisible, duration, hideToast]);
+    return () => {
+      clearTimeout(leaveTimer);
+      clearTimeout(removeTimer);
+    };
+  }, [toast, hideToast]);
 
-  if (!isVisible) return null;
+  const handleDismiss = useCallback(() => {
+    setLeaving(toast);
+    // Anything shown while this one leaves is a different toast, and keeps its life.
+    setTimeout(() => {
+      if (useUIStore.getState().toast === toast) hideToast();
+    }, EXIT_MS);
+  }, [toast, hideToast]);
+
+  if (!toast.isVisible) return null;
 
   return createPortal(
     <div
-      className="fixed bottom-4 right-4 z-[200] flex items-center gap-3 px-4 py-3 bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] toast-slide-in"
+      className={`fixed bottom-4 right-4 z-[200] flex items-center gap-3 px-4 py-3 bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] ${
+        isLeaving ? 'toast-slide-out' : 'toast-slide-in'
+      }`}
       role="alert"
       aria-live="polite"
     >
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT_COLORS[type]}`} aria-hidden="true" />
-      <span className="text-[13px] text-[var(--color-text-primary)]">{message}</span>
+      <span
+        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT_COLORS[toast.type]}`}
+        aria-hidden="true"
+      />
+      <span className="text-body text-[var(--color-text-primary)]">{toast.message}</span>
       <button
         onClick={handleDismiss}
         className="ml-2 p-1 rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-hover)] btn-press focus-ring"

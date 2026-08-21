@@ -117,7 +117,7 @@ function MiniLabelRow({
         </span>
       )}
       <span
-        className={`text-[9px] truncate ${isSchedule ? 'font-semibold' : ''} ${
+        className={`text-[0.5625rem] truncate ${isSchedule ? 'font-semibold' : ''} ${
           depth === 0 ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'
         }`}
       >
@@ -176,7 +176,7 @@ function MiniBar({
       <div className="timeline-bar__fill" style={{ backgroundColor: color }} />
       {label && (
         <span
-          className={`absolute inset-0 flex items-center px-1.5 overflow-hidden text-[9px] ${
+          className={`absolute inset-0 flex items-center px-1.5 overflow-hidden text-[0.5625rem] ${
             isLifted ? 'opacity-40' : ''
           }`}
         >
@@ -244,7 +244,7 @@ function MiniMilestone({ left, label, lineHeight = 0 }: MiniMilestoneProps): Rea
       )}
       <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[var(--color-text-primary)]" />
       {label && (
-        <span className="absolute bottom-0 left-0 -translate-x-1/2 text-[8px] leading-none text-[var(--color-text-primary)] whitespace-nowrap">
+        <span className="absolute bottom-0 left-0 -translate-x-1/2 text-[0.5rem] leading-none text-[var(--color-text-primary)] whitespace-nowrap">
           {label}
         </span>
       )}
@@ -279,12 +279,12 @@ function MiniDragClone({ left, top, width, color, label, date }: MiniDragClonePr
         className="flex items-center h-[22px] px-1.5 overflow-hidden shadow-[var(--shadow-md)]"
         style={{ backgroundColor: color }}
       >
-        <span className="text-[9px] truncate" style={{ color: textColor }}>
+        <span className="text-[0.5625rem] truncate" style={{ color: textColor }}>
           {label}
         </span>
       </div>
       {date && (
-        <span className="absolute top-full left-0 mt-1 px-1 py-px rounded-[var(--radius-sm)] bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-[8px] leading-normal whitespace-nowrap">
+        <span className="absolute top-full left-0 mt-1 px-1 py-px rounded-[var(--radius-sm)] bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-[0.5rem] leading-normal whitespace-nowrap">
           {date}
         </span>
       )}
@@ -313,7 +313,7 @@ function MiniFrame({ labels, children }: MiniFrameProps): ReactElement {
           {MONTH_MARKERS.map((marker) => (
             <span
               key={marker.label}
-              className="absolute top-1/2 -translate-y-1/2 pl-1 text-[8px] uppercase tracking-wide text-[var(--color-text-muted)]"
+              className="absolute top-1/2 -translate-y-1/2 pl-1 text-[0.5rem] uppercase tracking-wide text-[var(--color-text-muted)]"
               style={{ left: `${marker.left}%` }}
             >
               {marker.label}
@@ -583,7 +583,7 @@ export function WelcomeWalkthrough(): ReactElement {
             <button
               type="button"
               onClick={openProjectSetupModal}
-              className="absolute top-3 right-4 z-10 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors focus-ring rounded-[var(--radius-sm)] px-1.5 py-0.5"
+              className="absolute top-3 right-4 z-10 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors duration-fast focus-ring rounded-[var(--radius-sm)] px-1.5 py-0.5"
             >
               Skip
             </button>
@@ -597,7 +597,7 @@ export function WelcomeWalkthrough(): ReactElement {
                   {slide.title}
                 </h2>
               )}
-              <p className="text-[13px] text-[var(--color-text-secondary)] text-center leading-relaxed max-w-md mx-auto min-h-[2.5rem]">
+              <p className="text-body text-[var(--color-text-secondary)] text-center leading-relaxed max-w-md mx-auto min-h-[2.5rem]">
                 {slide.body}
               </p>
               {isLast && (
@@ -632,7 +632,7 @@ export function WelcomeWalkthrough(): ReactElement {
                   role="tab"
                   aria-selected={i === index}
                   aria-label={`Go to slide ${i + 1}`}
-                  className={`w-2 h-2 rounded-[var(--radius-sm)] transition-colors ${
+                  className={`w-2 h-2 rounded-[var(--radius-sm)] transition-colors duration-fast ${
                     i === index
                       ? 'bg-[var(--color-text-primary)]'
                       : 'bg-[var(--color-border)] hover:bg-[var(--color-text-muted)]'

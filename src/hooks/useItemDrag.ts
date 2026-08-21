@@ -47,7 +47,12 @@ interface DragSession {
   target: DropTarget | null;
   dayDelta: number;
   active: boolean;
-  scrollTimer: number | null;
+  /** Latest pointer position, so the edge-scroll loop can re-aim each frame. */
+  pointerX: number;
+  pointerY: number;
+  /** Where the sheet was scrolled to when the press landed. */
+  startScrollLeft: number;
+  scrollFrame: number | null;
   cleanup: () => void;
 }
 
@@ -86,7 +91,10 @@ export function useItemDrag(): {
       target: null,
       dayDelta: 0,
       active: false,
-      scrollTimer: null,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      startScrollLeft: timelineScroller()?.scrollLeft ?? 0,
+      scrollFrame: null,
       cleanup: () => undefined,
     };
 
@@ -108,9 +116,13 @@ export function useItemDrag(): {
       session.target = target;
       useUIStore.getState().setItemDropKey(dropTargetKey(target));
 
+      // Travel is measured in days of sheet, not pixels of screen: when the
+      // edge has been scrolling the timeline along under a pointer that barely
+      // moved, that scroll is most of the distance the item actually covered.
+      const scrolled = (timelineScroller()?.scrollLeft ?? 0) - session.startScrollLeft;
       const days = dayDeltaForDrop(
         target,
-        clientX - session.startClientX,
+        clientX - session.startClientX + scrolled,
         session.pixelsPerDay
       );
       session.dayDelta = days;
@@ -134,34 +146,44 @@ export function useItemDrag(): {
         }
         activate();
       }
-      edgeScroll(moveEvent.clientX);
+      session.pointerX = moveEvent.clientX;
+      session.pointerY = moveEvent.clientY;
+      startEdgeScroll();
       render(moveEvent.clientX, moveEvent.clientY);
     };
 
-    const edgeScroll = (clientX: number): void => {
-      const scroller = document.querySelector<HTMLElement>('.timeline-scroll-container');
-      if (!scroller) return;
-      const rect = scroller.getBoundingClientRect();
-
-      let speed = 0;
-      if (clientX < rect.left + EDGE_SCROLL_ZONE_PX) {
-        speed = -scrollSpeed(rect.left + EDGE_SCROLL_ZONE_PX - clientX);
-      } else if (clientX > rect.right - EDGE_SCROLL_ZONE_PX) {
-        speed = scrollSpeed(clientX - (rect.right - EDGE_SCROLL_ZONE_PX));
-      }
-
-      if (speed === 0) {
-        if (session.scrollTimer !== null) {
-          window.clearInterval(session.scrollTimer);
-          session.scrollTimer = null;
-        }
+    /**
+     * Following the pointer past the edge of the sheet.
+     *
+     * Both halves of this have to happen every frame. The speed is read from
+     * where the pointer is *now*, so leaning further into the edge really does
+     * go faster; and the drop target is resolved again, because the rows are
+     * travelling under a pointer that is standing still and the answer under it
+     * keeps changing. On the display's own clock, since it is chasing paint.
+     */
+    const edgeScrollTick = (): void => {
+      const scroller = timelineScroller();
+      if (!scroller || !session.active) {
+        session.scrollFrame = null;
         return;
       }
 
-      if (session.scrollTimer === null) {
-        session.scrollTimer = window.setInterval(() => {
-          scroller.scrollLeft += speed;
-        }, 16);
+      const speed = edgeScrollSpeed(scroller.getBoundingClientRect(), session.pointerX);
+      if (speed === 0) {
+        session.scrollFrame = null;
+        return;
+      }
+
+      const before = scroller.scrollLeft;
+      scroller.scrollLeft = before + speed;
+      if (scroller.scrollLeft !== before) render(session.pointerX, session.pointerY);
+
+      session.scrollFrame = requestAnimationFrame(edgeScrollTick);
+    };
+
+    const startEdgeScroll = (): void => {
+      if (session.scrollFrame === null) {
+        session.scrollFrame = requestAnimationFrame(edgeScrollTick);
       }
     };
 
@@ -169,9 +191,22 @@ export function useItemDrag(): {
       const wasActive = session.active;
       const target = session.target;
       const dayDelta = session.dayDelta;
+      // Joining a group keeps the item's own dates, so the bar reappears
+      // wherever it already sat — usually nowhere near the cursor that let go
+      // of it. Keep the clone alive and fly it there instead of cutting, so the
+      // rule the timeline runs on is something the user watches happen.
+      //
+      // Only from the timeline column: a drag started in the labels is a clone
+      // of the label row, which arrives here as `pixelsPerDay` of 0. It has no
+      // bar to land on, and flying it into the plot would land the wrong thing
+      // in the wrong column.
+      const canSettle = wasActive && target?.kind === 'into' && session.pixelsPerDay > 0;
+      const flight = canSettle ? session.preview : null;
+      if (flight) session.preview = null;
       session.cleanup();
       if (!wasActive) return;
       commitDrag(session.item, session.sectionId, target, dayDelta);
+      if (flight) settleOnLandedBar(flight, session.item.id);
     };
 
     const onKeyDown = (keyEvent: KeyboardEvent): void => {
@@ -187,7 +222,7 @@ export function useItemDrag(): {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('keydown', onKeyDown);
-      if (session.scrollTimer !== null) window.clearInterval(session.scrollTimer);
+      if (session.scrollFrame !== null) cancelAnimationFrame(session.scrollFrame);
       session.preview?.destroy();
       if (session.active) {
         useUIStore.getState().endItemDrag();
@@ -204,6 +239,44 @@ export function useItemDrag(): {
   }, []);
 
   return { startDrag, hasDraggedRef };
+}
+
+/**
+ * Land the clone on the bar the store has just committed.
+ *
+ * The commit is not delayed for this: the row is already there, selection and
+ * undo are already live, and the clone is only catching up with them. One frame
+ * later is enough for React to have painted the landing row — and if there is
+ * no row to land on, because the new parent is collapsed around it, the clone
+ * simply goes as it always did.
+ */
+function settleOnLandedBar(preview: DragPreview, itemId: string): void {
+  requestAnimationFrame(() => {
+    const landed = document.querySelector<HTMLElement>(
+      `[data-drop-bar="${CSS.escape(itemId)}"]`
+    );
+    if (!landed) {
+      preview.destroy();
+      return;
+    }
+    const rect = landed.getBoundingClientRect();
+    preview.settleTo({ left: rect.left, top: rect.top, height: rect.height });
+  });
+}
+
+function timelineScroller(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('.timeline-scroll-container');
+}
+
+/** Px per frame, ramped by how far into the edge zone the pointer has reached. */
+function edgeScrollSpeed(rect: DOMRect, clientX: number): number {
+  if (clientX < rect.left + EDGE_SCROLL_ZONE_PX) {
+    return -scrollSpeed(rect.left + EDGE_SCROLL_ZONE_PX - clientX);
+  }
+  if (clientX > rect.right - EDGE_SCROLL_ZONE_PX) {
+    return scrollSpeed(clientX - (rect.right - EDGE_SCROLL_ZONE_PX));
+  }
+  return 0;
 }
 
 function scrollSpeed(distanceIntoZone: number): number {

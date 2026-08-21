@@ -5,6 +5,7 @@ import { Input, TextArea, DateInput, ColorPicker, Button } from '../common';
 import { findItemPath } from '../../utils/itemTree';
 import { resolveItemColor } from '../../utils/timelineUtils';
 import { fromDayKey, toDayKey } from '../../utils/dayKeys';
+import type { SelectionState } from '../../types';
 
 /**
  * The editor for anything on the timeline.
@@ -14,8 +15,17 @@ import { fromDayKey, toDayKey } from '../../utils/dayKeys';
  * there is a second date to set. Where the item sits is shown as a breadcrumb
  * rather than baked into which editor opened.
  */
-export function ItemEditor(): JSX.Element {
-  const selection = useUIStore((s) => s.selection);
+interface ItemEditorProps {
+  /**
+   * What to edit. Given explicitly by the modal so the panel keeps its contents
+   * through the closing animation, after the live selection has been dropped.
+   */
+  readonly selection?: SelectionState;
+}
+
+export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Element {
+  const live = useUIStore((s) => s.selection);
+  const selection = given ?? live;
   const closeModal = useUIStore((s) => s.closeModal);
   const updateItem = useSectionStore((s) => s.updateItem);
   const setItemDates = useSectionStore((s) => s.setItemDates);

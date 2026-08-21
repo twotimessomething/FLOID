@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { Button, Input } from '../common';
+import { usePresence } from '../../hooks/usePresence';
 
 export function ProjectEditModal(): JSX.Element | null {
   const { editingProjectId, closeProjectEditModal } = useUIStore();
@@ -54,13 +55,14 @@ export function ProjectEditModal(): JSX.Element | null {
     [name, updateProject, closeProjectEditModal]
   );
 
-  if (!editingProjectId) {
-    return null;
-  }
+  // Held on screen through the exit so the panel and its scrim can leave
+  // together, the way they arrived.
+  const { isMounted, isLeaving } = usePresence(editingProjectId !== null);
+  if (!isMounted) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"

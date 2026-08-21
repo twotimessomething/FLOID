@@ -8,6 +8,7 @@ import { useFileSystemAutoSave } from '../../hooks/useFileSystemAutoSave';
 import { isFileSystemAccessSupported } from '../../utils/fileSystemUtils';
 import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 import { ZoomControls } from '../controls/ZoomControls';
+import { usePresence, POPOVER_EXIT_MS } from '../../hooks/usePresence';
 
 function Logo(): JSX.Element {
   const theme = useUIStore((state) => state.theme);
@@ -45,6 +46,7 @@ export function Header(): JSX.Element {
 
   // Export dropdown state
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const exportDropdown = usePresence(isExportDropdownOpen, POPOVER_EXIT_MS);
   const exportDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -150,7 +152,7 @@ export function Header(): JSX.Element {
         <Logo />
         {/* Project name - only show when a project exists */}
         {project && (
-          <span className="text-[13px] font-normal text-[var(--color-text-primary)]">
+          <span className="text-body font-normal text-[var(--color-text-primary)]">
             {project.name}
           </span>
         )}
@@ -161,7 +163,7 @@ export function Header(): JSX.Element {
         <SyncStatusIndicator />
         <button
           onClick={handleImport}
-          className="text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
+          className="text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast"
         >
           Import
         </button>
@@ -169,31 +171,35 @@ export function Header(): JSX.Element {
           <div ref={exportDropdownRef} className="relative">
             <button
               onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-              className="flex items-center gap-1 text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
+              className="flex items-center gap-1 text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast"
             >
               Export
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
-            {isExportDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 py-1 min-w-[160px] bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] z-[70]">
+            {exportDropdown.isMounted && (
+              <div
+                className={`absolute right-0 top-full mt-1 py-1 min-w-[160px] bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] z-[70] [--popover-origin:top_right] ${
+                  exportDropdown.isLeaving ? 'popover-leave' : 'popover-enter'
+                }`}
+              >
                 <button
                   onClick={handleExportProject}
-                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
+                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                 >
                   Export Project
                 </button>
                 <button
                   onClick={handleExportAsImage}
-                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
+                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                 >
                   Export as Image
                 </button>
                 {isFileSystemAccessSupported() && (
                   <button
                     onClick={handleSaveToFolder}
-                    className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-150"
+                    className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                   >
                     Save to Folder
                   </button>

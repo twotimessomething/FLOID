@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useUIStore } from '../../stores/uiStore';
+import { usePresence } from '../../hooks/usePresence';
 
 interface Gesture {
   readonly description: string;
@@ -93,13 +94,14 @@ export function KeyboardHelpModal(): JSX.Element | null {
     }
   }, [isKeyboardHelpModalOpen, closeKeyboardHelpModal]);
 
-  if (!isKeyboardHelpModalOpen) {
-    return null;
-  }
+  // Held on screen through the exit so the panel and its scrim can leave
+  // together, the way they arrived.
+  const { isMounted, isLeaving } = usePresence(isKeyboardHelpModalOpen);
+  if (!isMounted) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"

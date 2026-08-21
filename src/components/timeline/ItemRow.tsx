@@ -100,6 +100,23 @@ export const ItemRow = memo(function ItemRow({
     [selectItem, item.id, section.id]
   );
 
+  /**
+   * The outline, on the press itself.
+   *
+   * Selecting is idempotent and costs nothing to undo, so there is no reason
+   * to hold it behind the double-click window — only the editor has to wait.
+   * A press that turns into a drag keeps the outline, which is the right
+   * answer anyway: the thing under the cursor is the thing being moved.
+   */
+  const handlePressSelect = useCallback(
+    (e: React.MouseEvent): void => {
+      // Secondary and middle buttons belong to the context menu and to panning
+      if (e.button !== 0) return;
+      selectItem(item.id, section.id, { x: e.clientX, y: e.clientY }, { openEditor: false });
+    },
+    [selectItem, item.id, section.id]
+  );
+
   const handleRename = useCallback((): void => {
     inlineEdit.startEditing(item.id, item.name || '');
   }, [inlineEdit, item.id, item.name]);
@@ -117,7 +134,11 @@ export const ItemRow = memo(function ItemRow({
   }, [isBar, hasChildren, toggleItemCollapse, section.id, item.id]);
 
   const label = useDoubleClick(handleSelect, handleRename);
-  const bar = useDoubleClick(handleSelect, handleToggleFromBar);
+  // Double-clicking a bar opens its group. A bar with no group has no second
+  // meaning, so its click is not worth delaying.
+  const bar = useDoubleClick(handleSelect, handleToggleFromBar, {
+    hasDoubleClickAction: isBar && hasChildren,
+  });
 
   // A short drag can still end on the bar it started from, which would fire a
   // click and pop the editor open over the move that just happened.
@@ -144,10 +165,11 @@ export const ItemRow = memo(function ItemRow({
 
   const handleBarMouseDown = useCallback(
     (e: React.MouseEvent): void => {
+      handlePressSelect(e);
       if (isLocked) return;
       startDrag(e, { item, sectionId: section.id, pixelsPerDay });
     },
-    [isLocked, startDrag, item, section.id, pixelsPerDay]
+    [handlePressSelect, isLocked, startDrag, item, section.id, pixelsPerDay]
   );
 
   const handleLabelClick = useCallback(
@@ -165,10 +187,11 @@ export const ItemRow = memo(function ItemRow({
   // axis over there, so nothing should move in time.
   const handleLabelMouseDown = useCallback(
     (e: React.MouseEvent): void => {
+      handlePressSelect(e);
       if (isLocked) return;
       startDrag(e, { item, sectionId: section.id, pixelsPerDay: 0 });
     },
-    [isLocked, startDrag, item, section.id]
+    [handlePressSelect, isLocked, startDrag, item, section.id]
   );
 
   // -- resizing ------------------------------------------------------------
@@ -341,7 +364,7 @@ export const ItemRow = memo(function ItemRow({
           <button
             onClick={handleToggleCollapse}
             onMouseDown={(e) => e.stopPropagation()}
-            className="row-affordance w-5 h-5 flex-shrink-0 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded transition-colors duration-150"
+            className="row-affordance w-5 h-5 flex-shrink-0 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded transition-colors duration-fast"
             data-always-visible={item.isCollapsed ? 'true' : undefined}
             aria-expanded={!item.isCollapsed}
             aria-label={`${item.isCollapsed ? 'Expand' : 'Collapse'} ${item.name}`}
@@ -480,17 +503,17 @@ export const ItemRow = memo(function ItemRow({
             <>
               <DragHandle
                 edge="start"
-                onDragStart={() => handleResizeStart('start')}
-                onDrag={(deltaX) => handleResize('start', deltaX)}
-                onDragEnd={() => handleResizeEnd('start')}
+                onDragStart={handleResizeStart}
+                onDrag={handleResize}
+                onDragEnd={handleResizeEnd}
                 label={`Resize ${item.name} start`}
                 dragDate={startBubble}
               />
               <DragHandle
                 edge="end"
-                onDragStart={() => handleResizeStart('end')}
-                onDrag={(deltaX) => handleResize('end', deltaX)}
-                onDragEnd={() => handleResizeEnd('end')}
+                onDragStart={handleResizeStart}
+                onDrag={handleResize}
+                onDragEnd={handleResizeEnd}
                 label={`Resize ${item.name} end`}
                 dragDate={endBubble}
               />
@@ -518,7 +541,7 @@ export const ItemRow = memo(function ItemRow({
             }`}
             aria-hidden="true"
           />
-          <span className="absolute top-1/2 left-2.5 -translate-y-1/2 text-[11px] text-[var(--color-text-secondary)] whitespace-nowrap pointer-events-none">
+          <span className="absolute top-1/2 left-2.5 -translate-y-1/2 text-meta text-[var(--color-text-secondary)] whitespace-nowrap pointer-events-none">
             {item.name}
           </span>
         </div>

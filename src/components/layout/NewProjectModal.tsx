@@ -5,6 +5,7 @@ import { useProjectStore, type NewProjectConfig } from '../../stores/projectStor
 import { useSectionStore } from '../../stores/sectionStore';
 import { SCHEDULE_TEMPLATES, type ScheduleTemplate } from '../../data/scheduleTemplates';
 import { Button, Input, DateInput } from '../common';
+import { usePresence } from '../../hooks/usePresence';
 
 type Step = 'details' | 'template';
 
@@ -232,13 +233,14 @@ export function NewProjectModal(): JSX.Element | null {
     ]
   );
 
-  if (!isProjectSetupModalOpen) {
-    return null;
-  }
+  // Held on screen through the exit so the panel and its scrim can leave
+  // together, the way they arrived.
+  const { isMounted, isLeaving } = usePresence(isProjectSetupModalOpen);
+  if (!isMounted) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"

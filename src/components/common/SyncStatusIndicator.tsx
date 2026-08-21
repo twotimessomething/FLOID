@@ -66,7 +66,7 @@ export function SyncStatusIndicator(): JSX.Element | null {
       title={tooltipText}
       aria-label={tooltipText}
     >
-      <span className={`block w-1.5 h-1.5 rounded-full transition-opacity duration-150 ${config.dotClass}`} />
+      <span className={`block w-1.5 h-1.5 rounded-full transition-opacity duration-fast ${config.dotClass}`} />
     </div>
   );
 }

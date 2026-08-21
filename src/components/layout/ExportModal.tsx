@@ -6,6 +6,7 @@ import { downloadProjectJson, downloadScheduleFloid } from '../../utils/exportUt
 import { loadProjectFromStorage } from '../../utils/storageUtils';
 import { Button } from '../common/Button';
 import type { Section, Project } from '../../types';
+import { usePresence } from '../../hooks/usePresence';
 
 type ExportMode = 'active-project' | 'schedules' | 'all-projects';
 
@@ -141,9 +142,10 @@ export function ExportModal(): JSX.Element | null {
     }
   }, [isExportModalOpen, closeExportModal]);
 
-  if (!isExportModalOpen || !project) {
-    return null;
-  }
+  // Held on screen through the exit so the panel and its scrim can leave
+  // together, the way they arrived.
+  const { isMounted, isLeaving } = usePresence(isExportModalOpen && project !== null);
+  if (!isMounted) return null;
 
   const canExport =
     exportMode === 'active-project' ||
@@ -152,7 +154,7 @@ export function ExportModal(): JSX.Element | null {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"

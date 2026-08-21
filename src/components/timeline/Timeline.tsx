@@ -102,6 +102,26 @@ export function Timeline(): JSX.Element {
   }, [viewportBounds.startKey, pixelsPerDay]);
 
   /**
+   * Zoom keeps the day you were reading, not the pixel you were on.
+   *
+   * `scrollLeft` is in pixels and the sheet rescales under it, so a step from
+   * Month to Day multiplies every distance by nearly seven while the scroll
+   * position stays put — the same number now points at a day six months
+   * earlier. Converting through days on either side of the change holds the
+   * middle of the sheet still, which is the part the user is actually reading.
+   */
+  const previousPixelsPerDay = useRef(pixelsPerDay);
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current;
+    const previous = previousPixelsPerDay.current;
+    if (previous === pixelsPerDay) return;
+    previousPixelsPerDay.current = pixelsPerDay;
+    if (!el || previous <= 0) return;
+    const centreDays = (el.scrollLeft + el.clientWidth / 2) / previous;
+    el.scrollLeft = Math.max(0, centreDays * pixelsPerDay - el.clientWidth / 2);
+  }, [pixelsPerDay]);
+
+  /**
    * The sheet carries a month of air before the first item so there is always
    * somewhere to drag to, but opening on an empty month reads as a mistake.
    * Open with the work against the left edge and only a gutter of lead-in
@@ -246,7 +266,9 @@ export function Timeline(): JSX.Element {
     };
     labelsEl.addEventListener('wheel', handleWheel, { passive: false });
     return () => labelsEl.removeEventListener('wheel', handleWheel);
-  }, []);
+    // The labels column only exists once a project has loaded, so this has to
+    // run again when one does — the same reason the size observer above does.
+  }, [activeProjectId]);
 
   const handleTimelineScroll = useCallback(() => {
     if (!scrollContainerRef.current) return;
@@ -295,7 +317,7 @@ export function Timeline(): JSX.Element {
           aria-label="Timeline labels"
         >
           <div
-            className={`absolute top-0 -right-0.5 w-1 h-full cursor-col-resize z-10 transition-colors ${
+            className={`absolute top-0 -right-0.5 w-1 h-full cursor-col-resize z-10 transition-colors duration-fast ${
               isResizing ? 'bg-[var(--color-hairline)]' : 'hover:bg-[var(--color-hairline)]'
             }`}
             onMouseDown={handleResizeMouseDown}

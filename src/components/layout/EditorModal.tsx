@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useUIStore } from '../../stores/uiStore';
+import { usePresence } from '../../hooks/usePresence';
 import { SectionEditor } from '../panels/SectionEditor';
 import { ItemEditor } from '../panels/ItemEditor';
+import type { SelectionState } from '../../types';
 
 const MODAL_WIDTH = 280;
 const MODAL_MAX_HEIGHT = 400;
@@ -10,6 +12,7 @@ const VIEWPORT_PADDING = 16;
 export function EditorModal(): JSX.Element | null {
   const { isModalOpen, selection, closeModal } = useUIStore();
   const modalRef = useRef<HTMLDivElement>(null);
+  const shownRef = useRef<SelectionState | null>(null);
 
   // Close on escape key or enter key (save and close)
   useEffect(() => {
@@ -40,11 +43,18 @@ export function EditorModal(): JSX.Element | null {
     [closeModal]
   );
 
-  if (!isModalOpen || !selection.type || !selection.id) {
-    return null;
-  }
+  const { isMounted, isLeaving } = usePresence(
+    isModalOpen && selection.type !== null && selection.id !== null
+  );
 
-  const position = selection.position;
+  // Closing drops the selection, and the panel is still on screen for the
+  // length of its exit. It leaves showing what it was editing, not an empty box.
+  if (selection.type && selection.id) shownRef.current = selection;
+  const shown = isModalOpen ? selection : shownRef.current;
+
+  if (!isMounted || !shown?.type || !shown.id) return null;
+
+  const position = shown.position;
 
   // Calculate modal position
   const getModalStyle = (): React.CSSProperties => {
@@ -84,11 +94,11 @@ export function EditorModal(): JSX.Element | null {
   };
 
   const renderEditor = (): JSX.Element | null => {
-    switch (selection.type) {
+    switch (shown.type) {
       case 'section':
-        return <SectionEditor />;
+        return <SectionEditor selection={shown} />;
       case 'item':
-        return <ItemEditor />;
+        return <ItemEditor selection={shown} />;
       default:
         return null;
     }
@@ -96,7 +106,7 @@ export function EditorModal(): JSX.Element | null {
 
   return (
     <div
-      className="fixed inset-0 z-50"
+      className={`modal-layer fixed inset-0 z-50 ${isLeaving ? 'is-leaving' : ''}`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore } from '../../stores/uiStore';
 import { Button } from './Button';
+import { usePresence } from '../../hooks/usePresence';
 
 export function ConfirmDialog(): JSX.Element | null {
   const { confirmDialog, closeConfirmDialog } = useUIStore();
@@ -43,13 +44,16 @@ export function ConfirmDialog(): JSX.Element | null {
     [handleCancel]
   );
 
-  if (!isOpen) return null;
+  // Held on screen through the exit so the panel and its scrim can leave
+  // together, the way they arrived.
+  const { isMounted, isLeaving } = usePresence(isOpen);
+  if (!isMounted) return null;
 
   const confirmButtonVariant = variant === 'danger' ? 'danger' : 'primary';
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center"
+      className={`modal-layer fixed inset-0 z-[200] flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
       role="dialog"

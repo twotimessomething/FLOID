@@ -2,13 +2,26 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 
 interface DragHandleProps {
   readonly edge: 'start' | 'end';
-  readonly onDragStart: (e: React.MouseEvent) => void;
-  readonly onDrag: (deltaX: number) => void;
-  readonly onDragEnd: () => void;
+  readonly onDragStart: (edge: 'start' | 'end') => void;
+  readonly onDrag: (edge: 'start' | 'end', deltaX: number) => void;
+  readonly onDragEnd: (edge: 'start' | 'end') => void;
   readonly label?: string;
   readonly dragDate?: string;
 }
 
+/**
+ * One grabbable edge of a bar.
+ *
+ * The document listeners exist only while this particular edge is being
+ * dragged. There is one of these on every side of every unlocked bar and the
+ * timeline does not virtualise, so a pair kept alive per handle would put
+ * hundreds of no-op handlers on the input path — and re-subscribe all of them
+ * on every store write the drag itself causes.
+ *
+ * The callbacks take the edge back as an argument for the same reason: it lets
+ * the row hand over the same three stable functions to both of its handles
+ * rather than minting a closure per edge on every render.
+ */
 export function DragHandle({
   edge,
   onDragStart,
@@ -17,21 +30,20 @@ export function DragHandle({
   label,
   dragDate,
 }: DragHandleProps): JSX.Element {
-  const isDragging = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
   const lastX = useRef(0);
-  const [showBubble, setShowBubble] = useState(false);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
       e.stopPropagation();
       e.preventDefault();
-      isDragging.current = true;
       lastX.current = e.clientX;
-      setShowBubble(true);
-      onDragStart(e);
+      setIsDragging(true);
+      onDragStart(edge);
       document.body.classList.add('no-select');
     },
-    [onDragStart]
+    [onDragStart, edge]
   );
 
   // Prevent click from bubbling to parent after drag
@@ -40,18 +52,17 @@ export function DragHandle({
   }, []);
 
   useEffect(() => {
+    if (!isDragging) return;
+
     const handleMouseMove = (e: MouseEvent): void => {
-      if (!isDragging.current) return;
       const deltaX = e.clientX - lastX.current;
       lastX.current = e.clientX;
-      onDrag(deltaX);
+      onDrag(edge, deltaX);
     };
 
     const handleMouseUp = (): void => {
-      if (!isDragging.current) return;
-      isDragging.current = false;
-      setShowBubble(false);
-      onDragEnd();
+      setIsDragging(false);
+      onDragEnd(edge);
       document.body.classList.remove('no-select');
     };
 
@@ -62,7 +73,15 @@ export function DragHandle({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [onDrag, onDragEnd]);
+  }, [isDragging, onDrag, onDragEnd, edge]);
+
+  // A resize interrupted by an unmount still has to put the page back
+  useEffect(
+    () => () => {
+      document.body.classList.remove('no-select');
+    },
+    []
+  );
 
   return (
     <div
@@ -77,7 +96,7 @@ export function DragHandle({
       aria-orientation="horizontal"
     >
       {/* Date bubble tooltip */}
-      {showBubble && dragDate && (
+      {isDragging && dragDate && (
         <div
           className={`absolute bottom-full mb-2 px-2 py-1 bg-[var(--color-tooltip)] text-[var(--color-tooltip-text)] text-xs rounded-[var(--radius-sm)] shadow-[var(--shadow-sm)] whitespace-nowrap z-50 pointer-events-none ${
             edge === 'start' ? 'left-0 -translate-x-1/2' : 'right-0 translate-x-1/2'

@@ -6,7 +6,8 @@ import { useSectionStore } from '../../stores/sectionStore';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { formatDate, getSectionsDateRange } from '../../utils/dateUtils';
-import type { ImportOptions } from '../../types';
+import type { ImportAnalysis, ImportModalType, ImportOptions } from '../../types';
+import { usePresence } from '../../hooks/usePresence';
 
 interface ImportConfirmModalProps {
   readonly onConfirm: (options: ImportOptions) => void;
@@ -23,6 +24,7 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
 
   const [newName, setNewName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastContentRef = useRef<{ type: ImportModalType; analysis: ImportAnalysis } | null>(null);
 
   useEffect(() => {
     if (isOpen && type === 'name-collision' && analysis) {
@@ -64,15 +66,26 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
     [handleCancel, handleRename, type, newName]
   );
 
-  if (!isOpen || !type || !analysis) return null;
+  // Held on screen through the exit so the panel and its scrim can leave
+  // together, the way they arrived.
+  const { isMounted, isLeaving } = usePresence(isOpen && type !== null && analysis !== null);
 
-  const { importData, dateMismatch, revisionDelta, existingSection } = analysis;
+  // The store drops the import the moment the modal is dismissed, but the panel
+  // is still on screen for the length of its exit. Keep the last thing it was
+  // asked to show so the closing frames are not blank.
+  if (type && analysis) lastContentRef.current = { type, analysis };
+  const content = type && analysis ? { type, analysis } : lastContentRef.current;
+
+  if (!isMounted || !content) return null;
+
+  const shownType = content.type;
+  const { importData, dateMismatch, revisionDelta, existingSection } = content.analysis;
 
   // Check if importing from same project
   const isFromSameProject = project && importData.sourceProjectId === project.id;
 
   const renderContent = (): JSX.Element | null => {
-    switch (type) {
+    switch (shownType) {
       case 'new-schedule':
         return (
           <>
@@ -191,7 +204,7 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[150] flex items-center justify-center"
+      className={`modal-layer fixed inset-0 z-[150] flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
       onKeyDown={handleKeyDown}
     >
       {/* Backdrop */}

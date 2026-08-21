@@ -1,4 +1,9 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
+import {
+  createVelocityTracker,
+  startMomentumGlide,
+  type Glide,
+} from '../utils/momentum';
 
 const PAN_THRESHOLD = 3;
 
@@ -10,6 +15,16 @@ interface UseTimelinePanReturn {
   isPanning: boolean;
 }
 
+/**
+ * Dragging the sheet around, and letting go of it.
+ *
+ * The drag itself is 1:1 — the paper stays under the cursor for the whole
+ * gesture. Release is where the physics starts: the sheet keeps the speed it
+ * was thrown at and coasts down, so a long timeline can be crossed with a flick
+ * instead of a series of drags. Anything the user does next stops the coast
+ * where it stands, which is the only thing that makes it feel like an object
+ * rather than a cutscene.
+ */
 export function useTimelinePan({
   containerRef,
 }: UseTimelinePanOptions): UseTimelinePanReturn {
@@ -18,19 +33,46 @@ export function useTimelinePan({
   const lastPosRef = useRef({ x: 0, y: 0 });
   const pendingRef = useRef<{ startX: number; startY: number } | null>(null);
   const didPanRef = useRef(false);
+  const trackerRef = useRef(createVelocityTracker());
+  const glideRef = useRef<Glide | null>(null);
 
-  const startPan = useCallback((clientX: number, clientY: number) => {
-    isPanningRef.current = true;
-    setIsPanning(true);
-    lastPosRef.current = { x: clientX, y: clientY };
+  const stopGlide = useCallback((): void => {
+    glideRef.current?.cancel();
+    glideRef.current = null;
   }, []);
 
-  // Capture-phase mousedown for middle and right buttons on scroll container
+  const startPan = useCallback(
+    (clientX: number, clientY: number) => {
+      stopGlide();
+      isPanningRef.current = true;
+      setIsPanning(true);
+      lastPosRef.current = { x: clientX, y: clientY };
+      trackerRef.current.reset(clientX, clientY);
+    },
+    [stopGlide]
+  );
+
+  /**
+   * Which presses belong to the sheet, decided from the event rather than from
+   * a ref.
+   *
+   * The scroll container is not in the tree on the first render — the timeline
+   * only appears once a project has finished loading — so an effect that reads
+   * `containerRef.current` once binds to nothing and never runs again. Listening
+   * on the document and asking the target where it lives has no such ordering to
+   * get wrong, and matches how the item drag already finds the same element.
+   */
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const isOnSheet = (target: EventTarget | null): boolean =>
+      target instanceof Element && target.closest('.timeline-scroll-container') !== null;
 
     const handleMouseDownCapture = (e: MouseEvent): void => {
+      if (!isOnSheet(e.target)) return;
+
+      // Any approach to a sliding sheet stops it where it stands: the user is
+      // reaching for something, not watching it
+      stopGlide();
+
       if (e.button === 1) {
         // Middle button: immediate pan
         e.preventDefault();
@@ -47,11 +89,20 @@ export function useTimelinePan({
       }
     };
 
-    container.addEventListener('mousedown', handleMouseDownCapture, true);
-    return () => {
-      container.removeEventListener('mousedown', handleMouseDownCapture, true);
+    const handleWheelCapture = (e: WheelEvent): void => {
+      if (isOnSheet(e.target)) stopGlide();
     };
-  }, [containerRef, startPan]);
+
+    document.addEventListener('mousedown', handleMouseDownCapture, true);
+    document.addEventListener('wheel', handleWheelCapture, { passive: true, capture: true });
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDownCapture, true);
+      document.removeEventListener('wheel', handleWheelCapture, true);
+    };
+  }, [startPan, stopGlide]);
+
+  // Stop a coast that outlives the component
+  useEffect(() => () => stopGlide(), [stopGlide]);
 
   // Document-level mousemove/mouseup for pan + contextmenu suppression
   useEffect(() => {
@@ -77,6 +128,7 @@ export function useTimelinePan({
       containerRef.current.scrollTop -= deltaY;
 
       lastPosRef.current = { x: e.clientX, y: e.clientY };
+      trackerRef.current.sample(e.clientX, e.clientY);
     };
 
     const handleMouseUp = (): void => {
@@ -86,6 +138,7 @@ export function useTimelinePan({
         isPanningRef.current = false;
         setIsPanning(false);
         document.body.classList.remove('no-select');
+        releaseWithMomentum();
       }
 
       // If a right-button pan occurred, suppress the trailing contextmenu event
@@ -102,6 +155,42 @@ export function useTimelinePan({
         }, 100);
         didPanRef.current = false;
       }
+    };
+
+    /**
+     * Hand the release velocity to the glide.
+     *
+     * The sign flips because the sheet travels opposite to the cursor: dragging
+     * left reveals what is to the right, so a leftward throw has to keep
+     * increasing `scrollLeft` after the cursor has gone.
+     */
+    const releaseWithMomentum = (): void => {
+      const el = containerRef.current;
+      if (!el) return;
+      const { x, y } = trackerRef.current.velocity();
+      // The glide's own position is kept as a float. A slow tail moves the
+      // sheet a third of a pixel per frame, and `scrollLeft` rounds that away
+      // — reading the position back each frame would grind the coast to a halt
+      // well before its velocity had actually run out.
+      let posX = el.scrollLeft;
+      let posY = el.scrollTop;
+
+      glideRef.current = startMomentumGlide({
+        velocity: { x: -x, y: -y },
+        step: (dx, dy) => {
+          posX += dx;
+          posY += dy;
+          el.scrollLeft = posX;
+          el.scrollTop = posY;
+          // Where the browser refuses to follow, the sheet has run out of
+          // timeline on that axis and only that axis stops.
+          const clampedX = Math.abs(el.scrollLeft - posX) > 1;
+          const clampedY = Math.abs(el.scrollTop - posY) > 1;
+          if (clampedX) posX = el.scrollLeft;
+          if (clampedY) posY = el.scrollTop;
+          return { movedX: !clampedX, movedY: !clampedY };
+        },
+      });
     };
 
     document.addEventListener('mousemove', handleMouseMove);

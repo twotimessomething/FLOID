@@ -94,6 +94,17 @@ export interface ConfirmDialogState {
   onCancel: (() => void) | null;
 }
 
+/**
+ * Selecting without opening the editor.
+ *
+ * The outline is free — it can be painted the instant a press lands, because
+ * nothing about it is ambiguous. The editor is what has to wait out a possible
+ * double-click, so it is the only half that takes an option.
+ */
+export interface SelectOptions {
+  readonly openEditor?: boolean;
+}
+
 interface UIState {
   // Zoom
   zoomLevel: ZoomLevel;
@@ -107,8 +118,17 @@ interface UIState {
 
   // Selection — an item id plus the schedule it lives in
   selection: SelectionState;
-  selectItem: (itemId: string, sectionId: string, position?: ModalPosition) => void;
-  selectSection: (sectionId: string, position?: ModalPosition) => void;
+  selectItem: (
+    itemId: string,
+    sectionId: string,
+    position?: ModalPosition,
+    options?: SelectOptions
+  ) => void;
+  selectSection: (
+    sectionId: string,
+    position?: ModalPosition,
+    options?: SelectOptions
+  ) => void;
   clearSelection: () => void;
 
   // Drag state
@@ -238,10 +258,16 @@ export const useUIStore = create<UIState>((set) => ({
 
   // Selection
   selection: { type: null, id: null, sectionId: null },
-  selectItem: (itemId, sectionId, position) =>
-    set({ selection: { type: 'item', id: itemId, sectionId, position }, isModalOpen: true }),
-  selectSection: (sectionId, position) =>
-    set({ selection: { type: 'section', id: sectionId, sectionId, position }, isModalOpen: true }),
+  selectItem: (itemId, sectionId, position, options) =>
+    set({
+      selection: { type: 'item', id: itemId, sectionId, position },
+      isModalOpen: options?.openEditor ?? true,
+    }),
+  selectSection: (sectionId, position, options) =>
+    set({
+      selection: { type: 'section', id: sectionId, sectionId, position },
+      isModalOpen: options?.openEditor ?? true,
+    }),
   clearSelection: () =>
     set({ selection: { type: null, id: null, sectionId: null }, isModalOpen: false }),
 

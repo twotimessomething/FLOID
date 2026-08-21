@@ -32,7 +32,7 @@ function stepFromFit(fitPixelsPerDay: number, direction: 'in' | 'out'): ZoomLeve
 }
 
 const STEP_CLASS =
-  'p-0.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:hover:text-[var(--color-text-secondary)] transition-colors duration-150';
+  'p-0.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:hover:text-[var(--color-text-secondary)] transition-colors duration-fast';
 
 export function ZoomControls(): JSX.Element {
   const zoomLevel = useUIStore((state) => state.zoomLevel);
@@ -76,7 +76,7 @@ export function ZoomControls(): JSX.Element {
     <div className="flex items-center gap-3">
       <button
         onClick={triggerScrollToToday}
-        className="text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-150"
+        className="text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast"
       >
         Today
       </button>
@@ -102,15 +102,15 @@ export function ZoomControls(): JSX.Element {
           disabled={!canFit}
           title="Fit the whole timeline on screen"
           aria-label="Fit timeline to screen"
-          className={`group relative h-4 min-w-[56px] text-[13px] leading-4 text-center transition-colors duration-150 disabled:opacity-30 ${
+          className={`group relative h-4 min-w-[56px] text-body leading-4 text-center transition-colors duration-fast disabled:opacity-30 ${
             isFit ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'
           }`}
         >
-          <span className={isFit ? '' : 'transition-opacity duration-150 group-hover:opacity-0'}>
+          <span className={isFit ? '' : 'transition-opacity duration-fast group-hover:opacity-0'}>
             {isFit ? 'Fit' : ZOOM_LABELS[markerZoom]}
           </span>
           {!isFit && (
-            <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 text-[var(--color-text-primary)]">
+            <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-fast group-hover:opacity-100 text-[var(--color-text-primary)]">
               Fit
             </span>
           )}
