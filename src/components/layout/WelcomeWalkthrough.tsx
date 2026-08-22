@@ -577,7 +577,7 @@ export function WelcomeWalkthrough(): ReactElement {
           no shadow. A single hairline rule just draws the edge of the sheet. */}
       {!isProjectSetupModalOpen && (
         <div
-          className="w-full max-w-xl modal-enter relative"
+          className="w-full max-w-xl modal-enter relative border border-[var(--color-border)] rounded-[var(--radius-lg)]"
           role="region"
           aria-label="Welcome walkthrough"
         >
