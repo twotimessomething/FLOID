@@ -67,6 +67,7 @@
   --color-logo-bar-1: #5bb5a9;
   --color-logo-bar-2: #b1e3f9;
   --color-logo-bar-3: #ea733e;
+  --color-logo-bar-4: #f1b5d4;
 
   /* Geometry — bars are square, controls are barely rounded. */
   --radius-bar: 0px;
@@ -577,6 +578,74 @@ body.dragging-item * {
 .btn-press {
   transition: background-color var(--duration-fast) linear,
     color var(--duration-fast) linear, opacity var(--duration-fast) linear;
+}
+
+/* The boot screen. One mark on the ground, drawn once.
+
+   Everything about it is the same paper as the app: the ground token, the
+   surface curve, the surface duration. It is a door, not a loading screen —
+   there is no spinner and no progress, because by the time it starts fading
+   the timeline behind it is already finished. */
+.splash {
+  position: fixed;
+  inset: 0;
+  /* Above every overlay in the app, mobile notice included. */
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-background);
+}
+
+/* `both` holds the last frame so the mark cannot flash back at full opacity in
+   the moment between the fade ending and React taking the node away. */
+.splash--leaving {
+  animation: fadeOut var(--duration-slow) var(--ease-out) both;
+  pointer-events: none;
+}
+
+.splash__mark {
+  width: 96px;
+  height: 96px;
+  animation: splashMark var(--duration-slow) var(--ease-out) both;
+}
+
+@keyframes splashMark {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* Each bar wipes out from its own left edge — the gesture the whole app is
+   built on, performed once at the door. `fill-box` puts the origin on the shape
+   rather than on the whole drawing, so a bar that begins mid-chart grows from
+   where it begins rather than sliding in from the edge. */
+.splash__bar {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: splashBar var(--duration-base) var(--ease-out) both;
+}
+
+/* Staggered top to bottom, one sweep down the chart. The two bars sharing the
+   third row start together, because on the mark they are one row. */
+.splash__bars > *:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.splash__bars > *:nth-child(3),
+.splash__bars > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+.splash__bars > *:nth-child(5) {
+  animation-delay: 180ms;
+}
+
+@keyframes splashBar {
+  from {
+    transform: scaleX(0);
+  }
 }
 
 /* =========================================

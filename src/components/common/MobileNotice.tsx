@@ -93,9 +93,9 @@ export function MobileNotice(): JSX.Element | null {
               stroke="currentColor"
               strokeWidth="3"
             />
-            <rect x="16" y="15" width="28" height="7" rx="3.5" fill="var(--color-logo-bar-1)" />
-            <rect x="28" y="26.5" width="38" height="7" rx="3.5" fill="var(--color-logo-bar-2)" />
-            <rect x="44" y="38" width="30" height="7" rx="3.5" fill="var(--color-logo-bar-3)" />
+            <rect x="16" y="15" width="28" height="7" fill="var(--color-logo-bar-1)" />
+            <rect x="28" y="26.5" width="38" height="7" fill="var(--color-logo-bar-2)" />
+            <rect x="44" y="38" width="30" height="7" fill="var(--color-logo-bar-3)" />
             <circle cx="80" cy="41.5" r="3.5" fill="currentColor" />
             <line
               x1="48"

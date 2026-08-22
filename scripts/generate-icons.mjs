@@ -1,6 +1,10 @@
 /**
- * Generate favicon PNGs, apple-touch-icon, android-chrome icons, favicon.ico, and OG image
- * from the source favicon.svg.
+ * Generate favicon PNGs, apple-touch-icon, android-chrome icons, favicon.ico, and OG image.
+ *
+ * Icons come from public/favicon.svg (the mark alone).
+ * The OG image uses public/FLOID_logo.svg (the full lockup) on the app's own
+ * paper ground — the mark's disc is brand indigo, so it cannot sit on an
+ * indigo field without disappearing.
  *
  * Usage: node scripts/generate-icons.mjs
  * Requires: npm install --save-dev sharp
@@ -14,8 +18,21 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(__dirname, '..', 'public');
 const faviconSvg = resolve(publicDir, 'favicon.svg');
+const lockupSvg = resolve(publicDir, 'FLOID_logo.svg');
 
 const svgBuffer = readFileSync(faviconSvg);
+
+/**
+ * Brand tokens mirrored from src/index.css. Keep these in step with the
+ * :root block there — the OG image is the one place they are baked into a
+ * raster instead of resolved at runtime.
+ */
+const GROUND = '#f0f0f0';
+const INK = '#17171a';
+const INK_SECONDARY = '#6a6a70';
+
+/** The lockup's intrinsic aspect ratio, from its viewBox. */
+const LOCKUP_ASPECT = 296.49 / 1141.46;
 
 // --- Generate PNG icons at various sizes ---
 const sizes = [
@@ -74,52 +91,51 @@ function createIco(pngBuffer, width, height) {
 }
 
 /**
- * Generate the OG image: brand-colored background with the FLOID logo and tagline.
+ * Generate the OG image: the FLOID lockup and the brand line — the same one
+ * CLAUDE.md and the welcome walkthrough use — set in ink on the paper ground.
  */
 async function generateOgImage() {
   const width = 1200;
   const height = 630;
-  const brandColor = '#3a3f76';
 
-  // Render the favicon SVG at a reasonable size for the OG image
-  const logoSize = 160;
-  const logoPng = await sharp(svgBuffer)
-    .resize(logoSize, logoSize)
+  const lockupWidth = 520;
+  const lockupHeight = Math.round(lockupWidth * LOCKUP_ASPECT);
+  const lockupTop = 172;
+
+  const lockupPng = await sharp(readFileSync(lockupSvg))
+    .resize(lockupWidth, lockupHeight)
     .png()
     .toBuffer();
 
-  // Create tagline as SVG text
-  const taglineSvg = Buffer.from(`
+  // Text is composited as SVG. Inter is not available to the renderer here, so
+  // the fallback stack is what actually ships — keep it a real stack.
+  const textSvg = Buffer.from(`
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600');
-      </style>
-      <text x="${width / 2}" y="420" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="600" font-size="42" fill="white">
-        Design Process Scheduling
+      <text x="${width / 2}" y="402" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="600" font-size="42" fill="${INK}">
+        Fluid timelines for product development.
       </text>
-      <text x="${width / 2}" y="475" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="500" font-size="28" fill="rgba(255,255,255,0.75)">
-        Timeline tool for industrial designers
+      <text x="${width / 2}" y="452" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="500" font-size="26" fill="${INK_SECONDARY}">
+        Free and browser-based. No account required.
       </text>
     </svg>
   `);
 
-  // Composite: background + logo + tagline text
   await sharp({
     create: {
       width,
       height,
       channels: 4,
-      background: brandColor,
+      background: GROUND,
     },
   })
     .composite([
       {
-        input: logoPng,
-        top: Math.round((height / 2) - logoSize / 2 - 60),
-        left: Math.round((width / 2) - logoSize / 2),
+        input: lockupPng,
+        top: lockupTop,
+        left: Math.round(width / 2 - lockupWidth / 2),
       },
       {
-        input: taglineSvg,
+        input: textSvg,
         top: 0,
         left: 0,
       },

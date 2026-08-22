@@ -25,6 +25,11 @@ export function useTheme(): void {
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
     if (stored && ['light', 'dark', 'system'].includes(stored)) {
+      // Applied here as well as through the store. The effect below is still
+      // holding this render's `'system'` when it runs, so leaving the class to
+      // it alone would strip a stored dark theme for one commit — a flicker the
+      // boot script in index.html exists to avoid.
+      applyTheme(stored);
       setTheme(stored);
     }
   }, [setTheme]);

@@ -2,160 +2,172 @@
 
 ## Philosophy
 
-**Less is more.** Clean, minimal interfaces that let the content breathe. Every element should earn its place.
+**Less is more.** FLOID looks like a printed Gantt chart, not a dashboard: flat
+ink on one sheet of paper. Every element earns its place, and separation comes
+from whitespace rather than from lines and boxes.
+
+The five rules that carry the visual language are documented in `CLAUDE.md`
+under **Visual language**. This file covers the brand assets — the mark, the
+colours, and the surfaces they appear on.
 
 ---
 
-## Glass Surfaces
+## Logo
 
-Use frosted glass (backdrop blur) for any surface that overlays content:
+The mark is an indigo disc holding four stepped bars — a timeline compressed
+into an `F`.
 
-| Surface Type | Usage |
-|--------------|-------|
-| **Modals** | Always glass with overlay |
-| **Sidebars** | Glass when overlapping timeline |
-| **Dropdowns/Popovers** | Glass |
-| **Tooltips** | Glass |
-| **Floating controls** | Glass (e.g., zoom controls, floating action buttons) |
+| File | Contents | Used by |
+|------|----------|---------|
+| `public/FLOID_logo.svg` | Mark + wordmark, dark ink wordmark | Header, walkthrough (light) |
+| `public/FLOID_logo_dark.svg` | Mark + wordmark, paper wordmark | Header, walkthrough (dark) |
+| `public/favicon.svg` | Mark alone | Favicon, all raster icons, source for the OG image lockup |
 
-**Do not use glass for:** Inline content, form inputs, primary workspace areas, or elements that don't overlap other content.
+The mark itself is identical in light and dark; only the wordmark changes.
 
-### Implementation
+### Mark colours
 
-```css
-/* Light glass surface */
-.glass {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
+Taken from `src/constants/colors.ts` and mirrored into `src/index.css` as
+tokens. The bars alternate mid-tone and tint top to bottom, so adjacent rows
+separate on value as well as hue.
 
-/* Glass with subtle border (use for most cases) */
-.glass-bordered {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-}
+| Element | Value | Token |
+|---------|-------|-------|
+| Disc | `#3a3f76` | `--color-logo-primary` |
+| Bar 1 (teal) | `#5bb5a9` | `--color-logo-bar-1` |
+| Bar 2 (sky) | `#b1e3f9` | `--color-logo-bar-2` |
+| Bar 3 (orange) | `#ea733e` | `--color-logo-bar-3` |
+| Bar 4 (pink) | `#f1b5d4` | `--color-logo-bar-4` |
 
-/* Modal overlay */
-.glass-overlay {
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
+**Never place the mark on a `#3a3f76` field** — the disc disappears and the bars
+read as clipped fragments. Put it on the ground (`#f0f0f0`), on paper
+(`#ffffff`), or on the dark ground (`#141416`).
+
+In dark mode `--color-logo-primary` resolves to `#9aa0dc`. That lighter indigo
+is for UI accents that need to stay readable on the dark ground; the logo
+**asset** keeps `#3a3f76` in both themes by design.
+
+### Rasters
+
+Every PNG icon and the OG image are generated, never hand-edited:
+
+```bash
+node scripts/generate-icons.mjs
 ```
 
-**Tailwind shorthand** (add to `index.css` as utilities):
-- `glass` — standard glass surface
-- `glass-bordered` — glass with border/shadow
-- `glass-overlay` — backdrop for modals
+Re-run it after any change to `public/favicon.svg` or `public/FLOID_logo.svg`.
+It writes `favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`,
+`android-chrome-192x192.png`, `android-chrome-512x512.png`, `favicon.ico`, and
+`og-image.png`.
 
 ---
 
-## Corner Radius
+## Colour
 
-Three sizes. Use consistently.
+All colours are CSS variables in `src/index.css`. Use the tokens, not literals.
 
-| Token | Value | Tailwind | Usage |
-|-------|-------|----------|-------|
-| **sm** | 6px | `rounded-md` | Inputs, buttons, small chips, tags |
-| **md** | 10px | `rounded-[10px]` | Cards, dropdowns, popovers, timeline bars |
-| **lg** | 16px | `rounded-2xl` | Modals, sidebars, large panels |
+### Ground and ink (light)
 
-**Rules:**
-- Nested elements use the same or smaller radius than their parent
-- Timeline bars use `md` radius
-- Buttons and inputs use `sm` radius
-- Full-height sidebars: `lg` radius on the interior corners only (or none if edge-to-edge)
+| Role | Value | Token | Usage |
+|------|-------|-------|-------|
+| **Ground** | `#f0f0f0` | `--color-background` | Everything in the app body |
+| **Surface** | `#f0f0f0` | `--color-surface` | Identical to ground on purpose — there are no nested panels |
+| **Raised** | `#ffffff` | `--color-raised` | Only things that float: modals, menus, popovers, tooltips |
+| **Border** | `#dcdcdc` | `--color-border` | Inputs and floating surfaces |
+| **Hairline** | `rgba(23,23,26,0.07)` | `--color-hairline` | Between schedules and beside the label column. That is the whole budget. |
+| **Ink** | `#17171a` | `--color-text-primary` | Headings, body |
+| **Ink secondary** | `#6a6a70` | `--color-text-secondary` | Labels, captions |
+| **Ink muted** | `#9e9ea4` | `--color-text-muted` | Placeholders, disabled |
+| **Accent** | `#3a3f76` | `--color-accent` | Focus, selection, toggles |
+
+Dark mode redefines the same tokens under `.dark` — ground `#141416`, raised
+`#1d1d20`, ink `#f2f2f3`, accent `#9aa0dc`. Never branch on theme in a
+component; read the token.
+
+### Gridlines
+
+Vertical gridlines are **white** (`--color-gridline`), lighter than the ground,
+so they read as gaps in the paper rather than rules drawn on it. There are no
+horizontal row rules anywhere.
+
+### Schedule and phase colours
+
+Defined in `src/constants/colors.ts`. Do not introduce new accent colours
+without adding them there. Colour is resolved, never stored: `color: null`
+means inherit.
+
+### Bar text
+
+Never write white text on a coloured bar. Call `getReadableTextColor` from
+`src/utils/colorUtils.ts`, which picks ink or paper by measured contrast.
 
 ---
 
-## Color
+## Surfaces and elevation
 
-### Base Palette
+There are no cards, panels, or bordered containers inside the app body. White
+and shadow are reserved for things that genuinely float.
 
-| Role | Value | Usage |
-|------|-------|-------|
-| **Background** | `#fafafa` | Main workspace |
-| **Surface** | `#ffffff` | Cards, panels (when not glass) |
-| **Border** | `#e5e7eb` | Dividers, input borders |
-| **Text Primary** | `#111827` | Headings, body text |
-| **Text Secondary** | `#6b7280` | Labels, captions |
-| **Text Muted** | `#9ca3af` | Placeholders, disabled |
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--shadow-sm` | `0 1px 2px rgba(23,23,26,0.06)` | Inputs, small floating controls |
+| `--shadow-md` | `0 6px 20px rgba(23,23,26,0.08)` | Menus, popovers |
+| `--shadow-lg` | — | Modals |
 
-### Accent Colors
+Nothing in-page casts a shadow.
 
-Phase and team colors are defined in `src/constants/colors.ts`. Do not introduce new accent colors without adding them there.
+---
 
-### Interactive States
+## Corner radius
 
-| State | Treatment |
-|-------|-----------|
-| **Hover** | Subtle background shift or opacity change |
-| **Active/Pressed** | Slightly darker than hover |
-| **Focus** | 2px blue ring (`ring-2 ring-blue-500`) |
-| **Disabled** | 50% opacity |
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--radius-bar` | `0` | Timeline bars — always square |
+| `--radius-sm` | `3px` | Inputs, buttons, chips |
+| `--radius-md` | `6px` | Menus, popovers |
+| `--radius-lg` | `10px` | Modals |
+
+Nested elements use the same or smaller radius than their parent.
 
 ---
 
 ## Typography
 
-**Font:** Inter (with system fallbacks)
+**Font:** Inter, with a system fallback stack.
 
-| Role | Size | Weight | Tailwind |
-|------|------|--------|----------|
-| **Heading** | 14px | 600 | `text-sm font-semibold` |
-| **Body** | 14px | 400 | `text-sm` |
-| **Label** | 12px | 500 | `text-xs font-medium` |
-| **Caption** | 12px | 400 | `text-xs` |
+| Role | Size | Weight |
+|------|------|--------|
+| **Heading** | 14px | 600 |
+| **Body** | 14px | 400 |
+| **Label** | 12px | 500 |
+| **Caption** | 12px | 400 |
 
 Keep text sizes minimal. Avoid anything larger than 14px in the main interface.
+Bar labels are regular weight.
 
 ---
 
-## Spacing
+## Affordances
 
-Use Tailwind's default spacing scale. Prefer `4`, `8`, `12`, `16`, `24` pixel increments.
-
-| Context | Padding |
-|---------|---------|
-| **Panel/sidebar** | `p-4` (16px) |
-| **Card** | `p-3` (12px) |
-| **Button** | `px-3 py-1.5` |
-| **Input** | `px-2 py-1.5` |
+Chevrons, drag grips, add buttons, and empty-state hints use `.row-affordance`
+inside a `.group` row — they are invisible until the row is hovered. A
+populated project should look as empty as a blank one.
 
 ---
 
-## Shadows
+## Motion
 
-Minimal shadows. Glass surfaces rely on blur, not heavy shadows.
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| **sm** | `0 1px 2px rgba(0,0,0,0.05)` | Buttons, inputs |
-| **md** | `0 4px 24px rgba(0,0,0,0.06)` | Glass panels, dropdowns |
-| **lg** | `0 8px 32px rgba(0,0,0,0.1)` | Modals |
+Durations and easings are tokens in `src/index.css`. Entrances are `ease-out`,
+state changes `ease-in-out`, exits are presence-based. Selection is instant —
+never animated. Respect `prefers-reduced-motion`.
 
 ---
 
-## Animation
+## Voice
 
-- **Duration:** 150ms for micro-interactions, 200ms for panels/modals
-- **Easing:** `ease-out` for entrances, `ease-in-out` for state changes
-- Respect `prefers-reduced-motion`
+FLOID is **product development scheduling**. That is the phrase every
+user-facing surface leads with — page title, meta description, manifest,
+`llms.txt`, and the OG image. Industrial design is a supported use case and a
+template, not the positioning.
 
----
-
-## Quick Reference
-
-```
-Glass surface:     bg-white/72 backdrop-blur-[20px]
-Modal overlay:     bg-black/20 backdrop-blur-sm
-Radius small:      rounded-md (6px)
-Radius medium:     rounded-[10px]
-Radius large:      rounded-2xl (16px)
-Focus ring:        ring-2 ring-blue-500 ring-offset-1
-Transition:        transition-colors duration-150
-```
+Say what the product does and no more. No superlatives, no invented benefits.
