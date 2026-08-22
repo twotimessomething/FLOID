@@ -156,12 +156,22 @@ export function shiftItemDays(item: TimelineItem, days: number): TimelineItem {
   };
 }
 
-/** Regenerate every id in a subtree — used when importing or duplicating. */
-export function remapItemIds(item: TimelineItem, generateId: () => string): TimelineItem {
+/**
+ * Regenerate every id in a subtree — used when importing or duplicating.
+ * Pass `idMap` to record old → new, so anything referencing items by id
+ * (dependency edges) can be re-pointed after the remint.
+ */
+export function remapItemIds(
+  item: TimelineItem,
+  generateId: () => string,
+  idMap?: Map<string, string>
+): TimelineItem {
+  const id = generateId();
+  idMap?.set(item.id, id);
   return {
     ...item,
-    id: generateId(),
-    children: item.children.map((child) => remapItemIds(child, generateId)),
+    id,
+    children: item.children.map((child) => remapItemIds(child, generateId, idMap)),
   };
 }
 

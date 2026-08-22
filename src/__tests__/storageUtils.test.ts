@@ -161,6 +161,20 @@ describe('the load path migrates on the way out of storage', () => {
     expect(recovered?.schemaVersion).toBe(STORAGE_SCHEMA_VERSION);
     expect(recovered?.project.pinnedSectionId).toBe('sec-1');
   });
+
+  it('gives a pre-v4 save an empty dependency list', () => {
+    expect(migrateStoredData(legacyStored()).dependencies).toEqual([]);
+  });
+
+  it('keeps only dependency edges whose items survived the migration', () => {
+    const stored: StoredData = {
+      ...legacyStored(),
+      dependencies: [
+        { id: 'e1', from: 'ghost-a', fromAnchor: 'end', to: 'ghost-b', toAnchor: 'start' },
+      ],
+    };
+    expect(migrateStoredData(stored).dependencies).toEqual([]);
+  });
 });
 
 describe('recoverFromLocalStorage', () => {

@@ -7,6 +7,7 @@ const DEBOUNCE_MS = 1000;
 
 export function useAutoSave(): void {
   const sections = useSectionStore((state) => state.sections);
+  const dependencies = useSectionStore((state) => state.dependencies);
   const isInitialized = useSectionStore((state) => state.isInitialized);
   const project = useProjectStore((state) => state.project);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
@@ -25,8 +26,8 @@ export function useAutoSave(): void {
     }
 
     // Get latest state directly from stores to ensure we save current data
-    const latestSections = useSectionStore.getState().sections;
-    await useProjectStore.getState().saveCurrentProject(latestSections);
+    const latest = useSectionStore.getState();
+    await useProjectStore.getState().saveCurrentProject(latest.sections, latest.dependencies);
     pendingSaveRef.current = false;
   }, [isInitialized, activeProjectId]);
 
@@ -44,6 +45,7 @@ export function useAutoSave(): void {
     saveProjectToStorageSync(state.activeProjectId, {
       project: updatedProject,
       sections: sectionsState.sections,
+      dependencies: sectionsState.dependencies,
     });
 
     // Also save updated projects index
@@ -67,7 +69,7 @@ export function useAutoSave(): void {
 
     timeoutRef.current = setTimeout(async () => {
       // Use the proper per-project save function
-      await saveCurrentProject(sections);
+      await saveCurrentProject(sections, dependencies);
       pendingSaveRef.current = false;
     }, DEBOUNCE_MS);
 
@@ -76,7 +78,7 @@ export function useAutoSave(): void {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [sections, project, isInitialized, activeProjectId, saveCurrentProject]);
+  }, [sections, dependencies, project, isInitialized, activeProjectId, saveCurrentProject]);
 
   // Save immediately when tab becomes hidden or page is about to unload
   useEffect(() => {

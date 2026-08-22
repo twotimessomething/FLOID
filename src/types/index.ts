@@ -4,6 +4,8 @@ export type {
   Section,
   TimelineItem,
   ItemKind,
+  DependencyAnchor,
+  DependencyEdge,
   DropTarget,
   ZoomLevel,
   SelectionState,

@@ -57,6 +57,8 @@ export function useTimelinePan({
   const lastPosRef = useRef({ x: 0, y: 0 });
   const pendingRef = useRef<{ startX: number; startY: number } | null>(null);
   const didPanRef = useRef(false);
+  /** A press-time context menu, held until release decides pan or click. */
+  const deferredMenuRef = useRef<{ target: Element; x: number; y: number } | null>(null);
   const trackerRef = useRef(createVelocityTracker());
   const glideRef = useRef<Glide | null>(null);
   /** Unspent gesture travel at the end of the sheet, in pointer px. */
@@ -139,6 +141,34 @@ export function useTimelinePan({
         // Right button: pending — becomes pan on movement, contextmenu otherwise
         pendingRef.current = { startX: e.clientX, startY: e.clientY };
         didPanRef.current = false;
+        deferredMenuRef.current = null;
+      }
+    };
+
+    /**
+     * When the menu is raised decides nothing here; who raised it does.
+     *
+     * macOS raises `contextmenu` at the press, before a drag has had any chance
+     * to declare itself — so a menu arriving while the press is still pending
+     * is held, and released (or discarded) by the pointerup below. Windows
+     * raises it after release; that path arrives with nothing pending and
+     * passes straight through, or is caught by the one-shot suppressor a
+     * finished pan installs. The re-dispatch is not `isTrusted`, which is what
+     * lets it back past this same handler.
+     */
+    const handleContextMenuCapture = (e: MouseEvent): void => {
+      if (!e.isTrusted || !isOnSheet(e.target)) return;
+
+      if (isPanningRef.current || didPanRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      if (pendingRef.current && e.target instanceof Element) {
+        e.preventDefault();
+        e.stopPropagation();
+        deferredMenuRef.current = { target: e.target, x: e.clientX, y: e.clientY };
       }
     };
 
@@ -149,9 +179,11 @@ export function useTimelinePan({
     };
 
     document.addEventListener('pointerdown', handlePointerDownCapture, true);
+    document.addEventListener('contextmenu', handleContextMenuCapture, true);
     document.addEventListener('wheel', handleWheelCapture, { passive: true, capture: true });
     return () => {
       document.removeEventListener('pointerdown', handlePointerDownCapture, true);
+      document.removeEventListener('contextmenu', handleContextMenuCapture, true);
       document.removeEventListener('wheel', handleWheelCapture, true);
     };
   }, [startPan, stopGlide, releasePull]);
@@ -190,7 +222,14 @@ export function useTimelinePan({
         (amount) => {
           const before = el.scrollLeft;
           el.scrollLeft = before + amount;
-          return el.scrollLeft - before;
+          const applied = el.scrollLeft - before;
+          // `scrollLeft` quantizes to device pixels, so a fractional pointer
+          // delta always comes back a hair short. That shortfall is rounding,
+          // not the end of the sheet — and once it leaks into the pull, every
+          // same-direction move after it feeds the rubber band instead of the
+          // scroll and the pan freezes mid-drag. The glide below tolerates the
+          // same pixel for the same reason.
+          return Math.abs(amount - applied) < 1 ? amount : applied;
         }
       );
       el.scrollTop -= e.clientY - lastPosRef.current.y;
@@ -202,6 +241,8 @@ export function useTimelinePan({
 
     const handlePointerUp = (): void => {
       pendingRef.current = null;
+      const deferredMenu = deferredMenuRef.current;
+      deferredMenuRef.current = null;
 
       if (isPanningRef.current) {
         isPanningRef.current = false;
@@ -223,6 +264,22 @@ export function useTimelinePan({
           window.removeEventListener('contextmenu', suppressContextMenu, true);
         }, 100);
         didPanRef.current = false;
+        return;
+      }
+
+      // A press-time menu the capture handler held back, released now that the
+      // press has finished as a click. The synthetic event retraces the real
+      // one — same target, same point — so the menu opens exactly where, and on
+      // exactly what, the user pressed.
+      if (deferredMenu) {
+        deferredMenu.target.dispatchEvent(
+          new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: deferredMenu.x,
+            clientY: deferredMenu.y,
+          })
+        );
       }
     };
 

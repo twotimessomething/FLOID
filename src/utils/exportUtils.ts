@@ -1,5 +1,5 @@
 import type { Project } from '../types/project';
-import type { Section, TimelineItem } from '../types/timeline';
+import type { DependencyEdge, Section, TimelineItem } from '../types/timeline';
 import type { LegacySection } from '../types/legacy';
 import type {
   ImportAnalysis,
@@ -9,6 +9,7 @@ import type {
 import { computeViewportBounds, getMonthMarkers, getSectionsDateRange } from './dateUtils';
 import { dayKeyDiff, normalizeDayKey, toDayKey, todayKey } from './dayKeys';
 import { migrateSections } from './migrateLegacy';
+import { edgesWithinSection, pruneDanglingEdges, readStoredEdges } from './dependencyUtils';
 import { flattenSection, headerMilestones, type FlatRow } from './timelineUtils';
 import { setAppSettings } from './indexedDB';
 import { sanitizeFilename } from './stringUtils';
@@ -51,6 +52,7 @@ interface RawProjectFile {
     readonly updatedAt?: string;
   };
   readonly sections?: unknown;
+  readonly dependencies?: unknown;
 }
 
 /** Loosely typed view of a parsed `.floid` file, v2 or v3. */
@@ -75,13 +77,18 @@ interface RawScheduleFile {
   readonly items?: unknown;
   readonly phases?: unknown;
   readonly milestones?: unknown;
+  readonly dependencies?: unknown;
 }
 
 // ---------------------------------------------------------------------------
 // Full project — .floid
 // ---------------------------------------------------------------------------
 
-export const exportProjectToJson = (project: Project, sections: Section[]): ProjectExportData => ({
+export const exportProjectToJson = (
+  project: Project,
+  sections: Section[],
+  dependencies: readonly DependencyEdge[] = []
+): ProjectExportData => ({
   format: 'floid-project',
   version: '3.0',
   exportedAt: new Date().toISOString(),
@@ -95,13 +102,21 @@ export const exportProjectToJson = (project: Project, sections: Section[]): Proj
     updatedAt: project.updatedAt,
   },
   sections,
+  dependencies,
 });
 
-export const exportToJson = (project: Project, sections: Section[]): string =>
-  JSON.stringify(exportProjectToJson(project, sections), null, 2);
+export const exportToJson = (
+  project: Project,
+  sections: Section[],
+  dependencies: readonly DependencyEdge[] = []
+): string => JSON.stringify(exportProjectToJson(project, sections, dependencies), null, 2);
 
-export const downloadProjectJson = async (project: Project, sections: Section[]): Promise<void> => {
-  const json = exportToJson(project, sections);
+export const downloadProjectJson = async (
+  project: Project,
+  sections: Section[],
+  dependencies: readonly DependencyEdge[] = []
+): Promise<void> => {
+  const json = exportToJson(project, sections, dependencies);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
@@ -148,6 +163,8 @@ export const parseProjectJson = (json: string): ProjectExportData | null => {
     return {
       format: 'floid-project',
       version: '3.0',
+      // A pre-v4 file simply has none; a tampered list keeps what holds up
+      dependencies: pruneDanglingEdges(readStoredEdges(raw.dependencies), sections),
       exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : new Date().toISOString(),
       project: {
         id: rawProject.id ?? '',
@@ -172,7 +189,7 @@ export const parseProjectJson = (json: string): ProjectExportData | null => {
 /** Turn a parsed file back into the runtime shapes the stores hold. */
 export const convertImportedProject = (
   data: ProjectExportData
-): { project: Project; sections: Section[] } => {
+): { project: Project; sections: Section[]; dependencies: DependencyEdge[] } => {
   const project: Project = {
     id: data.project.id,
     name: data.project.name,
@@ -185,19 +202,30 @@ export const convertImportedProject = (
 
   // Migrating again is a no-op on v3 sections, and covers a caller that built
   // the export data by hand rather than through parseProjectJson.
-  return { project, sections: migrateSections(data.sections) };
+  const sections = migrateSections(data.sections);
+  return {
+    project,
+    sections,
+    dependencies: pruneDanglingEdges(readStoredEdges(data.dependencies), sections),
+  };
 };
 
 // ---------------------------------------------------------------------------
 // Single schedule — .floid
 // ---------------------------------------------------------------------------
 
-export const exportScheduleToFloid = (project: Project, section: Section): ScheduleExportData => ({
+export const exportScheduleToFloid = (
+  project: Project,
+  section: Section,
+  dependencies: readonly DependencyEdge[] = []
+): ScheduleExportData => ({
   format: 'floid',
   version: '3.0',
   exportedAt: new Date().toISOString(),
   sourceProjectId: project.id,
   sourceProjectName: project.name,
+  // A share carries only what travels whole: links with both ends on board
+  dependencies: edgesWithinSection(dependencies, section),
   schedule: {
     id: section.id,
     name: section.name,
@@ -224,8 +252,12 @@ export const exportScheduleToFloid = (project: Project, section: Section): Sched
  * unwritten in IndexedDB, so it deliberately does not stamp `lastBackupDate`.
  * Only `downloadProjectJson` may claim the project is backed up.
  */
-export const downloadScheduleFloid = async (project: Project, section: Section): Promise<void> => {
-  const data = exportScheduleToFloid(project, section);
+export const downloadScheduleFloid = async (
+  project: Project,
+  section: Section,
+  dependencies: readonly DependencyEdge[] = []
+): Promise<void> => {
+  const data = exportScheduleToFloid(project, section, dependencies);
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -282,10 +314,13 @@ export const parseScheduleFloid = (json: string): ScheduleExportData | null => {
     const schedule = raw.schedule as NonNullable<RawScheduleFile['schedule']>;
     const scheduleDates = raw.scheduleDates as NonNullable<RawScheduleFile['scheduleDates']>;
     const projectDates = raw.projectDates ?? scheduleDates;
+    const items = readScheduleItems(raw);
 
     return {
       format: 'floid',
       version: '3.0',
+      // A pre-v4 file has none; whatever the file claims is held to the items it carries
+      dependencies: pruneDanglingEdges(readStoredEdges(raw.dependencies), [{ items }]),
       exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : new Date().toISOString(),
       sourceProjectId: raw.sourceProjectId ?? '',
       sourceProjectName: raw.sourceProjectName ?? '',
@@ -307,7 +342,7 @@ export const parseScheduleFloid = (json: string): ScheduleExportData | null => {
         startDate: normalizeDayKey(scheduleDates.startDate ?? todayKey()),
         endDate: normalizeDayKey(scheduleDates.endDate ?? todayKey()),
       },
-      items: readScheduleItems(raw),
+      items,
     };
   } catch (error) {
     console.error('Failed to parse .floid file:', error);

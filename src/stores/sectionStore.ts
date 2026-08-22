@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
-import type { Section, TimelineItem } from '../types/timeline';
+import type { DependencyAnchor, DependencyEdge, Section, TimelineItem } from '../types/timeline';
 import { createDefaultIDTimelineSection } from '../data/defaultTemplate';
 import { useProjectStore } from './projectStore';
 import { getScheduleColor } from '../constants/colors';
@@ -8,7 +8,10 @@ import { generateId } from '../utils/idUtils';
 import { addDaysToKey, dayKeyDiff, maxDayKey, minDayKey } from '../utils/dayKeys';
 import { createDefaultWindow } from '../utils/migrateLegacy';
 import {
+  collectIds,
   findItem,
+  findItemPath,
+  forEachItem,
   insertItemInto,
   isWithin,
   locateItem,
@@ -17,6 +20,7 @@ import {
   shiftItemDays,
   updateItemIn,
 } from '../utils/itemTree';
+import { canLinkItems, isDuplicateEdge, pruneEdgesTouching } from '../utils/dependencyUtils';
 
 export interface MoveItemPayload {
   readonly itemId: string;
@@ -29,12 +33,20 @@ export interface MoveItemPayload {
   readonly dayDelta: number;
 }
 
+/** What a drag transaction snapshots — everything undo rewinds. */
+interface UndoableState {
+  readonly sections: Section[];
+  readonly dependencies: DependencyEdge[];
+}
+
 interface SectionState {
   sections: Section[];
+  /** Drawn links between items, any schedule to any schedule. */
+  dependencies: DependencyEdge[];
   isInitialized: boolean;
 
   // Drag transaction state (for undo coalescing)
-  _dragSnapshot: Section[] | null;
+  _dragSnapshot: UndoableState | null;
   _dragHistoryIndex: number | null;
 
   // Initialization
@@ -73,6 +85,24 @@ interface SectionState {
   toggleItemCollapse: (sectionId: string, itemId: string) => void;
   toggleItemLock: (sectionId: string, itemId: string) => void;
   reorderItem: (sectionId: string, itemId: string, toIndex: number) => void;
+
+  // Dependencies — ink between items, never physics
+  setDependencies: (dependencies: DependencyEdge[]) => void;
+  /** Draw a link. Returns its id, or null when the pair may not be linked. */
+  addDependency: (
+    from: string,
+    fromAnchor: DependencyAnchor,
+    to: string,
+    toAnchor: DependencyAnchor
+  ) => string | null;
+  removeDependency: (dependencyId: string) => void;
+  /** Move one end of an existing link onto a different item or anchor. */
+  retargetDependency: (
+    dependencyId: string,
+    end: 'from' | 'to',
+    itemId: string,
+    anchor: DependencyAnchor
+  ) => boolean;
 
   // Save
   saveState: () => void;
@@ -122,6 +152,7 @@ export const useSectionStore = create<SectionState>()(
   temporal(
     (set, get) => ({
       sections: [],
+      dependencies: [],
       isInitialized: false,
       _dragSnapshot: null,
       _dragHistoryIndex: null,
@@ -134,19 +165,23 @@ export const useSectionStore = create<SectionState>()(
         if (activeProjectId) {
           const data = await projectStore.loadProjectData(activeProjectId);
           if (data && data.sections && data.sections.length > 0) {
-            set({ sections: data.sections, isInitialized: true });
+            set({
+              sections: data.sections,
+              dependencies: data.dependencies ?? [],
+              isInitialized: true,
+            });
             useSectionStore.temporal.getState().clear();
             return;
           }
         }
 
-        set({ sections: [], isInitialized: true });
+        set({ sections: [], dependencies: [], isInitialized: true });
         useSectionStore.temporal.getState().clear();
       },
 
       loadSectionsForProject: async (projectId: string) => {
         if (!projectId) {
-          set({ sections: [] });
+          set({ sections: [], dependencies: [] });
           useSectionStore.temporal.getState().clear();
           return;
         }
@@ -157,13 +192,14 @@ export const useSectionStore = create<SectionState>()(
             data && data.sections && data.sections.length > 0
               ? data.sections
               : [createDefaultIDTimelineSection()],
+          dependencies: data?.dependencies ?? [],
         });
         useSectionStore.temporal.getState().clear();
       },
 
       setSections: (sections) => set({ sections }),
 
-      clearSections: () => set({ sections: [] }),
+      clearSections: () => set({ sections: [], dependencies: [] }),
 
       addCompleteSection: (section) =>
         set((state) => ({ sections: [...state.sections, section] })),
@@ -237,7 +273,15 @@ export const useSectionStore = create<SectionState>()(
           projectStore.setPinnedSection(null);
         }
 
-        set({ sections: state.sections.filter((s) => s.id !== sectionId) });
+        // Links to items that are going go with them
+        const gone = state.sections.find((s) => s.id === sectionId);
+        const goneIds = new Set<string>();
+        if (gone) forEachItem(gone.items, (item) => goneIds.add(item.id));
+
+        set({
+          sections: state.sections.filter((s) => s.id !== sectionId),
+          dependencies: pruneEdgesTouching(state.dependencies, goneIds),
+        });
         return { success: true };
       },
 
@@ -303,11 +347,19 @@ export const useSectionStore = create<SectionState>()(
         })),
 
       deleteItem: (sectionId, itemId) =>
-        set((state) => ({
-          sections: mapSection(state.sections, sectionId, (section) =>
-            touch(section, { items: removeItemFrom(section.items, itemId).items })
-          ),
-        })),
+        set((state) => {
+          // The whole subtree goes, and every link touching it goes with it —
+          // in the same step, so one undo brings back both.
+          const section = state.sections.find((s) => s.id === sectionId);
+          const removed = section ? findItem(section.items, itemId) : null;
+          const goneIds = removed ? collectIds(removed) : new Set<string>();
+          return {
+            sections: mapSection(state.sections, sectionId, (s) =>
+              touch(s, { items: removeItemFrom(s.items, itemId).items })
+            ),
+            dependencies: pruneEdgesTouching(state.dependencies, goneIds),
+          };
+        }),
 
       shiftItem: (sectionId, itemId, days) => {
         if (days === 0) return;
@@ -374,6 +426,26 @@ export const useSectionStore = create<SectionState>()(
             if (location && sameParent && location.index < toIndex) index -= 1;
           }
 
+          // Nesting already says "this belongs to that", so a link between the
+          // moved subtree and its new ancestors stops meaning anything — the
+          // same bargain that clears an explicit colour on joining a group.
+          let dependencies = state.dependencies;
+          if (toParentId) {
+            const target = state.sections.find((s) => s.id === toSectionId);
+            const ancestorPath = target ? findItemPath(target.items, toParentId) : null;
+            if (ancestorPath) {
+              const subtreeIds = collectIds(removal.removed);
+              const ancestorIds = new Set(ancestorPath.map((item) => item.id));
+              dependencies = dependencies.filter(
+                (edge) =>
+                  !(
+                    (subtreeIds.has(edge.from) && ancestorIds.has(edge.to)) ||
+                    (subtreeIds.has(edge.to) && ancestorIds.has(edge.from))
+                  )
+              );
+            }
+          }
+
           const now = new Date().toISOString();
 
           if (fromSectionId === toSectionId) {
@@ -381,10 +453,12 @@ export const useSectionStore = create<SectionState>()(
               sections: mapSection(state.sections, toSectionId, (section) =>
                 touch(section, { items: insertItemInto(removal.items, toParentId, index, moved) })
               ),
+              dependencies,
             };
           }
 
           return {
+            dependencies,
             sections: state.sections.map((section) => {
               if (section.id === fromSectionId) {
                 return { ...section, items: removal.items, lastModifiedAt: now, revision: section.revision + 1 };
@@ -424,6 +498,42 @@ export const useSectionStore = create<SectionState>()(
           })),
         })),
 
+      setDependencies: (dependencies) => set({ dependencies }),
+
+      addDependency: (from, fromAnchor, to, toAnchor) => {
+        const state = get();
+        if (!canLinkItems(state.sections, from, to)) return null;
+        if (isDuplicateEdge(state.dependencies, from, fromAnchor, to, toAnchor)) return null;
+        const id = generateId();
+        set({ dependencies: [...state.dependencies, { id, from, fromAnchor, to, toAnchor }] });
+        return id;
+      },
+
+      removeDependency: (dependencyId) =>
+        set((state) => ({
+          dependencies: state.dependencies.filter((edge) => edge.id !== dependencyId),
+        })),
+
+      retargetDependency: (dependencyId, end, itemId, anchor) => {
+        const state = get();
+        const edge = state.dependencies.find((e) => e.id === dependencyId);
+        if (!edge) return false;
+
+        const next: DependencyEdge =
+          end === 'from'
+            ? { ...edge, from: itemId, fromAnchor: anchor }
+            : { ...edge, to: itemId, toAnchor: anchor };
+
+        if (!canLinkItems(state.sections, next.from, next.to)) return false;
+        const others = state.dependencies.filter((e) => e.id !== dependencyId);
+        if (isDuplicateEdge(others, next.from, next.fromAnchor, next.to, next.toAnchor)) {
+          return false;
+        }
+
+        set({ dependencies: state.dependencies.map((e) => (e.id === dependencyId ? next : e)) });
+        return true;
+      },
+
       reorderItem: (sectionId, itemId, toIndex) => {
         const section = get().sections.find((s) => s.id === sectionId);
         if (!section) return;
@@ -440,13 +550,16 @@ export const useSectionStore = create<SectionState>()(
       },
 
       saveState: () => {
-        useProjectStore.getState().saveCurrentProject(get().sections);
+        useProjectStore.getState().saveCurrentProject(get().sections, get().dependencies);
       },
 
       beginDragTransaction: () => {
         const { pastStates } = useSectionStore.temporal.getState();
         set({
-          _dragSnapshot: structuredClone(get().sections),
+          _dragSnapshot: structuredClone({
+            sections: get().sections,
+            dependencies: get().dependencies,
+          }),
           _dragHistoryIndex: pastStates.length,
         });
       },
@@ -454,13 +567,16 @@ export const useSectionStore = create<SectionState>()(
       commitDragTransaction: () => {
         const snapshot = get()._dragSnapshot;
         const historyIndex = get()._dragHistoryIndex;
-        const currentSections = get().sections;
+        const current: UndoableState = {
+          sections: get().sections,
+          dependencies: get().dependencies,
+        };
 
         set({ _dragSnapshot: null, _dragHistoryIndex: null });
         if (snapshot === null || historyIndex === null) return;
 
         const { pastStates } = useSectionStore.temporal.getState();
-        const changed = JSON.stringify(snapshot) !== JSON.stringify(currentSections);
+        const changed = JSON.stringify(snapshot) !== JSON.stringify(current);
 
         if (!changed) {
           if (pastStates.length > historyIndex) {
@@ -471,7 +587,7 @@ export const useSectionStore = create<SectionState>()(
 
         // Collapse every intermediate frame of the drag into one undo step
         useSectionStore.temporal.setState({
-          pastStates: [...pastStates.slice(0, historyIndex), { sections: snapshot }],
+          pastStates: [...pastStates.slice(0, historyIndex), snapshot],
           futureStates: [],
         });
       },
@@ -483,7 +599,12 @@ export const useSectionStore = create<SectionState>()(
         if (snapshot && historyIndex !== null) {
           const { pastStates } = useSectionStore.temporal.getState();
           useSectionStore.temporal.setState({ pastStates: pastStates.slice(0, historyIndex) });
-          set({ sections: snapshot, _dragSnapshot: null, _dragHistoryIndex: null });
+          set({
+            sections: snapshot.sections,
+            dependencies: snapshot.dependencies,
+            _dragSnapshot: null,
+            _dragHistoryIndex: null,
+          });
         } else {
           set({ _dragSnapshot: null, _dragHistoryIndex: null });
         }
@@ -491,7 +612,7 @@ export const useSectionStore = create<SectionState>()(
     }),
     {
       limit: 50,
-      partialize: (state) => ({ sections: state.sections }),
+      partialize: (state) => ({ sections: state.sections, dependencies: state.dependencies }),
     }
   )
 );

@@ -72,6 +72,7 @@ difference between them, and depth is decided by dragging.
 | Group | A bar with children. Made by dropping an item onto a bar, unmade by dragging it out. |
 | Pinned Schedule | Optional (0 or 1). Renders on top; its root milestones draw reference lines through every schedule. Purely visual — never moves or rescales anything. |
 | Multicolor | Per-schedule option. Root bars take palette colours instead of a gradient of the schedule colour; children inherit from their parent. |
+| Dependency (`DependencyEdge`) | A drawn link between two items, any schedule to any schedule. **Ink, not physics** — it records an order and shows when it is broken, but never moves or rescales anything. The type is not stored: it *is* the anchor pair (end→start, start→start, end→end), decided by which ends were connected. Lives in `sectionStore.dependencies`, beside the sections it annotates. |
 | Day key | `'yyyy-MM-dd'`. The unit of position. Every item stores absolute `start` and `end` day keys. |
 | Schedule window | A schedule's declared `startDate`/`endDate`. Items are not clamped to it; the rendered extent is the union of the two. |
 | Revision | Counter incremented on schedule modification. Used for import conflicts. |
@@ -96,6 +97,15 @@ Drag and drop is the whole organising story.
 - **Milestones** — double-click a schedule's own row to drop one there (those draw
   a reference line down the schedule). Everywhere else they come from the context
   menu and take a row of their own; they are never drawn on top of a bar.
+- **Link** — hover a bar and a small dot appears outside each end; drag it onto
+  another bar or milestone to draw a dependency. Which ends connect *is* the
+  type — end→start, start→start, end→end — so there is no picker, and
+  start→finish is simply not drawable. A connected dot stays printed; the line
+  itself appears on hover or selection, except a **violated** link, which prints
+  in danger ink until someone drags the work back into order. Un-link by
+  dragging a line's far terminal onto open paper (the un-group idiom), or click
+  the line and press Delete. Nesting an item inside a bar it is linked with
+  clears that link — nesting already is that relationship.
 
 ## Architecture
 
@@ -168,6 +178,18 @@ the resolved drop key reaches the store, so a drag re-renders two rows rather
 than the timeline.
 
 **Single selection.** One item, or one schedule, at a time. Opens the editor.
+
+**Dependencies are one overlay and one gesture.** `DependencyLayer` draws every
+revealed edge in a single SVG whose geometry comes from `computeItemPoints` in
+`utils/dependencyGeometry.ts` — a walk of the same `flattenSection` layout the
+rows render from, so a line cannot disagree with the sheet. `useDependencyDraw`
+follows the `useItemDrag` playbook: pointer capture on the dot, a fixed-position
+preview written outside React (`utils/dependencyDrawPreview.ts`), targets
+resolved by hit-testing `data-drop-bar` / `data-dep-milestone`, and nothing
+written to the store until release. Edge mutations cascade inside
+`sectionStore` in the same undoable step (`deleteItem`, `deleteSection`,
+`moveItem` all prune), and undo's partialized state carries `dependencies`
+beside `sections` — hand-written history entries must include both.
 
 **Migration.** `utils/migrateLegacy.ts` reads the old phase/task/bar-milestone
 shape and returns item trees. It is reached from `storageUtils.migrateStoredData`

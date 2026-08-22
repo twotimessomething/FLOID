@@ -1,4 +1,4 @@
-import type { Section, TimelineItem } from './timeline';
+import type { DependencyEdge, Section, TimelineItem } from './timeline';
 
 /**
  * The file formats: `.floid` for one schedule, `.floid-project` for the lot.
@@ -45,6 +45,8 @@ export interface ScheduleExportData {
   };
 
   readonly items: readonly ExportItem[];
+  /** Links that live entirely inside this schedule. Absent on pre-v4 files. */
+  readonly dependencies?: readonly DependencyEdge[];
 }
 
 export type ImportResultType =
@@ -92,4 +94,6 @@ export interface ProjectExportData {
     readonly updatedAt: string;
   };
   readonly sections: readonly Section[];
+  /** Every link in the project, cross-schedule ones included. Absent pre-v4. */
+  readonly dependencies?: readonly DependencyEdge[];
 }

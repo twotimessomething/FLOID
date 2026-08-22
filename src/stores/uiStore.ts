@@ -165,6 +165,14 @@ interface UIState {
   setItemDropKey: (dropKey: string | null) => void;
   endItemDrag: () => void;
 
+  // Dependencies — which item's links are revealed, and which link is selected
+  /** Item whose links print while it is hovered. Null when nothing is. */
+  dependencyHoverItemId: string | null;
+  setDependencyHover: (itemId: string | null) => void;
+  /** One link at a time, and never together with an item or schedule. */
+  selectedDependencyId: string | null;
+  selectDependency: (dependencyId: string | null) => void;
+
   // Playhead (scrubber)
   playheadPosition: number | null;
   setPlayheadPosition: (position: number | null) => void;
@@ -294,14 +302,20 @@ export const useUIStore = create<UIState>((set) => ({
     set({
       selection: { type: 'item', id: itemId, sectionId, position },
       isModalOpen: options?.openEditor ?? true,
+      selectedDependencyId: null,
     }),
   selectSection: (sectionId, position, options) =>
     set({
       selection: { type: 'section', id: sectionId, sectionId, position },
       isModalOpen: options?.openEditor ?? true,
+      selectedDependencyId: null,
     }),
   clearSelection: () =>
-    set({ selection: { type: null, id: null, sectionId: null }, isModalOpen: false }),
+    set({
+      selection: { type: null, id: null, sectionId: null },
+      isModalOpen: false,
+      selectedDependencyId: null,
+    }),
 
   // Drag state
   isDragging: false,
@@ -313,6 +327,26 @@ export const useUIStore = create<UIState>((set) => ({
   itemDrag: IDLE_ITEM_DRAG,
   beginItemDrag: (itemId, sectionId, kind) =>
     set({ itemDrag: { isActive: true, itemId, sectionId, kind, dropKey: null } }),
+
+  // Dependencies
+  dependencyHoverItemId: null,
+  setDependencyHover: (itemId) =>
+    set((state) =>
+      state.dependencyHoverItemId === itemId ? state : { dependencyHoverItemId: itemId }
+    ),
+  selectedDependencyId: null,
+  // A selected link is a selection like any other, so it takes the slot:
+  // whatever item or schedule held the outline lets go of it.
+  selectDependency: (dependencyId) =>
+    set(
+      dependencyId === null
+        ? { selectedDependencyId: null }
+        : {
+            selectedDependencyId: dependencyId,
+            selection: { type: null, id: null, sectionId: null },
+            isModalOpen: false,
+          }
+    ),
   setItemDropKey: (dropKey) =>
     set((state) =>
       state.itemDrag.dropKey === dropKey

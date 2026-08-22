@@ -335,6 +335,86 @@ body.dragging-item * {
 }
 
 /* =========================================
+   Dependencies
+
+   A link's only standing evidence is a small dot at the end it holds — the
+   period at the end of the bar. The line itself appears on hover, on
+   selection, or for as long as the link is broken. Dots follow the affordance
+   rule: hidden until the bar is hovered, except when they carry a connection.
+   ========================================= */
+.dep-dot {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--duration-fast) linear;
+  cursor: crosshair;
+  touch-action: none;
+  z-index: 20;
+}
+
+.dep-dot::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-text-secondary);
+}
+
+/* Bar dots sit outside the edges, past the resize handles (18px to centre). */
+.dep-dot--start {
+  left: -26px;
+}
+
+.dep-dot--end {
+  right: -26px;
+}
+
+/* A milestone keeps its one dot beside the glyph, clear of the label. */
+.dep-dot--milestone {
+  left: -22px;
+}
+
+.timeline-bar:hover .dep-dot,
+.timeline-bar--selected .dep-dot,
+.group:hover .dep-dot--milestone,
+.dep-dot[data-connected='true'] {
+  opacity: 1;
+}
+
+/* The printed period: a connected end keeps its dot, in full ink. */
+.dep-dot[data-connected='true']::after {
+  background: var(--color-text-primary);
+}
+
+/* An item in flight has nothing to link from; the sheet quiets down. */
+body.dragging-item .dep-dot {
+  opacity: 0 !important;
+}
+
+body.dependency-drawing,
+body.dependency-drawing * {
+  cursor: crosshair !important;
+}
+
+/* The connector's own hit area — the visible line is not interactive. */
+.dep-line-hit {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.dep-terminal-hit {
+  pointer-events: all;
+  cursor: grab;
+  touch-action: none;
+}
+
+/* =========================================
    Rows
    ========================================= */
 .row-selectable {
@@ -384,6 +464,13 @@ body.dragging-item * {
    from being read as "go back". */
 .timeline-scroll-container {
   overscroll-behavior: none;
+  /* The sheet is a drag surface: every press on it is a gesture — moving,
+     resizing, drawing, linking — so text selection has no meaning here and a
+     stray one mid-drag garbles the gesture. The labels column keeps selection
+     because renaming edits text in place; the sheet itself holds none worth
+     selecting that isn't better reached through the editor. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Anything that is grabbed rather than scrolled takes the gesture outright:

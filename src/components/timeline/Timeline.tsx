@@ -24,6 +24,7 @@ import { StickyScheduleLabel } from './StickyScheduleLabel';
 import { ScrollEdgeFade } from './ScrollEdgeFade';
 import { Playhead } from './Playhead';
 import { MilestoneLines } from './MilestoneLines';
+import { DependencyLayer } from './DependencyLayer';
 import { TodayLine } from './TodayLine';
 import { AddScheduleButton } from '../controls';
 import {
@@ -507,6 +508,16 @@ export function Timeline(): JSX.Element {
                   isSticky={index + unpinnedStackOffset < stickyCount}
                 />
               ))}
+
+              {/* Dependency ink prints over the bars it connects, in one layer
+                  that walks the same layout the rows do */}
+              <DependencyLayer
+                sections={allSections}
+                viewport={viewportBounds}
+                pixelsPerDay={pixelsPerDay}
+                width={timelineWidth}
+                height={contentHeight - ROW_HEIGHT}
+              />
 
               <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
             </div>

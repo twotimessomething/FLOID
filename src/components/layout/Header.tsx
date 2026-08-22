@@ -34,6 +34,7 @@ export function Header(): JSX.Element {
   const project = useProjectStore((state) => state.project);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const sections = useSectionStore((state) => state.sections);
+  const dependencies = useSectionStore((state) => state.dependencies);
   const { saveCurrentProject, importProject, selectProject } = useProjectStore();
 
   const loadSectionsForProject = useSectionStore((state) => state.loadSectionsForProject);
@@ -126,15 +127,23 @@ export function Header(): JSX.Element {
 
       if (exportData) {
         // Convert export format back to runtime types
-        const { project: importedProject, sections: importedSections } = convertImportedProject(exportData);
+        const {
+          project: importedProject,
+          sections: importedSections,
+          dependencies: importedDependencies,
+        } = convertImportedProject(exportData);
 
         // Save current project before switching (if there is one)
         if (activeProjectId) {
-          await saveCurrentProject(sections);
+          await saveCurrentProject(sections, dependencies);
         }
 
         // Add the imported project to the project list
-        const newProjectId = await importProject(importedProject, importedSections);
+        const newProjectId = await importProject(
+          importedProject,
+          importedSections,
+          importedDependencies
+        );
 
         // Switch to the imported project
         await selectProject(newProjectId);

@@ -1,7 +1,8 @@
-import type { Section } from '../types';
+import type { DependencyEdge, Section } from '../types';
 import type { Project } from '../types/project';
 import { normalizeDayKey, todayKey } from './dayKeys';
 import { migrateSections } from './migrateLegacy';
+import { pruneDanglingEdges, readStoredEdges } from './dependencyUtils';
 import * as idb from './indexedDB';
 
 const STORAGE_KEY = 'floid-project';
@@ -12,16 +13,19 @@ const PROJECTS_INDEX_KEY = 'floid-projects-index';
  *     relative positions.
  * 2 — the pin replaced the master schedule.
  * 3 — one recursive item tree per schedule, positioned by absolute day keys.
+ * 4 — dependency edges between items ride alongside the schedules.
  *
  * Saves written before versioning carry no `schemaVersion` at all and are
  * treated as 1, which is why every migration step below has to be safe to run
  * against a shape it may already be in.
  */
-export const STORAGE_SCHEMA_VERSION = 3;
+export const STORAGE_SCHEMA_VERSION = 4;
 
 export interface StoredData {
   project: Project;
   sections: Section[];
+  /** Absent on anything written before v4; an older save simply has none. */
+  dependencies?: DependencyEdge[];
   /** Absent on anything written before versioning; see STORAGE_SCHEMA_VERSION. */
   schemaVersion?: number;
 }
@@ -65,6 +69,8 @@ export const migrateStoredData = (data: StoredData): StoredData => {
 
   return {
     schemaVersion: STORAGE_SCHEMA_VERSION,
+    // A pre-v4 save has none; a v4 save keeps only edges whose items survived.
+    dependencies: pruneDanglingEdges(readStoredEdges(data.dependencies), sections),
     project: {
       ...project,
       // An explicit null means the user unpinned; only an absent field falls

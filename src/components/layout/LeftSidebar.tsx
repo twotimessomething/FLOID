@@ -22,6 +22,7 @@ export function LeftSidebar(): JSX.Element {
   const { selectProject, deleteProject, saveCurrentProject, updateProjectIndex, updateProject } = useProjectStore();
 
   const sections = useSectionStore((state) => state.sections);
+  const dependencies = useSectionStore((state) => state.dependencies);
   const loadSectionsForProject = useSectionStore((state) => state.loadSectionsForProject);
 
   const isLeftSidebarOpen = useUIStore((state) => state.isLeftSidebarOpen);
@@ -45,7 +46,7 @@ export function LeftSidebar(): JSX.Element {
       if (projectId === activeProjectId) return;
 
       // Save current project before switching
-      saveCurrentProject(sections);
+      saveCurrentProject(sections, dependencies);
 
       // Clear any selection
       closeModal();
@@ -57,6 +58,7 @@ export function LeftSidebar(): JSX.Element {
     [
       activeProjectId,
       sections,
+      dependencies,
       saveCurrentProject,
       selectProject,
       loadSectionsForProject,

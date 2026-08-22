@@ -71,6 +71,7 @@ function useOnceWanted(isWanted: boolean): boolean {
 function App(): JSX.Element {
   const { initializeFromProject, loadSectionsForProject } = useSectionStore();
   const sections = useSectionStore((state) => state.sections);
+  const dependencies = useSectionStore((state) => state.dependencies);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const isStorageReady = useProjectStore((state) => state.isStorageReady);
   const saveCurrentProject = useProjectStore((state) => state.saveCurrentProject);
@@ -192,15 +193,23 @@ function App(): JSX.Element {
             // Project import
             const exportData = parseProjectJson(text);
             if (exportData) {
-              const { project: importedProject, sections: importedSections } = convertImportedProject(exportData);
+              const {
+                project: importedProject,
+                sections: importedSections,
+                dependencies: importedDependencies,
+              } = convertImportedProject(exportData);
 
               // Save current project before switching (if there is one)
               if (activeProjectId) {
-                await saveCurrentProject(sections);
+                await saveCurrentProject(sections, dependencies);
               }
 
               // Add the imported project to the project list
-              const newProjectId = await importProject(importedProject, importedSections);
+              const newProjectId = await importProject(
+                importedProject,
+                importedSections,
+                importedDependencies
+              );
 
               // Switch to the imported project
               await selectProject(newProjectId);
@@ -214,7 +223,7 @@ function App(): JSX.Element {
         }
       }
     },
-    [setDraggingFile, handleScheduleImport, activeProjectId, sections, saveCurrentProject, importProject, selectProject, loadSectionsForProject, showToast]
+    [setDraggingFile, handleScheduleImport, activeProjectId, sections, dependencies, saveCurrentProject, importProject, selectProject, loadSectionsForProject, showToast]
   );
 
   // Show loading state while storage initializes

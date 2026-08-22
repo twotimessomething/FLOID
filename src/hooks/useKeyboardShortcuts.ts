@@ -29,6 +29,8 @@ export function useKeyboardShortcuts(): void {
   const closeModal = useUIStore((s) => s.closeModal);
   const isModalOpen = useUIStore((s) => s.isModalOpen);
   const showToast = useUIStore((s) => s.showToast);
+  const selectedDependencyId = useUIStore((s) => s.selectedDependencyId);
+  const selectDependency = useUIStore((s) => s.selectDependency);
   const { undo, redo } = useUndoRedo();
 
   const { pinnedSection, unpinnedSections } = usePinnedSection();
@@ -37,6 +39,7 @@ export function useKeyboardShortcuts(): void {
   const toggleItemCollapse = useSectionStore((s) => s.toggleItemCollapse);
   const deleteSection = useSectionStore((s) => s.deleteSection);
   const deleteItem = useSectionStore((s) => s.deleteItem);
+  const removeDependency = useSectionStore((s) => s.removeDependency);
 
   /**
    * Arrow keys walk exactly what is on screen. `flattenSection` is the same
@@ -175,7 +178,9 @@ export function useKeyboardShortcuts(): void {
 
       switch (event.key) {
         case SHORTCUTS.ESCAPE:
-          if (isModalOpen) {
+          if (selectedDependencyId) {
+            selectDependency(null);
+          } else if (isModalOpen) {
             closeModal();
           }
           event.preventDefault();
@@ -201,7 +206,12 @@ export function useKeyboardShortcuts(): void {
 
         case SHORTCUTS.DELETE:
         case SHORTCUTS.BACKSPACE:
-          if (selection.id && selection.type) {
+          // A selected link holds the selection slot, so it takes the key
+          if (selectedDependencyId) {
+            removeDependency(selectedDependencyId);
+            selectDependency(null);
+            event.preventDefault();
+          } else if (selection.id && selection.type) {
             handleDelete();
             event.preventDefault();
           }
@@ -211,6 +221,9 @@ export function useKeyboardShortcuts(): void {
     [
       isModalOpen,
       selection,
+      selectedDependencyId,
+      selectDependency,
+      removeDependency,
       canToggleSelection,
       closeModal,
       handleNavigation,

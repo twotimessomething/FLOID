@@ -258,7 +258,13 @@ export function ContextMenu(): JSX.Element | null {
         {
           label: 'Export schedule',
           action: run(() => {
-            if (project) void downloadScheduleFloid(project, section);
+            if (project) {
+              void downloadScheduleFloid(
+                project,
+                section,
+                useSectionStore.getState().dependencies
+              );
+            }
           }),
         },
         {

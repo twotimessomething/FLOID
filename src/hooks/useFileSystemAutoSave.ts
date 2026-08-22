@@ -15,6 +15,7 @@ interface UseFileSystemAutoSaveReturn {
 
 export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
   const sections = useSectionStore((state) => state.sections);
+  const dependencies = useSectionStore((state) => state.dependencies);
   const project = useProjectStore((state) => state.project);
   const isInitialized = useSectionStore((state) => state.isInitialized);
   const isStorageReady = useProjectStore((state) => state.isStorageReady);
@@ -56,7 +57,7 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
       setSyncing();
 
       try {
-        await writeProjectToFolder(handle, proj, secs);
+        await writeProjectToFolder(handle, proj, secs, useSectionStore.getState().dependencies);
         setSynced(handle.name);
 
         // Update last sync date in app settings
@@ -103,7 +104,7 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [sections, project, isInitialized, isStorageReady, performSave]);
+  }, [sections, dependencies, project, isInitialized, isStorageReady, performSave]);
 
   // Manual save to folder (for "Save to Folder" button)
   const saveToFolder = useCallback(async (): Promise<boolean> => {

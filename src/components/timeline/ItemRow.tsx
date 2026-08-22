@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import type { Section, ViewportBounds } from '../../types';
+import type { DependencyAnchor, Section, ViewportBounds } from '../../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import type { FlatRow } from '../../utils/timelineUtils';
 import {
@@ -18,6 +18,9 @@ import { useInlineEdit } from '../../hooks/useInlineEdit';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useContextMenu } from '../../hooks/useContextMenu';
 import { useItemDrag } from '../../hooks/useItemDrag';
+import { useDependencyDraw } from '../../hooks/useDependencyDraw';
+import { useAnchorConnected, useItemConnected } from '../../hooks/useDependencyState';
+import { reportDependencyHover, reportDependencyLeave } from '../../utils/dependencyHover';
 import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGhost';
 import { useIsDragged, useIsDropReceiver, useIsDropSlot } from '../../hooks/useDropState';
 import {
@@ -27,6 +30,7 @@ import {
   DEFAULT_NESTED_BAR_DAYS,
 } from '../../utils/creationUtils';
 import { DragHandle } from './DragHandle';
+import { DependencyDot } from './DependencyDot';
 import { GhostBar } from './GhostBar';
 import { DropLine } from './DropLine';
 
@@ -185,6 +189,38 @@ export const ItemRow = memo(function ItemRow({
       toggleItemCollapse(section.id, item.id);
     },
     [toggleItemCollapse, section.id, item.id]
+  );
+
+  // -- dependencies --------------------------------------------------------
+
+  const { startDraw: startDependencyDraw } = useDependencyDraw();
+  const isStartConnected = useAnchorConnected(item.id, 'start');
+  const isEndConnected = useAnchorConnected(item.id, 'end');
+  const isMilestoneConnected = useItemConnected(item.id);
+
+  const handleDependencyDraw = useCallback(
+    (e: React.PointerEvent, anchor: DependencyAnchor): void => {
+      const dotRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      startDependencyDraw(e, {
+        origin: { x: dotRect.left + dotRect.width / 2, y: dotRect.top + dotRect.height / 2 },
+        fixed: { end: 'from', itemId: item.id, anchor },
+      });
+    },
+    [startDependencyDraw, item.id]
+  );
+
+  // Hover is what reveals this item's links; a finger has no hover to report
+  const handleDependencyHoverEnter = useCallback(
+    (e: React.PointerEvent): void => {
+      if (e.pointerType === 'mouse') reportDependencyHover(item.id);
+    },
+    [item.id]
+  );
+  const handleDependencyHoverLeave = useCallback(
+    (e: React.PointerEvent): void => {
+      if (e.pointerType === 'mouse') reportDependencyLeave(item.id);
+    },
+    [item.id]
   );
 
   // -- moving --------------------------------------------------------------
@@ -538,6 +574,8 @@ export const ItemRow = memo(function ItemRow({
           } ${isDragged ? 'timeline-bar--lifted' : ''}`}
           style={{ left: rect.left, width: rect.width, top: inset, bottom: inset }}
           onPointerDown={handleBarPointerDown}
+          onPointerEnter={handleDependencyHoverEnter}
+          onPointerLeave={handleDependencyHoverLeave}
           onClick={handleBarClick}
           onDoubleClick={bar.handleDoubleClick}
           onContextMenu={handleBarContextMenu}
@@ -585,6 +623,21 @@ export const ItemRow = memo(function ItemRow({
               />
             </>
           )}
+
+          <DependencyDot
+            anchor="start"
+            variant="bar"
+            isConnected={isStartConnected}
+            onStartDraw={handleDependencyDraw}
+            label={`Link ${item.name || 'bar'} from its start`}
+          />
+          <DependencyDot
+            anchor="end"
+            variant="bar"
+            isConnected={isEndConnected}
+            onStartDraw={handleDependencyDraw}
+            label={`Link ${item.name || 'bar'} from its end`}
+          />
         </div>
       ) : (
         <div
@@ -593,6 +646,8 @@ export const ItemRow = memo(function ItemRow({
           }`}
           style={{ left: rect.left }}
           onPointerDown={handleBarPointerDown}
+          onPointerEnter={handleDependencyHoverEnter}
+          onPointerLeave={handleDependencyHoverLeave}
           onClick={handleBarClick}
           onContextMenu={handleBarContextMenu}
           onKeyDown={handleKeyDown}
@@ -601,6 +656,13 @@ export const ItemRow = memo(function ItemRow({
           aria-selected={isSelected}
           aria-label={`${item.name || 'Milestone'}, ${formatDayKey(item.start)}`}
         >
+          {/* A point is a small target; this box is what a drawn link lands on */}
+          <span
+            className="absolute top-0 bottom-0 -left-3 w-6"
+            data-dep-milestone={item.id}
+            data-drop-section={section.id}
+            aria-hidden="true"
+          />
           <div
             className={`absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 ${
               isSelected ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-text-primary)]'
@@ -610,6 +672,13 @@ export const ItemRow = memo(function ItemRow({
           <span className="absolute top-1/2 left-2.5 -translate-y-1/2 text-meta text-[var(--color-text-secondary)] whitespace-nowrap pointer-events-none">
             {item.name}
           </span>
+          <DependencyDot
+            anchor="end"
+            variant="milestone"
+            isConnected={isMilestoneConnected}
+            onStartDraw={handleDependencyDraw}
+            label={`Link ${item.name || 'milestone'}`}
+          />
         </div>
       )}
     </div>

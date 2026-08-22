@@ -1,4 +1,4 @@
-import type { Project, Section } from '../types';
+import type { DependencyEdge, Project, Section } from '../types';
 import { exportProjectToJson } from './exportUtils';
 import { sanitizeFilename } from './stringUtils';
 
@@ -53,7 +53,8 @@ export async function verifyPermission(handle: FileSystemDirectoryHandle): Promi
 export async function writeProjectToFolder(
   handle: FileSystemDirectoryHandle,
   project: Project,
-  sections: Section[]
+  sections: Section[],
+  dependencies: DependencyEdge[] = []
 ): Promise<void> {
   // Verify permission first
   if (!await verifyPermission(handle)) {
@@ -61,7 +62,7 @@ export async function writeProjectToFolder(
   }
 
   const filename = `${sanitizeFilename(project.name)}.floid`;
-  const data = exportProjectToJson(project, sections);
+  const data = exportProjectToJson(project, sections, dependencies);
   const content = JSON.stringify(data, null, 2);
 
   // Get or create the file

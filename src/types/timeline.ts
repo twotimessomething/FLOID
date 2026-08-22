@@ -32,6 +32,30 @@ export interface TimelineItem {
   children: TimelineItem[];
 }
 
+/** Which edge of an item a dependency holds onto. A milestone is a point, so
+ * either anchor lands on the same day — sources use `end`, targets `start`. */
+export type DependencyAnchor = 'start' | 'end';
+
+/**
+ * A drawn link between two items.
+ *
+ * Dependencies are ink, not physics: an edge records a relationship and shows
+ * when it is broken, but it never moves or rescales anything. The type is not
+ * stored — it *is* the anchor pair, decided by which ends were connected:
+ * end→start (finish-to-start), start→start, end→end. Endpoints are item ids,
+ * so an edge survives re-parenting and crossing schedules the same way the
+ * items themselves do.
+ */
+export interface DependencyEdge {
+  id: string;
+  /** The item the arrow leaves from. */
+  from: string;
+  fromAnchor: DependencyAnchor;
+  /** The item the arrow points at. */
+  to: string;
+  toAnchor: DependencyAnchor;
+}
+
 /** A schedule track. Its items are ordered by array position. */
 export interface Section {
   id: string;

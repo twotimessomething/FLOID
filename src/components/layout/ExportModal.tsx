@@ -5,18 +5,20 @@ import { useSectionStore } from '../../stores/sectionStore';
 import { downloadProjectJson, downloadScheduleFloid } from '../../utils/exportUtils';
 import { loadProjectFromStorage } from '../../utils/storageUtils';
 import { Button } from '../common/Button';
-import type { Section, Project } from '../../types';
+import type { DependencyEdge, Section, Project } from '../../types';
 import { usePresence } from '../../hooks/usePresence';
 
 type ExportMode = 'active-project' | 'schedules' | 'all-projects';
 
 /** A schedule list is only ever read here, so one empty array serves them all. */
 const NO_SECTIONS: readonly Section[] = [];
+const NO_DEPENDENCIES: readonly DependencyEdge[] = [];
 
 /** The project a scoped modal is exporting, once it has been read off disk. */
 interface ScopedProject {
   readonly project: Project;
   readonly sections: Section[];
+  readonly dependencies: DependencyEdge[];
 }
 
 export function ExportModal(): JSX.Element | null {
@@ -27,6 +29,7 @@ export function ExportModal(): JSX.Element | null {
   const projects = useProjectStore((state) => state.projects);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const sections = useSectionStore((state) => state.sections);
+  const dependencies = useSectionStore((state) => state.dependencies);
   const showToast = useUIStore((state) => state.showToast);
 
   const [exportMode, setExportMode] = useState<ExportMode>('active-project');
@@ -74,6 +77,9 @@ export function ExportModal(): JSX.Element | null {
   // What this dialog actually exports: the scoped project, or the open one
   const targetProject = isScopedElsewhere ? scoped?.project ?? null : project;
   const targetSections = isScopedElsewhere ? scoped?.sections ?? NO_SECTIONS : sections;
+  const targetDependencies = isScopedElsewhere
+    ? scoped?.dependencies ?? NO_DEPENDENCIES
+    : dependencies;
 
   /**
    * The index already knows what the scoped project is called, so the dialog
@@ -126,7 +132,7 @@ export function ExportModal(): JSX.Element | null {
 
     try {
       if (exportMode === 'active-project') {
-        await downloadProjectJson(targetProject, [...targetSections]);
+        await downloadProjectJson(targetProject, [...targetSections], targetDependencies);
         showToast('success', `Exported "${targetProject.name}"`);
       } else if (exportMode === 'schedules') {
         if (selectedScheduleIds.size === 0) {
@@ -139,7 +145,7 @@ export function ExportModal(): JSX.Element | null {
 
         // Export each schedule as a separate file
         for (const section of selectedSections) {
-          await downloadScheduleFloid(targetProject, section);
+          await downloadScheduleFloid(targetProject, section, targetDependencies);
         }
 
         const count = selectedSections.length;
@@ -150,13 +156,17 @@ export function ExportModal(): JSX.Element | null {
         for (const projectEntry of projects) {
           // For the active project, use current state
           if (projectEntry.id === targetProject.id) {
-            await downloadProjectJson(targetProject, [...targetSections]);
+            await downloadProjectJson(targetProject, [...targetSections], targetDependencies);
             exportedCount++;
           } else {
             // Load the full project from storage
             const fullProjectData = await loadFullProject(projectEntry.id);
             if (fullProjectData) {
-              await downloadProjectJson(fullProjectData.project, fullProjectData.sections);
+              await downloadProjectJson(
+                fullProjectData.project,
+                fullProjectData.sections,
+                fullProjectData.dependencies
+              );
               exportedCount++;
             }
           }
@@ -175,6 +185,7 @@ export function ExportModal(): JSX.Element | null {
   }, [
     targetProject,
     targetSections,
+    targetDependencies,
     projects,
     exportMode,
     selectedScheduleIds,
@@ -392,10 +403,12 @@ export function ExportModal(): JSX.Element | null {
 }
 
 // Helper to load full project data for export
-async function loadFullProject(
-  projectId: string
-): Promise<{ project: Project; sections: Section[] } | null> {
+async function loadFullProject(projectId: string): Promise<ScopedProject | null> {
   const data = await loadProjectFromStorage(projectId);
   if (!data?.project) return null;
-  return { project: data.project, sections: data.sections || [] };
+  return {
+    project: data.project,
+    sections: data.sections || [],
+    dependencies: data.dependencies ?? [],
+  };
 }

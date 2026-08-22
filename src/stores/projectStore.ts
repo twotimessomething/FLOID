@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, Section, TimelineItem, ProjectSettings } from '../types';
+import type { DependencyEdge, Project, Section, TimelineItem, ProjectSettings } from '../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../types';
 import { createDefaultProject, createDefaultIDTimelineSection } from '../data/defaultTemplate';
 import { generateId } from '../utils/idUtils';
@@ -21,6 +21,7 @@ import {
 import { getSectionsDateRange } from '../utils/dateUtils';
 import { toDayKey } from '../utils/dayKeys';
 import { remapItemIds } from '../utils/itemTree';
+import { remapEdgeItemIds } from '../utils/dependencyUtils';
 
 // Configuration for creating a new project
 export interface NewProjectConfig {
@@ -44,7 +45,11 @@ interface ProjectState {
   initializeProjects: () => Promise<void>;
   addProject: (config?: { name?: string }) => Promise<string>;
   createProject: (config: NewProjectConfig) => Promise<{ projectId: string; sections: Section[] }>;
-  importProject: (project: Project, sections: Section[]) => Promise<string>;
+  importProject: (
+    project: Project,
+    sections: Section[],
+    dependencies?: DependencyEdge[]
+  ) => Promise<string>;
   deleteProject: (projectId: string) => Promise<void>;
   selectProject: (projectId: string) => Promise<void>;
   updateProjectIndex: (projectId: string, updates: Partial<ProjectIndexEntry>) => Promise<void>;
@@ -56,8 +61,10 @@ interface ProjectState {
   getSettings: () => ProjectSettings;
   updateSettings: (updates: Partial<ProjectSettings>) => void;
 
-  saveCurrentProject: (sections: Section[]) => Promise<void>;
-  loadProjectData: (projectId: string) => Promise<{ sections: Section[] } | null>;
+  saveCurrentProject: (sections: Section[], dependencies: DependencyEdge[]) => Promise<void>;
+  loadProjectData: (
+    projectId: string
+  ) => Promise<{ sections: Section[]; dependencies: DependencyEdge[] } | null>;
 }
 
 // A schedule opens with one milestone on its first day, so the marker
@@ -273,7 +280,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     return { projectId: newProject.id, sections: projectSections };
   },
 
-  importProject: async (importedProject, importedSections) => {
+  importProject: async (importedProject, importedSections, importedDependencies = []) => {
     // Generate new IDs to avoid collisions with existing projects
     const newProjectId = Math.random().toString(36).substring(2, 11);
     const now = new Date().toISOString();
@@ -299,12 +306,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     };
 
     // Every id in the file is regenerated, item trees included, so an imported
-    // copy can sit alongside the project it was exported from.
+    // copy can sit alongside the project it was exported from. The item id map
+    // is kept so the file's dependency edges can follow their items.
+    const itemIdMap = new Map<string, string>();
     const newSections: Section[] = importedSections.map((section) => ({
       ...section,
       id: sectionIdMap.get(section.id) ?? section.id,
-      items: section.items.map((item) => remapItemIds(item, generateId)),
+      items: section.items.map((item) => remapItemIds(item, generateId, itemIdMap)),
     }));
+    const newDependencies = remapEdgeItemIds(importedDependencies, itemIdMap, generateId);
 
     const projectEntry: ProjectIndexEntry = {
       id: newProjectId,
@@ -315,6 +325,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await saveProjectToStorage(newProjectId, {
       project: newProject,
       sections: newSections,
+      dependencies: newDependencies,
     });
 
     const state = get();
@@ -412,7 +423,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       },
     })),
 
-  saveCurrentProject: async (sections) => {
+  saveCurrentProject: async (sections, dependencies) => {
     const { project, activeProjectId } = get();
     if (!activeProjectId) return;
 
@@ -431,6 +442,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await saveProjectToStorage(activeProjectId, {
       project: updatedProject,
       sections,
+      dependencies,
     });
 
     const state = get();
@@ -445,6 +457,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   loadProjectData: async (projectId) => {
     const data = await loadProjectFromStorage(projectId);
     if (!data) return null;
-    return { sections: data.sections || [] };
+    return { sections: data.sections || [], dependencies: data.dependencies ?? [] };
   },
 }));

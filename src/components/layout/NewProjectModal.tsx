@@ -77,7 +77,7 @@ function TemplateOption({ template, isSelected, onSelect }: TemplateOptionProps)
 export function NewProjectModal(): JSX.Element | null {
   const { isProjectSetupModalOpen, closeProjectSetupModal, closeModal } = useUIStore();
   const { createProject, selectProject, saveCurrentProject } = useProjectStore();
-  const { sections, setSections } = useSectionStore();
+  const { sections, dependencies, setSections, setDependencies } = useSectionStore();
 
   const [step, setStep] = useState<Step>('details');
   const [formData, setFormData] = useState<ProjectFormData>(getDefaultFormData);
@@ -165,7 +165,7 @@ export function NewProjectModal(): JSX.Element | null {
       }
 
       // Save current project before creating new one
-      await saveCurrentProject(sections);
+      await saveCurrentProject(sections, dependencies);
 
       const config: NewProjectConfig = {
         name: formData.name.trim() || 'New Project',
@@ -181,6 +181,7 @@ export function NewProjectModal(): JSX.Element | null {
       closeModal();
       await selectProject(projectId);
       setSections(newSections);
+      setDependencies([]);
 
       closeProjectSetupModal();
     },
@@ -189,10 +190,12 @@ export function NewProjectModal(): JSX.Element | null {
       isDetailsValid,
       formData,
       sections,
+      dependencies,
       saveCurrentProject,
       createProject,
       selectProject,
       setSections,
+      setDependencies,
       closeModal,
       closeProjectSetupModal,
     ]

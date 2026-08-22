@@ -12,6 +12,8 @@ export { StickyScheduleLabel } from './StickyScheduleLabel';
 export { ScheduleLabelRow } from './ScheduleLabelRow';
 export { MilestoneLines } from './MilestoneLines';
 export { TodayLine } from './TodayLine';
+export { DependencyDot } from './DependencyDot';
+export { DependencyLayer } from './DependencyLayer';
 export { DragHandle } from './DragHandle';
 export { DropLine } from './DropLine';
 export { Playhead } from './Playhead';
