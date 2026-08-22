@@ -7,6 +7,7 @@ import type {
 } from '../types/timeline';
 import {
   ROW_HEIGHT,
+  SECTION_HAIRLINE,
   calculateSectionHeight,
   dayToX,
   flattenSection,
@@ -50,6 +51,8 @@ export function computeItemPoints(sections: readonly Section[]): Map<string, Ite
   let top = 0;
 
   for (const section of sections) {
+    // Every schedule prints under a hairline, and its rows begin below it
+    top += SECTION_HAIRLINE;
     const headerCenter = top + ROW_HEIGHT / 2;
 
     for (const milestone of headerMilestones(section)) {

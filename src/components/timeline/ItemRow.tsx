@@ -19,7 +19,11 @@ import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useContextMenu } from '../../hooks/useContextMenu';
 import { useItemDrag } from '../../hooks/useItemDrag';
 import { useDependencyDraw } from '../../hooks/useDependencyDraw';
-import { useAnchorConnected, useItemConnected } from '../../hooks/useDependencyState';
+import {
+  useAnchorConnected,
+  useItemConnected,
+  useShowDependencies,
+} from '../../hooks/useDependencyState';
 import { reportDependencyHover, reportDependencyLeave } from '../../utils/dependencyHover';
 import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGhost';
 import { useIsDragged, useIsDropReceiver, useIsDropSlot } from '../../hooks/useDropState';
@@ -193,6 +197,7 @@ export const ItemRow = memo(function ItemRow({
 
   // -- dependencies --------------------------------------------------------
 
+  const showDependencies = useShowDependencies();
   const { startDraw: startDependencyDraw } = useDependencyDraw();
   const isStartConnected = useAnchorConnected(item.id, 'start');
   const isEndConnected = useAnchorConnected(item.id, 'end');
@@ -624,20 +629,24 @@ export const ItemRow = memo(function ItemRow({
             </>
           )}
 
-          <DependencyDot
-            anchor="start"
-            variant="bar"
-            isConnected={isStartConnected}
-            onStartDraw={handleDependencyDraw}
-            label={`Link ${item.name || 'bar'} from its start`}
-          />
-          <DependencyDot
-            anchor="end"
-            variant="bar"
-            isConnected={isEndConnected}
-            onStartDraw={handleDependencyDraw}
-            label={`Link ${item.name || 'bar'} from its end`}
-          />
+          {showDependencies && (
+            <>
+              <DependencyDot
+                anchor="start"
+                variant="bar"
+                isConnected={isStartConnected}
+                onStartDraw={handleDependencyDraw}
+                label={`Link ${item.name || 'bar'} from its start`}
+              />
+              <DependencyDot
+                anchor="end"
+                variant="bar"
+                isConnected={isEndConnected}
+                onStartDraw={handleDependencyDraw}
+                label={`Link ${item.name || 'bar'} from its end`}
+              />
+            </>
+          )}
         </div>
       ) : (
         <div
@@ -672,13 +681,15 @@ export const ItemRow = memo(function ItemRow({
           <span className="absolute top-1/2 left-2.5 -translate-y-1/2 text-meta text-[var(--color-text-secondary)] whitespace-nowrap pointer-events-none">
             {item.name}
           </span>
-          <DependencyDot
-            anchor="end"
-            variant="milestone"
-            isConnected={isMilestoneConnected}
-            onStartDraw={handleDependencyDraw}
-            label={`Link ${item.name || 'milestone'}`}
-          />
+          {showDependencies && (
+            <DependencyDot
+              anchor="end"
+              variant="milestone"
+              isConnected={isMilestoneConnected}
+              onStartDraw={handleDependencyDraw}
+              label={`Link ${item.name || 'milestone'}`}
+            />
+          )}
         </div>
       )}
     </div>

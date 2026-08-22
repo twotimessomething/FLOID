@@ -72,6 +72,7 @@ function SettingRow({ id, label, description, checked, onChange }: SettingRowPro
 
 export function SettingsModal(): JSX.Element | null {
   const { isSettingsModalOpen, closeSettingsModal, theme, setTheme } = useUIStore();
+  const selectDependency = useUIStore((state) => state.selectDependency);
   const settings = useProjectStore((state) => state.project?.settings ?? DEFAULT_PROJECT_SETTINGS);
   const updateSettings = useProjectStore((state) => state.updateSettings);
 
@@ -122,6 +123,16 @@ export function SettingsModal(): JSX.Element | null {
       updateSettings({ coloredRows: checked });
     },
     [updateSettings]
+  );
+
+  // Hiding the ink leaves the edges in the store; a link selected while they
+  // were showing must not stay selected under a Delete keypress.
+  const handleShowDependenciesChange = useCallback(
+    (checked: boolean) => {
+      updateSettings({ showDependencies: checked });
+      if (!checked) selectDependency(null);
+    },
+    [updateSettings, selectDependency]
   );
 
   const handleBackupReminderToggle = useCallback(async (enabled: boolean) => {
@@ -256,6 +267,13 @@ export function SettingsModal(): JSX.Element | null {
             description="Tint schedule rows with their assigned color"
             checked={settings.coloredRows}
             onChange={handleColoredRowsChange}
+          />
+          <SettingRow
+            id="show-dependencies"
+            label="Dependencies"
+            description="Toggle visibility of dependency lines"
+            checked={settings.showDependencies ?? DEFAULT_PROJECT_SETTINGS.showDependencies}
+            onChange={handleShowDependenciesChange}
           />
 
           {/* Backup reminders section */}

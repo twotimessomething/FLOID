@@ -5,6 +5,7 @@ import {
   CREATE_ROW_HEIGHT,
   NESTED_ROW_HEIGHT,
   ROW_HEIGHT,
+  SECTION_HAIRLINE,
 } from '../utils/timelineUtils';
 
 function bar(id: string, start: string, end: string, children: TimelineItem[] = []): TimelineItem {
@@ -58,13 +59,13 @@ describe('computeItemPoints', () => {
       section('s1', [bar('a', '2026-01-01', '2026-02-01'), bar('b', '2026-02-01', '2026-03-01')]),
     ];
     const points = computeItemPoints(sections);
-    expect(points.get('a')?.y).toBe(ROW_HEIGHT + ROW_HEIGHT / 2);
-    expect(points.get('b')?.y).toBe(ROW_HEIGHT + ROW_HEIGHT + ROW_HEIGHT / 2);
+    expect(points.get('a')?.y).toBe(SECTION_HAIRLINE + ROW_HEIGHT + ROW_HEIGHT / 2);
+    expect(points.get('b')?.y).toBe(SECTION_HAIRLINE + ROW_HEIGHT + ROW_HEIGHT + ROW_HEIGHT / 2);
   });
 
   it('puts root milestones on the schedule header row', () => {
     const points = computeItemPoints([section('s1', [milestone('m', '2026-01-15')])]);
-    expect(points.get('m')?.y).toBe(ROW_HEIGHT / 2);
+    expect(points.get('m')?.y).toBe(SECTION_HAIRLINE + ROW_HEIGHT / 2);
   });
 
   it('anchors an item folded inside a collapsed group to the group bar row', () => {
@@ -78,7 +79,7 @@ describe('computeItemPoints', () => {
     const points = computeItemPoints([
       section('s1', [bar('a', '2026-01-01', '2026-02-01')], { isCollapsed: true }),
     ]);
-    expect(points.get('a')?.y).toBe(ROW_HEIGHT / 2);
+    expect(points.get('a')?.y).toBe(SECTION_HAIRLINE + ROW_HEIGHT / 2);
   });
 
   it('stacks sections the way the sheet does', () => {
@@ -88,7 +89,20 @@ describe('computeItemPoints', () => {
     ];
     const points = computeItemPoints(sections);
     const s1Height = ROW_HEIGHT + ROW_HEIGHT + CREATE_ROW_HEIGHT;
-    expect(points.get('x')?.y).toBe(s1Height + ROW_HEIGHT + ROW_HEIGHT / 2);
+    // SectionRow prints every schedule under a hairline, so each one on the
+    // stack — this schedule included — sits a pixel lower than its rows alone
+    expect(points.get('x')?.y).toBe(
+      2 * SECTION_HAIRLINE + s1Height + ROW_HEIGHT + ROW_HEIGHT / 2
+    );
+  });
+
+  it('counts one hairline per schedule, so drift cannot accumulate', () => {
+    const sections = Array.from({ length: 5 }, (_, i) =>
+      section(`s${i}`, [bar(`b${i}`, '2026-01-01', '2026-02-01')], { isCollapsed: true })
+    );
+    const points = computeItemPoints(sections);
+    const stride = SECTION_HAIRLINE + ROW_HEIGHT;
+    expect(points.get('b4')?.y).toBe(4 * stride + SECTION_HAIRLINE + ROW_HEIGHT / 2);
   });
 
   it('gives nested rows their shallower height', () => {
@@ -98,7 +112,9 @@ describe('computeItemPoints', () => {
       ]),
     ];
     const points = computeItemPoints(sections);
-    expect(points.get('g1')?.y).toBe(ROW_HEIGHT + ROW_HEIGHT + NESTED_ROW_HEIGHT / 2);
+    expect(points.get('g1')?.y).toBe(
+      SECTION_HAIRLINE + ROW_HEIGHT + ROW_HEIGHT + NESTED_ROW_HEIGHT / 2
+    );
   });
 });
 

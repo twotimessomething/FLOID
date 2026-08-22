@@ -22,17 +22,21 @@ import { SectionRow } from './SectionRow';
 import { StickyScheduleRow } from './StickyScheduleRow';
 import { StickyScheduleLabel } from './StickyScheduleLabel';
 import { ScrollEdgeFade } from './ScrollEdgeFade';
+import { StickyEdgeFade } from './StickyEdgeFade';
 import { Playhead } from './Playhead';
 import { MilestoneLines } from './MilestoneLines';
 import { DependencyLayer } from './DependencyLayer';
+import { useShowDependencies } from '../../hooks/useDependencyState';
 import { TodayLine } from './TodayLine';
 import { AddScheduleButton } from '../controls';
 import {
   HEADER_HEIGHT,
   ROW_HEIGHT,
-  calculateSectionHeight,
+  STICKY_SLOT_HEIGHT,
   dayToX,
   headerMilestones,
+  sectionBoxHeight,
+  stickySlotTop,
 } from '../../utils/timelineUtils';
 import { isTodayInViewport } from '../../utils/dateUtils';
 import { dayKeyDiff, todayKey } from '../../utils/dayKeys';
@@ -56,6 +60,7 @@ export function Timeline(): JSX.Element {
   const labelsContentRef = useRef<HTMLDivElement>(null);
 
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
+  const showDependencies = useShowDependencies();
   const { pinnedSection, unpinnedSections } = usePinnedSection();
   const reorderSections = useSectionStore((s) => s.reorderSections);
 
@@ -100,7 +105,6 @@ export function Timeline(): JSX.Element {
   const [isResizing, setIsResizing] = useState(false);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
-
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -222,7 +226,7 @@ export function Timeline(): JSX.Element {
   );
 
   const sectionHeights = useMemo(
-    () => unpinnedSections.map((section) => calculateSectionHeight(section)),
+    () => unpinnedSections.map((section) => sectionBoxHeight(section)),
     [unpinnedSections]
   );
 
@@ -299,8 +303,8 @@ export function Timeline(): JSX.Element {
   const sectionThresholds = useMemo(() => {
     let cumulativeY = 0;
     return allSections.map((section, index) => {
-      const enterY = cumulativeY - index * ROW_HEIGHT;
-      cumulativeY += calculateSectionHeight(section);
+      const enterY = cumulativeY - index * STICKY_SLOT_HEIGHT;
+      cumulativeY += sectionBoxHeight(section);
       return enterY;
     });
   }, [allSections]);
@@ -359,9 +363,9 @@ export function Timeline(): JSX.Element {
 
   const contentHeight = useMemo(() => {
     let height = 0;
-    if (pinnedSection) height += calculateSectionHeight(pinnedSection);
+    if (pinnedSection) height += sectionBoxHeight(pinnedSection);
     unpinnedSections.forEach((section) => {
-      height += calculateSectionHeight(section);
+      height += sectionBoxHeight(section);
     });
     return Math.max(height + ROW_HEIGHT, 200);
   }, [pinnedSection, unpinnedSections]);
@@ -437,6 +441,8 @@ export function Timeline(): JSX.Element {
           {stickySections.map((section, index) => (
             <StickyScheduleLabel key={section.id} section={section} slot={index} />
           ))}
+
+          <ScrollEdgeFade top={stickySlotTop(stickyCount)} isVisible={isScrolled} />
         </nav>
 
         {/* Timeline column */}
@@ -460,6 +466,16 @@ export function Timeline(): JSX.Element {
                 pixelsPerDay={pixelsPerDay}
               />
             ))}
+
+            {/* The wash the axis dissolves rows into, with the sheet's
+                verticals ruled back over it */}
+            <StickyEdgeFade
+              top={stickySlotTop(stickyCount)}
+              isVisible={isScrolled}
+              pinnedMarkers={pinnedMarkers}
+              viewport={viewportBounds}
+              pixelsPerDay={pixelsPerDay}
+            />
 
             <div
               className="relative cursor-crosshair timeline-plot"
@@ -511,21 +527,20 @@ export function Timeline(): JSX.Element {
 
               {/* Dependency ink prints over the bars it connects, in one layer
                   that walks the same layout the rows do */}
-              <DependencyLayer
-                sections={allSections}
-                viewport={viewportBounds}
-                pixelsPerDay={pixelsPerDay}
-                width={timelineWidth}
-                height={contentHeight - ROW_HEIGHT}
-              />
+              {showDependencies && (
+                <DependencyLayer
+                  sections={allSections}
+                  viewport={viewportBounds}
+                  pixelsPerDay={pixelsPerDay}
+                  width={timelineWidth}
+                  height={contentHeight - ROW_HEIGHT}
+                />
+              )}
 
               <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
             </div>
           </div>
         </div>
-
-        {/* Both columns cut off at the same height, so one strip covers both */}
-        <ScrollEdgeFade top={HEADER_HEIGHT + stickyCount * ROW_HEIGHT} isVisible={isScrolled} />
       </div>
     </div>
   );

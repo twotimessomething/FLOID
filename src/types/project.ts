@@ -1,11 +1,13 @@
 export interface ProjectSettings {
   skipWeekends: boolean;
   coloredRows: boolean;
+  showDependencies: boolean;
 }
 
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   skipWeekends: true,
   coloredRows: true,
+  showDependencies: true,
 };
 
 export interface Project {

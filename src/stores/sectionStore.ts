@@ -20,7 +20,12 @@ import {
   shiftItemDays,
   updateItemIn,
 } from '../utils/itemTree';
-import { canLinkItems, isDuplicateEdge, pruneEdgesTouching } from '../utils/dependencyUtils';
+import {
+  canLinkItems,
+  isDuplicateEdge,
+  pruneEdgesTouching,
+  sectionOfItem,
+} from '../utils/dependencyUtils';
 
 export interface MoveItemPayload {
   readonly itemId: string;
@@ -88,6 +93,12 @@ interface SectionState {
 
   // Dependencies — ink between items, never physics
   setDependencies: (dependencies: DependencyEdge[]) => void;
+  /**
+   * Replace schedules and the links that annotate them together. An import
+   * rewrites both, and every edge mutation is one undoable step — two `set`
+   * calls would leave an undo standing between the halves.
+   */
+  setSectionsAndDependencies: (sections: Section[], dependencies: DependencyEdge[]) => void;
   /** Draw a link. Returns its id, or null when the pair may not be linked. */
   addDependency: (
     from: string,
@@ -132,6 +143,21 @@ function touch(section: Section, changes: Partial<Section>): Section {
     lastModifiedAt: new Date().toISOString(),
     revision: section.revision + 1,
   };
+}
+
+/**
+ * Stamp the schedules an edge annotates. A `.floid` share carries the links
+ * that live inside it, so drawing or cutting one really does modify those
+ * schedules — and `revision` is what an import conflict is decided on.
+ */
+function touchSectionsOf(sections: readonly Section[], itemIds: readonly string[]): Section[] {
+  const owners = new Set<string>();
+  for (const itemId of itemIds) {
+    const owner = sectionOfItem(sections, itemId);
+    if (owner) owners.add(owner.id);
+  }
+  if (owners.size === 0) return sections as Section[];
+  return sections.map((section) => (owners.has(section.id) ? touch(section, {}) : section));
 }
 
 function mapSection(
@@ -500,19 +526,29 @@ export const useSectionStore = create<SectionState>()(
 
       setDependencies: (dependencies) => set({ dependencies }),
 
+      setSectionsAndDependencies: (sections, dependencies) => set({ sections, dependencies }),
+
       addDependency: (from, fromAnchor, to, toAnchor) => {
         const state = get();
         if (!canLinkItems(state.sections, from, to)) return null;
         if (isDuplicateEdge(state.dependencies, from, fromAnchor, to, toAnchor)) return null;
         const id = generateId();
-        set({ dependencies: [...state.dependencies, { id, from, fromAnchor, to, toAnchor }] });
+        set({
+          sections: touchSectionsOf(state.sections, [from, to]),
+          dependencies: [...state.dependencies, { id, from, fromAnchor, to, toAnchor }],
+        });
         return id;
       },
 
-      removeDependency: (dependencyId) =>
-        set((state) => ({
-          dependencies: state.dependencies.filter((edge) => edge.id !== dependencyId),
-        })),
+      removeDependency: (dependencyId) => {
+        const state = get();
+        const edge = state.dependencies.find((e) => e.id === dependencyId);
+        if (!edge) return;
+        set({
+          sections: touchSectionsOf(state.sections, [edge.from, edge.to]),
+          dependencies: state.dependencies.filter((e) => e.id !== dependencyId),
+        });
+      },
 
       retargetDependency: (dependencyId, end, itemId, anchor) => {
         const state = get();
@@ -530,7 +566,10 @@ export const useSectionStore = create<SectionState>()(
           return false;
         }
 
-        set({ dependencies: state.dependencies.map((e) => (e.id === dependencyId ? next : e)) });
+        set({
+          sections: touchSectionsOf(state.sections, [edge.from, edge.to, next.from, next.to]),
+          dependencies: state.dependencies.map((e) => (e.id === dependencyId ? next : e)),
+        });
         return true;
       },
 

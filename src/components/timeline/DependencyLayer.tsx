@@ -155,13 +155,36 @@ export const DependencyLayer = memo(function DependencyLayer({
     e.stopPropagation();
   }, []);
 
-  // Travelling from the bar onto its own line keeps the line on the sheet
-  const handleLineEnter = useCallback((e: React.PointerEvent, r: RenderedEdge): void => {
-    if (e.pointerType === 'mouse') reportDependencyHover(r.edge.from);
-  }, []);
-  const handleLineLeave = useCallback((e: React.PointerEvent, r: RenderedEdge): void => {
-    if (e.pointerType === 'mouse') reportDependencyLeave(r.edge.from);
-  }, []);
+  /**
+   * Which end a line hands the hover to. Whichever end already holds it, so
+   * reaching from a bar onto one of its lines keeps that bar's whole set on
+   * the sheet — reporting the source end regardless would swap the set to the
+   * other item's links and take the neighbouring lines away mid-reach. Leave
+   * resolves to the same id enter set, which is what lets the linger clear.
+   */
+  const hoverEndOf = useCallback(
+    (edge: DependencyEdge): string => {
+      if (hoverItemId && (edge.from === hoverItemId || edge.to === hoverItemId)) return hoverItemId;
+      if (selectedItemId && (edge.from === selectedItemId || edge.to === selectedItemId)) {
+        return selectedItemId;
+      }
+      return edge.from;
+    },
+    [hoverItemId, selectedItemId]
+  );
+
+  const handleLineEnter = useCallback(
+    (e: React.PointerEvent, r: RenderedEdge): void => {
+      if (e.pointerType === 'mouse') reportDependencyHover(hoverEndOf(r.edge));
+    },
+    [hoverEndOf]
+  );
+  const handleLineLeave = useCallback(
+    (e: React.PointerEvent, r: RenderedEdge): void => {
+      if (e.pointerType === 'mouse') reportDependencyLeave(hoverEndOf(r.edge));
+    },
+    [hoverEndOf]
+  );
 
   if (rendered.length === 0) return null;
 

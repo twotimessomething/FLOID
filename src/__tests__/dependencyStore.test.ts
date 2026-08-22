@@ -179,3 +179,65 @@ describe('drag transactions', () => {
     expect(state.sections[0].items[0].start).toBe('2026-01-01');
   });
 });
+
+describe('link mutations stamp the schedules they annotate', () => {
+  const revisionOf = (id: string): number =>
+    useSectionStore.getState().sections.find((sec) => sec.id === id)!.revision;
+
+  it('bumps both endpoints\u2019 schedules when a link is drawn', () => {
+    const before = { s1: revisionOf('s1'), s2: revisionOf('s2') };
+    useSectionStore.getState().addDependency('a', 'end', 'x', 'start');
+    expect(revisionOf('s1')).toBe(before.s1 + 1);
+    expect(revisionOf('s2')).toBe(before.s2 + 1);
+  });
+
+  it('bumps a schedule once when both ends live in it', () => {
+    const before = revisionOf('s1');
+    useSectionStore.getState().addDependency('a', 'end', 'b', 'start');
+    expect(revisionOf('s1')).toBe(before + 1);
+  });
+
+  it('bumps on removal too — a `.floid` carries the links inside it', () => {
+    const id = useSectionStore.getState().addDependency('a', 'end', 'b', 'start')!;
+    const before = revisionOf('s1');
+    useSectionStore.getState().removeDependency(id);
+    expect(revisionOf('s1')).toBe(before + 1);
+  });
+
+  it('leaves revisions alone when a draw is rejected', () => {
+    const before = revisionOf('s1');
+    expect(useSectionStore.getState().addDependency('b', 'end', 'b1', 'start')).toBeNull();
+    expect(revisionOf('s1')).toBe(before);
+  });
+
+  it('stamps the schedules on both sides of a retarget', () => {
+    const id = useSectionStore.getState().addDependency('a', 'end', 'b', 'start')!;
+    const before = { s1: revisionOf('s1'), s2: revisionOf('s2') };
+    expect(useSectionStore.getState().retargetDependency(id, 'to', 'x', 'start')).toBe(true);
+    expect(revisionOf('s1')).toBe(before.s1 + 1);
+    expect(revisionOf('s2')).toBe(before.s2 + 1);
+  });
+});
+
+describe('setSectionsAndDependencies', () => {
+  it('lands both halves in one undoable step', () => {
+    const { sections, dependencies } = useSectionStore.getState();
+    const added = section('s3', [bar('z', '2026-01-01', '2026-02-01')]);
+    const edge: DependencyEdge = {
+      id: 'e-new',
+      from: 'z',
+      fromAnchor: 'end',
+      to: 'a',
+      toAnchor: 'start',
+    };
+
+    useSectionStore.getState().setSectionsAndDependencies([...sections, added], [...dependencies, edge]);
+    expect(useSectionStore.getState().sections).toHaveLength(3);
+    expect(edgeIds()).toEqual(['e-new']);
+
+    useSectionStore.temporal.getState().undo();
+    // One undo takes the schedule and its links together, never half of each
+    expect(useSectionStore.getState().sections).toHaveLength(2);
+    expect(edgeIds()).toEqual([]);
+  });
+});

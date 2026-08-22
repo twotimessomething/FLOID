@@ -1,7 +1,7 @@
 import type { Section } from '../../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { useProjectStore } from '../../stores/projectStore';
-import { HEADER_HEIGHT, ROW_HEIGHT } from '../../utils/timelineUtils';
+import { STICKY_SLOT_HEIGHT, stickySlotTop } from '../../utils/timelineUtils';
 import { sectionTintColor } from '../../utils/colorUtils';
 import { ScheduleLabelRow } from './ScheduleLabelRow';
 
@@ -21,7 +21,8 @@ interface StickyScheduleLabelProps {
  *
  * Held schedules stack, so this reads down the column in the order they were
  * scrolled past — which is the only thing that says which stacked band of
- * markers belongs to which schedule.
+ * markers belongs to which schedule. Each band carries the hairline its
+ * schedule prints under, so the stack keeps the separators the sheet has.
  */
 export function StickyScheduleLabel({ section, slot }: StickyScheduleLabelProps): JSX.Element {
   const coloredRows = useProjectStore(
@@ -32,8 +33,8 @@ export function StickyScheduleLabel({ section, slot }: StickyScheduleLabelProps)
 
   return (
     <div
-      className="absolute inset-x-0 z-10 bg-[var(--color-background)]"
-      style={{ top: HEADER_HEIGHT + slot * ROW_HEIGHT, height: ROW_HEIGHT }}
+      className="absolute inset-x-0 z-10 border-t border-[var(--color-hairline)] bg-[var(--color-background)]"
+      style={{ top: stickySlotTop(slot), height: STICKY_SLOT_HEIGHT }}
     >
       {tint && <div className="absolute inset-0" style={{ backgroundColor: tint }} />}
       <div className="relative">

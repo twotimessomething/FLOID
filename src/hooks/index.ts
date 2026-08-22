@@ -17,6 +17,7 @@ export { useDoubleClick } from './useDoubleClick';
 export { useCreateGhost } from './useCreateGhost';
 export type { CreateGhostState, CreateGestureInfo, CreateReadoutHandle } from './useCreateGhost';
 export { useContextMenu } from './useContextMenu';
+export { useScheduleRowGestures } from './useScheduleRowGestures';
 export { usePinnedSection } from './usePinnedSection';
 export { useInlineEdit } from './useInlineEdit';
 export { useTimelinePan } from './useTimelinePan';

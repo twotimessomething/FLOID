@@ -7,7 +7,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useContextMenu } from '../../hooks/useContextMenu';
 import { useItemDrag } from '../../hooks/useItemDrag';
 import { useDependencyDraw } from '../../hooks/useDependencyDraw';
-import { useItemConnected } from '../../hooks/useDependencyState';
+import { useItemConnected, useShowDependencies } from '../../hooks/useDependencyState';
 import { reportDependencyHover, reportDependencyLeave } from '../../utils/dependencyHover';
 import { useIsDragged } from '../../hooks/useDropState';
 import { DependencyDot } from './DependencyDot';
@@ -59,6 +59,7 @@ export const HeaderMilestone = memo(function HeaderMilestone({
 
   // -- dependencies --------------------------------------------------------
 
+  const showDependencies = useShowDependencies();
   const { startDraw: startDependencyDraw } = useDependencyDraw();
   const isConnected = useItemConnected(item.id);
 
@@ -138,13 +139,15 @@ export const HeaderMilestone = memo(function HeaderMilestone({
       />
       <MilestoneGlyph isSelected={isSelected} />
       <MilestoneLabel name={item.name} placement={labelPlacement} forceVisible={isSelected} />
-      <DependencyDot
-        anchor="end"
-        variant="milestone"
-        isConnected={isConnected}
-        onStartDraw={handleDependencyDraw}
-        label={`Link ${item.name || 'milestone'}`}
-      />
+      {showDependencies && (
+        <DependencyDot
+          anchor="end"
+          variant="milestone"
+          isConnected={isConnected}
+          onStartDraw={handleDependencyDraw}
+          label={`Link ${item.name || 'milestone'}`}
+        />
+      )}
     </div>
   );
 });

@@ -1,8 +1,7 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import type { Section, ViewportBounds } from '../../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import { useProjectStore } from '../../stores/projectStore';
-import { useUIStore } from '../../stores/uiStore';
 import {
   CREATE_ROW_HEIGHT,
   ROW_HEIGHT,
@@ -13,16 +12,12 @@ import {
   xToDay,
 } from '../../utils/timelineUtils';
 import { layoutLabels, measureMilestoneLabelWidth } from '../../utils/labelLayoutUtils';
-import {
-  createBarAt,
-  createMilestoneAt,
-  drawnSpanDescriber,
-  DEFAULT_BAR_DAYS,
-} from '../../utils/creationUtils';
+import { createBarAt, drawnSpanDescriber, DEFAULT_BAR_DAYS } from '../../utils/creationUtils';
 import { getItemColor } from '../../types';
 import { snapKeyToBusinessDay } from '../../utils/dayKeys';
 import { sectionTintColor } from '../../utils/colorUtils';
 import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGhost';
+import { useScheduleRowGestures } from '../../hooks/useScheduleRowGestures';
 import { useIsDropSlot } from '../../hooks/useDropState';
 import { CollapsedBars } from './CollapsedBars';
 import { ItemRow } from './ItemRow';
@@ -74,10 +69,11 @@ export const SectionRow = memo(function SectionRow({
     (s) => s.project?.settings?.skipWeekends ?? DEFAULT_PROJECT_SETTINGS.skipWeekends
   );
 
-  const openContextMenu = useUIStore((s) => s.openContextMenu);
-  const headerRef = useRef<HTMLDivElement>(null);
-  const [milestoneGhostX, setMilestoneGhostX] = useState<number | null>(null);
   const isPinned = section.id === pinnedSectionId;
+
+  // The schedule's own row, and everything it answers to. The band under the
+  // axis runs the same hook, so the two rows cannot drift apart.
+  const headerGestures = useScheduleRowGestures(section.id, viewport, pixelsPerDay);
 
   const rows = useMemo(() => flattenSection(section), [section]);
   const bodyHeight = useMemo(() => sectionBodyHeight(section), [section]);
@@ -106,50 +102,7 @@ export const SectionRow = memo(function SectionRow({
     [markers, isSticky, viewport, pixelsPerDay]
   );
 
-  // -- schedule header row (timeline side) ---------------------------------
-
-  const dayAtEvent = useCallback(
-    (e: React.MouseEvent, element: HTMLElement | null): string => {
-      const bounds = element?.getBoundingClientRect();
-      const offset = bounds ? e.clientX - bounds.left : 0;
-      return xToDay(offset, viewport, pixelsPerDay);
-    },
-    [viewport, pixelsPerDay]
-  );
-
-  const handleHeaderContextMenu = useCallback(
-    (e: React.MouseEvent): void => {
-      e.preventDefault();
-      e.stopPropagation();
-      openContextMenu({
-        position: { x: e.clientX, y: e.clientY },
-        targetType: 'section',
-        targetId: section.id,
-        sectionId: section.id,
-        location: 'header',
-        clickDay: dayAtEvent(e, headerRef.current),
-      });
-    },
-    [openContextMenu, section.id, dayAtEvent]
-  );
-
-  // The ghost tracks free space on the schedule's own row only — over a marker
-  // or a collapsed bar the double-click would mean something else, so the row
-  // stops offering a milestone there. A held button means a drag is passing
-  // through, not a hover.
-  const handleHeaderPointerMove = useCallback((e: React.PointerEvent): void => {
-    if (e.pointerType === 'touch' || e.buttons !== 0 || e.target !== e.currentTarget) {
-      setMilestoneGhostX((previous) => (previous === null ? previous : null));
-      return;
-    }
-    const bounds = headerRef.current?.getBoundingClientRect();
-    if (!bounds) return;
-    setMilestoneGhostX(e.clientX - bounds.left);
-  }, []);
-
-  const handleHeaderPointerLeave = useCallback((): void => {
-    setMilestoneGhostX(null);
-  }, []);
+  // -- creating in the schedule's open space --------------------------------
 
   // "Skip weekends" belongs to the commit, not the gesture: the ghost tracks
   // the cursor exactly, and the day it lands on is squared up once, here.
@@ -157,21 +110,6 @@ export const SectionRow = memo(function SectionRow({
     (key: string): string => (skipWeekends ? snapKeyToBusinessDay(key) : key),
     [skipWeekends]
   );
-
-  // Double-clicking the schedule's own row drops a milestone there
-  const handleHeaderDoubleClick = useCallback(
-    (e: React.MouseEvent): void => {
-      if (e.target !== e.currentTarget) return;
-      createMilestoneAt(
-        section.id,
-        { day: snapCreateDay(dayAtEvent(e, headerRef.current)) },
-        { x: e.clientX, y: e.clientY }
-      );
-    },
-    [section.id, dayAtEvent, snapCreateDay]
-  );
-
-  // -- creating in the schedule's open space --------------------------------
 
   const handleBodyGhostDoubleClick = useCallback(
     ({ startPx, point }: CreateGestureInfo): void => {
@@ -267,17 +205,19 @@ export const SectionRow = memo(function SectionRow({
     >
       {/* The schedule's own row: root milestones, and its bars when collapsed */}
       <div
-        ref={headerRef}
-        className={`relative timeline-plot ${milestoneGhostX !== null ? 'cursor-copy' : ''}`}
+        ref={headerGestures.rowRef}
+        className={`relative timeline-plot ${headerGestures.ghostX !== null ? 'cursor-copy' : ''}`}
         style={{ height: ROW_HEIGHT }}
         data-drop-header={section.id}
         data-drop-section={section.id}
-        onDoubleClick={handleHeaderDoubleClick}
-        onContextMenu={handleHeaderContextMenu}
-        onPointerMove={handleHeaderPointerMove}
-        onPointerLeave={handleHeaderPointerLeave}
+        onDoubleClick={headerGestures.handleDoubleClick}
+        onContextMenu={headerGestures.handleContextMenu}
+        onPointerMove={headerGestures.handlePointerMove}
+        onPointerLeave={headerGestures.handlePointerLeave}
       >
-        {milestoneGhostX !== null && <GhostMilestone x={milestoneGhostX} lineHeight={bodyHeight} />}
+        {headerGestures.ghostX !== null && (
+          <GhostMilestone x={headerGestures.ghostX} lineHeight={bodyHeight} />
+        )}
 
         <CollapsedBars section={section} viewport={viewport} pixelsPerDay={pixelsPerDay} />
 

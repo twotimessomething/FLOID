@@ -242,3 +242,34 @@ export function sectionBodyHeight(section: Section): number {
 export function calculateSectionHeight(section: Section): number {
   return ROW_HEIGHT + sectionBodyHeight(section);
 }
+
+/**
+ * The hairline every schedule prints under. `SectionRow` carries it as a
+ * `border-t`, so a schedule's box on the sheet is this much taller than the
+ * rows inside it — anything walking the stack to find a row has to count it.
+ */
+export const SECTION_HAIRLINE = 1;
+
+/**
+ * A schedule's whole box: the hairline it prints under and every row beneath
+ * it. Stacking schedules means stacking these — `calculateSectionHeight`
+ * measures only what is inside one, so a walk built from it drifts a pixel per
+ * schedule and the sticky bands land a pixel high.
+ */
+export function sectionBoxHeight(section: Section): number {
+  return SECTION_HAIRLINE + calculateSectionHeight(section);
+}
+
+/**
+ * A band under the axis stands in for a schedule's own row, so it is the same
+ * height as that row's box: the hairline, then the row.
+ */
+export const STICKY_SLOT_HEIGHT = SECTION_HAIRLINE + ROW_HEIGHT;
+
+/** Where the band for a held schedule sits, measured from the top of the timeline area. */
+export function stickySlotTop(slot: number): number {
+  return HEADER_HEIGHT + slot * STICKY_SLOT_HEIGHT;
+}
+
+/** How much paper the axis dissolves the rows scrolling under it into. */
+export const EDGE_FADE_HEIGHT = 16;

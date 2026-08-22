@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useViewport } from '../../hooks/useViewport';
 import { getTimeMarkers } from '../../utils/dateUtils';
-import { calculateSectionHeight, dayToX } from '../../utils/timelineUtils';
+import { dayToX, sectionBoxHeight } from '../../utils/timelineUtils';
 import { toDayKey } from '../../utils/dayKeys';
 import { usePinnedSection } from '../../hooks/usePinnedSection';
 
@@ -24,11 +24,11 @@ export function TimelineGrid({ height }: TimelineGridProps = {}): JSX.Element {
     let total = 0;
 
     if (pinnedSection) {
-      total += calculateSectionHeight(pinnedSection);
+      total += sectionBoxHeight(pinnedSection);
     }
 
     unpinnedSections.forEach((section) => {
-      total += calculateSectionHeight(section);
+      total += sectionBoxHeight(section);
     });
 
     return total;

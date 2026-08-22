@@ -28,7 +28,9 @@ const convertItems = (
 
 export function useScheduleImport(): UseScheduleImportReturn {
   const { showToast, openImportModal, importModal, closeImportModal } = useUIStore();
-  const { sections, dependencies, setSections, setDependencies } = useSectionStore();
+  const sections = useSectionStore((state) => state.sections);
+  const dependencies = useSectionStore((state) => state.dependencies);
+  const setSectionsAndDependencies = useSectionStore((state) => state.setSectionsAndDependencies);
   const project = useProjectStore((state) => state.project);
 
   const addScheduleFromData = useCallback(
@@ -56,12 +58,12 @@ export function useScheduleImport(): UseScheduleImportReturn {
         endDate: data.scheduleDates.endDate,
       };
 
-      setSections([...sections, newSection]);
+      // Schedule and links land together, so one undo takes the whole import
       const imported = remapEdgeItemIds(data.dependencies ?? [], idMap, generateId);
-      if (imported.length > 0) setDependencies([...dependencies, ...imported]);
+      setSectionsAndDependencies([...sections, newSection], [...dependencies, ...imported]);
       showToast('success', `Added "${scheduleName}" schedule`);
     },
-    [sections, dependencies, setSections, setDependencies, showToast]
+    [sections, dependencies, setSectionsAndDependencies, showToast]
   );
 
   const updateScheduleFromData = useCallback(
@@ -87,20 +89,17 @@ export function useScheduleImport(): UseScheduleImportReturn {
           : s
       );
 
-      setSections(updatedSections);
-
       // The old items are gone, so every link touching them goes too — the
-      // file's own links come in on the new ids in their place.
+      // file's own links come in on the new ids in their place. Both halves
+      // land in one write, so one undo rewinds the whole update.
       const oldIds = new Set<string>();
       forEachItem(existingSection.items, (item) => oldIds.add(item.id));
       const kept = pruneEdgesTouching(dependencies, oldIds);
       const imported = remapEdgeItemIds(data.dependencies ?? [], idMap, generateId);
-      if (kept !== dependencies || imported.length > 0) {
-        setDependencies([...kept, ...imported]);
-      }
+      setSectionsAndDependencies(updatedSections, [...kept, ...imported]);
       showToast('success', `Updated "${existingSection.name}" schedule`);
     },
-    [sections, dependencies, setSections, setDependencies, showToast]
+    [sections, dependencies, setSectionsAndDependencies, showToast]
   );
 
   const handleImport = useCallback(

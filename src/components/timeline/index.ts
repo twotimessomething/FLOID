@@ -9,6 +9,8 @@ export { MilestoneGlyph } from './MilestoneGlyph';
 export { MilestoneLabel } from './MilestoneLabel';
 export { StickyScheduleRow } from './StickyScheduleRow';
 export { StickyScheduleLabel } from './StickyScheduleLabel';
+export { ScrollEdgeFade } from './ScrollEdgeFade';
+export { StickyEdgeFade } from './StickyEdgeFade';
 export { ScheduleLabelRow } from './ScheduleLabelRow';
 export { MilestoneLines } from './MilestoneLines';
 export { TodayLine } from './TodayLine';
