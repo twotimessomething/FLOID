@@ -1,8 +1,10 @@
 import { useSectionStore } from '../stores/sectionStore';
 import { useUIStore } from '../stores/uiStore';
-import { addDaysToKey, dayKeyDiff, maxDayKey, minDayKey } from './dayKeys';
+import { addDaysToKey, dayKeyDiff, maxDayKey, minDayKey, type DayKey } from './dayKeys';
+import { formatDayKey } from './dateUtils';
 import { findItem } from './itemTree';
-import type { ModalPosition } from '../types/timeline';
+import { xToDay } from './timelineUtils';
+import type { ModalPosition, ViewportBounds } from '../types/timeline';
 
 /**
  * Every interactive way to make something on the timeline funnels through here,
@@ -19,6 +21,64 @@ export const DEFAULT_NESTED_BAR_DAYS = 7;
 export interface CreateSpan {
   readonly start: string;
   readonly end: string;
+}
+
+/**
+ * The span two drawn edges commit to: ordered, and never shorter than a day.
+ * A drag reports through here as well as creating through it, so the dates the
+ * gesture shows are the dates it makes.
+ */
+export function resolveDrawnSpan(a: DayKey, b: DayKey): CreateSpan {
+  const start = minDayKey(a, b);
+  const drawnEnd = maxDayKey(a, b);
+  return { start, end: dayKeyDiff(start, drawnEnd) < 1 ? addDaysToKey(start, 1) : drawnEnd };
+}
+
+/** What a span being drawn says about itself while the pointer is still down. */
+export interface DrawnSpanReadout {
+  /** The day the span begins, formatted. */
+  readonly start: string;
+  /** The day it ends. */
+  readonly end: string;
+  /** How long it is, in words: '1 day', '14 days'. */
+  readonly duration: string;
+}
+
+/** The same short date the move preview and the resize bubble use. */
+const READOUT_DATE_FORMAT = 'MMM d';
+/** Only where the short one would be ambiguous. */
+const READOUT_DATED_FORMAT = 'MMM d, yyyy';
+
+export function describeDrawnSpan(a: DayKey, b: DayKey): DrawnSpanReadout {
+  const { start, end } = resolveDrawnSpan(a, b);
+  const days = dayKeyDiff(start, end);
+  // A span that crosses New Year has two ends that read alike and are a year
+  // apart, so both take the year. Inside one year the year is noise.
+  const dateFormat =
+    start.slice(0, 4) === end.slice(0, 4) ? READOUT_DATE_FORMAT : READOUT_DATED_FORMAT;
+  return {
+    start: formatDayKey(start, dateFormat),
+    end: formatDayKey(end, dateFormat),
+    duration: days === 1 ? '1 day' : `${days} days`,
+  };
+}
+
+/**
+ * Pixels → the readout for the bar those pixels would make, for one row at one
+ * scale. It walks the whole commit path — day mapping, the weekend snap, the
+ * one-day floor — so the numbers under the cursor cannot drift from the bar
+ * that appears when the pointer comes up.
+ */
+export function drawnSpanDescriber(
+  viewport: ViewportBounds,
+  pixelsPerDay: number,
+  snap: (key: DayKey) => DayKey
+): (startPx: number, endPx: number) => DrawnSpanReadout {
+  return (startPx, endPx) =>
+    describeDrawnSpan(
+      snap(xToDay(startPx, viewport, pixelsPerDay)),
+      snap(xToDay(endPx, viewport, pixelsPerDay))
+    );
 }
 
 interface CreateBarOptions {
@@ -49,9 +109,9 @@ export function createBarAt(
   let end: string;
 
   if (options.span) {
-    start = minDayKey(options.span.start, options.span.end);
-    const drawnEnd = maxDayKey(options.span.start, options.span.end);
-    end = dayKeyDiff(start, drawnEnd) < 1 ? addDaysToKey(start, 1) : drawnEnd;
+    const drawn = resolveDrawnSpan(options.span.start, options.span.end);
+    start = drawn.start;
+    end = drawn.end;
   } else {
     start = options.startDay ?? nextFreeDay(sectionId, parentId);
     end = addDaysToKey(start, defaultDays);

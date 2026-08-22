@@ -222,7 +222,7 @@ export function NewProjectModal(): JSX.Element | null {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="project-setup-title">
+            <h2 className="text-title font-medium text-[var(--color-text-primary)]" id="project-setup-title">
               New Project
             </h2>
             {/* Step indicator */}
@@ -313,7 +313,7 @@ export function NewProjectModal(): JSX.Element | null {
           {step === 'template' && (
             <div className="p-6">
               <div className="mb-4">
-                <h3 className="text-sm font-medium text-[var(--color-text-primary)]">
+                <h3 className="text-body font-medium text-[var(--color-text-primary)]">
                   Choose a Starting Schedule
                 </h3>
                 <p className="text-meta text-[var(--color-text-muted)] mt-1">

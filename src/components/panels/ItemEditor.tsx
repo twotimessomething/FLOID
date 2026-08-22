@@ -96,7 +96,7 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
   }, [sectionId, itemId, item, deleteItem, closeModal]);
 
   if (!item || !section) {
-    return <div className="text-sm text-[var(--color-text-secondary)]">Nothing selected</div>;
+    return <div className="text-body text-[var(--color-text-secondary)]">Nothing selected</div>;
   }
 
   const isMilestone = item.kind === 'milestone';

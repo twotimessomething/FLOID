@@ -89,16 +89,16 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
       case 'new-schedule':
         return (
           <>
-            <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">
+            <h2 className="text-title font-medium text-[var(--color-text-primary)] mb-2">
               Import Schedule
             </h2>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+            <p className="text-body text-[var(--color-text-secondary)] mb-4">
               Import "{importData.schedule.name}" from project "{importData.sourceProjectName}"?
             </p>
 
             {/* Info message when importing from same project */}
             {isFromSameProject && (
-              <div className="bg-[var(--color-selection)] text-[var(--color-focus)] rounded-[var(--radius-md)] p-3 mb-4 text-sm">
+              <div className="bg-[var(--color-selection)] text-[var(--color-focus)] rounded-[var(--radius-md)] p-3 mb-4 text-body">
                 <p>This schedule originated from this project.</p>
               </div>
             )}
@@ -109,7 +109,7 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
                 <p className="text-xs font-medium text-[var(--color-text-muted)]">
                   Note: Different date ranges
                 </p>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-body">
                   <div>
                     <p className="text-xs text-[var(--color-text-muted)] mb-1">Imported:</p>
                     <p className="text-[var(--color-text-primary)]">
@@ -140,10 +140,10 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
       case 'update':
         return (
           <>
-            <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">
+            <h2 className="text-title font-medium text-[var(--color-text-primary)] mb-2">
               Update Schedule
             </h2>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+            <p className="text-body text-[var(--color-text-secondary)] mb-4">
               {revisionDelta && revisionDelta > 0
                 ? `A newer version of "${existingSection?.name}" is available (r${existingSection?.revision} → r${importData.schedule.revision}).`
                 : revisionDelta && revisionDelta < 0
@@ -165,10 +165,10 @@ export function ImportConfirmModal({ onConfirm }: ImportConfirmModalProps): JSX.
       case 'name-collision':
         return (
           <>
-            <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">
+            <h2 className="text-title font-medium text-[var(--color-text-primary)] mb-2">
               Schedule Name Already Exists
             </h2>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+            <p className="text-body text-[var(--color-text-secondary)] mb-4">
               A schedule named "{existingSection?.name}" already exists. Please enter a new name for
               the imported schedule.
             </p>

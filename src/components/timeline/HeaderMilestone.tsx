@@ -15,24 +15,25 @@ interface HeaderMilestoneProps {
   readonly section: Section;
   readonly viewport: ViewportBounds;
   readonly pixelsPerDay: number;
-  /** How far the reference line runs down through the schedule's rows. */
-  readonly lineHeight: number;
   readonly isHidden?: boolean;
   readonly labelPlacement?: LabelPlacement;
 }
 
 /**
- * A milestone at the root of a schedule: it lives on the schedule's own row and
- * draws a reference line down past everything below it. Drag it sideways to
- * move the date, or onto a bar to make it that bar's — at which point it stops
- * being a header marker and takes a row of its own.
+ * A milestone at the root of a schedule: it lives on the schedule's own row,
+ * above the reference line `MilestoneLines` rules down past everything below
+ * it. Drag it sideways to move the date, or onto a bar to make it that bar's —
+ * at which point it stops being a header marker and takes a row of its own.
+ *
+ * Only the marker hides when the schedule scrolls under the axis and the
+ * sticky strip takes it over; the line it stands on is drawn elsewhere and
+ * stays.
  */
 export const HeaderMilestone = memo(function HeaderMilestone({
   item,
   section,
   viewport,
   pixelsPerDay,
-  lineHeight,
   isHidden,
   labelPlacement,
 }: HeaderMilestoneProps): JSX.Element | null {
@@ -44,8 +45,8 @@ export const HeaderMilestone = memo(function HeaderMilestone({
 
   const left = dayToX(item.start, viewport, pixelsPerDay);
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent): void => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent): void => {
       if (section.isLocked || item.isLocked) return;
       startDrag(e, { item, sectionId: section.id, pixelsPerDay });
     },
@@ -80,11 +81,11 @@ export const HeaderMilestone = memo(function HeaderMilestone({
 
   return (
     <div
-      className={`absolute top-0 bottom-0 group cursor-grab active:cursor-grabbing hover:z-10 ${
+      className={`absolute top-0 bottom-0 group cursor-grab active:cursor-grabbing hover:z-10 touch-none ${
         isDragged ? 'opacity-30' : ''
       }`}
       style={{ left }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onClick={handleClick}
       onContextMenu={handleBarContextMenu}
       onKeyDown={handleKeyDown}
@@ -95,13 +96,6 @@ export const HeaderMilestone = memo(function HeaderMilestone({
     >
       <MilestoneGlyph isSelected={isSelected} />
       <MilestoneLabel name={item.name} placement={labelPlacement} forceVisible={isSelected} />
-      {lineHeight > 0 && (
-        <div
-          className="absolute w-px bg-[var(--color-milestone-line)] pointer-events-none"
-          style={{ left: 0, top: '100%', height: lineHeight }}
-          aria-hidden="true"
-        />
-      )}
     </div>
   );
 });

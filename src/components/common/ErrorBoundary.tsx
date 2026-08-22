@@ -33,10 +33,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div className="flex items-center justify-center p-8 text-center bg-[var(--color-background)]">
           <div>
-            <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-2">
+            <h2 className="text-title font-medium text-[var(--color-text-primary)] mb-2">
               Something went wrong
             </h2>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+            <p className="text-body text-[var(--color-text-secondary)] mb-4">
               {this.state.error?.message ?? 'An unexpected error occurred'}
             </p>
             <Button variant="primary" onClick={() => this.setState({ hasError: false, error: null })}>

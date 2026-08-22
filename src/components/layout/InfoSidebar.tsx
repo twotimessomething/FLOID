@@ -275,8 +275,9 @@ export function InfoSidebar(): JSX.Element {
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
 
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleResizePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     setIsResizing(true);
     resizeStartX.current = e.clientX;
     resizeStartWidth.current = infoSidebarWidth;
@@ -285,22 +286,24 @@ export function InfoSidebar(): JSX.Element {
   useEffect(() => {
     if (!isResizing) return;
 
-    const handleMouseMove = (e: MouseEvent): void => {
+    const handlePointerMove = (e: PointerEvent): void => {
       // Dragging left increases width, dragging right decreases
       const deltaX = resizeStartX.current - e.clientX;
       setInfoSidebarWidth(resizeStartWidth.current + deltaX);
     };
 
-    const handleMouseUp = (): void => {
+    const handlePointerUp = (): void => {
       setIsResizing(false);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerUp);
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+      document.removeEventListener('pointercancel', handlePointerUp);
     };
   }, [isResizing, setInfoSidebarWidth]);
 
@@ -358,7 +361,7 @@ export function InfoSidebar(): JSX.Element {
       className="relative flex-shrink-0 h-full overflow-hidden bg-[var(--color-background)] border-l border-[var(--color-hairline)] sidebar-fold"
       style={{
         width: infoSidebarWidth,
-        // A resize drag writes the width on every mousemove; easing those would
+        // A resize drag writes the width on every pointermove; easing those would
         // make the edge lag the cursor. The fold only applies to the toggle.
         transitionDuration: isResizing ? '0ms' : undefined,
       }}
@@ -366,10 +369,10 @@ export function InfoSidebar(): JSX.Element {
       {/* Resize handle. Inside the panel's edge — the fold clips whatever
           overflows it, and a handle hanging outside would lose half its width. */}
       <div
-        className={`absolute top-0 left-0 w-1 h-full cursor-col-resize z-10 transition-colors duration-fast ${
+        className={`absolute top-0 left-0 w-1 h-full cursor-col-resize z-10 touch-none transition-colors duration-fast ${
           isResizing ? 'bg-[var(--color-focus)]' : 'hover:bg-[var(--color-focus)]/70'
         }`}
-        onMouseDown={handleResizeMouseDown}
+        onPointerDown={handleResizePointerDown}
         aria-label="Resize status sidebar"
         role="separator"
       />

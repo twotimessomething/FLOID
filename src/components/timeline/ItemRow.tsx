@@ -22,12 +22,28 @@ import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGho
 import { useIsDragged, useIsDropReceiver, useIsDropSlot } from '../../hooks/useDropState';
 import {
   createBarAt,
+  drawnSpanDescriber,
   DEFAULT_BAR_DAYS,
   DEFAULT_NESTED_BAR_DAYS,
 } from '../../utils/creationUtils';
 import { DragHandle } from './DragHandle';
 import { GhostBar } from './GhostBar';
 import { DropLine } from './DropLine';
+
+/** The dates a resize is currently showing, and which edge is doing it. */
+interface ResizeState {
+  readonly edge: 'start' | 'end';
+  readonly start: string;
+  readonly end: string;
+}
+
+/** Where the resize began, plus what it has most recently shown. */
+interface ResizeOrigin {
+  accumulated: number;
+  readonly start: string;
+  readonly end: string;
+  latest: ResizeState;
+}
 
 interface ItemRowProps {
   readonly row: FlatRow;
@@ -57,8 +73,6 @@ export const ItemRow = memo(function ItemRow({
   const updateItem = useSectionStore((s) => s.updateItem);
   const setItemDates = useSectionStore((s) => s.setItemDates);
   const toggleItemCollapse = useSectionStore((s) => s.toggleItemCollapse);
-  const beginDragTransaction = useSectionStore((s) => s.beginDragTransaction);
-  const commitDragTransaction = useSectionStore((s) => s.commitDragTransaction);
 
   const skipWeekends = useProjectStore(
     (s) => s.project?.settings?.skipWeekends ?? DEFAULT_PROJECT_SETTINGS.skipWeekends
@@ -82,9 +96,21 @@ export const ItemRow = memo(function ItemRow({
     section.id
   );
 
+  /**
+   * A resize in flight is a local preview, not a store write. The rect is the
+   * one place that has to know, so the bar answers the pointer while the rest
+   * of the timeline carries on believing the dates it already had.
+   */
+  const [resize, setResize] = useState<ResizeState | null>(null);
+
   const rect = useMemo(
-    () => getBarRect(item, viewport, pixelsPerDay),
-    [item, viewport, pixelsPerDay]
+    () =>
+      getBarRect(
+        resize ? { ...item, start: resize.start, end: resize.end } : item,
+        viewport,
+        pixelsPerDay
+      ),
+    [item, resize, viewport, pixelsPerDay]
   );
   const inset = barInsetForDepth(depth);
   const textColor = getReadableTextColor(color);
@@ -109,7 +135,7 @@ export const ItemRow = memo(function ItemRow({
    * answer anyway: the thing under the cursor is the thing being moved.
    */
   const handlePressSelect = useCallback(
-    (e: React.MouseEvent): void => {
+    (e: React.PointerEvent): void => {
       // Secondary and middle buttons belong to the context menu and to panning
       if (e.button !== 0) return;
       selectItem(item.id, section.id, { x: e.clientX, y: e.clientY }, { openEditor: false });
@@ -163,8 +189,8 @@ export const ItemRow = memo(function ItemRow({
 
   // -- moving --------------------------------------------------------------
 
-  const handleBarMouseDown = useCallback(
-    (e: React.MouseEvent): void => {
+  const handleBarPointerDown = useCallback(
+    (e: React.PointerEvent): void => {
       handlePressSelect(e);
       if (isLocked) return;
       startDrag(e, { item, sectionId: section.id, pixelsPerDay });
@@ -185,8 +211,8 @@ export const ItemRow = memo(function ItemRow({
 
   // A drag started from the labels column only re-parents; there is no time
   // axis over there, so nothing should move in time.
-  const handleLabelMouseDown = useCallback(
-    (e: React.MouseEvent): void => {
+  const handleLabelPointerDown = useCallback(
+    (e: React.PointerEvent): void => {
       handlePressSelect(e);
       if (isLocked) return;
       startDrag(e, { item, sectionId: section.id, pixelsPerDay: 0 });
@@ -196,79 +222,98 @@ export const ItemRow = memo(function ItemRow({
 
   // -- resizing ------------------------------------------------------------
 
-  const resize = useRef<{ accumulated: number; start: string; end: string } | null>(null);
-  const [startBubble, setStartBubble] = useState<string | undefined>(undefined);
-  const [endBubble, setEndBubble] = useState<string | undefined>(undefined);
+  /**
+   * Resizing is the same bargain dragging already struck: show it, then write
+   * it once.
+   *
+   * The old path called `setItemDates` on every move, which re-rendered the
+   * whole timeline column at pointer rate to move one edge of one bar. Holding
+   * the candidate dates here instead means a move costs this row and nothing
+   * else, undo gets a single step without needing a transaction to collapse
+   * one, and Escape is free — there is nothing written to take back.
+   */
+  const resizeOrigin = useRef<ResizeOrigin | null>(null);
 
   const handleResizeStart = useCallback(
     (edge: 'start' | 'end'): void => {
       if (isLocked) return;
-      beginDragTransaction();
       setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
-      resize.current = { accumulated: 0, start: item.start, end: item.end };
-      const bubble = formatDayKey(edge === 'start' ? item.start : item.end, 'MMM d');
-      if (edge === 'start') setStartBubble(bubble);
-      else setEndBubble(bubble);
+      resizeOrigin.current = {
+        accumulated: 0,
+        start: item.start,
+        end: item.end,
+        latest: { edge, start: item.start, end: item.end },
+      };
+      setResize({ edge, start: item.start, end: item.end });
     },
-    [isLocked, beginDragTransaction, setDragging, item.start, item.end]
+    [isLocked, setDragging, item.start, item.end]
   );
 
   const handleResize = useCallback(
     (edge: 'start' | 'end', deltaX: number): void => {
-      const state = resize.current;
-      if (!state || pixelsPerDay <= 0) return;
-      state.accumulated += deltaX;
-      const days = Math.round(state.accumulated / pixelsPerDay);
+      const origin = resizeOrigin.current;
+      if (!origin || pixelsPerDay <= 0) return;
+      origin.accumulated += deltaX;
+      const days = Math.round(origin.accumulated / pixelsPerDay);
 
+      let next: ResizeState;
       if (edge === 'start') {
-        const candidate = addDaysToKey(state.start, days);
+        const candidate = addDaysToKey(origin.start, days);
         // An edge never crosses the other one; one day is the floor
-        const next = dayKeyDiff(candidate, state.end) < 1 ? addDaysToKey(state.end, -1) : candidate;
-        setItemDates(section.id, item.id, next, state.end);
-        setStartBubble(formatDayKey(next, 'MMM d'));
+        const start =
+          dayKeyDiff(candidate, origin.end) < 1 ? addDaysToKey(origin.end, -1) : candidate;
+        next = { edge, start, end: origin.end };
       } else {
-        const candidate = addDaysToKey(state.end, days);
-        const next =
-          dayKeyDiff(state.start, candidate) < 1 ? addDaysToKey(state.start, 1) : candidate;
-        setItemDates(section.id, item.id, state.start, next);
-        setEndBubble(formatDayKey(next, 'MMM d'));
+        const candidate = addDaysToKey(origin.end, days);
+        const end =
+          dayKeyDiff(origin.start, candidate) < 1 ? addDaysToKey(origin.start, 1) : candidate;
+        next = { edge, start: origin.start, end };
       }
+
+      const previous = origin.latest;
+      if (previous.start === next.start && previous.end === next.end) return;
+      // Pixels arrive far faster than days change. Only a new day is news.
+      origin.latest = next;
+      setResize(next);
     },
-    [pixelsPerDay, setItemDates, section.id, item.id]
+    [pixelsPerDay]
   );
 
-  const handleResizeEnd = useCallback(
-    (edge: 'start' | 'end'): void => {
-      resize.current = null;
-      setDragging(false);
-      hasDraggedRef.current = true;
-      if (edge === 'start') setStartBubble(undefined);
-      else setEndBubble(undefined);
+  const handleResizeEnd = useCallback((): void => {
+    const origin = resizeOrigin.current;
+    resizeOrigin.current = null;
+    setDragging(false);
+    hasDraggedRef.current = true;
+    setResize(null);
+    if (!origin) return;
 
-      if (skipWeekends) {
-        const current = useSectionStore.getState().sections.find((s) => s.id === section.id);
-        const live = current?.items && findLive(current.items, item.id);
-        if (live) {
-          const snappedStart = snapKeyToBusinessDay(live.start);
-          const snappedEnd = snapKeyToBusinessDay(live.end);
-          if (snappedStart !== live.start || snappedEnd !== live.end) {
-            setItemDates(section.id, item.id, snappedStart, snappedEnd);
-          }
-        }
-      }
+    const { start: from, end: to, latest } = origin;
+    if (latest.start === from && latest.end === to) return;
 
-      commitDragTransaction();
-    },
-    [
-      setDragging,
-      hasDraggedRef,
-      skipWeekends,
+    // "Skip weekends" belongs to the commit, not the gesture: both edges were
+    // chosen, so each squares up on its own — unless squaring up would leave no
+    // bar at all, in which case the dragged dates stand.
+    const start = skipWeekends ? snapKeyToBusinessDay(latest.start) : latest.start;
+    const end = skipWeekends ? snapKeyToBusinessDay(latest.end) : latest.end;
+    const collapsed = dayKeyDiff(start, end) < 1;
+    setItemDates(
       section.id,
       item.id,
-      setItemDates,
-      commitDragTransaction,
-    ]
-  );
+      collapsed ? latest.start : start,
+      collapsed ? latest.end : end
+    );
+  }, [setDragging, hasDraggedRef, skipWeekends, setItemDates, section.id, item.id]);
+
+  /** Escape, or a gesture the browser took back. The preview simply goes. */
+  const handleResizeCancel = useCallback((): void => {
+    resizeOrigin.current = null;
+    setDragging(false);
+    hasDraggedRef.current = true;
+    setResize(null);
+  }, [setDragging, hasDraggedRef]);
+
+  const startBubble = resize?.edge === 'start' ? formatDayKey(resize.start, 'MMM d') : undefined;
+  const endBubble = resize?.edge === 'end' ? formatDayKey(resize.end, 'MMM d') : undefined;
 
   // -- creating in this row's empty space ----------------------------------
 
@@ -320,12 +365,19 @@ export const ItemRow = memo(function ItemRow({
     [section.id, viewport, pixelsPerDay, row.parentId, row.index, snapCreateDay]
   );
 
+  // The dates the draw reports come off the same conversion the drop commits
+  const describeSpan = useMemo(
+    () => drawnSpanDescriber(viewport, pixelsPerDay, snapCreateDay),
+    [viewport, pixelsPerDay, snapCreateDay]
+  );
+
   const ghost = useCreateGhost({
     // The hover ghost previews the bar creation will actually produce, which is
     // shorter inside a group than at the root
     defaultWidth:
       (row.parentId === null ? DEFAULT_BAR_DAYS : DEFAULT_NESTED_BAR_DAYS) * pixelsPerDay,
     disabled: !canCreateHere,
+    describeSpan,
     onDoubleClickCreate: handleGhostDoubleClick,
     onDrawCreate: handleGhostDraw,
   });
@@ -360,7 +412,7 @@ export const ItemRow = memo(function ItemRow({
         style={{ height: row.height, paddingLeft: labelInsetForDepth(depth) }}
         onClick={isEditingName ? undefined : handleLabelClick}
         onDoubleClick={isEditingName ? undefined : label.handleDoubleClick}
-        onMouseDown={isEditingName ? undefined : handleLabelMouseDown}
+        onPointerDown={isEditingName ? undefined : handleLabelPointerDown}
         onContextMenu={handleLabelContextMenu}
         onKeyDown={isEditingName ? undefined : handleKeyDown}
         role="listitem"
@@ -373,7 +425,7 @@ export const ItemRow = memo(function ItemRow({
         {isBar && hasChildren ? (
           <button
             onClick={handleToggleCollapse}
-            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             className="row-affordance w-5 h-5 flex-shrink-0 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded transition-colors duration-fast"
             data-always-visible={item.isCollapsed ? 'true' : undefined}
             aria-expanded={!item.isCollapsed}
@@ -403,20 +455,20 @@ export const ItemRow = memo(function ItemRow({
         {isEditingName ? (
           <input
             ref={inlineEdit.inputRef}
-            className="text-sm text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1"
+            className="text-body text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1"
             value={inlineEdit.editedName}
             onChange={inlineEdit.handleChange}
             onKeyDown={(e) => inlineEdit.handleKeyDown(e, handleSaveName)}
             onBlur={() => inlineEdit.saveEdit(handleSaveName)}
             onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           />
         ) : (
           <span
             className={`truncate flex-1 ${
               depth === 0
-                ? 'text-sm text-[var(--color-text-primary)]'
-                : 'text-sm text-[var(--color-text-secondary)]'
+                ? 'text-body text-[var(--color-text-primary)]'
+                : 'text-body text-[var(--color-text-secondary)]'
             }`}
           >
             {item.name || (isBar ? 'Untitled' : 'Milestone')}
@@ -453,9 +505,9 @@ export const ItemRow = memo(function ItemRow({
       data-drop-index={row.index}
       onContextMenu={handleRowContextMenu}
       onDoubleClick={canCreateHere ? ghost.handleDoubleClick : undefined}
-      onMouseMove={canCreateHere ? ghost.handleMouseMove : undefined}
-      onMouseLeave={canCreateHere ? ghost.handleMouseLeave : undefined}
-      onMouseDown={canCreateHere ? ghost.handleMouseDown : undefined}
+      onPointerMove={canCreateHere ? ghost.handlePointerMove : undefined}
+      onPointerLeave={canCreateHere ? ghost.handlePointerLeave : undefined}
+      onPointerDown={canCreateHere ? ghost.handlePointerDown : undefined}
       role="listitem"
     >
       {/* The row in flight is already where it is; a line there says nothing */}
@@ -464,6 +516,8 @@ export const ItemRow = memo(function ItemRow({
 
       {ghost.ghost !== null && (
         <GhostBar
+          ref={ghost.ghostRef}
+          readoutRef={ghost.readoutRef}
           left={ghost.ghost.left}
           width={ghost.ghost.width}
           color={color}
@@ -477,13 +531,13 @@ export const ItemRow = memo(function ItemRow({
         <div
           data-drop-bar={item.id}
           data-drop-section={section.id}
-          className={`absolute timeline-bar group/bar overflow-visible ${
+          className={`absolute timeline-bar group/bar overflow-visible touch-none ${
             isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
           } ${isSelected ? 'timeline-bar--selected' : ''} ${
             isReceiver ? 'timeline-bar--receiving' : ''
           } ${isDragged ? 'timeline-bar--lifted' : ''}`}
           style={{ left: rect.left, width: rect.width, top: inset, bottom: inset }}
-          onMouseDown={handleBarMouseDown}
+          onPointerDown={handleBarPointerDown}
           onClick={handleBarClick}
           onDoubleClick={bar.handleDoubleClick}
           onContextMenu={handleBarContextMenu}
@@ -516,6 +570,7 @@ export const ItemRow = memo(function ItemRow({
                 onDragStart={handleResizeStart}
                 onDrag={handleResize}
                 onDragEnd={handleResizeEnd}
+                onDragCancel={handleResizeCancel}
                 label={`Resize ${item.name} start`}
                 dragDate={startBubble}
               />
@@ -524,6 +579,7 @@ export const ItemRow = memo(function ItemRow({
                 onDragStart={handleResizeStart}
                 onDrag={handleResize}
                 onDragEnd={handleResizeEnd}
+                onDragCancel={handleResizeCancel}
                 label={`Resize ${item.name} end`}
                 dragDate={endBubble}
               />
@@ -532,11 +588,11 @@ export const ItemRow = memo(function ItemRow({
         </div>
       ) : (
         <div
-          className={`absolute top-0 bottom-0 cursor-grab active:cursor-grabbing ${
+          className={`absolute top-0 bottom-0 cursor-grab active:cursor-grabbing touch-none ${
             isDragged ? 'opacity-30' : ''
           }`}
           style={{ left: rect.left }}
-          onMouseDown={handleBarMouseDown}
+          onPointerDown={handleBarPointerDown}
           onClick={handleBarClick}
           onContextMenu={handleBarContextMenu}
           onKeyDown={handleKeyDown}
@@ -559,16 +615,3 @@ export const ItemRow = memo(function ItemRow({
     </div>
   );
 });
-
-/** Read an item straight out of the store, after a live edit. */
-function findLive(
-  items: readonly import('../../types').TimelineItem[],
-  id: string
-): import('../../types').TimelineItem | null {
-  for (const item of items) {
-    if (item.id === id) return item;
-    const found = findLive(item.children, id);
-    if (found) return found;
-  }
-  return null;
-}

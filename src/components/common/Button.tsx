@@ -16,7 +16,7 @@ const VARIANT_STYLES: Record<ButtonVariant, string> = {
 
 const SIZE_STYLES = {
   sm: 'px-2 py-1 text-xs',
-  md: 'px-3 py-1.5 text-sm',
+  md: 'px-3 py-1.5 text-body',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(

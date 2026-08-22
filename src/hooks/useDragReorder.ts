@@ -14,10 +14,10 @@ interface UseDragReorderOptions {
 
 interface UseDragReorderReturn {
   state: DragReorderState;
-  handleDragStart: (index: number, e: React.MouseEvent) => void;
+  handleDragStart: (index: number, e: React.PointerEvent) => void;
   startReorder: (index: number, clientY: number) => void;
   getDragHandleProps: (index: number) => {
-    onMouseDown: (e: React.MouseEvent) => void;
+    onPointerDown: (e: React.PointerEvent) => void;
     style: React.CSSProperties;
   };
   getDropIndicatorStyle: () => React.CSSProperties | null;
@@ -38,11 +38,14 @@ export function useDragReorder({
   const containerRef = useRef<HTMLElement | null>(null);
 
   const handleDragStart = useCallback(
-    (index: number, e: React.MouseEvent) => {
+    (index: number, e: React.PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
       startY.current = e.clientY;
       containerRef.current = (e.target as HTMLElement).closest('[data-drag-container]');
+      // The grip is small and the pointer leaves it immediately; capture keeps
+      // the whole gesture addressed to it, finger, pen or mouse alike.
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
 
       setState({
         isDragging: true,
@@ -58,7 +61,7 @@ export function useDragReorder({
   useEffect(() => {
     if (!state.isDragging) return;
 
-    const handleMouseMove = (e: MouseEvent): void => {
+    const handlePointerMove = (e: PointerEvent): void => {
       if (state.dragIndex === null) return;
 
       const deltaY = e.clientY - startY.current;
@@ -75,7 +78,7 @@ export function useDragReorder({
       }
     };
 
-    const handleMouseUp = (): void => {
+    const handlePointerUp = (): void => {
       if (state.dragIndex !== null && state.dropIndex !== null && state.dragIndex !== state.dropIndex) {
         onReorder(state.dragIndex, state.dropIndex);
       }
@@ -89,12 +92,14 @@ export function useDragReorder({
       document.body.classList.remove('no-select');
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerUp);
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+      document.removeEventListener('pointercancel', handlePointerUp);
     };
   }, [state.isDragging, state.dragIndex, state.dropIndex, itemCount, rowHeight, onReorder]);
 
@@ -113,7 +118,7 @@ export function useDragReorder({
 
   const getDragHandleProps = useCallback(
     (index: number) => ({
-      onMouseDown: (e: React.MouseEvent) => handleDragStart(index, e),
+      onPointerDown: (e: React.PointerEvent) => handleDragStart(index, e),
       style: {
         cursor: state.isDragging ? 'grabbing' : 'grab',
       } as React.CSSProperties,

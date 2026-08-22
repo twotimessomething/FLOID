@@ -53,14 +53,14 @@ export function Header(): JSX.Element {
   useEffect(() => {
     if (!isExportDropdownOpen) return;
 
-    const handleClickOutside = (e: MouseEvent): void => {
+    const handleClickOutside = (e: PointerEvent): void => {
       if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
         setIsExportDropdownOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, [isExportDropdownOpen]);
 
   const handleExportProject = useCallback(() => {
@@ -187,20 +187,20 @@ export function Header(): JSX.Element {
               >
                 <button
                   onClick={handleExportProject}
-                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
+                  className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                 >
                   Export project...
                 </button>
                 <button
                   onClick={handleExportAsImage}
-                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
+                  className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                 >
                   Export as image
                 </button>
                 {isFileSystemAccessSupported() && (
                   <button
                     onClick={handleSaveToFolder}
-                    className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
+                    className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                   >
                     Save to folder
                   </button>

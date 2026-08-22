@@ -140,15 +140,15 @@ export function LeftSidebar(): JSX.Element {
 
   // Close menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent): void => {
+    const handleClickOutside = (e: PointerEvent): void => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpenProjectId(null);
       }
     };
 
     if (menuOpenProjectId) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('pointerdown', handleClickOutside);
+      return () => document.removeEventListener('pointerdown', handleClickOutside);
     }
   }, [menuOpenProjectId]);
 
@@ -246,7 +246,7 @@ export function LeftSidebar(): JSX.Element {
         <div className="flex-1 overflow-y-auto p-2">
           {sortedProjects.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4 py-8">
-              <p className="text-sm text-[var(--color-text-muted)]">
+              <p className="text-body text-[var(--color-text-muted)]">
                 No projects yet
               </p>
             </div>
@@ -319,7 +319,7 @@ export function LeftSidebar(): JSX.Element {
                     >
                       <button
                         onClick={(e) => handleExportProject(proj.id, e)}
-                        className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
+                        className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                       >
                         Export project...
                       </button>
@@ -328,7 +328,7 @@ export function LeftSidebar(): JSX.Element {
                           setMenuOpenProjectId(null);
                           handleDeleteProject(proj.id, e);
                         }}
-                        className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-danger)] hover:bg-[var(--color-danger-hover)] transition-colors duration-fast"
+                        className="w-full px-3 py-1.5 text-left text-body text-[var(--color-danger)] hover:bg-[var(--color-danger-hover)] transition-colors duration-fast"
                       >
                         Delete project
                       </button>

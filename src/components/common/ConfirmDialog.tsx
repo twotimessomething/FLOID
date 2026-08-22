@@ -74,7 +74,7 @@ export function ConfirmDialog(): JSX.Element | null {
         <div className="px-5 pt-5 pb-2">
           <h2
             id="confirm-dialog-title"
-            className="text-sm font-medium text-[var(--color-text-primary)]"
+            className="text-title font-medium text-[var(--color-text-primary)]"
           >
             {title}
           </h2>
@@ -84,7 +84,7 @@ export function ConfirmDialog(): JSX.Element | null {
         <div className="px-5 pb-2">
           <p
             id="confirm-dialog-message"
-            className="text-sm text-[var(--color-text-secondary)] whitespace-pre-line"
+            className="text-body text-[var(--color-text-secondary)] whitespace-pre-line"
           >
             {message}
           </p>

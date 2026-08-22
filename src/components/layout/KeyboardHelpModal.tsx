@@ -120,7 +120,7 @@ export function KeyboardHelpModal(): JSX.Element | null {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
           <h2
-            className="text-sm font-medium text-[var(--color-text-primary)]"
+            className="text-title font-medium text-[var(--color-text-primary)]"
             id="keyboard-help-title"
           >
             Shortcuts &amp; Gestures
@@ -158,7 +158,7 @@ export function KeyboardHelpModal(): JSX.Element | null {
                     key={gesture.description}
                     className="flex items-center justify-between gap-4 py-1"
                   >
-                    <span className="text-sm text-[var(--color-text-primary)]">
+                    <span className="text-body text-[var(--color-text-primary)]">
                       {gesture.description}
                     </span>
                     <span className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">
@@ -175,7 +175,7 @@ export function KeyboardHelpModal(): JSX.Element | null {
                 <div className="space-y-2">
                   {group.shortcuts.map((shortcut, index) => (
                     <div key={index} className="flex items-center justify-between gap-4 py-1">
-                      <span className="text-sm text-[var(--color-text-primary)]">
+                      <span className="text-body text-[var(--color-text-primary)]">
                         {shortcut.description}
                       </span>
                       <div className="flex items-center gap-1">

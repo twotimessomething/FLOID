@@ -229,7 +229,7 @@ export function ExportModal(): JSX.Element | null {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
-          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="export-title">
+          <h2 className="text-title font-medium text-[var(--color-text-primary)]" id="export-title">
             Export
           </h2>
           <button
@@ -258,7 +258,7 @@ export function ExportModal(): JSX.Element | null {
         <div className="px-5 py-4 space-y-4">
           {/* Export options */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-[var(--color-text-primary)]">
+            <label className="text-body font-medium text-[var(--color-text-primary)]">
               What to export
             </label>
 
@@ -273,7 +273,7 @@ export function ExportModal(): JSX.Element | null {
                 className="mt-0.5 accent-[var(--color-focus)]"
               />
               <div>
-                <span className="text-sm text-[var(--color-text-primary)] font-medium">
+                <span className="text-body text-[var(--color-text-primary)] font-medium">
                   {isScoped ? projectName : 'Active project'}
                 </span>
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
@@ -295,7 +295,7 @@ export function ExportModal(): JSX.Element | null {
                 className="mt-0.5 accent-[var(--color-focus)]"
               />
               <div className="flex-1">
-                <span className="text-sm text-[var(--color-text-primary)] font-medium">
+                <span className="text-body text-[var(--color-text-primary)] font-medium">
                   Specific schedules
                 </span>
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
@@ -344,7 +344,7 @@ export function ExportModal(): JSX.Element | null {
                         className="w-2 h-2 rounded-full flex-shrink-0"
                         style={{ backgroundColor: section.color }}
                       />
-                      <span className="text-sm text-[var(--color-text-primary)] truncate">
+                      <span className="text-body text-[var(--color-text-primary)] truncate">
                         {section.name}
                       </span>
                     </label>
@@ -365,7 +365,7 @@ export function ExportModal(): JSX.Element | null {
                   className="mt-0.5 accent-[var(--color-focus)]"
                 />
                 <div>
-                  <span className="text-sm text-[var(--color-text-primary)] font-medium">
+                  <span className="text-body text-[var(--color-text-primary)] font-medium">
                     All projects
                   </span>
                   <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">

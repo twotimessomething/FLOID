@@ -109,7 +109,7 @@ export function AddScheduleModal(): JSX.Element | null {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4">
-          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="add-schedule-title">
+          <h2 className="text-title font-medium text-[var(--color-text-primary)]" id="add-schedule-title">
             Add Schedule
           </h2>
           <button

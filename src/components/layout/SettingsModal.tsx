@@ -60,7 +60,7 @@ function SettingRow({ id, label, description, checked, onChange }: SettingRowPro
   return (
     <div className="flex items-start justify-between py-3">
       <div className="flex-1 pr-4">
-        <label htmlFor={id} className="text-sm font-medium text-[var(--color-text-primary)] cursor-pointer">
+        <label htmlFor={id} className="text-body font-medium text-[var(--color-text-primary)] cursor-pointer">
           {label}
         </label>
         <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{description}</p>
@@ -189,7 +189,7 @@ export function SettingsModal(): JSX.Element | null {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
-          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="settings-title">
+          <h2 className="text-title font-medium text-[var(--color-text-primary)]" id="settings-title">
             Settings
           </h2>
           <button
@@ -218,7 +218,7 @@ export function SettingsModal(): JSX.Element | null {
         <div className="px-5 py-2 flex flex-col gap-1">
           {/* Appearance section */}
           <div className="py-3">
-            <label className="text-sm font-medium text-[var(--color-text-primary)]">
+            <label className="text-body font-medium text-[var(--color-text-primary)]">
               Appearance
             </label>
             <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 mb-3">
@@ -269,11 +269,11 @@ export function SettingsModal(): JSX.Element | null {
 
           {appSettings.backupReminderEnabled && (
             <div className="py-3 flex items-center justify-between">
-              <span className="text-sm text-[var(--color-text-primary)]">Remind every</span>
+              <span className="text-body text-[var(--color-text-primary)]">Remind every</span>
               <select
                 value={appSettings.backupReminderDays}
                 onChange={handleBackupDaysChange}
-                className="text-sm bg-[var(--color-input-bg)] border border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 py-1 focus-ring"
+                className="text-body bg-[var(--color-input-bg)] border border-[var(--color-border)] rounded-[var(--radius-sm)] px-2 py-1 focus-ring"
               >
                 <option value={3}>3 days</option>
                 <option value={7}>7 days</option>
@@ -298,7 +298,7 @@ export function SettingsModal(): JSX.Element | null {
           {/* File System Access API section (Chrome/Edge only) */}
           {isFileSystemAccessSupported() && (
             <div className="py-3">
-              <label className="text-sm font-medium text-[var(--color-text-primary)]">
+              <label className="text-body font-medium text-[var(--color-text-primary)]">
                 Auto-save to folder
               </label>
               <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 mb-3">
@@ -310,7 +310,7 @@ export function SettingsModal(): JSX.Element | null {
                     <svg className="w-4 h-4 text-[var(--color-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
                     </svg>
-                    <span className="text-sm text-[var(--color-text-primary)] font-medium">
+                    <span className="text-body text-[var(--color-text-primary)] font-medium">
                       {appSettings.fileSystemFolderName}
                     </span>
                     {syncStatus === 'syncing' && (
@@ -352,7 +352,7 @@ export function SettingsModal(): JSX.Element | null {
               ) : (
                 <button
                   onClick={handleSelectFolder}
-                  className="text-sm text-[var(--color-focus)] hover:underline"
+                  className="text-body text-[var(--color-focus)] hover:underline"
                 >
                   Choose folder...
                 </button>
@@ -362,7 +362,7 @@ export function SettingsModal(): JSX.Element | null {
 
           {/* Support */}
           <div className="py-3">
-            <label className="text-sm font-medium text-[var(--color-text-primary)]">
+            <label className="text-body font-medium text-[var(--color-text-primary)]">
               Support
             </label>
             <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
@@ -370,7 +370,7 @@ export function SettingsModal(): JSX.Element | null {
             </p>
             <a
               href="mailto:support@floid.design"
-              className="inline-flex items-center gap-1.5 mt-2 text-sm text-[var(--color-focus)] hover:underline"
+              className="inline-flex items-center gap-1.5 mt-2 text-body text-[var(--color-focus)] hover:underline"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />

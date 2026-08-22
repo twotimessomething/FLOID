@@ -59,7 +59,7 @@ interface DragSession {
 }
 
 export function useItemDrag(): {
-  startDrag: (event: React.MouseEvent, args: StartItemDragArgs) => void;
+  startDrag: (event: React.PointerEvent, args: StartItemDragArgs) => void;
   /** True when the press turned into a drag, so click handlers can stand down. */
   hasDraggedRef: React.MutableRefObject<boolean>;
 } {
@@ -68,7 +68,7 @@ export function useItemDrag(): {
 
   useEffect(() => () => sessionRef.current?.cleanup(), []);
 
-  const startDrag = useCallback((event: React.MouseEvent, args: StartItemDragArgs): void => {
+  const startDrag = useCallback((event: React.PointerEvent, args: StartItemDragArgs): void => {
     if (event.button !== 0 || sessionRef.current) return;
     const element = args.barElement ?? (event.currentTarget as HTMLElement);
     if (!element) return;
@@ -76,6 +76,13 @@ export function useItemDrag(): {
     event.preventDefault();
     event.stopPropagation();
     hasDraggedRef.current = false;
+
+    // The bar is small, the travel is not: capture addresses the rest of the
+    // gesture to it however far the pointer goes, and a finger or a pen that
+    // wanders off the element keeps the same drag rather than starting a new
+    // one. The document listeners below still see everything — captured events
+    // bubble — so nothing depends on the element outliving the drag.
+    element.setPointerCapture?.(event.pointerId);
 
     const barRect = element.getBoundingClientRect();
 
@@ -136,7 +143,7 @@ export function useItemDrag(): {
       );
     };
 
-    const onMove = (moveEvent: MouseEvent): void => {
+    const onMove = (moveEvent: PointerEvent): void => {
       if (!session.active) {
         const dx = Math.abs(moveEvent.clientX - session.startClientX);
         const dy = Math.abs(moveEvent.clientY - session.startClientY);
@@ -206,6 +213,16 @@ export function useItemDrag(): {
       if (flight) settleOnLandedBar(flight, session.item.id);
     };
 
+    /**
+      * A gesture the system took away — a finger the browser decided was a
+      * scroll, a pen leaving the tablet. It is not a drop, so nothing lands.
+      */
+    const onCancel = (): void => {
+      const wasActive = session.active;
+      session.cleanup();
+      if (wasActive) useSectionStore.getState().rollbackDragTransaction();
+    };
+
     const onKeyDown = (keyEvent: KeyboardEvent): void => {
       if (keyEvent.key !== 'Escape') return;
       const wasActive = session.active;
@@ -216,8 +233,9 @@ export function useItemDrag(): {
     session.cleanup = (): void => {
       if (sessionRef.current !== session) return;
       sessionRef.current = null;
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onCancel);
       document.removeEventListener('keydown', onKeyDown);
       if (session.scrollFrame !== null) cancelAnimationFrame(session.scrollFrame);
       session.preview?.destroy();
@@ -230,8 +248,9 @@ export function useItemDrag(): {
     };
 
     sessionRef.current = session;
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onCancel);
     document.addEventListener('keydown', onKeyDown);
   }, []);
 

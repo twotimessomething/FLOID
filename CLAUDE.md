@@ -143,6 +143,22 @@ the PNG exporter all walk that same list, so they cannot disagree about what is
 on screen. Root milestones are deliberately excluded — they belong to the
 schedule's own row.
 
+**Gestures are Pointer Events.** Every drag, resize, draw and reorder listens on
+`pointerdown`/`pointermove`/`pointerup`, treats `pointercancel` as an abort
+rather than a drop, and captures the pointer where the hit area is small enough
+to leave on the first frame. `touch-action: none` goes on the *grabbable* things
+— `.timeline-bar`, `.drag-handle`, milestone glyphs, the column separators — and
+never on the plot, so a finger on open paper still scrolls the sheet. Hover
+ghosts and drawing check `pointerType`: a finger has no hover, and a finger on
+empty paper means scroll.
+
+**Overscroll moves the scroll container, not its contents.** Transformed boxes
+count toward a scroller's scrollable overflow, so sliding the sheet left at the
+far end shrinks `scrollWidth`, the browser clamps `scrollLeft` to match, and the
+two cancel out — no bounce, and scroll position silently lost. `utils/rubberBand.ts`
+supplies the curve; `Timeline.tsx` writes it to `.timeline-scroll-container`
+itself, where it touches no geometry at all.
+
 **Live drag without reflow.** `useItemDrag` clones the dragged bar into a
 `position: fixed` preview that follows the cursor, and resolves the drop target
 by hit-testing `data-drop-*` attributes with `elementsFromPoint`. Nothing is

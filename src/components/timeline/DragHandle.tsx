@@ -5,6 +5,8 @@ interface DragHandleProps {
   readonly onDragStart: (edge: 'start' | 'end') => void;
   readonly onDrag: (edge: 'start' | 'end', deltaX: number) => void;
   readonly onDragEnd: (edge: 'start' | 'end') => void;
+  /** Escape mid-resize, or a gesture the browser took back. Nothing commits. */
+  readonly onDragCancel: (edge: 'start' | 'end') => void;
   readonly label?: string;
   readonly dragDate?: string;
 }
@@ -21,24 +23,31 @@ interface DragHandleProps {
  * The callbacks take the edge back as an argument for the same reason: it lets
  * the row hand over the same three stable functions to both of its handles
  * rather than minting a closure per edge on every render.
+ *
+ * Pointer rather than mouse: the handle is four pixels of hit area that the
+ * pointer leaves on the first frame of the gesture, so it captures the pointer
+ * and keeps the rest of the drag addressed to itself — which is also what
+ * makes the same grab work from a pen or a finger.
  */
 export function DragHandle({
   edge,
   onDragStart,
   onDrag,
   onDragEnd,
+  onDragCancel,
   label,
   dragDate,
 }: DragHandleProps): JSX.Element {
   const [isDragging, setIsDragging] = useState(false);
   const lastX = useRef(0);
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       if (e.button !== 0) return;
       e.stopPropagation();
       e.preventDefault();
       lastX.current = e.clientX;
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
       setIsDragging(true);
       onDragStart(edge);
       document.body.classList.add('no-select');
@@ -54,26 +63,47 @@ export function DragHandle({
   useEffect(() => {
     if (!isDragging) return;
 
-    const handleMouseMove = (e: MouseEvent): void => {
+    const finish = (): void => {
+      setIsDragging(false);
+      document.body.classList.remove('no-select');
+    };
+
+    const handlePointerMove = (e: PointerEvent): void => {
       const deltaX = e.clientX - lastX.current;
       lastX.current = e.clientX;
       onDrag(edge, deltaX);
     };
 
-    const handleMouseUp = (): void => {
-      setIsDragging(false);
+    const handlePointerUp = (): void => {
+      finish();
       onDragEnd(edge);
-      document.body.classList.remove('no-select');
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    const handlePointerCancel = (): void => {
+      finish();
+      onDragCancel(edge);
+    };
+
+    // A resize can be called off the same way a move can. The row is holding a
+    // preview and has written nothing, so abandoning it costs a state reset.
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return;
+      finish();
+      onDragCancel(edge);
+    };
+
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerCancel);
+    document.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+      document.removeEventListener('pointercancel', handlePointerCancel);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isDragging, onDrag, onDragEnd, edge]);
+  }, [isDragging, onDrag, onDragEnd, onDragCancel, edge]);
 
   // A resize interrupted by an unmount still has to put the page back
   useEffect(
@@ -85,10 +115,10 @@ export function DragHandle({
 
   return (
     <div
-      className={`absolute top-0 bottom-0 w-4 cursor-ew-resize drag-handle focus-ring z-20 pointer-events-auto ${
+      className={`absolute top-0 bottom-0 w-4 cursor-ew-resize drag-handle focus-ring z-20 pointer-events-auto touch-none ${
         edge === 'start' ? '-left-[10px]' : '-right-[10px]'
       }`}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onClick={handleClick}
       role="slider"
       tabIndex={0}

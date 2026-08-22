@@ -123,7 +123,7 @@ export function EditorModal(): JSX.Element | null {
         role="document"
       >
         <div className="flex items-center justify-between px-4 py-3">
-          <h2 className="text-sm font-medium text-[var(--color-text-primary)]" id="modal-title">
+          <h2 className="text-title font-medium text-[var(--color-text-primary)]" id="modal-title">
             Edit
           </h2>
           <button

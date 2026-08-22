@@ -19,9 +19,12 @@ import { usePinnedSection } from '../../hooks/usePinnedSection';
 import { TimelineHeader } from './TimelineHeader';
 import { TimelineGrid } from './TimelineGrid';
 import { SectionRow } from './SectionRow';
-import { StickyMilestones } from './StickyMilestones';
+import { StickyScheduleRow } from './StickyScheduleRow';
+import { StickyScheduleLabel } from './StickyScheduleLabel';
+import { ScrollEdgeFade } from './ScrollEdgeFade';
 import { Playhead } from './Playhead';
-import { PinnedMilestoneLines } from './PinnedMilestoneLines';
+import { MilestoneLines } from './MilestoneLines';
+import { TodayLine } from './TodayLine';
 import { AddScheduleButton } from '../controls';
 import {
   HEADER_HEIGHT,
@@ -65,22 +68,43 @@ export function Timeline(): JSX.Element {
     viewportBounds,
     containerRef: scrollContainerRef,
   });
-  const { isPanning } = useTimelinePan({ containerRef: scrollContainerRef });
+  const scrollTopRef = useRef(0);
+  const stickySectionIdRef = useRef<string | null>(null);
+  const [stickySectionId, setStickySectionId] = useState<string | null>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const isScrolledRef = useRef(false);
+
+  /**
+   * Past the end of the timeline the sheet keeps moving, on the scroll
+   * container itself rather than on anything inside it.
+   *
+   * A transform on the content would be paid for twice: transformed boxes count
+   * toward a scroller's scrollable overflow, so sliding the sheet left at the
+   * far end shrinks `scrollWidth`, the browser clamps `scrollLeft` to match, and
+   * the two cancel out — no bounce, and a scroll position quietly lost on the
+   * way. Moving the column moves the same pixels and touches no geometry at all.
+   */
+  const applyOverscroll = useCallback((offset: number): void => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.style.transform = offset === 0 ? '' : `translateX(${offset}px)`;
+  }, []);
+
+  const { isPanning } = useTimelinePan({
+    containerRef: scrollContainerRef,
+    applyOverscroll,
+  });
 
   // Label column resize
   const [isResizing, setIsResizing] = useState(false);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
 
-  const scrollTopRef = useRef(0);
-  const stickyIdsRef = useRef<ReadonlySet<string>>(new Set());
-  const [stickyMilestoneIds, setStickyMilestoneIds] = useState<ReadonlySet<string>>(
-    () => new Set()
-  );
 
-  const handleResizeMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       e.preventDefault();
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
       setIsResizing(true);
       resizeStartX.current = e.clientX;
       resizeStartWidth.current = labelColumnWidth;
@@ -90,15 +114,17 @@ export function Timeline(): JSX.Element {
 
   useEffect(() => {
     if (!isResizing) return;
-    const handleMouseMove = (e: MouseEvent): void => {
+    const handlePointerMove = (e: PointerEvent): void => {
       setLabelColumnWidth(resizeStartWidth.current + (e.clientX - resizeStartX.current));
     };
-    const handleMouseUp = (): void => setIsResizing(false);
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    const handlePointerUp = (): void => setIsResizing(false);
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerUp);
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
+      document.removeEventListener('pointercancel', handlePointerUp);
     };
   }, [isResizing, setLabelColumnWidth]);
 
@@ -185,6 +211,15 @@ export function Timeline(): JSX.Element {
     scrollContainerRef.current.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
   }, [scrollToTodayTrigger, viewportBounds, pixelsPerDay]);
 
+  /**
+   * The pinned schedule's markers rule a line through every other schedule, so
+   * they are drawn once here rather than by the schedule's own row.
+   */
+  const pinnedMarkers = useMemo(
+    () => (pinnedSection ? headerMilestones(pinnedSection) : []),
+    [pinnedSection]
+  );
+
   const sectionHeights = useMemo(
     () => unpinnedSections.map((section) => calculateSectionHeight(section)),
     [unpinnedSections]
@@ -240,37 +275,41 @@ export function Timeline(): JSX.Element {
     return list;
   }, [pinnedSection, unpinnedSections]);
 
-  // Precompute scroll thresholds so the scroll handler only compares numbers
+  const stickySection = useMemo(
+    () => allSections.find((section) => section.id === stickySectionId) ?? null,
+    [allSections, stickySectionId]
+  );
+
+  // Precompute scroll thresholds so the scroll handler only compares numbers.
+  // A schedule is held under the axis from the moment its own row would slide
+  // beneath the band until its last row has passed, so at most one is ever
+  // held — the ranges cannot overlap.
   const sectionThresholds = useMemo(() => {
     let cumulativeY = 0;
     return allSections.map((section) => {
       const enterY = cumulativeY;
       const height = calculateSectionHeight(section);
       const exitY = cumulativeY + height - ROW_HEIGHT;
-      const milestoneIds = headerMilestones(section).map((m) => m.id);
       cumulativeY += height;
-      return { enterY, exitY, milestoneIds };
+      return { id: section.id, enterY, exitY };
     });
   }, [allSections]);
 
-  const computeStickyIds = useCallback(
-    (scrollTop: number): ReadonlySet<string> => {
-      const ids = new Set<string>();
-      for (const { enterY, exitY, milestoneIds } of sectionThresholds) {
-        if (scrollTop > enterY && scrollTop <= exitY) {
-          for (const id of milestoneIds) ids.add(id);
-        }
+  const computeStickySectionId = useCallback(
+    (scrollTop: number): string | null => {
+      for (const { id, enterY, exitY } of sectionThresholds) {
+        if (scrollTop > enterY && scrollTop <= exitY) return id;
       }
-      return ids;
+      return null;
     },
     [sectionThresholds]
   );
 
   useEffect(() => {
-    const next = computeStickyIds(scrollTopRef.current);
-    stickyIdsRef.current = next;
-    setStickyMilestoneIds(next);
-  }, [computeStickyIds]);
+    const next = computeStickySectionId(scrollTopRef.current);
+    stickySectionIdRef.current = next;
+    setStickySectionId(next);
+  }, [computeStickySectionId]);
 
   useEffect(() => {
     const labelsEl = labelsColumnRef.current;
@@ -292,27 +331,22 @@ export function Timeline(): JSX.Element {
     if (!scrollContainerRef.current) return;
     const newScrollTop = scrollContainerRef.current.scrollTop;
     scrollTopRef.current = newScrollTop;
-
     if (labelsContentRef.current) {
       labelsContentRef.current.style.transform = `translateY(-${newScrollTop}px)`;
     }
 
-    const next = computeStickyIds(newScrollTop);
-    const previous = stickyIdsRef.current;
-    let changed = next.size !== previous.size;
-    if (!changed) {
-      for (const id of next) {
-        if (!previous.has(id)) {
-          changed = true;
-          break;
-        }
-      }
+    const scrolled = newScrollTop > 0;
+    if (scrolled !== isScrolledRef.current) {
+      isScrolledRef.current = scrolled;
+      setIsScrolled(scrolled);
     }
-    if (changed) {
-      stickyIdsRef.current = next;
-      setStickyMilestoneIds(next);
+
+    const next = computeStickySectionId(newScrollTop);
+    if (next !== stickySectionIdRef.current) {
+      stickySectionIdRef.current = next;
+      setStickySectionId(next);
     }
-  }, [computeStickyIds]);
+  }, [computeStickySectionId]);
 
   const contentHeight = useMemo(() => {
     let height = 0;
@@ -336,7 +370,7 @@ export function Timeline(): JSX.Element {
 
   return (
     <div className="h-full flex flex-col relative" role="application" aria-label="Timeline editor">
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Labels column */}
         <nav
           className="flex-shrink-0 border-r border-[var(--color-hairline)] bg-[var(--color-background)] flex flex-col relative"
@@ -344,17 +378,14 @@ export function Timeline(): JSX.Element {
           aria-label="Timeline labels"
         >
           <div
-            className={`absolute top-0 -right-0.5 w-1 h-full cursor-col-resize z-10 transition-colors duration-fast ${
+            className={`absolute top-0 -right-0.5 w-1 h-full cursor-col-resize z-20 touch-none transition-colors duration-fast ${
               isResizing ? 'bg-[var(--color-hairline)]' : 'hover:bg-[var(--color-hairline)]'
             }`}
-            onMouseDown={handleResizeMouseDown}
+            onPointerDown={handleResizePointerDown}
             aria-label="Resize labels column"
             role="separator"
           />
-          <div
-            className="flex-shrink-0 flex items-center px-3"
-            style={{ height: HEADER_HEIGHT }}
-          >
+          <div className="flex-shrink-0 flex items-center px-3" style={{ height: HEADER_HEIGHT }}>
             <AddScheduleButton />
           </div>
 
@@ -393,6 +424,8 @@ export function Timeline(): JSX.Element {
               <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
             </div>
           </div>
+
+          <StickyScheduleLabel section={stickySection} />
         </nav>
 
         {/* Timeline column */}
@@ -406,9 +439,9 @@ export function Timeline(): JSX.Element {
           <div style={{ minWidth: timelineWidth }}>
             <TimelineHeader playheadHover={playheadHover} playheadHandle={playheadHandle} />
 
-            <StickyMilestones
-              sections={allSections}
-              stickyMilestoneIds={stickyMilestoneIds}
+            <StickyScheduleRow
+              section={stickySection}
+              pinnedMarkers={pinnedMarkers}
               viewport={viewportBounds}
               pixelsPerDay={pixelsPerDay}
             />
@@ -421,23 +454,20 @@ export function Timeline(): JSX.Element {
               <TimelineGrid />
 
               {pinnedSection && (
-                <PinnedMilestoneLines
-                  section={pinnedSection}
+                <MilestoneLines
+                  milestones={pinnedMarkers}
                   viewport={viewportBounds}
                   pixelsPerDay={pixelsPerDay}
+                  top={0}
                   height={contentHeight - ROW_HEIGHT}
                 />
               )}
 
-              {isTodayInViewport(viewportBounds) && (
-                <div
-                  className="absolute top-0 w-px bg-[var(--color-today)] z-20 pointer-events-none"
-                  style={{
-                    left: dayToX(todayKey(), viewportBounds, pixelsPerDay),
-                    height: contentHeight,
-                  }}
-                />
-              )}
+              <TodayLine
+                viewport={viewportBounds}
+                pixelsPerDay={pixelsPerDay}
+                height={contentHeight}
+              />
 
               <Playhead height={contentHeight} handle={playheadHandle} />
 
@@ -447,7 +477,7 @@ export function Timeline(): JSX.Element {
                   isLabel={false}
                   viewport={viewportBounds}
                   pixelsPerDay={pixelsPerDay}
-                  stickyMilestoneIds={stickyMilestoneIds}
+                  isSticky={stickySectionId === pinnedSection.id}
                 />
               )}
 
@@ -460,7 +490,7 @@ export function Timeline(): JSX.Element {
                   pixelsPerDay={pixelsPerDay}
                   sectionIndex={index}
                   isDragging={dragState.isDragging && dragState.dragIndex === index}
-                  stickyMilestoneIds={stickyMilestoneIds}
+                  isSticky={stickySectionId === section.id}
                 />
               ))}
 
@@ -468,6 +498,12 @@ export function Timeline(): JSX.Element {
             </div>
           </div>
         </div>
+
+        {/* Both columns cut off at the same height, so one strip covers both */}
+        <ScrollEdgeFade
+          top={HEADER_HEIGHT + (stickySection ? ROW_HEIGHT : 0)}
+          isVisible={isScrolled}
+        />
       </div>
     </div>
   );

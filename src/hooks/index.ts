@@ -15,7 +15,7 @@ export { useConfirm } from './useConfirm';
 export { useUndoRedo } from './useUndoRedo';
 export { useDoubleClick } from './useDoubleClick';
 export { useCreateGhost } from './useCreateGhost';
-export type { CreateGhostState, CreateGestureInfo } from './useCreateGhost';
+export type { CreateGhostState, CreateGestureInfo, CreateReadoutHandle } from './useCreateGhost';
 export { useContextMenu } from './useContextMenu';
 export { usePinnedSection } from './usePinnedSection';
 export { useInlineEdit } from './useInlineEdit';

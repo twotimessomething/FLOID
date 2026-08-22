@@ -573,8 +573,8 @@ export function WelcomeWalkthrough(): ReactElement {
 
   return (
     <div className="h-full flex items-center justify-center bg-[var(--color-background)] px-6">
-      {/* Ink on the sheet, not a card resting on it: the walkthrough sits
-          straight on the app ground, held together by whitespace. */}
+      {/* Still ink on the sheet rather than a card resting on it — same ground,
+          no shadow. A single hairline rule just draws the edge of the sheet. */}
       {!isProjectSetupModalOpen && (
         <div
           className="w-full max-w-xl modal-enter relative"
@@ -595,7 +595,7 @@ export function WelcomeWalkthrough(): ReactElement {
             <div key={index} className="walkthrough-slide-enter">
               <div className="h-40 mb-6 flex items-center justify-center">{slide.illustration}</div>
               {slide.title && (
-                <h2 className="text-sm font-medium text-[var(--color-text-primary)] mb-3 text-center">
+                <h2 className="text-title font-medium text-[var(--color-text-primary)] mb-3 text-center">
                   {slide.title}
                 </h2>
               )}

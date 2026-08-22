@@ -374,6 +374,27 @@ body.dragging-item * {
   -webkit-user-select: none;
 }
 
+/* The browser's own elastic overscroll is off, and the app draws its own.
+   The labels column does not scroll — it is moved by the transform the
+   timeline's scroll handler writes, and a native bounce never reaches that
+   handler: `scrollTop` stays clamped at 0 while the sheet moves, so the two
+   columns would come apart for the length of the bounce. `utils/rubberBand.ts`
+   drives the same offset into both columns instead, which is a bounce with no
+   seam. Turning it off here also keeps a two-finger swipe at the left edge
+   from being read as "go back". */
+.timeline-scroll-container {
+  overscroll-behavior: none;
+}
+
+/* Anything that is grabbed rather than scrolled takes the gesture outright:
+   without this a finger on a bar is a scroll to the browser, which cancels the
+   pointer stream mid-drag. Scrolling still belongs to the sheet everywhere
+   else, which is why this is on the grabbable things and not on the plot. */
+.timeline-bar,
+.drag-handle {
+  touch-action: none;
+}
+
 .timeline-scroll-container.panning,
 .timeline-scroll-container.panning * {
   cursor: grabbing !important;
@@ -525,6 +546,84 @@ body.dragging-item * {
     width: 0;
     opacity: 0;
   }
+}
+
+/* The readout a drawn span carries: the day each edge is on, and how long the
+   span is. It hangs off the ghost's own two edges, so the gesture moves it by
+   moving the ghost — only the words are ever written.
+
+   Being the one thing on the sheet that has to stay readable over whatever it
+   crosses, the readout is also the one thing here allowed to sit above the
+   bars. */
+.ghost-readout {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* A date stands over the end it belongs to and points down at it — the same
+   bubble a resize hangs off the edge it is moving, in the same ink as the date
+   the move preview carries. */
+.ghost-readout__chip {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 6px;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  background: var(--color-tooltip);
+  color: var(--color-tooltip-text);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ghost-readout__chip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--color-tooltip);
+}
+
+.ghost-readout__chip--start {
+  left: 0;
+}
+
+.ghost-readout__chip--end {
+  left: 100%;
+}
+
+/* A span too short to hold two chips apart says the whole thing at once. */
+.ghost-readout__chip--range {
+  left: 50%;
+}
+
+/* The length reads as the sketch's own label, so it is plain text inside the
+   outline rather than a third chip. */
+.ghost-readout__duration {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Whatever this width could not carry was emptied, and an empty one takes up
+   no room — which is also what keeps the first frame of a draw, before a word
+   has been said, from showing empty chips. */
+.ghost-readout__chip:empty,
+.ghost-readout__duration:empty {
+  display: none;
 }
 
 .toast-slide-in {

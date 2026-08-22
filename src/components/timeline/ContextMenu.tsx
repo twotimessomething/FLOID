@@ -63,7 +63,7 @@ export function ContextMenu(): JSX.Element | null {
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleClickOutside = (e: MouseEvent): void => {
+    const handleClickOutside = (e: PointerEvent): void => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) closeContextMenu();
     };
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -72,13 +72,13 @@ export function ContextMenu(): JSX.Element | null {
 
     // Deferred so the click that opened the menu does not immediately close it
     const timeoutId = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('pointerdown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
     }, 0);
 
     return () => {
       clearTimeout(timeoutId);
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('pointerdown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, closeContextMenu]);

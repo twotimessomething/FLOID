@@ -87,7 +87,7 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
   }, [sectionId, section, isPinned, deleteSection, closeModal, showToast]);
 
   if (!section) {
-    return <div className="text-sm text-[var(--color-text-secondary)]">Schedule not found</div>;
+    return <div className="text-body text-[var(--color-text-secondary)]">Schedule not found</div>;
   }
 
   return (

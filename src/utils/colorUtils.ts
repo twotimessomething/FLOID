@@ -193,3 +193,19 @@ export function getReadableTextColor(hex: string): string {
 
   return luminance >= crossover ? INK : PAPER;
 }
+
+/**
+ * The wash a schedule lays over its own rows when "colored rows" is on.
+ *
+ * A multicolor schedule already carries its palette in the bars, so it tints
+ * nothing — a second colour under them would fight the first. Returns null
+ * when there is no tint to paint.
+ */
+export function sectionTintColor(
+  color: string,
+  isMulticolor: boolean | undefined,
+  coloredRows: boolean
+): string | null {
+  if (!coloredRows || isMulticolor) return null;
+  return `${color}08`;
+}

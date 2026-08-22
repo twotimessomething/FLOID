@@ -117,17 +117,17 @@ export function MobileNotice(): JSX.Element | null {
           </svg>
           <h2
             id="mobile-notice-title"
-            className="text-sm font-medium text-[var(--color-text-primary)] mb-1"
+            className="text-title font-medium text-[var(--color-text-primary)] mb-1"
           >
             Best on a bigger screen
           </h2>
-          <p className="text-sm text-[var(--color-text-secondary)]">
+          <p className="text-body text-[var(--color-text-secondary)]">
             FLOID isn&apos;t designed for mobile. For the full experience, visit
             us on a full-sized computer screen:
           </p>
           <p className="mt-3 flex items-center justify-center gap-1.5">
-            <span className="text-sm text-[var(--color-text-muted)]">https://</span>
-            <span className="inline-block rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-1.5 text-sm font-medium text-[var(--color-logo-primary)]">
+            <span className="text-body text-[var(--color-text-muted)]">https://</span>
+            <span className="inline-block rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-1.5 text-body font-medium text-[var(--color-logo-primary)]">
               floid.design
             </span>
           </p>
