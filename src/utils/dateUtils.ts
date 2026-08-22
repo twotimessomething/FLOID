@@ -21,19 +21,11 @@ import { dayKeyDiff, fromDayKey, toDayKey, todayKey } from './dayKeys';
  * lives in `timelineUtils`.
  */
 
-export const parseDate = (dateString: string): Date => parseISO(dateString);
-
 export const formatDate = (date: Date | string, formatStr = 'MMM d, yyyy'): string =>
   format(typeof date === 'string' ? parseISO(date) : date, formatStr);
 
 export const formatDayKey = (key: string, formatStr = 'MMM d, yyyy'): string =>
   format(fromDayKey(key), formatStr);
-
-export const getDaysBetween = (start: Date | string, end: Date | string): number => {
-  const startDate = typeof start === 'string' ? parseISO(start) : start;
-  const endDate = typeof end === 'string' ? parseISO(end) : end;
-  return Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000);
-};
 
 export interface TimeMarker {
   date: Date;
@@ -127,24 +119,7 @@ export const getSectionsDateRange = (
   return extent ? { startDate: extent.start, endDate: extent.end } : null;
 };
 
-/** Today as a 0-1 position across the viewport. */
-export const getTodayViewportPosition = (viewport: ViewportBounds): number =>
-  viewport.totalDays > 0 ? dayKeyDiff(viewport.startKey, todayKey()) / viewport.totalDays : 0;
-
 export const isTodayInViewport = (viewport: ViewportBounds): boolean => {
   const today = todayKey();
   return today >= viewport.startKey && today <= viewport.endKey;
-};
-
-export const isWeekend = (date: Date): boolean => {
-  const day = date.getDay();
-  return day === 0 || day === 6;
-};
-
-/** Move a weekend date forward to the following Monday. */
-export const snapToNextBusinessDay = (date: Date): Date => {
-  const day = date.getDay();
-  if (day === 6) return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 2);
-  if (day === 0) return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-  return date;
 };

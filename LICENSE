@@ -1,0 +1,51 @@
+FLOID — Source-Available License
+
+Copyright (c) 2026 Scott Shumaker. All rights reserved.
+
+The source code in this repository is published so that it can be read,
+studied, and evaluated. It is not open source, and it is not free software.
+
+GRANT
+
+Permission is granted to any person obtaining a copy of this repository to:
+
+  1. View, read, and study the source code.
+  2. Clone the repository and build or run the software locally, for the sole
+     purpose of evaluating or understanding it.
+
+RESTRICTIONS
+
+No other rights are granted. Without prior written permission from the
+copyright holder, you may not:
+
+  1. Use this software, in whole or in part, in any product or service,
+     whether commercial or non-commercial.
+  2. Redistribute, sublicense, sell, or publish this software, or any
+     derivative or substantial portion of it.
+  3. Deploy or host a modified, rebranded, or derivative version of this
+     software.
+  4. Reuse the schedule templates, brand assets, design tokens, product copy,
+     names, or logos contained in this repository.
+
+TRADEMARKS
+
+"FLOID", the FLOID wordmark, and the FLOID logo mark are trademarks of the
+copyright holder. Nothing in this license grants any right to use them.
+
+CONTRIBUTIONS
+
+By submitting a contribution — a pull request, patch, or suggestion — you
+grant the copyright holder a perpetual, worldwide, irrevocable, royalty-free
+license to use, modify, and relicense that contribution without restriction.
+
+NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+For licensing enquiries, contact support@floid.design.

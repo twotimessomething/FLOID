@@ -6,7 +6,7 @@ export const blankTemplate: ScheduleTemplate = {
   description: 'Start with an empty timeline',
   icon: 'plus',
   category: 'core',
-  defaultColor: '#6A6A70', // Neutral
+  defaultColor: '#5BB5A9', // Teal
   phases: [],
   milestones: [],
 };

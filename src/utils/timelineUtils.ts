@@ -23,7 +23,6 @@ export const ZOOM_PIXELS_PER_DAY: Record<ZoomLevel, number> = {
 export const ROW_HEIGHT = 48;
 /** Every item below the root, bar or milestone. */
 export const NESTED_ROW_HEIGHT = 30;
-export const LABEL_COLUMN_WIDTH = 200;
 export const HEADER_HEIGHT = 48;
 /** Reserved beneath a schedule's items so there is always somewhere to draw. */
 export const CREATE_ROW_HEIGHT = ROW_HEIGHT;
@@ -90,10 +89,6 @@ export const getPositionFromRelative = (relative: number, timelineWidth: number)
 
 export const getRelativeFromPosition = (position: number, timelineWidth: number): number =>
   timelineWidth > 0 ? Math.max(0, Math.min(1, position / timelineWidth)) : 0;
-
-/** Fractional day offset — for hover readouts that should not jump. */
-export const xToDayOffset = (x: number, pixelsPerDay: number): number =>
-  pixelsPerDay > 0 ? x / pixelsPerDay : 0;
 
 export interface BarRect {
   readonly left: number;

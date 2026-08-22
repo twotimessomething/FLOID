@@ -41,3 +41,6 @@ coverage/
 
 # Claude Code
 .claude/
+
+# Brand source files (kept locally, not published)
+*.ai
