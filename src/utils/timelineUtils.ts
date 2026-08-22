@@ -61,6 +61,14 @@ export const rowHeightForDepth = (depth: number): number =>
 export const barInsetForDepth = (depth: number): number => (depth === 0 ? 8 : 6);
 
 /**
+ * A collapsed schedule folds its bars into its own row, where they print as a
+ * tape across the upper half. The lower half is not spare space — it belongs to
+ * the markers that share that row, and to their names.
+ */
+export const COLLAPSED_TAPE_TOP = 6;
+export const COLLAPSED_TAPE_HEIGHT = 18;
+
+/**
  * Label column indentation. The schedule name is the root of the tree, so it
  * sits furthest out and every item steps in from it — the same ladder the PNG
  * exporter draws.

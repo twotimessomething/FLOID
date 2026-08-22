@@ -69,8 +69,8 @@ export function Timeline(): JSX.Element {
     containerRef: scrollContainerRef,
   });
   const scrollTopRef = useRef(0);
-  const stickySectionIdRef = useRef<string | null>(null);
-  const [stickySectionId, setStickySectionId] = useState<string | null>(null);
+  const stickyCountRef = useRef(0);
+  const [stickyCount, setStickyCount] = useState(0);
   const [isScrolled, setIsScrolled] = useState(false);
   const isScrolledRef = useRef(false);
 
@@ -275,41 +275,49 @@ export function Timeline(): JSX.Element {
     return list;
   }, [pinnedSection, unpinnedSections]);
 
-  const stickySection = useMemo(
-    () => allSections.find((section) => section.id === stickySectionId) ?? null,
-    [allSections, stickySectionId]
+  // The pinned schedule draws first, so it holds slot 0 and shifts the rest.
+  const unpinnedStackOffset = pinnedSection ? 1 : 0;
+
+  /**
+   * The schedules held under the axis, in sheet order. A schedule joins the
+   * stack when its own row would slide beneath the ones already held, and keeps
+   * its slot from then on, so what stands under the axis is every schedule
+   * above the rows being read — which is what makes a marker legible at all: a
+   * date without the schedule it belongs to says nothing.
+   */
+  const stickySections = useMemo(
+    () => allSections.slice(0, stickyCount),
+    [allSections, stickyCount]
   );
 
   // Precompute scroll thresholds so the scroll handler only compares numbers.
-  // A schedule is held under the axis from the moment its own row would slide
-  // beneath the band until its last row has passed, so at most one is ever
-  // held — the ranges cannot overlap.
+  // Schedule `i` lands in slot `i`, a row lower than the one before it, so it is
+  // held that much sooner. Every schedule is at least a row tall, which means
+  // these only ever climb: the held set is a prefix of the sheet, and a count
+  // says everything there is to say about it.
   const sectionThresholds = useMemo(() => {
     let cumulativeY = 0;
-    return allSections.map((section) => {
-      const enterY = cumulativeY;
-      const height = calculateSectionHeight(section);
-      const exitY = cumulativeY + height - ROW_HEIGHT;
-      cumulativeY += height;
-      return { id: section.id, enterY, exitY };
+    return allSections.map((section, index) => {
+      const enterY = cumulativeY - index * ROW_HEIGHT;
+      cumulativeY += calculateSectionHeight(section);
+      return enterY;
     });
   }, [allSections]);
 
-  const computeStickySectionId = useCallback(
-    (scrollTop: number): string | null => {
-      for (const { id, enterY, exitY } of sectionThresholds) {
-        if (scrollTop > enterY && scrollTop <= exitY) return id;
-      }
-      return null;
+  const computeStickyCount = useCallback(
+    (scrollTop: number): number => {
+      let held = 0;
+      while (held < sectionThresholds.length && scrollTop > sectionThresholds[held]) held += 1;
+      return held;
     },
     [sectionThresholds]
   );
 
   useEffect(() => {
-    const next = computeStickySectionId(scrollTopRef.current);
-    stickySectionIdRef.current = next;
-    setStickySectionId(next);
-  }, [computeStickySectionId]);
+    const next = computeStickyCount(scrollTopRef.current);
+    stickyCountRef.current = next;
+    setStickyCount(next);
+  }, [computeStickyCount]);
 
   useEffect(() => {
     const labelsEl = labelsColumnRef.current;
@@ -341,12 +349,12 @@ export function Timeline(): JSX.Element {
       setIsScrolled(scrolled);
     }
 
-    const next = computeStickySectionId(newScrollTop);
-    if (next !== stickySectionIdRef.current) {
-      stickySectionIdRef.current = next;
-      setStickySectionId(next);
+    const next = computeStickyCount(newScrollTop);
+    if (next !== stickyCountRef.current) {
+      stickyCountRef.current = next;
+      setStickyCount(next);
     }
-  }, [computeStickySectionId]);
+  }, [computeStickyCount]);
 
   const contentHeight = useMemo(() => {
     let height = 0;
@@ -425,7 +433,9 @@ export function Timeline(): JSX.Element {
             </div>
           </div>
 
-          <StickyScheduleLabel section={stickySection} />
+          {stickySections.map((section, index) => (
+            <StickyScheduleLabel key={section.id} section={section} slot={index} />
+          ))}
         </nav>
 
         {/* Timeline column */}
@@ -439,12 +449,16 @@ export function Timeline(): JSX.Element {
           <div style={{ minWidth: timelineWidth }}>
             <TimelineHeader playheadHover={playheadHover} playheadHandle={playheadHandle} />
 
-            <StickyScheduleRow
-              section={stickySection}
-              pinnedMarkers={pinnedMarkers}
-              viewport={viewportBounds}
-              pixelsPerDay={pixelsPerDay}
-            />
+            {stickySections.map((section, index) => (
+              <StickyScheduleRow
+                key={section.id}
+                section={section}
+                slot={index}
+                pinnedMarkers={pinnedMarkers}
+                viewport={viewportBounds}
+                pixelsPerDay={pixelsPerDay}
+              />
+            ))}
 
             <div
               className="relative cursor-crosshair timeline-plot"
@@ -477,7 +491,7 @@ export function Timeline(): JSX.Element {
                   isLabel={false}
                   viewport={viewportBounds}
                   pixelsPerDay={pixelsPerDay}
-                  isSticky={stickySectionId === pinnedSection.id}
+                  isSticky={stickyCount > 0}
                 />
               )}
 
@@ -490,7 +504,7 @@ export function Timeline(): JSX.Element {
                   pixelsPerDay={pixelsPerDay}
                   sectionIndex={index}
                   isDragging={dragState.isDragging && dragState.dragIndex === index}
-                  isSticky={stickySectionId === section.id}
+                  isSticky={index + unpinnedStackOffset < stickyCount}
                 />
               ))}
 
@@ -500,10 +514,7 @@ export function Timeline(): JSX.Element {
         </div>
 
         {/* Both columns cut off at the same height, so one strip covers both */}
-        <ScrollEdgeFade
-          top={HEADER_HEIGHT + (stickySection ? ROW_HEIGHT : 0)}
-          isVisible={isScrolled}
-        />
+        <ScrollEdgeFade top={HEADER_HEIGHT + stickyCount * ROW_HEIGHT} isVisible={isScrolled} />
       </div>
     </div>
   );

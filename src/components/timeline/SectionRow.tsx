@@ -8,7 +8,6 @@ import {
   ROW_HEIGHT,
   dayToX,
   flattenSection,
-  getBarRect,
   headerMilestones,
   sectionBodyHeight,
   xToDay,
@@ -22,9 +21,10 @@ import {
 } from '../../utils/creationUtils';
 import { getItemColor } from '../../types';
 import { snapKeyToBusinessDay } from '../../utils/dayKeys';
-import { getReadableTextColor, sectionTintColor } from '../../utils/colorUtils';
+import { sectionTintColor } from '../../utils/colorUtils';
 import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGhost';
 import { useIsDropSlot } from '../../hooks/useDropState';
+import { CollapsedBars } from './CollapsedBars';
 import { ItemRow } from './ItemRow';
 import { HeaderMilestone } from './HeaderMilestone';
 import { ScheduleLabelRow } from './ScheduleLabelRow';
@@ -46,7 +46,7 @@ interface SectionRowProps {
   readonly sectionIndex?: number;
   readonly dragHandleProps?: DragHandleProps;
   readonly isDragging?: boolean;
-  /** True while this schedule is the one held under the axis by the sticky band. */
+  /** True while this schedule is held in the stack of bands under the axis. */
   readonly isSticky?: boolean;
 }
 
@@ -91,20 +91,20 @@ export const SectionRow = memo(function SectionRow({
   const isAppendSlot = useIsDropSlot(section.id, null, section.items.length);
 
   // Collision-aware label placement. A sticky schedule prints its labels up in
-  // the sticky band, so they do not reserve room here; a collapsed schedule
-  // folds its bars into this same row, so labels stand down entirely.
-  const labelPlacements = useMemo(() => {
-    const candidates = (isSticky ? [] : markers).map((milestone) => ({
-      id: milestone.id,
-      center: dayToX(milestone.start, viewport, pixelsPerDay),
-      width: measureMilestoneLabelWidth(milestone.name),
-    }));
-    const placements = layoutLabels(candidates);
-    if (!section.isCollapsed) return placements;
-    return new Map(
-      [...placements].map(([id, placement]) => [id, { ...placement, isHidden: true }])
-    );
-  }, [markers, isSticky, viewport, pixelsPerDay, section.isCollapsed]);
+  // the sticky band, so they do not reserve room here. A collapsed schedule
+  // folds its bars into this same row, but only across its upper half, so its
+  // markers keep the lower half and name themselves there like any other.
+  const labelPlacements = useMemo(
+    () =>
+      layoutLabels(
+        (isSticky ? [] : markers).map((milestone) => ({
+          id: milestone.id,
+          center: dayToX(milestone.start, viewport, pixelsPerDay),
+          width: measureMilestoneLabelWidth(milestone.name),
+        }))
+      ),
+    [markers, isSticky, viewport, pixelsPerDay]
+  );
 
   // -- schedule header row (timeline side) ---------------------------------
 
@@ -279,28 +279,7 @@ export const SectionRow = memo(function SectionRow({
       >
         {milestoneGhostX !== null && <GhostMilestone x={milestoneGhostX} lineHeight={bodyHeight} />}
 
-        {section.isCollapsed &&
-          section.items
-            .filter((item) => item.kind === 'bar')
-            .map((item, index) => {
-              const rect = getBarRect(item, viewport, pixelsPerDay);
-              const color = getItemColor(item, section, index, rootBarCount);
-              return (
-                <div
-                  key={item.id}
-                  className="absolute top-1 bottom-1 timeline-bar pointer-events-none"
-                  style={{ left: rect.left, width: rect.width }}
-                  aria-hidden="true"
-                >
-                  <div className="timeline-bar__fill" style={{ backgroundColor: color }} />
-                  <span className="timeline-bar__label">
-                    <span className="truncate" style={{ color: getReadableTextColor(color) }}>
-                      {item.name}
-                    </span>
-                  </span>
-                </div>
-              );
-            })}
+        <CollapsedBars section={section} viewport={viewport} pixelsPerDay={pixelsPerDay} />
 
         {/* A pinned schedule already rules its lines the whole height of the
             sheet, from the timeline; drawing them again here would print them

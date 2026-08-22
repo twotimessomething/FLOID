@@ -3,6 +3,7 @@ export { TimelineHeader } from './TimelineHeader';
 export { TimelineGrid } from './TimelineGrid';
 export { SectionRow } from './SectionRow';
 export { ItemRow } from './ItemRow';
+export { CollapsedBars } from './CollapsedBars';
 export { HeaderMilestone } from './HeaderMilestone';
 export { MilestoneGlyph } from './MilestoneGlyph';
 export { MilestoneLabel } from './MilestoneLabel';
