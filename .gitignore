@@ -44,3 +44,6 @@ coverage/
 
 # Brand source files (kept locally, not published)
 *.ai
+
+# GUIDE record — local index, never committed
+guide.json
