@@ -15,9 +15,15 @@ import path from 'path';
  * of the initial graph rather than an async chunk — separating it is a caching
  * and parsing win, not yet a deferral one. Deferring it outright would mean
  * making the store's template lookups async.
+ *
+ * The PowerPoint writer is the one true deferral: it is larger than the whole
+ * app, and only reached by `import()` from the slide export, so it never loads
+ * for someone who does not export one. It is named here so the build output
+ * says which chunk that is.
  */
 function manualChunks(id: string): string | undefined {
   if (id.includes('/node_modules/date-fns/')) return 'date-fns';
+  if (id.includes('/node_modules/pptxgenjs/')) return 'pptxgenjs';
   if (id.includes('/node_modules/zustand/') || id.includes('/node_modules/zundo/')) {
     return 'zustand';
   }
@@ -41,6 +47,9 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'zustand', 'date-fns'],
+    // pptxgenjs is only ever reached by `import()`, which in dev means Vite
+    // discovers it mid-export and reloads the page to re-optimize — right as
+    // someone is waiting for a file. Pre-bundling it costs one dev startup.
+    include: ['react', 'react-dom', 'zustand', 'date-fns', 'pptxgenjs'],
   },
 });

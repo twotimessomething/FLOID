@@ -6,6 +6,7 @@ import { parseProjectJson, convertImportedProject, exportTimelineAsImage } from 
 import { useScheduleImport } from '../../hooks/useScheduleImport';
 import { useFileSystemAutoSave } from '../../hooks/useFileSystemAutoSave';
 import { isFileSystemAccessSupported } from '../../utils/fileSystemUtils';
+import { SLIDE_TIGHT_SCALE } from '../../constants/slideDimensions';
 import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 import { ZoomControls } from '../controls/ZoomControls';
 import { usePresence, POPOVER_EXIT_MS } from '../../hooks/usePresence';
@@ -84,6 +85,30 @@ export function Header(): JSX.Element {
       showToast('error', 'Failed to export timeline as image');
     }
   }, [project, sections, showToast]);
+
+  const handleExportAsSlide = useCallback(async () => {
+    if (!project || sections.length === 0) return;
+
+    setIsExportDropdownOpen(false);
+
+    try {
+      // Loaded on demand: the PowerPoint writer is far larger than the app
+      const { exportTimelineAsPptx } = await import('../../utils/pptxExport');
+      const { scale } = await exportTimelineAsPptx(project, sections, dependencies);
+
+      // A slide is one slide, so a tall timeline is squeezed to hold it. Say so
+      // rather than let someone find 5pt type in front of a room.
+      showToast(
+        'success',
+        scale < SLIDE_TIGHT_SCALE
+          ? 'Exported slide — collapse a schedule for larger type'
+          : 'Timeline exported as slide'
+      );
+    } catch (error) {
+      console.error('Failed to export timeline as slide:', error);
+      showToast('error', 'Failed to export timeline as slide');
+    }
+  }, [project, sections, dependencies, showToast]);
 
   const handleSaveToFolder = useCallback(async () => {
     setIsExportDropdownOpen(false);
@@ -205,6 +230,12 @@ export function Header(): JSX.Element {
                   className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
                 >
                   Export as image
+                </button>
+                <button
+                  onClick={handleExportAsSlide}
+                  className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
+                >
+                  Export as slide
                 </button>
                 {isFileSystemAccessSupported() && (
                   <button

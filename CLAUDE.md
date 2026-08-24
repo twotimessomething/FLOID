@@ -200,6 +200,23 @@ resolved to absolute dates when instantiated.
 **Export formats:**
 - `.floid` — Single schedule for sharing
 - `.floid-project` — Full project backup
+- `.png` — The timeline drawn to canvas, everything expanded
+- `.pptx` — The timeline as one editable PowerPoint slide
+
+**The slide export is a plan and a renderer.** `utils/slidePlan.ts` walks the
+same `flattenSection` the screen does and returns a flat list of rectangles,
+diamonds, lines and text in points from the slide's corner — it knows nothing
+about PowerPoint, which is what makes the layout testable without one.
+`utils/pptxExport.ts` is the only file that speaks OOXML, and it loads
+`pptxgenjs` through a dynamic `import()` because that library is larger than the
+app. Unlike the PNG, the slide honours collapse state — a folded schedule keeps
+its tape, a folded group keeps its fill and its rule — because what is folded
+is what someone chose not to show. One slide is a hard constraint, so rows are
+scaled to whatever fits and type is clamped to a legible floor. A bar with
+visible children prints as a span with a terminal at each end and its name on
+the paper above it: its children are already below it, so a filled block would
+be claiming the same work twice. PowerPoint has no `multiply`, so overlapping
+ink does not darken — nested bars carry a wash instead.
 
 ---
 
