@@ -377,28 +377,6 @@ export function SettingsModal(): JSX.Element | null {
               )}
             </div>
           )}
-
-          {/* Support */}
-          <div className="py-3">
-            <label className="text-body font-medium text-[var(--color-text-primary)]">
-              Support
-            </label>
-            <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-              Bug reports, feedback, or questions
-            </p>
-            <a
-              href="mailto:support@floid.design"
-              className="inline-flex items-center gap-1.5 mt-2 text-body text-[var(--color-focus)] hover:underline"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-              </svg>
-              support@floid.design
-            </a>
-            <p className="text-meta text-[var(--color-text-muted)] mt-3">
-              FLOID collects anonymous usage analytics — page views only, never your project data.
-            </p>
-          </div>
         </div>
       </div>
     </div>

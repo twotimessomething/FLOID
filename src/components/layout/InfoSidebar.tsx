@@ -7,6 +7,7 @@ import {
   type StatusItem,
 } from '../../hooks/useTimelineStatus';
 import { formatDayKey } from '../../utils/dateUtils';
+import { QuietIconButton } from '../common/QuietIconButton';
 
 /** Joins trail keys. No name can contain it, so no two trails can collide. */
 const TRAIL_KEY_SEPARATOR = '\u0000';
@@ -233,30 +234,11 @@ function SettingsIcon(): JSX.Element {
   );
 }
 
-interface QuietIconButtonProps {
-  readonly label: string;
-  readonly onClick: () => void;
-  readonly children: React.ReactNode;
-}
-
 /**
  * Settings and help, drawn the same whether the panel is open or folded to its
  * rail — the pair is the app's only way in to either, so it cannot look like
  * two different controls depending on the width.
  */
-function QuietIconButton({ label, onClick, children }: QuietIconButtonProps): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-fast focus-ring"
-      aria-label={label}
-    >
-      {children}
-    </button>
-  );
-}
-
 export function InfoSidebar(): JSX.Element {
   const isInfoSidebarOpen = useUIStore((state) => state.isInfoSidebarOpen);
   const toggleInfoSidebar = useUIStore((state) => state.toggleInfoSidebar);

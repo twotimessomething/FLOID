@@ -268,6 +268,11 @@ interface UIState {
   openKeyboardHelpModal: () => void;
   closeKeyboardHelpModal: () => void;
 
+  // About modal
+  isAboutModalOpen: boolean;
+  openAboutModal: () => void;
+  closeAboutModal: () => void;
+
   // Theme
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
@@ -494,6 +499,10 @@ export const useUIStore = create<UIState>((set) => ({
   isKeyboardHelpModalOpen: false,
   openKeyboardHelpModal: () => set({ isKeyboardHelpModalOpen: true }),
   closeKeyboardHelpModal: () => set({ isKeyboardHelpModalOpen: false }),
+
+  isAboutModalOpen: false,
+  openAboutModal: () => set({ isAboutModalOpen: true }),
+  closeAboutModal: () => set({ isAboutModalOpen: false }),
 
   // Theme
   theme: 'system',

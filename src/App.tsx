@@ -50,6 +50,9 @@ const ExportModal = lazy(() =>
 const KeyboardHelpModal = lazy(() =>
   import('./components/layout/KeyboardHelpModal').then((m) => ({ default: m.KeyboardHelpModal }))
 );
+const AboutModal = lazy(() =>
+  import('./components/layout/AboutModal').then((m) => ({ default: m.AboutModal }))
+);
 
 /**
  * True from the first time a surface is wanted, and true from then on.
@@ -91,6 +94,7 @@ function App(): JSX.Element {
   const wantsSettings = useOnceWanted(useUIStore((state) => state.isSettingsModalOpen));
   const wantsExport = useOnceWanted(useUIStore((state) => state.isExportModalOpen));
   const wantsKeyboardHelp = useOnceWanted(useUIStore((state) => state.isKeyboardHelpModalOpen));
+  const wantsAbout = useOnceWanted(useUIStore((state) => state.isAboutModalOpen));
 
   const { handleImport: handleScheduleImport, handleConfirmAction } = useScheduleImport();
 
@@ -294,6 +298,11 @@ function App(): JSX.Element {
       {wantsKeyboardHelp && (
         <Suspense fallback={null}>
           <KeyboardHelpModal />
+        </Suspense>
+      )}
+      {wantsAbout && (
+        <Suspense fallback={null}>
+          <AboutModal />
         </Suspense>
       )}
       {/* Eager: these four answer a gesture or a state the app is already in —

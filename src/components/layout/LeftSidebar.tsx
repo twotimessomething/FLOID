@@ -3,6 +3,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useConfirm } from '../../hooks';
+import { QuietIconButton } from '../common/QuietIconButton';
 import { POPOVER_EXIT_MS } from '../../hooks/usePresence';
 
 /**
@@ -28,6 +29,7 @@ export function LeftSidebar(): JSX.Element {
   const isLeftSidebarOpen = useUIStore((state) => state.isLeftSidebarOpen);
   const { toggleLeftSidebar, closeModal, openProjectSetupModal } = useUIStore();
   const openExportModal = useUIStore((state) => state.openExportModal);
+  const openAboutModal = useUIStore((state) => state.openAboutModal);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -194,20 +196,32 @@ export function LeftSidebar(): JSX.Element {
         className="flex-shrink-0 h-full overflow-hidden bg-[var(--color-background)] border-r border-[var(--color-hairline)] sidebar-fold"
         style={{ width: RAIL_WIDTH }}
       >
-        <button
-          onClick={toggleLeftSidebar}
-          className="sidebar-enter group w-8 h-full flex items-start justify-center pt-4 focus-ring"
-          aria-label="Open sidebar"
-        >
-          <svg
-            className="w-4 h-4 text-[var(--color-text-muted)] opacity-40 group-hover:opacity-100 transition-opacity duration-fast"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        {/* The chevron keeps the 16px offset it had when this rail was one
+            full-height button, so folding the panel does not shift it. */}
+        <div className="sidebar-enter h-full flex flex-col items-center" style={{ width: RAIL_WIDTH }}>
+          <button
+            onClick={toggleLeftSidebar}
+            className="group w-8 flex items-start justify-center pt-4 focus-ring"
+            aria-label="Open sidebar"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+            <svg
+              className="w-4 h-4 text-[var(--color-text-muted)] opacity-40 group-hover:opacity-100 transition-opacity duration-fast"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          {/* Folding the panel away must not fold away the only route to
+              contact and privacy — the same move the status rail makes. */}
+          <div className="mt-auto pb-3 flex flex-col items-center">
+            <QuietIconButton label="About FLOID" onClick={openAboutModal}>
+              <InfoIcon />
+            </QuietIconButton>
+          </div>
+        </div>
       </aside>
     );
   }
@@ -342,7 +356,28 @@ export function LeftSidebar(): JSX.Element {
           </div>
         )}
         </div>
+
+        {/* Contact, source and privacy. The mirror of the status sidebar's
+            footer: same treatment, opposite corner. */}
+        <div className="flex-shrink-0 p-3 flex justify-start gap-1">
+          <QuietIconButton label="About FLOID" onClick={openAboutModal}>
+            <InfoIcon />
+          </QuietIconButton>
+        </div>
       </div>
     </aside>
+  );
+}
+
+function InfoIcon(): JSX.Element {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+      />
+    </svg>
   );
 }

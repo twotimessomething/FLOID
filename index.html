@@ -30,7 +30,13 @@
     <!-- Theme before the first paint. `useTheme` owns this key and applies the
          same class again once React mounts; doing it here as well means the
          ground is never the wrong colour for a frame — which the splash screen,
-         being one flat sheet of that colour, would show plainly. -->
+         being one flat sheet of that colour, would show plainly.
+
+         CSP: this script is allowed by a sha256 hash pinned in vercel.json.
+         Editing a single byte below — whitespace included — invalidates that
+         hash and the browser silently refuses to run it, which brings back the
+         very flash this exists to prevent. Recompute and update the
+         script-src hash in the same change. -->
     <script>
       (function () {
         try {
