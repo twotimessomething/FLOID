@@ -12,9 +12,6 @@
     Every key here must be granted by the Mac App Store provisioning
     profile for design.floid.app, or codesign succeeds and the App Store
     rejects the upload with ITMS-90287 "Invalid Code Signing Entitlements".
-
-    No network entitlement on purpose — FLOID is fully offline. Adding one
-    later means updating the App Privacy answers too.
   -->
   <key>com.apple.application-identifier</key>
   <string>LPJ28CF2F5.design.floid.app</string>
@@ -26,6 +23,19 @@
   <key>com.apple.security.files.user-selected.read-write</key>
   <true/>
   <key>com.apple.security.files.bookmarks.app-scope</key>
+  <true/>
+
+  <!--
+    Required by WKWebView, not by FLOID. WebKit loads every resource
+    through its Network process — including Tauri's local custom scheme.
+    Under the sandbox without this key that process never starts, the
+    WebContent process exits 1 on each of five respawns, and the window
+    renders nothing at all. It is a capability, not a behaviour: the app
+    still makes no requests, the CSP still pins connect-src to ipc: and
+    http://ipc.localhost, and no analytics mounts on desktop. Removing it
+    to "stay offline" produces a blank app, not an offline one.
+  -->
+  <key>com.apple.security.network.client</key>
   <true/>
 </dict>
 </plist>

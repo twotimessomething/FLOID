@@ -92,7 +92,8 @@ Mac app ships.
   `src/platform/initDesktop.ts` → `importFloidText` — the same door as the
   web's file picker. Rust buffers cold-start files (`take_pending_files`).
 - **Mac App Store shape**: sandbox entitlements in
-  `src-tauri/Entitlements.plist` (user-selected files only, no network), no
+  `src-tauri/Entitlements.plist` (user-selected files only, plus the
+  `network.client` key WKWebView needs to start at all), no
   updater plugin, no private API. The CSP lives in `tauri.conf.json` for the
   app and `vercel.json` for the web — both must carry the pinned theme-script
   hash from `index.html`.

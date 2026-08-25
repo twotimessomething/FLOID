@@ -48,7 +48,7 @@ describe('Privacy panel copy', () => {
   it('desktop claims nothing leaves, and never mentions analytics or Google Fonts', () => {
     privacy('desktop');
     expect(screen.getByText('What leaves this Mac')).toBeInTheDocument();
-    expect(screen.getByText(/cannot make a network request at all/)).toBeInTheDocument();
+    expect(screen.getByText(/makes no network requests at all/)).toBeInTheDocument();
     // The word "analytics" does appear — inside the denial. What must not
     // appear is the web's *claim* that any is collected.
     expect(document.body.textContent).not.toMatch(/page-view analytics/i);

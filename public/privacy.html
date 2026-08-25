@@ -82,17 +82,16 @@
 
       <h2>The Mac app</h2>
       <p>
-        The FLOID app from the Mac App Store collects no data whatsoever. It ships without the
-        network entitlement, so it cannot make a network request — not for analytics, not for
-        crash reports, not for updates, not for fonts. Everything it draws is inside the app.
+        The FLOID app from the Mac App Store collects no data whatsoever. It makes no network
+        requests — not for analytics, not for crash reports, not for updates, not for fonts.
+        Everything it draws is inside the app.
       </p>
       <ul>
         <li>Your projects are stored in the app's own sandbox container on your Mac.</li>
         <li>Files are read and written only where you point an open or save panel.</li>
         <li>
-          If you use <em>Save to folder</em>, macOS gives the app a security-scoped bookmark to
-          the one folder you chose, so it can keep writing backups there after a relaunch. That
-          bookmark stays on your Mac and grants access to nothing else.
+          Nothing is written anywhere automatically. Every file the app saves goes where you
+          pointed a save panel, and nowhere else.
         </li>
         <li>Deleting the app deletes its container, and your projects with it. Export a backup first.</li>
       </ul>

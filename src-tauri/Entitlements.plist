@@ -4,12 +4,18 @@
 <dict>
   <!-- Mac App Store requires the sandbox; file access flows exclusively
        through user-selected paths (dialogs, Finder opens) and app-scoped
-       bookmarks. No network entitlement: the app is fully offline. -->
+       bookmarks. -->
   <key>com.apple.security.app-sandbox</key>
   <true/>
   <key>com.apple.security.files.user-selected.read-write</key>
   <true/>
   <key>com.apple.security.files.bookmarks.app-scope</key>
+  <true/>
+
+  <!-- Required by WKWebView, not by FLOID — see MAS-Entitlements.plist for
+       the full note. A sandboxed webview whose Network process cannot start
+       renders a blank window. The app itself makes no requests. -->
+  <key>com.apple.security.network.client</key>
   <true/>
 </dict>
 </plist>

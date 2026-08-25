@@ -19,9 +19,12 @@ const TABS: readonly { readonly value: AboutTab; readonly label: string }[] = [
  * paragraphs would be the only navigation in the whole app.
  *
  * The two targets make genuinely different promises, and the Mac one is the
- * stronger claim: the App Store build ships without the network entitlement,
- * so it cannot transmit anything even in principle. Repeating the web wording
- * there would be false — `WebAnalytics` never mounts behind `isDesktop()` and
+ * stronger claim: the App Store build issues no requests at all, and its CSP
+ * permits no outbound origin. Do not phrase that as "ships without the network
+ * entitlement" — the binary carries `com.apple.security.network.client`,
+ * because a sandboxed WKWebView will not start without it, and a claim a
+ * reviewer can disprove from the binary is worse than no claim.
+ * Repeating the web wording there would also be false — `WebAnalytics` never mounts behind `isDesktop()` and
  * every typeface is bundled — and it would contradict the “collects no data”
  * answer on the store listing, which is the kind of contradiction App Review
  * escalates rather than waves through.
@@ -45,7 +48,7 @@ const COPY = {
       'Everything you make stays on this Mac, in this app’s own storage. FLOID has no backend and no account system, so there is nowhere for a project to be uploaded to. Deleting the app deletes your work — export a backup to keep it.',
     transmissionTitle: 'What leaves this Mac',
     transmission:
-      'Nothing. FLOID ships without the network entitlement, so it cannot make a network request at all — no analytics, no crash reports, no update checks. Every typeface and template is inside the app.',
+      'Nothing. FLOID makes no network requests at all — no analytics, no crash reports, no update checks. Every typeface and template is inside the app.',
     exports:
       'Files are written where you point the save panel, and nowhere else. Nothing is uploaded, and imports are read locally the same way.',
   },
