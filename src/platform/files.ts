@@ -42,6 +42,29 @@ export function supportsDirectorySave(): boolean {
   return isDesktop() || (typeof window !== 'undefined' && 'showDirectoryPicker' in window);
 }
 
+/**
+ * Whether a folder grant can *survive a relaunch* — a strictly narrower thing
+ * than `supportsDirectorySave`, and the one autosave actually needs.
+ *
+ * On the web the File System Access API hands back a handle that persists in
+ * IndexedDB and can be re-permissioned, so autosave works. Under the macOS App
+ * Sandbox it does not: permission to write into a folder chosen in an earlier
+ * launch comes from a security-scoped bookmark, and nothing here creates one —
+ * the `files.bookmarks.app-scope` entitlement grants the right to make
+ * bookmarks, not the bookmarks themselves. Autosave would appear to work, then
+ * silently stop writing after the first quit.
+ *
+ * Writing several files into a folder *now* is unaffected, because the open
+ * panel grants access for that session — which is why multi-file export still
+ * asks `supportsDirectorySave` and still works on the Mac.
+ *
+ * Implementing bookmarks in Rust would flip this to `true` on desktop; that is
+ * the only change needed here.
+ */
+export function supportsFolderAutoSave(): boolean {
+  return !isDesktop() && typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+}
+
 export async function pickDirectory(
   options?: PickDirectoryOptions
 ): Promise<DirectoryToken | null> {

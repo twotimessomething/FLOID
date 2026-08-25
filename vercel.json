@@ -64,7 +64,15 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets|fonts|favicon|apple-touch|android-chrome|og-image|robots|sitemap|site\\.webmanifest|FLOID_logo|src).*)",
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/support",
+      "destination": "/support.html"
+    },
+    {
+      "source": "/((?!assets|fonts|favicon|apple-touch|android-chrome|og-image|privacy|support|robots|sitemap|site\\.webmanifest|FLOID_logo|src).*)",
       "destination": "/index.html"
     }
   ]

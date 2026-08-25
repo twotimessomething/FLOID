@@ -60,6 +60,36 @@ It writes `favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`,
 `android-chrome-192x192.png`, `android-chrome-512x512.png`, `favicon.ico`, and
 `og-image.png`.
 
+### The Mac app icon is a different shape, on purpose
+
+```bash
+node scripts/generate-mac-icon.mjs --apply
+```
+
+Everywhere on the web the mark is the disc. The macOS app icon is **the four
+bars on a filled indigo squircle, with no disc at all** — and that divergence
+is deliberate, not drift.
+
+macOS reserves a margin around every app icon so that icons of different
+shapes read as the same visual size beside each other. Apple's grid on a 1024
+canvas gives a rounded shape 824 and a circle only 786, so a disc always sits
+smaller than its neighbours in the Dock; a disc drawn full-bleed, as the web
+favicon is, sits conspicuously larger instead. Filling the tile also buys the
+bars roughly a third more area, which is what keeps all four legible at 32px.
+
+The tile's geometry is measured, not guessed: the corner curve is a
+superellipse quadrant fitted to a stock macOS icon's alpha silhouette —
+extent 0.246 of the tile side, exponent 2.2 — and it tracks Apple's own
+profile within a pixel. Do not swap it for a `<rect rx>`; a circular corner
+reads visibly wrong at 512 and above.
+
+The bar geometry itself is lifted verbatim from `public/favicon.svg`, so the
+two marks cannot drift apart. `--shape=disc` regenerates the inset-disc
+version if the decision is ever revisited.
+
+`src-tauri/icons/icon.ico` is a Windows artefact of the Tauri scaffold and is
+still the old disc. Nothing builds for Windows, so it is left alone.
+
 ---
 
 ## Colour

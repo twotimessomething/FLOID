@@ -7,7 +7,7 @@ import { importFloidText, FLOID_OPEN_FILTERS } from '../../utils/importFloid';
 import { openFiles } from '../../platform/files';
 import { useScheduleImport } from '../../hooks/useScheduleImport';
 import { useFileSystemAutoSave } from '../../hooks/useFileSystemAutoSave';
-import { supportsDirectorySave } from '../../platform/files';
+import { supportsFolderAutoSave } from '../../platform/files';
 import { SLIDE_TIGHT_SCALE } from '../../constants/slideDimensions';
 import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 import { ZoomControls } from '../controls/ZoomControls';
@@ -186,7 +186,7 @@ export function Header(): JSX.Element {
                 >
                   Export as slide
                 </button>
-                {supportsDirectorySave() && (
+                {supportsFolderAutoSave() && (
                   <button
                     onClick={handleSaveToFolder}
                     className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"

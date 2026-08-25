@@ -5,10 +5,63 @@
   <key>ITSAppUsesNonExemptEncryption</key>
   <false/>
   <key>NSHumanReadableCopyright</key>
-  <string>© 2026 Scotty Shu</string>
-  <!-- Tauri's fileAssociations generate CFBundleDocumentTypes; the exported
-       UTIs below give LaunchServices a real type to bind the custom
-       extensions to. -->
+  <string>© 2026 Scott Shumaker</string>
+  <!--
+    Document types are hand-authored rather than generated from
+    bundle.fileAssociations. Tauri derives LSItemContentTypes from the
+    association's mimeType, which for application/json produced a claim on
+    `public.json` at rank Default — an *ancestor* of our real type. Nothing
+    then claimed `design.floid.app.floid` itself, so LaunchServices fell back
+    to generic text handling and TextEdit won the double-click.
+
+    Claiming the exact exported UTI at rank Owner is what binds the extension:
+    an app that claims the precise type beats one claiming an ancestor, and
+    Owner is honest here because the declarations below are what define these
+    types in the first place.
+
+    CFBundleTypeExtensions is legacy but harmless, and still consulted when a
+    file arrives with no resolvable UTI.
+  -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>FLOID Project</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>design.floid.app.floid</string>
+      </array>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>floid</string>
+      </array>
+      <key>CFBundleTypeIconFile</key>
+      <string>icon.icns</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>FLOID Project Backup</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>design.floid.app.floid-project</string>
+      </array>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>floid-project</string>
+      </array>
+      <key>CFBundleTypeIconFile</key>
+      <string>icon.icns</string>
+    </dict>
+  </array>
+
   <key>UTExportedTypeDeclarations</key>
   <array>
     <dict>

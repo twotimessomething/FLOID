@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy — FLOID</title>
+    <meta name="description" content="FLOID's privacy policy. No account, no server, no data collection. Your projects stay on your device." />
+    <link rel="canonical" href="https://floid.design/privacy" />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <meta name="theme-color" content="#f0f0f0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)" />
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: swap;
+        src: url('/fonts/inter-latin.woff2') format('woff2');
+      }
+      :root {
+        --ground: #f0f0f0;
+        --ink: #17171a;
+        --ink-2: #6a6a70;
+        --hairline: rgba(23, 23, 26, 0.09);
+        --accent: #3a3f76;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ground: #141416;
+          --ink: #f2f2f3;
+          --ink-2: #9e9ea4;
+          --hairline: rgba(242, 242, 243, 0.12);
+          --accent: #9aa0dc;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 72px 24px 120px;
+        background: var(--ground);
+        color: var(--ink);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        font-size: 15px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 640px; margin: 0 auto; }
+      a { color: var(--accent); text-underline-offset: 2px; }
+      .mark { display: block; width: 28px; height: 28px; margin-bottom: 40px; }
+      h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.4px; margin: 0 0 4px; }
+      .stamp { color: var(--ink-2); font-size: 13px; margin: 0 0 44px; }
+      h2 {
+        font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--ink-2); margin: 44px 0 10px;
+      }
+      p, li { color: var(--ink); margin: 0 0 14px; }
+      ul { padding-left: 20px; margin: 0 0 14px; }
+      li { margin-bottom: 6px; }
+      .lede { font-size: 16px; }
+      footer {
+        margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--hairline);
+        color: var(--ink-2); font-size: 13px;
+      }
+      footer a { margin-right: 18px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a href="/" aria-label="FLOID home"><img class="mark" src="/favicon.svg" alt="FLOID" width="28" height="28" /></a>
+
+      <h1>Privacy</h1>
+      <p class="stamp">Last updated 24 August 2026</p>
+
+      <p class="lede">
+        FLOID has no account system, no server, and no database. There is nowhere for your
+        projects to be sent, and nothing about you is collected. This page says exactly what
+        that means on each of the two places FLOID runs.
+      </p>
+
+      <h2>The Mac app</h2>
+      <p>
+        The FLOID app from the Mac App Store collects no data whatsoever. It ships without the
+        network entitlement, so it cannot make a network request — not for analytics, not for
+        crash reports, not for updates, not for fonts. Everything it draws is inside the app.
+      </p>
+      <ul>
+        <li>Your projects are stored in the app's own sandbox container on your Mac.</li>
+        <li>Files are read and written only where you point an open or save panel.</li>
+        <li>
+          If you use <em>Save to folder</em>, macOS gives the app a security-scoped bookmark to
+          the one folder you chose, so it can keep writing backups there after a relaunch. That
+          bookmark stays on your Mac and grants access to nothing else.
+        </li>
+        <li>Deleting the app deletes its container, and your projects with it. Export a backup first.</li>
+      </ul>
+
+      <h2>The web app</h2>
+      <p>
+        At floid.design, projects live in your browser's own IndexedDB storage on your device.
+        They are never uploaded. Clearing this site's data deletes them.
+      </p>
+      <p>
+        The site records anonymous page views through Vercel Analytics, which sets no cookies
+        and builds no cross-site profile. It counts visits to pages; it never sees a project
+        name, a date, or anything you type. The site is hosted by Vercel, whose servers keep
+        ordinary request logs, including IP addresses, for a short period as part of operating
+        the service.
+      </p>
+      <p>Typefaces are served from floid.design itself. No third-party font, script, or ad network is loaded.</p>
+
+      <h2>Files you export</h2>
+      <p>
+        <code>.floid</code>, <code>.floid-project</code>, <code>.png</code> and
+        <code>.pptx</code> files are produced on your device and saved where you choose.
+        Nothing is uploaded. Files you import are read the same way — locally.
+      </p>
+
+      <h2>What is never collected</h2>
+      <p>
+        No name, no email address, no account, no contacts, no location, no device identifier,
+        no advertising identifier, no usage profile, no project content. Nothing is sold or
+        shared with anyone, because nothing is gathered in the first place.
+      </p>
+
+      <h2>Children</h2>
+      <p>
+        FLOID is a professional scheduling tool rather than a children's product, and it
+        collects no personal information from anyone, of any age.
+      </p>
+
+      <h2>Changes</h2>
+      <p>
+        If this policy changes, the date at the top changes with it, and material changes will
+        be noted in the app's release notes.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about privacy, or anything else:
+        <a href="mailto:support@floid.design">support@floid.design</a>.
+      </p>
+
+      <footer>
+        <a href="/">FLOID</a>
+        <a href="/support">Support</a>
+        <a href="mailto:support@floid.design">support@floid.design</a>
+      </footer>
+    </main>
+  </body>
+</html>

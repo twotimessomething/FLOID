@@ -12,7 +12,7 @@ import {
   directoryDisplayName,
   persistDirectory,
   pickDirectory,
-  supportsDirectorySave,
+  supportsFolderAutoSave,
 } from '../../platform/files';
 import { usePresence } from '../../hooks/usePresence';
 
@@ -319,9 +319,11 @@ export function SettingsModal(): JSX.Element | null {
             )}
           </div>
 
-          {/* Folder autosave — desktop always; on the web only where the
-              File System Access API exists (Chrome/Edge) */}
-          {supportsDirectorySave() && (
+          {/* Folder autosave — web only, where the File System Access API
+              exists (Chrome/Edge). Hidden on the Mac: app storage there is not
+              clearable the way a browser's is, so the feature has no job to do,
+              and the sandbox could not keep the grant across launches anyway. */}
+          {supportsFolderAutoSave() && (
             <div className="py-3">
               <label className="text-body font-medium text-[var(--color-text-primary)]">
                 Auto-save to folder

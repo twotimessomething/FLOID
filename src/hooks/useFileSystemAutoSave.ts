@@ -8,7 +8,7 @@ import {
   persistDirectory,
   pickDirectory,
   restoreDirectory,
-  supportsDirectorySave,
+  supportsFolderAutoSave,
   writeFileInDirectory,
 } from '../platform/files';
 import { exportToJson, projectFloidFilename } from '../utils/exportUtils';
@@ -40,7 +40,7 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
 
   // Restore the persisted grant and initialize sync state on mount
   useEffect(() => {
-    if (!supportsDirectorySave()) {
+    if (!supportsFolderAutoSave()) {
       setDisabled();
       return;
     }
@@ -112,7 +112,7 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
   // Auto-save on changes
   useEffect(() => {
     if (!isInitialized || !isStorageReady || !project || !tokenRef.current) return;
-    if (!supportsDirectorySave()) return;
+    if (!supportsFolderAutoSave()) return;
 
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -134,7 +134,7 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
   // Manual save to folder (for "Save to Folder" button)
   const saveToFolder = useCallback(async (): Promise<boolean> => {
     if (!project) return false;
-    if (!supportsDirectorySave()) return false;
+    if (!supportsFolderAutoSave()) return false;
 
     let token = tokenRef.current;
 
@@ -151,7 +151,7 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
 
   // Reconnect to a folder (for when the grant is lost)
   const reconnectFolder = useCallback(async (): Promise<boolean> => {
-    if (!supportsDirectorySave()) return false;
+    if (!supportsFolderAutoSave()) return false;
 
     const token = await pickDirectory({ id: 'floid-autosave' });
     if (!token) return false;

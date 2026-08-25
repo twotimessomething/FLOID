@@ -64,6 +64,13 @@ export const desktopFiles: PlatformFiles = {
     return { kind: 'desktop-path', path };
   },
 
+  /**
+   * Unreachable today: `supportsFolderAutoSave()` is false on desktop, and
+   * autosave is the only caller. Left in place because it is the shape the
+   * real fix takes — but do not wire it up without first creating a
+   * security-scoped bookmark in Rust. A bare path string is not a grant under
+   * the sandbox, and restoring one produces a folder the app cannot write to.
+   */
   async restoreDirectory(): Promise<DirectoryToken | null> {
     const settings = await getAppSettings();
     const path = settings.autoSaveDirectoryPath;

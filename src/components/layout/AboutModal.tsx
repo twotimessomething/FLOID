@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { usePresence } from '../../hooks/usePresence';
+import { isDesktop } from '../../platform/detect';
 
 const CONTACT_EMAIL = 'support@floid.design';
 const SOURCE_URL = 'https://github.com/twotimessomething/FLOID';
@@ -16,7 +17,41 @@ const TABS: readonly { readonly value: AboutTab; readonly label: string }[] = [
  * Both tabs live in the panel rather than at a route of their own. FLOID is
  * one sheet of paper — sending someone to a second page to read three
  * paragraphs would be the only navigation in the whole app.
+ *
+ * The two targets make genuinely different promises, and the Mac one is the
+ * stronger claim: the App Store build ships without the network entitlement,
+ * so it cannot transmit anything even in principle. Repeating the web wording
+ * there would be false — `WebAnalytics` never mounts behind `isDesktop()` and
+ * every typeface is bundled — and it would contradict the “collects no data”
+ * answer on the store listing, which is the kind of contradiction App Review
+ * escalates rather than waves through.
  */
+const COPY = {
+  web: {
+    summary:
+      'A timeline tool for planning product development. Free, no account, and no server — the whole app runs in this browser tab.',
+    storage:
+      'Everything you make stays on this device, in your browser’s own storage. FLOID has no backend and no account system, so there is nowhere for a project to be uploaded to. Clearing this site’s data deletes your work — export a backup to keep it.',
+    transmissionTitle: 'What leaves your browser',
+    transmission:
+      'Only two things: the page itself, and anonymous page-view analytics. No project names, dates, or contents are ever transmitted. Typefaces are served from floid.design itself, not from a font network.',
+    exports:
+      'Files are written by your browser and saved where you choose. Nothing is uploaded, and imports are read locally the same way.',
+  },
+  desktop: {
+    summary:
+      'A timeline tool for planning product development. Free, no account, and no server — the whole app runs on this Mac.',
+    storage:
+      'Everything you make stays on this Mac, in this app’s own storage. FLOID has no backend and no account system, so there is nowhere for a project to be uploaded to. Deleting the app deletes your work — export a backup to keep it.',
+    transmissionTitle: 'What leaves this Mac',
+    transmission:
+      'Nothing. FLOID ships without the network entitlement, so it cannot make a network request at all — no analytics, no crash reports, no update checks. Every typeface and template is inside the app.',
+    exports:
+      'Files are written where you point the save panel, and nowhere else. Nothing is uploaded, and imports are read locally the same way.',
+  },
+} as const;
+
+
 function MailIcon(): JSX.Element {
   return (
     <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
@@ -71,6 +106,7 @@ export function AboutModal(): JSX.Element | null {
   const isAboutModalOpen = useUIStore((state) => state.isAboutModalOpen);
   const closeAboutModal = useUIStore((state) => state.closeAboutModal);
   const [tab, setTab] = useState<AboutTab>('about');
+  const copy = isDesktop() ? COPY.desktop : COPY.web;
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
@@ -164,8 +200,7 @@ export function AboutModal(): JSX.Element | null {
               className="space-y-4"
             >
               <p className="text-body text-[var(--color-text-secondary)] leading-relaxed">
-                A timeline tool for planning product development. Free, no account, and no
-                server — the whole app runs in this browser tab.
+                {copy.summary}
               </p>
 
               <div>
@@ -189,23 +224,11 @@ export function AboutModal(): JSX.Element | null {
               aria-labelledby="about-tab-privacy"
               className="space-y-4"
             >
-              <PrivacySection title="Your projects">
-                Everything you make stays on this device, in your browser&rsquo;s own storage.
-                FLOID has no backend and no account system, so there is nowhere for a project
-                to be uploaded to. Clearing this site&rsquo;s data deletes your work — export a
-                backup to keep it.
-              </PrivacySection>
+              <PrivacySection title="Your projects">{copy.storage}</PrivacySection>
 
-              <PrivacySection title="What leaves your browser">
-                Only two things: the page itself, and anonymous page-view analytics. No project
-                names, dates, or contents are ever transmitted. Typefaces are served by Google
-                Fonts, which sees the request the way any site&rsquo;s does.
-              </PrivacySection>
+              <PrivacySection title={copy.transmissionTitle}>{copy.transmission}</PrivacySection>
 
-              <PrivacySection title="Exports">
-                Files are written by your browser and saved where you choose. Nothing is
-                uploaded, and imports are read locally the same way.
-              </PrivacySection>
+              <PrivacySection title="Exports">{copy.exports}</PrivacySection>
 
               <PrivacySection title="Questions">
                 Write to{' '}

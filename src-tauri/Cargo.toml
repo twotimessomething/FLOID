@@ -1,6 +1,6 @@
 [package]
 name = "floid"
-version = "0.1.0"
+version = "1.0.0"
 description = "FLOID — fluid timelines for product development"
 authors = ["Scotty Shu"]
 edition = "2021"

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Support — FLOID</title>
+    <meta name="description" content="Help with FLOID: how the timeline works, exports, file formats, and how to get in touch." />
+    <link rel="canonical" href="https://floid.design/support" />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <meta name="theme-color" content="#f0f0f0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)" />
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: swap;
+        src: url('/fonts/inter-latin.woff2') format('woff2');
+      }
+      :root {
+        --ground: #f0f0f0;
+        --ink: #17171a;
+        --ink-2: #6a6a70;
+        --hairline: rgba(23, 23, 26, 0.09);
+        --accent: #3a3f76;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ground: #141416;
+          --ink: #f2f2f3;
+          --ink-2: #9e9ea4;
+          --hairline: rgba(242, 242, 243, 0.12);
+          --accent: #9aa0dc;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 72px 24px 120px;
+        background: var(--ground);
+        color: var(--ink);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        font-size: 15px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 640px; margin: 0 auto; }
+      a { color: var(--accent); text-underline-offset: 2px; }
+      .mark { display: block; width: 28px; height: 28px; margin-bottom: 40px; }
+      h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.4px; margin: 0 0 4px; }
+      .stamp { color: var(--ink-2); font-size: 13px; margin: 0 0 44px; }
+      h2 {
+        font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--ink-2); margin: 44px 0 10px;
+      }
+      h3 { font-size: 15px; font-weight: 600; margin: 24px 0 6px; }
+      p, li { margin: 0 0 14px; }
+      ul { padding-left: 20px; margin: 0 0 14px; }
+      li { margin-bottom: 6px; }
+      .lede { font-size: 16px; }
+      kbd {
+        font: inherit; font-size: 13px; padding: 1px 5px; border: 1px solid var(--hairline);
+        border-radius: 3px; background: rgba(127, 127, 127, 0.08);
+      }
+      footer {
+        margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--hairline);
+        color: var(--ink-2); font-size: 13px;
+      }
+      footer a { margin-right: 18px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a href="/" aria-label="FLOID home"><img class="mark" src="/favicon.svg" alt="FLOID" width="28" height="28" /></a>
+
+      <h1>Support</h1>
+      <p class="stamp">FLOID for Mac and floid.design</p>
+
+      <p class="lede">
+        Bug reports, feature requests and questions all go to one inbox:
+        <a href="mailto:support@floid.design">support@floid.design</a>. A real person reads it.
+      </p>
+
+      <h2>Getting started</h2>
+      <h3>Making something appear</h3>
+      <p>
+        Double-click open space on a schedule for a bar of default length, or press and drag
+        across the space to draw one of an exact length. Either way the editor opens on it.
+      </p>
+      <h3>Moving it</h3>
+      <p>
+        Drag a bar sideways to change its dates, up and down to change where it sits — including
+        across into another schedule. Moving a bar moves everything nested under it.
+      </p>
+      <h3>Nesting</h3>
+      <p>
+        Drop an item onto a bar and it becomes that bar's child, keeping the dates it already
+        had. Drag it back out onto open space to un-nest it. There is no <em>add task</em>
+        button — dragging is the whole organising model.
+      </p>
+      <h3>Linking</h3>
+      <p>
+        Hover a bar and a small dot appears just outside each end. Drag one onto another bar or
+        milestone to draw a dependency. Which two ends you connect is the kind of link. A link
+        never moves your work; it prints in red when the order it records is broken.
+      </p>
+
+      <h2>Keyboard</h2>
+      <p>
+        <kbd>⌘N</kbd> new project · <kbd>⌘O</kbd> open · <kbd>⌘S</kbd> save backup ·
+        <kbd>⌘E</kbd> export · <kbd>⌘Z</kbd> undo · <kbd>⌘=</kbd> / <kbd>⌘-</kbd> zoom ·
+        <kbd>⌘0</kbd> zoom to fit · <kbd>⌘T</kbd> go to today.
+        The full list is under Help ▸ Keyboard Shortcuts.
+      </p>
+
+      <h2>Files</h2>
+      <ul>
+        <li><strong>.floid</strong> — one schedule, for sharing.</li>
+        <li><strong>.floid-project</strong> — a full backup of a project.</li>
+        <li><strong>.png</strong> — the timeline as an image, everything expanded.</li>
+        <li><strong>.pptx</strong> — the timeline as one editable PowerPoint slide, honouring what you have collapsed.</li>
+      </ul>
+      <p>On the Mac, double-clicking a .floid or .floid-project file in Finder opens it in FLOID.</p>
+
+      <h2>Where your work is kept</h2>
+      <p>
+        In the Mac app, projects live in the app's sandbox container. On the web they live in
+        your browser's storage for floid.design. Neither is a cloud account, so neither is
+        backed up for you — use File ▸ Save Backup, or turn on backup reminders in Settings.
+        Deleting the app, or clearing the site's data, deletes the projects with it.
+      </p>
+
+      <h2>Requirements</h2>
+      <p>
+        FLOID for Mac needs macOS 12 Monterey or later and runs natively on both Apple silicon
+        and Intel. The web version needs any current browser.
+      </p>
+
+      <h2>Still stuck</h2>
+      <p>
+        Write to <a href="mailto:support@floid.design">support@floid.design</a> with what you
+        were doing and what happened instead. If a project is involved, attaching its
+        .floid-project backup makes it far quicker to reproduce.
+      </p>
+
+      <footer>
+        <a href="/">FLOID</a>
+        <a href="/privacy">Privacy</a>
+        <a href="mailto:support@floid.design">support@floid.design</a>
+      </footer>
+    </main>
+  </body>
+</html>
