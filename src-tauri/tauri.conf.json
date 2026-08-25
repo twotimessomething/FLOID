@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "FLOID",
+  "version": "0.1.0",
+  "identifier": "design.floid.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "FLOID",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'sha256-RiMq7EBZCpPgiZtleKHmkLMShgGtBlFkTf1PF+M3BPY='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost; worker-src 'self' blob:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "category": "Productivity",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["floid"],
+        "name": "FLOID Project",
+        "description": "FLOID timeline file",
+        "role": "Editor",
+        "mimeType": "application/json"
+      },
+      {
+        "ext": ["floid-project"],
+        "name": "FLOID Project Backup",
+        "description": "FLOID full project backup",
+        "role": "Editor",
+        "mimeType": "application/json"
+      }
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "entitlements": "./Entitlements.plist"
+    }
+  },
+  "plugins": {}
+}

@@ -2,7 +2,16 @@ import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
-import { downloadProjectJson, downloadScheduleFloid } from '../../utils/exportUtils';
+import {
+  downloadProjectJson,
+  downloadScheduleFloid,
+  exportScheduleToFloid,
+  exportToJson,
+  projectFloidFilename,
+  scheduleFloidFilename,
+  stampBackupDate,
+} from '../../utils/exportUtils';
+import { pickDirectory, supportsDirectorySave, writeFileInDirectory } from '../../platform/files';
 import { loadProjectFromStorage } from '../../utils/storageUtils';
 import { Button } from '../common/Button';
 import type { DependencyEdge, Section, Project } from '../../types';
@@ -143,36 +152,61 @@ export function ExportModal(): JSX.Element | null {
 
         const selectedSections = targetSections.filter((s) => selectedScheduleIds.has(s.id));
 
-        // Export each schedule as a separate file
-        for (const section of selectedSections) {
-          await downloadScheduleFloid(targetProject, section, targetDependencies);
+        if (selectedSections.length > 1 && supportsDirectorySave()) {
+          const files = selectedSections.map((section) => ({
+            filename: scheduleFloidFilename(targetProject, section),
+            contents: JSON.stringify(
+              exportScheduleToFloid(targetProject, section, targetDependencies),
+              null,
+              2
+            ),
+          }));
+          if (!(await exportIntoDirectory(files))) {
+            setIsExporting(false);
+            return;
+          }
+        } else {
+          for (const section of selectedSections) {
+            await downloadScheduleFloid(targetProject, section, targetDependencies);
+          }
         }
 
         const count = selectedSections.length;
         showToast('success', `Exported ${count} schedule${count > 1 ? 's' : ''}`);
       } else if (exportMode === 'all-projects') {
-        let exportedCount = 0;
-
+        const projectFiles: ScopedProject[] = [];
         for (const projectEntry of projects) {
           // For the active project, use current state
           if (projectEntry.id === targetProject.id) {
-            await downloadProjectJson(targetProject, [...targetSections], targetDependencies);
-            exportedCount++;
+            projectFiles.push({
+              project: targetProject,
+              sections: [...targetSections],
+              dependencies: [...targetDependencies],
+            });
           } else {
-            // Load the full project from storage
             const fullProjectData = await loadFullProject(projectEntry.id);
-            if (fullProjectData) {
-              await downloadProjectJson(
-                fullProjectData.project,
-                fullProjectData.sections,
-                fullProjectData.dependencies
-              );
-              exportedCount++;
-            }
+            if (fullProjectData) projectFiles.push(fullProjectData);
           }
         }
 
-        showToast('success', `Exported ${exportedCount} project${exportedCount > 1 ? 's' : ''}`);
+        if (projectFiles.length > 1 && supportsDirectorySave()) {
+          const files = projectFiles.map((entry) => ({
+            filename: projectFloidFilename(entry.project),
+            contents: exportToJson(entry.project, entry.sections, entry.dependencies),
+          }));
+          if (!(await exportIntoDirectory(files))) {
+            setIsExporting(false);
+            return;
+          }
+          await stampBackupDate();
+        } else {
+          for (const entry of projectFiles) {
+            await downloadProjectJson(entry.project, entry.sections, entry.dependencies);
+          }
+        }
+
+        const count = projectFiles.length;
+        showToast('success', `Exported ${count} project${count > 1 ? 's' : ''}`);
       }
 
       closeExportModal();
@@ -400,6 +434,30 @@ export function ExportModal(): JSX.Element | null {
       </div>
     </div>
   );
+}
+
+/**
+ * Many files, one dialog: where the platform can hand over a directory, N
+ * exports become one picker and N writes instead of N competing downloads.
+ * Returns false when the user cancels the picker. Duplicate names are
+ * uniquified — a directory write overwrites where a download would dedupe.
+ */
+async function exportIntoDirectory(
+  files: readonly { filename: string; contents: string }[]
+): Promise<boolean> {
+  const token = await pickDirectory({ id: 'floid-export' });
+  if (!token) return false;
+
+  const used = new Set<string>();
+  for (const file of files) {
+    let name = file.filename;
+    for (let n = 2; used.has(name); n += 1) {
+      name = file.filename.replace(/\.floid$/, `-${n}.floid`);
+    }
+    used.add(name);
+    await writeFileInDirectory(token, name, file.contents);
+  }
+  return true;
 }
 
 // Helper to load full project data for export

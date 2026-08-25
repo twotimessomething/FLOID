@@ -12,7 +12,6 @@ export { useTheme } from './useTheme';
 export { useBackupReminder } from './useBackupReminder';
 export { useFileSystemAutoSave } from './useFileSystemAutoSave';
 export { useConfirm } from './useConfirm';
-export { useUndoRedo } from './useUndoRedo';
 export { useDoubleClick } from './useDoubleClick';
 export { useCreateGhost } from './useCreateGhost';
 export type { CreateGhostState, CreateGestureInfo, CreateReadoutHandle } from './useCreateGhost';

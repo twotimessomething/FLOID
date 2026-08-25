@@ -5,9 +5,10 @@ import {
   showSectionDeletedToast,
 } from '../stores/uiStore';
 import { useSectionStore } from '../stores/sectionStore';
-import { useUndoRedo } from './useUndoRedo';
 import { usePinnedSection } from './usePinnedSection';
 import { SHORTCUTS } from '../constants/shortcuts';
+import { commandForKeydown, executeCommand } from '../commands/executeCommand';
+import { isDesktop } from '../platform/detect';
 import { flattenSection, headerMilestones } from '../utils/timelineUtils';
 import { findItem } from '../utils/itemTree';
 import type { Section } from '../types';
@@ -31,7 +32,6 @@ export function useKeyboardShortcuts(): void {
   const showToast = useUIStore((s) => s.showToast);
   const selectedDependencyId = useUIStore((s) => s.selectedDependencyId);
   const selectDependency = useUIStore((s) => s.selectDependency);
-  const { undo, redo } = useUndoRedo();
 
   const { pinnedSection, unpinnedSections } = usePinnedSection();
   const sections = useSectionStore((s) => s.sections);
@@ -144,21 +144,17 @@ export function useKeyboardShortcuts(): void {
   // Main keyboard event handler
   const handleKeyDown = useCallback(
     (event: KeyboardEvent): void => {
-      // Undo: Cmd/Ctrl+Z (works even in inputs for consistency)
-      if ((event.metaKey || event.ctrlKey) && event.key === SHORTCUTS.UNDO && !event.shiftKey) {
-        undo();
-        event.preventDefault();
-        return;
-      }
-
-      // Redo: Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y
-      if (
-        (event.metaKey || event.ctrlKey) &&
-        ((event.key === SHORTCUTS.REDO_SHIFT && event.shiftKey) || event.key === SHORTCUTS.REDO_Y)
-      ) {
-        redo();
-        event.preventDefault();
-        return;
+      // Menu-grade combos route through the command registry — the same
+      // handlers a native menu drives. On desktop the menu owns these
+      // accelerators, so the DOM handler stands down. Runs before the
+      // input-target check on purpose: undo-everywhere is the contract.
+      if (!isDesktop()) {
+        const commandId = commandForKeydown(event);
+        if (commandId) {
+          executeCommand(commandId);
+          event.preventDefault();
+          return;
+        }
       }
 
       // Ignore other shortcuts if user is typing in an input or textarea
@@ -229,8 +225,6 @@ export function useKeyboardShortcuts(): void {
       handleNavigation,
       handleToggleCollapse,
       handleDelete,
-      undo,
-      redo,
     ]
   );
 

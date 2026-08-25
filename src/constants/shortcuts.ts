@@ -14,12 +14,6 @@ export const SHORTCUTS = {
   DELETE: 'Delete',
   BACKSPACE: 'Backspace',
 
-  // Zoom (with modifier)
-  ZOOM_IN: '+',
-  ZOOM_OUT: '-',
-
-  // Undo/Redo
-  UNDO: 'z',
-  REDO_SHIFT: 'z', // with shift modifier
-  REDO_Y: 'y', // alternative Windows shortcut
+  // Modifier combos (undo/redo, zoom, save…) live in the command registry:
+  // src/commands/commands.ts
 } as const;

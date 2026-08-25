@@ -1,6 +1,8 @@
 import { useCallback, useEffect } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { usePresence } from '../../hooks/usePresence';
+import { COMMANDS } from '../../commands/commands';
+import { isDesktop } from '../../platform/detect';
 
 interface Gesture {
   readonly description: string;
@@ -37,6 +39,31 @@ const GESTURES: readonly Gesture[] = [
   { description: 'Move around the timeline', action: 'Middle-drag or right-drag' },
 ];
 
+const COMMAND_GROUP_TITLES: Record<string, string> = {
+  project: 'Project',
+  edit: 'History',
+  view: 'View',
+};
+
+/**
+ * Command combos print straight from the registry, so this list cannot drift
+ * from what the keys (or the native menu) actually do. Combos the browser
+ * refuses to hand over are left out rather than promised.
+ */
+function commandShortcutGroups(): ShortcutGroup[] {
+  const groups = new Map<string, Shortcut[]>();
+  for (const command of Object.values(COMMANDS)) {
+    if (!command.shortcutKeys) continue;
+    if (command.browserReserved && !isDesktop()) continue;
+    const title = COMMAND_GROUP_TITLES[command.id.split('.')[0]];
+    if (!title) continue;
+    const list = groups.get(title) ?? [];
+    list.push({ keys: command.shortcutKeys, description: command.label, combo: true });
+    groups.set(title, list);
+  }
+  return [...groups.entries()].map(([title, shortcuts]) => ({ title, shortcuts }));
+}
+
 const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
   {
     title: 'Navigation',
@@ -50,13 +77,7 @@ const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       { keys: ['Esc'], description: 'Close the editor, or cancel a drag' },
     ],
   },
-  {
-    title: 'History',
-    shortcuts: [
-      { keys: ['⌘', 'Z'], description: 'Undo', combo: true },
-      { keys: ['⌘', 'Shift', 'Z'], description: 'Redo', combo: true },
-    ],
-  },
+  ...commandShortcutGroups(),
 ];
 
 interface KeyProps {

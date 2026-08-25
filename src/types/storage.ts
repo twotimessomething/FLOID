@@ -5,6 +5,8 @@ export interface AppSettings {
   fileSystemFolderName: string | null;
   fileSystemAutoSyncEnabled: boolean;
   lastFileSystemSyncDate: string | null;
+  /** Desktop autosave folder. The web stores a live handle instead. */
+  autoSaveDirectoryPath: string | null;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -14,4 +16,5 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   fileSystemFolderName: null,
   fileSystemAutoSyncEnabled: true,
   lastFileSystemSyncDate: null,
+  autoSaveDirectoryPath: null,
 };

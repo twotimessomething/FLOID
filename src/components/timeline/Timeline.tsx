@@ -361,14 +361,20 @@ export function Timeline(): JSX.Element {
     }
   }, [computeStickyCount]);
 
-  const contentHeight = useMemo(() => {
+  /**
+   * The rows as printed: every schedule's box, hairlines included. The
+   * reference rules — today, milestone lines, the playhead — all end here, on
+   * the sheet's bottom edge, so none of them trails into open paper.
+   */
+  const rowsHeight = useMemo(() => {
     let height = 0;
     if (pinnedSection) height += sectionBoxHeight(pinnedSection);
     unpinnedSections.forEach((section) => {
       height += sectionBoxHeight(section);
     });
-    return Math.max(height + ROW_HEIGHT, 200);
+    return height;
   }, [pinnedSection, unpinnedSections]);
+
 
   if (!activeProjectId) {
     // An empty sheet, not a spinner: the walkthrough opens on the same ground it
@@ -434,6 +440,9 @@ export function Timeline(): JSX.Element {
                 {dropIndicatorStyle && <div style={dropIndicatorStyle} />}
               </div>
 
+              {/* The label column's share of the sheet's bottom edge */}
+              <div className="border-t border-[var(--color-hairline)]" aria-hidden="true" />
+
               <div style={{ height: ROW_HEIGHT }} aria-hidden="true" />
             </div>
           </div>
@@ -484,23 +493,27 @@ export function Timeline(): JSX.Element {
             >
               <TimelineGrid />
 
+              {/* Lifted over the schedules' tinted grounds (z-10): the tint is
+                  a background painted by later siblings, and a reference line
+                  that sank under it would read as broken. */}
               {pinnedSection && (
                 <MilestoneLines
                   milestones={pinnedMarkers}
                   viewport={viewportBounds}
                   pixelsPerDay={pixelsPerDay}
                   top={0}
-                  height={contentHeight - ROW_HEIGHT}
+                  height={rowsHeight}
+                  className="z-10"
                 />
               )}
 
               <TodayLine
                 viewport={viewportBounds}
                 pixelsPerDay={pixelsPerDay}
-                height={contentHeight}
+                height={rowsHeight}
               />
 
-              <Playhead height={contentHeight} handle={playheadHandle} />
+              <Playhead height={rowsHeight} handle={playheadHandle} />
 
               {pinnedSection && (
                 <SectionRow
@@ -525,6 +538,10 @@ export function Timeline(): JSX.Element {
                 />
               ))}
 
+              {/* The sheet's bottom edge. Every other schedule end is drawn by
+                  the border-t of the schedule after it; the last one ends here. */}
+              <div className="border-t border-[var(--color-hairline)]" aria-hidden="true" />
+
               {/* Dependency ink prints over the bars it connects, in one layer
                   that walks the same layout the rows do */}
               {showDependencies && (
@@ -533,7 +550,7 @@ export function Timeline(): JSX.Element {
                   viewport={viewportBounds}
                   pixelsPerDay={pixelsPerDay}
                   width={timelineWidth}
-                  height={contentHeight - ROW_HEIGHT}
+                  height={rowsHeight}
                 />
               )}
 

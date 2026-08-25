@@ -10,6 +10,9 @@ interface MilestoneLinesProps {
   readonly top: number;
   /** How far they run down the sheet. */
   readonly height: number;
+  /** Extra classes on the layer — the sheet-long layer lifts itself above the
+      schedules' tinted grounds with a `z-10` here. */
+  readonly className?: string;
 }
 
 /**
@@ -29,11 +32,16 @@ export const MilestoneLines = memo(function MilestoneLines({
   pixelsPerDay,
   top,
   height,
+  className,
 }: MilestoneLinesProps): JSX.Element | null {
   if (milestones.length === 0 || height <= 0) return null;
 
   return (
-    <div className="absolute inset-x-0 pointer-events-none" style={{ top }} aria-hidden="true">
+    <div
+      className={`absolute inset-x-0 pointer-events-none ${className ?? ''}`}
+      style={{ top }}
+      aria-hidden="true"
+    >
       {milestones.map((milestone) => (
         <div
           key={milestone.id}

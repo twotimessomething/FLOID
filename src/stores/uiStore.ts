@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { useProjectStore } from './projectStore';
 import { useSectionStore } from './sectionStore';
 import { countItems } from '../utils/itemTree';
+import { computeViewportBounds } from '../utils/dateUtils';
+import { getFitPixelsPerDay } from '../utils/timelineUtils';
+import { ZOOM_LEVELS, stepFromFit } from '../utils/zoomSteps';
 import type {
   ZoomLevel,
   SelectionState,
@@ -138,6 +141,11 @@ interface UIState {
   /** Width available to draw the sheet, measured from the scroll container. */
   timelineViewportWidth: number;
   setTimelineViewportWidth: (width: number) => void;
+  /** Step the named levels; from a fitted view, land on the nearest one. */
+  zoomIn: () => void;
+  zoomOut: () => void;
+  /** Scale the sheet so the whole timeline fills the measured viewport. */
+  zoomToFit: () => void;
 
   // Selection — an item id plus the schedule it lives in
   selection: SelectionState;
@@ -291,7 +299,7 @@ interface UIState {
   closeConfirmDialog: () => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>((set, get) => ({
   // Zoom
   zoomLevel: 'month',
   setZoomLevel: (level) => set({ zoomLevel: level, fitPixelsPerDay: null }),
@@ -300,6 +308,31 @@ export const useUIStore = create<UIState>((set) => ({
   timelineViewportWidth: 0,
   setTimelineViewportWidth: (width) =>
     set((state) => (state.timelineViewportWidth === width ? state : { timelineViewportWidth: width })),
+  zoomIn: () => {
+    const { zoomLevel, fitPixelsPerDay, setZoomLevel } = get();
+    if (fitPixelsPerDay !== null) {
+      setZoomLevel(stepFromFit(fitPixelsPerDay, 'in'));
+      return;
+    }
+    const index = ZOOM_LEVELS.indexOf(zoomLevel);
+    if (index > 0) setZoomLevel(ZOOM_LEVELS[index - 1]);
+  },
+  zoomOut: () => {
+    const { zoomLevel, fitPixelsPerDay, setZoomLevel } = get();
+    if (fitPixelsPerDay !== null) {
+      setZoomLevel(stepFromFit(fitPixelsPerDay, 'out'));
+      return;
+    }
+    const index = ZOOM_LEVELS.indexOf(zoomLevel);
+    if (index < ZOOM_LEVELS.length - 1) setZoomLevel(ZOOM_LEVELS[index + 1]);
+  },
+  zoomToFit: () => {
+    // Read at call time, not in a selector — the accepted cross-store pattern
+    const { sections } = useSectionStore.getState();
+    const { totalDays } = computeViewportBounds(sections);
+    const fitted = getFitPixelsPerDay(totalDays, get().timelineViewportWidth);
+    if (fitted !== null) set({ fitPixelsPerDay: fitted });
+  },
 
   // Selection
   selection: { type: null, id: null, sectionId: null },
@@ -551,8 +584,8 @@ export const useUIStore = create<UIState>((set) => ({
  * delete an item and three delete a schedule; the wording and the undo wiring
  * live here so they cannot drift apart.
  *
- * `useUndoRedo` is a hook, so the button reaches the same temporal store the
- * way the section store does — directly.
+ * The `edit.undo` command reaches the same temporal store the way the
+ * section store does — directly.
  * ------------------------------------------------------------------ */
 
 function undoAction(restore?: () => void): ToastAction {

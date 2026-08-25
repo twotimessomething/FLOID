@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useCallback, useState, type DragEvent } from 'react';
-import { Analytics } from '@vercel/analytics/react';
+import { WebAnalytics } from './components/common/WebAnalytics';
 import { Header } from './components/layout/Header';
 import { TimelineContainer } from './components/layout/TimelineContainer';
 import { LeftSidebar } from './components/layout/LeftSidebar';
@@ -16,7 +16,8 @@ import { useFileSystemAutoSave } from './hooks/useFileSystemAutoSave';
 import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
 import { useUIStore } from './stores/uiStore';
-import { parseProjectJson, convertImportedProject } from './utils/exportUtils';
+import { importFloidText, setScheduleImportHandler } from './utils/importFloid';
+import { isDesktop } from './platform/detect';
 
 /**
  * Overlays arrive when they are asked for.
@@ -73,17 +74,11 @@ function useOnceWanted(isWanted: boolean): boolean {
 
 function App(): JSX.Element {
   const { initializeFromProject, loadSectionsForProject } = useSectionStore();
-  const sections = useSectionStore((state) => state.sections);
-  const dependencies = useSectionStore((state) => state.dependencies);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const isStorageReady = useProjectStore((state) => state.isStorageReady);
-  const saveCurrentProject = useProjectStore((state) => state.saveCurrentProject);
-  const importProject = useProjectStore((state) => state.importProject);
-  const selectProject = useProjectStore((state) => state.selectProject);
   const closeContextMenu = useUIStore((state) => state.closeContextMenu);
   const isDraggingFile = useUIStore((state) => state.isDraggingFile);
   const setDraggingFile = useUIStore((state) => state.setDraggingFile);
-  const showToast = useUIStore((state) => state.showToast);
 
   // Each lazy overlay is mounted only once something has asked for it — see
   // `useOnceWanted`. Read as individual selectors so opening one modal does
@@ -97,6 +92,20 @@ function App(): JSX.Element {
   const wantsAbout = useOnceWanted(useUIStore((state) => state.isAboutModalOpen));
 
   const { handleImport: handleScheduleImport, handleConfirmAction } = useScheduleImport();
+
+  // Commands and native menus import .floid files without a hook in reach —
+  // park the modal-flow handler where utils/importFloid can find it.
+  useEffect(() => {
+    setScheduleImportHandler(handleScheduleImport);
+  }, [handleScheduleImport]);
+
+  // Desktop wiring (Finder opens, native drag-drop) waits for storage so an
+  // opened file lands in an initialized store. Declared after the handler
+  // effect above so a cold-start schedule import finds its modal flow.
+  useEffect(() => {
+    if (!isStorageReady || !isDesktop()) return;
+    void import('./platform/initDesktop').then((m) => m.initDesktop());
+  }, [isStorageReady]);
 
   // Initialize auto-save functionality
   useAutoSave();
@@ -184,50 +193,11 @@ function App(): JSX.Element {
 
       const files = Array.from(e.dataTransfer.files);
       const floidFile = files.find((f) => f.name.endsWith('.floid'));
+      if (!floidFile) return;
 
-      if (floidFile) {
-        const text = await floidFile.text();
-        try {
-          const parsed = JSON.parse(text);
-
-          if (parsed.format === 'floid') {
-            // Schedule import
-            handleScheduleImport(text);
-          } else if (parsed.format === 'floid-project') {
-            // Project import
-            const exportData = parseProjectJson(text);
-            if (exportData) {
-              const {
-                project: importedProject,
-                sections: importedSections,
-                dependencies: importedDependencies,
-              } = convertImportedProject(exportData);
-
-              // Save current project before switching (if there is one)
-              if (activeProjectId) {
-                await saveCurrentProject(sections, dependencies);
-              }
-
-              // Add the imported project to the project list
-              const newProjectId = await importProject(
-                importedProject,
-                importedSections,
-                importedDependencies
-              );
-
-              // Switch to the imported project
-              await selectProject(newProjectId);
-              await loadSectionsForProject(newProjectId);
-
-              showToast('success', `Imported project "${importedProject.name}"`);
-            }
-          }
-        } catch {
-          // Invalid JSON, ignore
-        }
-      }
+      await importFloidText(await floidFile.text(), { handleScheduleImport });
     },
-    [setDraggingFile, handleScheduleImport, activeProjectId, sections, dependencies, saveCurrentProject, importProject, selectProject, loadSectionsForProject, showToast]
+    [setDraggingFile, handleScheduleImport]
   );
 
   // Show loading state while storage initializes
@@ -323,7 +293,7 @@ function App(): JSX.Element {
           </div>
         </div>
       )}
-      <Analytics />
+      <WebAnalytics />
     </div>
   );
 }

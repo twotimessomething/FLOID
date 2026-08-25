@@ -1,45 +1,17 @@
-import { useCallback } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useViewport } from '../../hooks/useViewport';
-import { ZOOM_PIXELS_PER_DAY, getFitPixelsPerDay } from '../../utils/timelineUtils';
-import type { ZoomLevel } from '../../types';
-
-/** Finest first, so zooming in walks the list backwards. */
-const ZOOM_LEVELS: ZoomLevel[] = ['day', 'week', 'month', 'quarter'];
-
-const ZOOM_LABELS: Record<ZoomLevel, string> = {
-  day: 'Day',
-  week: 'Week',
-  month: 'Month',
-  quarter: 'Quarter',
-};
-
-/**
- * A fitted view sits between the named levels, so stepping out of one lands on
- * the nearest level in the direction asked for rather than on a remembered one.
- */
-function stepFromFit(fitPixelsPerDay: number, direction: 'in' | 'out'): ZoomLevel {
-  if (direction === 'in') {
-    for (let i = ZOOM_LEVELS.length - 1; i >= 0; i -= 1) {
-      if (ZOOM_PIXELS_PER_DAY[ZOOM_LEVELS[i]] > fitPixelsPerDay) return ZOOM_LEVELS[i];
-    }
-    return ZOOM_LEVELS[0];
-  }
-  for (let i = 0; i < ZOOM_LEVELS.length; i += 1) {
-    if (ZOOM_PIXELS_PER_DAY[ZOOM_LEVELS[i]] < fitPixelsPerDay) return ZOOM_LEVELS[i];
-  }
-  return ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
-}
+import { ZOOM_LEVELS, ZOOM_LABELS } from '../../utils/zoomSteps';
 
 const STEP_CLASS =
   'p-0.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:hover:text-[var(--color-text-secondary)] transition-colors duration-fast';
 
 export function ZoomControls(): JSX.Element {
   const zoomLevel = useUIStore((state) => state.zoomLevel);
-  const setZoomLevel = useUIStore((state) => state.setZoomLevel);
   const fitPixelsPerDay = useUIStore((state) => state.fitPixelsPerDay);
-  const setFitPixelsPerDay = useUIStore((state) => state.setFitPixelsPerDay);
   const timelineViewportWidth = useUIStore((state) => state.timelineViewportWidth);
+  const zoomIn = useUIStore((state) => state.zoomIn);
+  const zoomOut = useUIStore((state) => state.zoomOut);
+  const zoomToFit = useUIStore((state) => state.zoomToFit);
   const triggerScrollToToday = useUIStore((state) => state.triggerScrollToToday);
 
   const { totalDays, markerZoom } = useViewport();
@@ -47,30 +19,6 @@ export function ZoomControls(): JSX.Element {
   const isFit = fitPixelsPerDay !== null;
   const currentIndex = ZOOM_LEVELS.indexOf(zoomLevel);
   const canFit = timelineViewportWidth > 0 && totalDays > 0;
-
-  const handleZoomIn = useCallback((): void => {
-    if (fitPixelsPerDay !== null) {
-      setZoomLevel(stepFromFit(fitPixelsPerDay, 'in'));
-      return;
-    }
-    const index = ZOOM_LEVELS.indexOf(useUIStore.getState().zoomLevel);
-    if (index > 0) setZoomLevel(ZOOM_LEVELS[index - 1]);
-  }, [fitPixelsPerDay, setZoomLevel]);
-
-  const handleZoomOut = useCallback((): void => {
-    if (fitPixelsPerDay !== null) {
-      setZoomLevel(stepFromFit(fitPixelsPerDay, 'out'));
-      return;
-    }
-    const index = ZOOM_LEVELS.indexOf(useUIStore.getState().zoomLevel);
-    if (index < ZOOM_LEVELS.length - 1) setZoomLevel(ZOOM_LEVELS[index + 1]);
-  }, [fitPixelsPerDay, setZoomLevel]);
-
-  const handleFit = useCallback((): void => {
-    const fitted = getFitPixelsPerDay(totalDays, timelineViewportWidth);
-    if (fitted === null) return;
-    setFitPixelsPerDay(fitted);
-  }, [totalDays, timelineViewportWidth, setFitPixelsPerDay]);
 
   return (
     <div className="flex items-center gap-3">
@@ -87,7 +35,7 @@ export function ZoomControls(): JSX.Element {
           instead of a row of look-alike text links. */}
       <div className="flex items-center gap-0.5 px-1 py-0.5 border border-[var(--color-border)]">
         <button
-          onClick={handleZoomOut}
+          onClick={zoomOut}
           disabled={!isFit && currentIndex >= ZOOM_LEVELS.length - 1}
           className={STEP_CLASS}
           aria-label="Zoom out"
@@ -98,7 +46,7 @@ export function ZoomControls(): JSX.Element {
         </button>
 
         <button
-          onClick={handleFit}
+          onClick={zoomToFit}
           disabled={!canFit}
           title="Fit the whole timeline on screen"
           aria-label="Fit timeline to screen"
@@ -117,7 +65,7 @@ export function ZoomControls(): JSX.Element {
         </button>
 
         <button
-          onClick={handleZoomIn}
+          onClick={zoomIn}
           disabled={!isFit && currentIndex <= 0}
           className={STEP_CLASS}
           aria-label="Zoom in"

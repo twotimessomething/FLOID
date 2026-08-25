@@ -2,10 +2,12 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
-import { parseProjectJson, convertImportedProject, exportTimelineAsImage } from '../../utils/exportUtils';
+import { exportTimelineAsImage } from '../../utils/exportUtils';
+import { importFloidText, FLOID_OPEN_FILTERS } from '../../utils/importFloid';
+import { openFiles } from '../../platform/files';
 import { useScheduleImport } from '../../hooks/useScheduleImport';
 import { useFileSystemAutoSave } from '../../hooks/useFileSystemAutoSave';
-import { isFileSystemAccessSupported } from '../../utils/fileSystemUtils';
+import { supportsDirectorySave } from '../../platform/files';
 import { SLIDE_TIGHT_SCALE } from '../../constants/slideDimensions';
 import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 import { ZoomControls } from '../controls/ZoomControls';
@@ -33,12 +35,8 @@ function Logo(): JSX.Element {
 export function Header(): JSX.Element {
   // Use selective store subscriptions to prevent unnecessary re-renders
   const project = useProjectStore((state) => state.project);
-  const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const sections = useSectionStore((state) => state.sections);
   const dependencies = useSectionStore((state) => state.dependencies);
-  const { saveCurrentProject, importProject, selectProject } = useProjectStore();
-
-  const loadSectionsForProject = useSectionStore((state) => state.loadSectionsForProject);
 
   const showToast = useUIStore((state) => state.showToast);
   const openExportModal = useUIStore((state) => state.openExportModal);
@@ -124,61 +122,12 @@ export function Header(): JSX.Element {
     }
   }, [saveToFolder, showToast]);
 
-  const handleImport = (): void => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json,.floid';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      const text = await file.text();
-
-      // Parse JSON and check format field to determine import type
-      try {
-        const parsed = JSON.parse(text);
-
-        // Single schedule import (format: 'floid')
-        if (parsed.format === 'floid') {
-          handleScheduleImport(text);
-          return;
-        }
-      } catch {
-        // Not valid JSON, fall through to project import
-      }
-
-      // Full project import (format: 'floid-project' or legacy .json)
-      const exportData = parseProjectJson(text);
-
-      if (exportData) {
-        // Convert export format back to runtime types
-        const {
-          project: importedProject,
-          sections: importedSections,
-          dependencies: importedDependencies,
-        } = convertImportedProject(exportData);
-
-        // Save current project before switching (if there is one)
-        if (activeProjectId) {
-          await saveCurrentProject(sections, dependencies);
-        }
-
-        // Add the imported project to the project list
-        const newProjectId = await importProject(
-          importedProject,
-          importedSections,
-          importedDependencies
-        );
-
-        // Switch to the imported project
-        await selectProject(newProjectId);
-        await loadSectionsForProject(newProjectId);
-
-        showToast('success', `Imported project "${importedProject.name}"`);
-      }
-    };
-    input.click();
-  };
+  const handleImport = useCallback(async (): Promise<void> => {
+    const files = await openFiles({ filters: FLOID_OPEN_FILTERS });
+    for (const file of files) {
+      await importFloidText(file.text, { handleScheduleImport });
+    }
+  }, [handleScheduleImport]);
 
   return (
     <header className="h-12 px-4 flex items-center justify-between bg-[var(--color-background)] flex-shrink-0" aria-label="FLOID application header">
@@ -237,7 +186,7 @@ export function Header(): JSX.Element {
                 >
                   Export as slide
                 </button>
-                {isFileSystemAccessSupported() && (
+                {supportsDirectorySave() && (
                   <button
                     onClick={handleSaveToFolder}
                     className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"

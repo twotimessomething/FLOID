@@ -2,8 +2,17 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useSectionStore } from '../stores/sectionStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useSyncStore } from '../stores/syncStore';
-import { getFileHandle, setFileHandle, getAppSettings, setAppSettings } from '../utils/indexedDB';
-import { writeProjectToFolder, isFileSystemAccessSupported, requestDirectoryAccess } from '../utils/fileSystemUtils';
+import { getAppSettings, setAppSettings } from '../utils/indexedDB';
+import {
+  directoryDisplayName,
+  persistDirectory,
+  pickDirectory,
+  restoreDirectory,
+  supportsDirectorySave,
+  writeFileInDirectory,
+} from '../platform/files';
+import { exportToJson, projectFloidFilename } from '../utils/exportUtils';
+import type { DirectoryToken } from '../platform/types';
 import type { Project, Section } from '../types';
 
 const FS_DEBOUNCE_MS = 5000; // Longer debounce for file writes
@@ -26,21 +35,21 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
   const setDisabled = useSyncStore((state) => state.setDisabled);
   const setFolderName = useSyncStore((state) => state.setFolderName);
 
-  const handleRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const tokenRef = useRef<DirectoryToken | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load handle and initialize sync state on mount
+  // Restore the persisted grant and initialize sync state on mount
   useEffect(() => {
-    if (!isFileSystemAccessSupported()) {
+    if (!supportsDirectorySave()) {
       setDisabled();
       return;
     }
 
-    const initHandle = async (): Promise<void> => {
-      const h = await getFileHandle();
-      handleRef.current = h;
+    const initToken = async (): Promise<void> => {
+      const token = await restoreDirectory();
+      tokenRef.current = token;
 
-      if (h) {
+      if (token) {
         const settings = await getAppSettings();
         setFolderName(settings.fileSystemFolderName);
       } else {
@@ -48,17 +57,30 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
       }
     };
 
-    initHandle();
+    void initToken();
   }, [setDisabled, setFolderName]);
+
+  /** Adopt a freshly picked folder: remember it, persist it, name it. */
+  const adoptToken = useCallback(
+    async (token: DirectoryToken): Promise<void> => {
+      tokenRef.current = token;
+      await persistDirectory(token);
+      const name = await directoryDisplayName(token);
+      await setAppSettings({ fileSystemFolderName: name });
+      setFolderName(name);
+    },
+    [setFolderName]
+  );
 
   // Core save function
   const performSave = useCallback(
-    async (handle: FileSystemDirectoryHandle, proj: Project, secs: Section[]): Promise<void> => {
+    async (token: DirectoryToken, proj: Project, secs: Section[]): Promise<void> => {
       setSyncing();
 
       try {
-        await writeProjectToFolder(handle, proj, secs, useSectionStore.getState().dependencies);
-        setSynced(handle.name);
+        const contents = exportToJson(proj, secs, useSectionStore.getState().dependencies);
+        await writeFileInDirectory(token, projectFloidFilename(proj), contents);
+        setSynced(await directoryDisplayName(token));
 
         // Update last sync date in app settings
         await setAppSettings({ lastFileSystemSyncDate: new Date().toISOString() });
@@ -66,15 +88,18 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
         const error = e as Error;
         console.error('File system auto-save failed:', error);
 
-        // Check for specific error types
         if (error.name === 'NotFoundError') {
           // Folder was deleted
           setError('Folder not found');
-          handleRef.current = null;
-          await setFileHandle(null);
+          tokenRef.current = null;
+          await persistDirectory(null);
           await setAppSettings({ fileSystemFolderName: null });
-        } else if (error.name === 'NotAllowedError' || error.message.includes('Permission denied')) {
-          // Permission was lost
+        } else if (
+          error.name === 'NotAllowedError' ||
+          error.message.includes('Permission denied') ||
+          error.message.includes('forbidden')
+        ) {
+          // Permission was lost — the sandbox forgot the grant; reconnect re-picks
           setError('Permission lost');
         } else {
           setError('Save failed');
@@ -86,17 +111,17 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
 
   // Auto-save on changes
   useEffect(() => {
-    if (!isInitialized || !isStorageReady || !project || !handleRef.current) return;
-    if (!isFileSystemAccessSupported()) return;
+    if (!isInitialized || !isStorageReady || !project || !tokenRef.current) return;
+    if (!supportsDirectorySave()) return;
 
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
     timeoutRef.current = setTimeout(() => {
-      const handle = handleRef.current;
-      if (!handle) return;
-      performSave(handle, project, sections);
+      const token = tokenRef.current;
+      if (!token) return;
+      void performSave(token, project, sections);
     }, FS_DEBOUNCE_MS);
 
     return () => {
@@ -109,41 +134,31 @@ export function useFileSystemAutoSave(): UseFileSystemAutoSaveReturn {
   // Manual save to folder (for "Save to Folder" button)
   const saveToFolder = useCallback(async (): Promise<boolean> => {
     if (!project) return false;
-    if (!isFileSystemAccessSupported()) return false;
+    if (!supportsDirectorySave()) return false;
 
-    let handle = handleRef.current;
+    let token = tokenRef.current;
 
-    // If no handle, prompt user to select folder
-    if (!handle) {
-      handle = await requestDirectoryAccess();
-      if (!handle) return false;
-
-      // Store the handle
-      handleRef.current = handle;
-      await setFileHandle(handle);
-      await setAppSettings({ fileSystemFolderName: handle.name });
-      setFolderName(handle.name);
+    // If no folder yet, prompt the user to select one
+    if (!token) {
+      token = await pickDirectory({ id: 'floid-autosave' });
+      if (!token) return false;
+      await adoptToken(token);
     }
 
-    // Perform the save
-    await performSave(handle, project, sections);
+    await performSave(token, project, sections);
     return true;
-  }, [project, sections, performSave, setFolderName]);
+  }, [project, sections, performSave, adoptToken]);
 
-  // Reconnect to folder (for when permission is lost)
+  // Reconnect to a folder (for when the grant is lost)
   const reconnectFolder = useCallback(async (): Promise<boolean> => {
-    if (!isFileSystemAccessSupported()) return false;
+    if (!supportsDirectorySave()) return false;
 
-    const handle = await requestDirectoryAccess();
-    if (!handle) return false;
+    const token = await pickDirectory({ id: 'floid-autosave' });
+    if (!token) return false;
 
-    handleRef.current = handle;
-    await setFileHandle(handle);
-    await setAppSettings({ fileSystemFolderName: handle.name });
-    setFolderName(handle.name);
-
+    await adoptToken(token);
     return true;
-  }, [setFolderName]);
+  }, [adoptToken]);
 
   return { saveToFolder, reconnectFolder };
 }

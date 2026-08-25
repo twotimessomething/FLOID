@@ -4,6 +4,7 @@ import type { DependencyEdge, Section } from '../types/timeline';
 import type { SlidePlan, SlidePoint, SlideShape } from './slidePlan';
 import { buildSlidePlan } from './slidePlan';
 import { sanitizeFilename } from './stringUtils';
+import { saveFile } from '../platform/files';
 import { POINTS_PER_INCH, SLIDE_FONT, SLIDE_INK } from '../constants/slideDimensions';
 
 /**
@@ -178,14 +179,12 @@ export async function exportTimelineAsPptx(
   const plan = buildSlidePlan(project, sections, dependencies);
   const blob = await renderPlanToPptx(plan, `${project.name} — timeline`);
 
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `${sanitizeFilename(project.name)}-timeline.pptx`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
+  await saveFile({
+    suggestedName: `${sanitizeFilename(project.name)}-timeline.pptx`,
+    filters: [{ name: 'PowerPoint Slide', extensions: ['pptx'] }],
+    data: blob,
+    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  });
 
   return { scale: plan.scale, rowCount: plan.rowCount };
 }

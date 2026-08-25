@@ -12,6 +12,8 @@ import { migrateSections } from './migrateLegacy';
 import { edgesWithinSection, pruneDanglingEdges, readStoredEdges } from './dependencyUtils';
 import { flattenSection, headerMilestones, type FlatRow } from './timelineUtils';
 import { setAppSettings } from './indexedDB';
+import { saveFile } from '../platform/files';
+import type { FileFilter } from '../platform/types';
 import { sanitizeFilename } from './stringUtils';
 import { getReadableTextColor } from './colorUtils';
 import {
@@ -111,26 +113,37 @@ export const exportToJson = (
   dependencies: readonly DependencyEdge[] = []
 ): string => JSON.stringify(exportProjectToJson(project, sections, dependencies), null, 2);
 
+export const FLOID_FILE_FILTER: FileFilter = { name: 'FLOID Project', extensions: ['floid'] };
+
+export const projectFloidFilename = (project: Project): string =>
+  `${sanitizeFilename(project.name)}.floid`;
+
+export const scheduleFloidFilename = (project: Project, section: Section): string =>
+  `${sanitizeFilename(project.name)}_${sanitizeFilename(section.name)}_r${section.revision}.floid`;
+
 export const downloadProjectJson = async (
   project: Project,
   sections: Section[],
   dependencies: readonly DependencyEdge[] = []
 ): Promise<void> => {
   const json = exportToJson(project, sections, dependencies);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
 
-  const filename = `${sanitizeFilename(project.name)}.floid`;
+  const { saved } = await saveFile({
+    suggestedName: projectFloidFilename(project),
+    filters: [FLOID_FILE_FILTER],
+    data: json,
+    mimeType: 'application/json',
+  });
 
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Only a save that happened counts as a backup — a cancelled dialog must
+  // leave the backup reminder armed.
+  if (saved) {
+    await stampBackupDate();
+  }
+};
 
-  // Update last backup date
+/** Mark the project backed up; `useBackupReminder` reads this. */
+export const stampBackupDate = async (): Promise<void> => {
   await setAppSettings({ lastBackupDate: new Date().toISOString() });
 };
 
@@ -258,19 +271,13 @@ export const downloadScheduleFloid = async (
   dependencies: readonly DependencyEdge[] = []
 ): Promise<void> => {
   const data = exportScheduleToFloid(project, section, dependencies);
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
 
-  const filename = `${sanitizeFilename(project.name)}_${sanitizeFilename(section.name)}_r${section.revision}.floid`;
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  await saveFile({
+    suggestedName: scheduleFloidFilename(project, section),
+    filters: [FLOID_FILE_FILTER],
+    data: JSON.stringify(data, null, 2),
+    mimeType: 'application/json',
+  });
 };
 
 /**
@@ -684,17 +691,20 @@ export const exportTimelineAsImage = async (
   ctx.lineTo(LABEL_WIDTH, HEIGHT);
   ctx.stroke();
 
-  // Convert to blob and download
-  canvas.toBlob((blob) => {
-    if (!blob) return;
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${sanitizeFilename(project.name)}-timeline.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 'image/png');
+  // Await the encode so callers report success only once the file exists
+  const blob = await canvasToBlob(canvas);
+  await saveFile({
+    suggestedName: `${sanitizeFilename(project.name)}-timeline.png`,
+    filters: [{ name: 'PNG Image', extensions: ['png'] }],
+    data: blob,
+    mimeType: 'image/png',
+  });
 };
+
+const canvasToBlob = (canvas: HTMLCanvasElement): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('Canvas produced no image'))),
+      'image/png'
+    );
+  });

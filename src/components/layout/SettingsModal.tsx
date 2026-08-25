@@ -7,8 +7,13 @@ import { Toggle } from '../common/Toggle';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import type { AppSettings } from '../../types/storage';
 import { DEFAULT_APP_SETTINGS } from '../../types/storage';
-import { getAppSettings, setAppSettings, setFileHandle } from '../../utils/indexedDB';
-import { isFileSystemAccessSupported, requestDirectoryAccess } from '../../utils/fileSystemUtils';
+import { getAppSettings, setAppSettings } from '../../utils/indexedDB';
+import {
+  directoryDisplayName,
+  persistDirectory,
+  pickDirectory,
+  supportsDirectorySave,
+} from '../../platform/files';
 import { usePresence } from '../../hooks/usePresence';
 
 // Theme option type
@@ -147,17 +152,18 @@ export function SettingsModal(): JSX.Element | null {
   }, []);
 
   const handleSelectFolder = useCallback(async () => {
-    const handle = await requestDirectoryAccess();
-    if (handle) {
-      await setFileHandle(handle);
-      await setAppSettings({ fileSystemFolderName: handle.name });
-      setLocalAppSettings((s) => ({ ...s, fileSystemFolderName: handle.name }));
-      setFolderName(handle.name);
+    const token = await pickDirectory({ id: 'floid-autosave' });
+    if (token) {
+      await persistDirectory(token);
+      const name = await directoryDisplayName(token);
+      await setAppSettings({ fileSystemFolderName: name });
+      setLocalAppSettings((s) => ({ ...s, fileSystemFolderName: name }));
+      setFolderName(name);
     }
   }, [setFolderName]);
 
   const handleDisableFs = useCallback(async () => {
-    await setFileHandle(null);
+    await persistDirectory(null);
     await setAppSettings({ fileSystemFolderName: null, lastFileSystemSyncDate: null });
     setLocalAppSettings((s) => ({ ...s, fileSystemFolderName: null, lastFileSystemSyncDate: null }));
     setDisabled();
@@ -313,8 +319,9 @@ export function SettingsModal(): JSX.Element | null {
             )}
           </div>
 
-          {/* File System Access API section (Chrome/Edge only) */}
-          {isFileSystemAccessSupported() && (
+          {/* Folder autosave — desktop always; on the web only where the
+              File System Access API exists (Chrome/Edge) */}
+          {supportsDirectorySave() && (
             <div className="py-3">
               <label className="text-body font-medium text-[var(--color-text-primary)]">
                 Auto-save to folder

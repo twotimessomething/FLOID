@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
+  <key>NSHumanReadableCopyright</key>
+  <string>© 2026 Scotty Shu</string>
+  <!-- Tauri's fileAssociations generate CFBundleDocumentTypes; the exported
+       UTIs below give LaunchServices a real type to bind the custom
+       extensions to. -->
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>design.floid.app.floid</string>
+      <key>UTTypeDescription</key>
+      <string>FLOID Project</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.json</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>floid</string>
+        </array>
+      </dict>
+    </dict>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>design.floid.app.floid-project</string>
+      <key>UTTypeDescription</key>
+      <string>FLOID Project Backup</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.json</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>floid-project</string>
+        </array>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>

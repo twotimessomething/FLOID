@@ -47,6 +47,7 @@ chart, not a dashboard. Five rules carry it:
 - Zustand (state management)
 - TailwindCSS
 - date-fns
+- Tauri v2 (macOS desktop shell; Rust in `src-tauri/`)
 
 ## Commands
 
@@ -57,7 +58,44 @@ npm run preview   # Preview production build
 npm run lint      # ESLint
 npm run format    # Prettier
 npm run typecheck # TypeScript check
+npm run dev:mac   # Tauri dev — native Mac app against the dev server
+npm run build:mac # Tauri build — bundles FLOID.app (src-tauri/target/*/bundle)
 ```
+
+## Two targets, one dist
+
+The same `npm run build` output serves the web (Vercel) and the Mac app
+(Tauri wraps `dist/`). There are no build-time forks: `import.meta.env` stays
+unused, and `src/platform/detect.ts` decides at runtime (`isDesktop()`). The
+desktop implementation loads through dynamic `import()`, so it is an async
+chunk web browsers never fetch — every deploy exercises exactly the bytes the
+Mac app ships.
+
+- **File access goes through `src/platform/files.ts`** — never write an
+  anchor-download, `input[type=file]`, or File System Access call in app code.
+  `saveFile`/`openFiles`/`pickDirectory`/`writeFileInDirectory` resolve to a
+  browser idiom on the web and NSSavePanel/NSOpenPanel via Tauri on the Mac.
+  `SaveFileResult.saved` is honest: a cancelled native dialog reports `false`
+  (which is why `lastBackupDate` only stamps on a real save).
+- **Menu-grade actions live in `src/commands/`** — a typed registry whose
+  handlers use `getState()`, so a React click, a DOM keydown, and a native
+  menu item all run the same code. The macOS menu bar
+  (`src/platform/menu.desktop.ts`) is built from it; `useKeyboardShortcuts`
+  maps the same combos on the web and stands down behind `isDesktop()` on
+  desktop, where the menu owns the accelerators. Selection-dependent keys
+  (arrows, delete, collapse) stay in `useKeyboardShortcuts`. A combo the
+  browser refuses to surrender is marked `browserReserved` — menu-only.
+- **The app must run fully offline**: fonts are self-hosted
+  (`public/fonts/`, declared in `index.css`), analytics mounts only on the web
+  (`WebAnalytics`). Never reintroduce a CDN link.
+- **Finder opens and Tauri drag-drops** arrive through
+  `src/platform/initDesktop.ts` → `importFloidText` — the same door as the
+  web's file picker. Rust buffers cold-start files (`take_pending_files`).
+- **Mac App Store shape**: sandbox entitlements in
+  `src-tauri/Entitlements.plist` (user-selected files only, no network), no
+  updater plugin, no private API. The CSP lives in `tauri.conf.json` for the
+  app and `vercel.json` for the web — both must carry the pinned theme-script
+  hash from `index.html`.
 
 ## Core Concepts
 

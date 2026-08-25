@@ -4,6 +4,18 @@ node_modules/
 # Build output
 dist/
 
+# Tauri build output
+src-tauri/target/
+src-tauri/gen/
+
+# Apple signing material — must never reach the public repo
+*.p12
+*.p8
+*.cer
+*.certSigningRequest
+*.provisionprofile
+*.mobileprovision
+
 # Environment files
 .env
 .env.local
