@@ -50,8 +50,18 @@ export const SLIDE_MAX_FONT_PT = 12;
 /** A bar narrower than this has nowhere to print its name. */
 export const SLIDE_MIN_LABEL_WIDTH = 18;
 
+/**
+ * The cut edge of a folded schedule's tape. Strips cover one another there, so
+ * each one is drawn with a hairline of paper around it — invisible against the
+ * slide, the edge of the strip against the one underneath.
+ */
+export const SLIDE_TAPE_SEAM = 0.75;
+
 /** Horizontal run a dependency connector takes before its first corner. */
 export const SLIDE_DEP_STUB = 7;
+
+/** How far below a shared row a doubled-back connector dips. */
+export const SLIDE_DEP_CLEARANCE = 8;
 
 /**
  * Ink. Fixed, not read from CSS variables: an export made in dark mode should

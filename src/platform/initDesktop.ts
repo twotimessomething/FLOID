@@ -31,6 +31,25 @@ async function drainPendingFiles(): Promise<void> {
   await importPaths(paths);
 }
 
+/**
+ * Rust pins the window's appearance at launch so the boot script in index.html
+ * cannot lose a race against the webview settling on `prefers-color-scheme`.
+ * A pinned NSWindow stops following the system *and* stops being told the
+ * system moved, so leaving it pinned means macOS appearance changes never
+ * reach the webview at all — which is what shipped as build 1. Release it once
+ * a frame has actually been painted: two rAFs, because the first fires before
+ * the frame it schedules is on screen.
+ */
+function followSystemTheme(): void {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      void invoke('follow_system_theme').catch((error) => {
+        console.error('Failed to hand the theme back to the system:', error);
+      });
+    });
+  });
+}
+
 let initialized = false;
 
 export async function initDesktop(): Promise<void> {
@@ -52,4 +71,6 @@ export async function initDesktop(): Promise<void> {
       void importPaths(event.payload.paths);
     }
   });
+
+  followSystemTheme();
 }

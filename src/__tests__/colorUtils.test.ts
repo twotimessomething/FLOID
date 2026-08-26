@@ -5,7 +5,13 @@ import {
   getPhaseColorInRange,
   getReadableTextColor,
 } from '../utils/colorUtils';
-import { PHASE_COLORS } from '../constants/colors';
+import {
+  PHASE_COLORS,
+  PALETTE_COLORS,
+  MULTICOLOR_SEQUENCE,
+  SCHEDULE_COLORS,
+  isPaletteColor,
+} from '../constants/colors';
 
 describe('hexToHsl', () => {
   it('converts pure red', () => {
@@ -183,3 +189,86 @@ describe('getReadableTextColor', () => {
     expect(getReadableTextColor('#abc')).toBe(INK);
   });
 });
+
+describe('the palette', () => {
+  const INK = '#17171A';
+
+  it('offers every ink to the pickers, once', () => {
+    expect(PALETTE_COLORS).toHaveLength(Object.keys(PHASE_COLORS).length);
+    expect(new Set(PALETTE_COLORS).size).toBe(PALETTE_COLORS.length);
+  });
+
+  it('rotates and auto-assigns only inks that are in the palette', () => {
+    for (const color of [...MULTICOLOR_SEQUENCE, ...SCHEDULE_COLORS]) {
+      expect(isPaletteColor(color)).toBe(true);
+    }
+    expect(new Set(MULTICOLOR_SEQUENCE).size).toBe(PALETTE_COLORS.length);
+  });
+
+  /**
+   * A multicolor schedule stores no colours — they are resolved from position —
+   * so reordering the rotation repaints saved projects. New inks are appended.
+   */
+  it('leaves the first nine rotation slots where saved projects left them', () => {
+    expect(MULTICOLOR_SEQUENCE.slice(0, 9)).toEqual([
+      PHASE_COLORS.teal,
+      PHASE_COLORS.sky,
+      PHASE_COLORS.blue,
+      PHASE_COLORS.red,
+      PHASE_COLORS.pink,
+      PHASE_COLORS.orange,
+      PHASE_COLORS.indigo,
+      PHASE_COLORS.ochre,
+      PHASE_COLORS.plum,
+    ]);
+  });
+
+  /**
+   * The check that decides whether a colour can join the palette at all: a
+   * schedule walks a gradient down from its base, and an ink sitting just above
+   * the ink/paper crossover flips its label colour halfway down its own ramp.
+   */
+  it('keeps one label color down every ink\'s own gradient', () => {
+    for (const [name, base] of Object.entries(PHASE_COLORS)) {
+      const atBase = getReadableTextColor(base);
+      for (let i = 0; i < 8; i += 1) {
+        const step = getPhaseColorInRange(base, i, 8);
+        expect(`${name}@${i}: ${getReadableTextColor(step)}`).toBe(`${name}@${i}: ${atBase}`);
+      }
+    }
+  });
+
+  it('holds a label at AA on every ink', () => {
+    for (const [name, ink] of Object.entries(PHASE_COLORS)) {
+      const text = getReadableTextColor(ink);
+      const ratio = contrastRatio(ink, text);
+      // Bar labels are small text; the saturated warms are the documented
+      // exception, given paper by eye rather than by measurement.
+      const floor = text === INK || ink === PHASE_COLORS.red || ink === PHASE_COLORS.orange ? 2.9 : 4.5;
+      expect(`${name}: ${ratio >= floor}`).toBe(`${name}: true`);
+    }
+  });
+
+  it('separates neighbours in the rotation on value or hue', () => {
+    for (let i = 0; i < MULTICOLOR_SEQUENCE.length; i += 1) {
+      const a = hexToHsl(MULTICOLOR_SEQUENCE[i]);
+      const b = hexToHsl(MULTICOLOR_SEQUENCE[(i + 1) % MULTICOLOR_SEQUENCE.length]);
+      const hueGap = Math.min(Math.abs(a.h - b.h), 360 - Math.abs(a.h - b.h));
+      expect(`${i}: ${Math.abs(a.l - b.l) >= 8 || hueGap >= 40}`).toBe(`${i}: true`);
+    }
+  });
+});
+
+function relativeLuminance(hex: string): number {
+  const clean = hex.replace(/^#/, '');
+  const channel = (offset: number): number => {
+    const c = parseInt(clean.slice(offset, offset + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+}
+
+function contrastRatio(a: string, b: string): number {
+  const [light, dark] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}

@@ -89,6 +89,72 @@ export const getMonthMarkers = (
   }));
 };
 
+/** One mark on an export axis, whatever cadence chose it. */
+export interface AxisMark {
+  readonly date: Date;
+  readonly label: string;
+  /** Month-cadence marks carry the year where it changes information; finer
+   * marks already read as dates and lean on a printed range elsewhere. */
+  readonly wantsYear: boolean;
+}
+
+/**
+ * Marks for an export axis — the slide's and the PNG's, so the two cannot
+ * disagree about cadence. The cadence comes from the space a mark would get,
+ * never from the zoom the user last picked, and runs finer as well as coarser:
+ * days when the sheet is a few weeks wide, weeks when it is a few months (the
+ * screen's own week markers), then the month ladder — months, quarters,
+ * half-years, years. `unitsPerDay` and `minSpacing` share whatever unit the
+ * caller draws in, points or pixels.
+ */
+export const getAxisMarks = (
+  startKey: string,
+  endKey: string,
+  unitsPerDay: number,
+  minSpacing: number
+): AxisMark[] => {
+  const start = fromDayKey(startKey);
+  const end = fromDayKey(endKey);
+
+  if (unitsPerDay >= minSpacing) {
+    return getTimeMarkers(start, end, 'day').map((marker, index) => ({
+      date: marker.date,
+      label:
+        index === 0 || marker.date.getDate() === 1 ? format(marker.date, 'MMM d') : marker.label,
+      wantsYear: false,
+    }));
+  }
+
+  // Week labels ("Mar 23") are wider than month labels, so they ask for more air
+  if (unitsPerDay * 7 >= minSpacing * 1.5) {
+    return getTimeMarkers(start, end, 'week').map((marker) => ({
+      date: marker.date,
+      label: marker.label,
+      wantsYear: false,
+    }));
+  }
+
+  const perMonth = unitsPerDay * 30.44;
+  let step = 12;
+  for (const candidate of [1, 3, 6, 12]) {
+    if (perMonth * candidate >= minSpacing) {
+      step = candidate;
+      break;
+    }
+  }
+
+  const marks: AxisMark[] = [];
+  for (const marker of getMonthMarkers(start, end)) {
+    if (step > 1 && marker.date.getMonth() % step !== 0) continue;
+    marks.push(
+      step >= 12
+        ? { date: marker.date, label: format(marker.date, 'yyyy'), wantsYear: false }
+        : { date: marker.date, label: marker.label, wantsYear: true }
+    );
+  }
+  return marks;
+};
+
 /**
  * The window the timeline draws: everything every schedule holds — declared
  * range and item extents alike — plus a month of air on each side so there is

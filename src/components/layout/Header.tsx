@@ -76,13 +76,13 @@ export function Header(): JSX.Element {
     // No toast until there is something to report: the export is fast, and a
     // 'success' that only means 'started' is a lie the user has to unlearn.
     try {
-      await exportTimelineAsImage(project, sections);
+      await exportTimelineAsImage(project, sections, dependencies);
       showToast('success', 'Timeline exported as image');
     } catch (error) {
       console.error('Failed to export timeline as image:', error);
       showToast('error', 'Failed to export timeline as image');
     }
-  }, [project, sections, showToast]);
+  }, [project, sections, dependencies, showToast]);
 
   const handleExportAsSlide = useCallback(async () => {
     if (!project || sections.length === 0) return;

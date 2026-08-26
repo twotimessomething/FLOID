@@ -68,6 +68,54 @@ export const barInsetForDepth = (depth: number): number => (depth === 0 ? 8 : 6)
 export const COLLAPSED_TAPE_TOP = 6;
 export const COLLAPSED_TAPE_HEIGHT = 18;
 
+/** One root bar of a folded schedule, in the order the tape is laid down. */
+export interface TapeStrip {
+  readonly item: TimelineItem;
+  /** Resolved from the bar's place in the schedule, not from the paint order. */
+  readonly color: string;
+  /**
+   * The day the next strip lands on top of this one, or `null` if nothing
+   * covers it. A strip's name is typeset into the run before this day, so a
+   * name never ends up printed on ink that belongs to another bar.
+   */
+  readonly coveredFrom: string | null;
+}
+
+/**
+ * A folded schedule's root bars, ordered for the tape.
+ *
+ * The tape is strips of paper, not overprinted ink: the strip that starts
+ * later is laid over the one before it, so a run of work reads left to right
+ * and three bars crossing the same week stay three colours instead of turning
+ * to mud. Bars that start on the same day break the tie by length, longest
+ * first, which is what keeps a bar drawn inside another one on top of it
+ * rather than buried under it.
+ */
+export const tapeStrips = (section: Section): readonly TapeStrip[] => {
+  const bars = section.items.filter((item) => item.kind === 'bar');
+  const laid = bars
+    .map((item, index) => ({ item, color: getItemColor(item, section, index, bars.length) }))
+    .sort((a, b) =>
+      a.item.start === b.item.start
+        ? b.item.end < a.item.end
+          ? -1
+          : b.item.end > a.item.end
+            ? 1
+            : 0
+        : a.item.start < b.item.start
+          ? -1
+          : 1
+    );
+
+  return laid.map((strip, index) => {
+    const next = laid[index + 1]?.item.start ?? null;
+    return {
+      ...strip,
+      coveredFrom: next !== null && next < strip.item.end ? next : null,
+    };
+  });
+};
+
 /**
  * Label column indentation. The schedule name is the root of the tree, so it
  * sits furthest out and every item steps in from it — the same ladder the PNG

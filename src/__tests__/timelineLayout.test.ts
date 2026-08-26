@@ -9,6 +9,7 @@ import {
   getBarRect,
   headerMilestones,
   resolveItemColor,
+  tapeStrips,
   xToDay,
 } from '../utils/timelineUtils';
 import { computeViewportBounds } from '../utils/dateUtils';
@@ -221,5 +222,68 @@ describe('colour inheritance', () => {
     const built = multicolor([bar('a', [bar('a1')], true)]);
     expect(flattenSection(built).map((r) => r.item.id)).toEqual(['a']);
     expect(resolveItemColor(built, 'a1')).toBe(resolveItemColor(built, 'a'));
+  });
+});
+
+describe('the collapsed tape', () => {
+  const span = (id: string, start: string, end: string): TimelineItem => ({
+    ...bar(id),
+    start,
+    end,
+  });
+
+  const ids = (built: Section): string[] => tapeStrips(built).map((s) => s.item.id);
+
+  it('lays the strips down in date order, whatever order they sit in', () => {
+    const built = section([
+      span('c', '2026-05-01', '2026-07-01'),
+      span('a', '2026-01-01', '2026-03-01'),
+      span('b', '2026-02-01', '2026-06-01'),
+    ]);
+    // Last laid is last painted, so a run of work reads left to right
+    expect(ids(built)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('keeps a bar drawn inside another one on top of it', () => {
+    const built = section([
+      span('inner', '2026-02-01', '2026-03-01'),
+      span('outer', '2026-01-01', '2026-12-01'),
+    ]);
+    expect(ids(built)).toEqual(['outer', 'inner']);
+  });
+
+  it('puts the longer of two bars that start together underneath', () => {
+    const built = section([
+      span('short', '2026-01-01', '2026-02-01'),
+      span('long', '2026-01-01', '2026-09-01'),
+    ]);
+    expect(ids(built)).toEqual(['long', 'short']);
+  });
+
+  it('marks the day a strip is covered from, and leaves an untouched one alone', () => {
+    const strips = tapeStrips(
+      section([
+        span('a', '2026-01-01', '2026-04-01'),
+        span('b', '2026-03-01', '2026-06-01'),
+        span('c', '2026-08-01', '2026-09-01'),
+      ])
+    );
+    // 'a' loses its last month to 'b'
+    expect(strips[0].coveredFrom).toBe('2026-03-01');
+    // 'b' ends before 'c' starts, so nothing lands on it
+    expect(strips[1].coveredFrom).toBeNull();
+    expect(strips[2].coveredFrom).toBeNull();
+  });
+
+  it("keys colour to the bar's slot in the schedule, not to the paint order", () => {
+    const built = section(
+      [span('late', '2026-06-01', '2026-08-01'), span('early', '2026-01-01', '2026-03-01')],
+      { isMulticolor: true }
+    );
+    const rows = flattenSection(built);
+    const strips = tapeStrips(built);
+    expect(strips.map((s) => s.item.id)).toEqual(['early', 'late']);
+    expect(strips[0].color).toBe(rows[1].color);
+    expect(strips[1].color).toBe(rows[0].color);
   });
 });

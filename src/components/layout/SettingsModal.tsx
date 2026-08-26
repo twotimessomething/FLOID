@@ -130,6 +130,13 @@ export function SettingsModal(): JSX.Element | null {
     [updateSettings]
   );
 
+  const handleTravelingLabelsChange = useCallback(
+    (checked: boolean) => {
+      updateSettings({ travelingLabels: checked });
+    },
+    [updateSettings]
+  );
+
   // Hiding the ink leaves the edges in the store; a link selected while they
   // were showing must not stay selected under a Delete keypress.
   const handleShowDependenciesChange = useCallback(
@@ -273,6 +280,13 @@ export function SettingsModal(): JSX.Element | null {
             description="Tint schedule rows with their assigned color"
             checked={settings.coloredRows}
             onChange={handleColoredRowsChange}
+          />
+          <SettingRow
+            id="traveling-labels"
+            label="Traveling labels"
+            description="Keep a bar's name in view as it scrolls away"
+            checked={settings.travelingLabels ?? DEFAULT_PROJECT_SETTINGS.travelingLabels}
+            onChange={handleTravelingLabelsChange}
           />
           <SettingRow
             id="show-dependencies"

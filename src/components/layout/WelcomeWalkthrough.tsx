@@ -269,7 +269,7 @@ interface MiniDragCloneProps {
 
 /**
  * The bar in flight. It floats above the sheet, so unlike a placed bar it is
- * allowed a shadow and composites normally instead of overprinting.
+ * allowed a shadow.
  */
 function MiniDragClone({ left, top, width, color, label, date }: MiniDragCloneProps): ReactElement {
   const textColor = getReadableTextColor(color);
@@ -321,7 +321,7 @@ function MiniFrame({ labels, children }: MiniFrameProps): ReactElement {
           ))}
         </div>
 
-        {/* Rows with gridlines. `timeline-plot` isolates the bars' blending. */}
+        {/* Rows with gridlines. `timeline-plot` keeps this stack to itself. */}
         <div className="relative timeline-plot">
           <div className="absolute inset-0 pointer-events-none">
             {GRIDLINE_POSITIONS.map((position) => (

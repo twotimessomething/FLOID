@@ -4,6 +4,7 @@ export { Input } from './Input';
 export { TextArea } from './TextArea';
 export { DateInput } from './DateInput';
 export { ColorPicker } from './ColorPicker';
+export { CustomColorPopover } from './CustomColorPopover';
 export { Toast } from './Toast';
 export { MobileNotice } from './MobileNotice';
 export { PinBadge } from './PinBadge';

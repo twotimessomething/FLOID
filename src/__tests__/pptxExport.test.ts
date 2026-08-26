@@ -62,6 +62,25 @@ const sections: Section[] = [
       },
     ],
   },
+  {
+    id: 's2',
+    name: 'Engineering',
+    type: 'schedule',
+    revision: 1,
+    lastModifiedAt: '2026-01-01T00:00:00.000Z',
+    order: 1,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    color: '#3264B3',
+    // Folded, and its bars overlap — so the tape, and the paper edge each
+    // strip is drawn with, go through the writer too
+    isCollapsed: true,
+    items: [
+      bar('Architecture', '2026-02-02', '2026-06-01'),
+      bar('Prototype', '2026-04-13', '2026-09-07'),
+      bar('Validation', '2026-08-03', '2026-11-30'),
+    ],
+  },
 ];
 
 /** jsdom's Blob has no arrayBuffer(), so the bytes come back through a reader. */

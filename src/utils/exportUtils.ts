@@ -6,10 +6,19 @@ import type {
   ProjectExportData,
   ScheduleExportData,
 } from '../types/scheduleExport';
-import { computeViewportBounds, getMonthMarkers, getSectionsDateRange } from './dateUtils';
-import { dayKeyDiff, normalizeDayKey, toDayKey, todayKey } from './dayKeys';
+import { formatDayKey, getAxisMarks, getSectionsDateRange } from './dateUtils';
+import { addDaysToKey, dayKeyDiff, normalizeDayKey, toDayKey, todayKey } from './dayKeys';
 import { migrateSections } from './migrateLegacy';
-import { edgesWithinSection, pruneDanglingEdges, readStoredEdges } from './dependencyUtils';
+import {
+  anchorDay,
+  edgesWithinSection,
+  indexItems,
+  isDependencyViolated,
+  pruneDanglingEdges,
+  readStoredEdges,
+} from './dependencyUtils';
+import { awaySide, routeDependency } from './slidePlan';
+import { sectionsExtent } from './itemTree';
 import { flattenSection, headerMilestones, type FlatRow } from './timelineUtils';
 import { setAppSettings } from './indexedDB';
 import { saveFile } from '../platform/files';
@@ -447,15 +456,42 @@ const expandSection = (section: Section): Section => ({
 });
 
 /**
+ * As much of `text` as the room holds, with an ellipsis when it had to be cut.
+ * `fillText`'s own maxWidth squeezes the glyphs instead — a long name arrived
+ * as compressed type rather than a shorter name. Measures with the canvas's
+ * current font, so the font must be set first.
+ */
+const fitCanvasText = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string => {
+  if (!text || maxWidth <= 0) return '';
+  if (ctx.measureText(text).width <= maxWidth) return text;
+
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (ctx.measureText(`${text.slice(0, mid)}…`).width <= maxWidth) low = mid;
+    else high = mid - 1;
+  }
+  return low > 0 ? `${text.slice(0, low).trimEnd()}…` : '';
+};
+
+/**
  * Draw the whole timeline to a 1920x1080 PNG.
  *
  * The rows come from `flattenSection`, the same function the screen lays out
  * with, so an item nested four deep needs nothing added here — it arrives with
- * its depth and its resolved colour already worked out.
+ * its depth and its resolved colour already worked out. Dependency ink rides
+ * the same elbow the slide routes with (`routeDependency`), scaled to this
+ * sheet's pixels.
  */
 export const exportTimelineAsImage = async (
   project: Project,
-  sections: Section[]
+  sections: Section[],
+  dependencies: readonly DependencyEdge[] = []
 ): Promise<void> => {
   const WIDTH = IMAGE_WIDTH;
   const HEIGHT = IMAGE_HEIGHT;
@@ -477,6 +513,7 @@ export const exportTimelineAsImage = async (
     gridline: getColor('--color-gridline', 'rgba(255, 255, 255, 0.85)'),
     milestoneLine: getColor('--color-milestone-line', 'rgba(23, 23, 26, 0.1)'),
     today: getColor('--color-today', '#f34e42'),
+    danger: getColor('--color-danger', '#f34e42'),
   };
 
   // Sort sections by order (pinned section first)
@@ -513,18 +550,36 @@ export const exportTimelineAsImage = async (
   ctx.fillStyle = colors.surface;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  // Calculate viewport bounds from all sections
-  const viewport = computeViewportBounds(plans.map((plan) => plan.section));
+  // The window is the union of every schedule's declared range and every item
+  // in it — the same extent the screen draws, without the month of air
+  // `computeViewportBounds` adds for dragging into. An image is not dragged
+  // either, so that air is width the bars would rather have.
+  const extent = sectionsExtent(sections);
+  const rawStart = extent?.start ?? project.projectStartDate;
+  const rawEnd = extent?.end ?? project.projectEndDate;
+  const rawSpan = Math.max(1, dayKeyDiff(rawStart, rawEnd));
+  const padDays = Math.max(1, Math.round(rawSpan * 0.02));
+  const startKey = addDaysToKey(rawStart, -padDays);
+  const endKey = addDaysToKey(rawEnd, padDays);
+  const totalDays = Math.max(1, dayKeyDiff(startKey, endKey));
+
   const timelineWidth = WIDTH - LABEL_WIDTH - PADDING * 2;
   const timelineX = LABEL_WIDTH + PADDING;
 
   const xForKey = (key: string): number =>
-    timelineX + (dayKeyDiff(viewport.startKey, key) / viewport.totalDays) * timelineWidth;
+    timelineX + (dayKeyDiff(startKey, key) / totalDays) * timelineWidth;
+
+  // The plot stops short of the canvas floor so the today rule has somewhere
+  // to print its date.
+  const plotBottom = HEIGHT - 16;
 
   // Calculate vertical scaling if content is taller than canvas
-  const availableHeight = HEIGHT - HEADER_HEIGHT - PADDING * 2;
+  const availableHeight = plotBottom - HEADER_HEIGHT - PADDING * 2;
   const contentHeight = totalHeight - HEADER_HEIGHT;
   const verticalScale = contentHeight > availableHeight ? availableHeight / contentHeight : 1;
+  // A short timeline floats to the middle of the sheet rather than huddling
+  // under the axis over a run of dead paper.
+  const centerOffset = Math.max(0, (availableHeight - contentHeight * verticalScale) / 2);
   const scaledSectionRowHeight = ROW_HEIGHT * verticalScale;
 
   const drawDiamond = (x: number, y: number, size: number, fill: string): void => {
@@ -542,45 +597,67 @@ export const exportTimelineAsImage = async (
   ctx.fillStyle = colors.surface;
   ctx.fillRect(0, 0, WIDTH, HEADER_HEIGHT);
 
-  // Draw month markers
-  const monthMarkers = getMonthMarkers(viewport.startDate, viewport.endDate);
-  ctx.font = '12px system-ui, -apple-system, sans-serif';
-  ctx.fillStyle = colors.textSecondary;
+  // Draw the axis. Cadence comes from `getAxisMarks` — the same helper the
+  // slide export uses, so the two sheets cannot disagree: days for a few
+  // weeks, weeks for a few months, then the month ladder.
+  const marks = getAxisMarks(startKey, endKey, timelineWidth / totalDays, 50);
   ctx.textAlign = 'center';
 
-  for (const marker of monthMarkers) {
-    const x = xForKey(toDayKey(marker.date));
+  let axisYearShown = false;
+  for (const mark of marks) {
+    const x = xForKey(toDayKey(mark.date));
+    if (x < timelineX || x > timelineX + timelineWidth) continue;
 
-    if (x >= timelineX && x <= timelineX + timelineWidth) {
-      ctx.fillStyle = colors.textSecondary;
-      ctx.fillText(marker.label, x, HEADER_HEIGHT - 15);
+    ctx.font = '12px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = colors.textSecondary;
+    ctx.fillText(mark.label, x, HEADER_HEIGHT - 15);
 
-      // Draw vertical grid line — lighter than the ground, reads as a gap in the paper
-      ctx.strokeStyle = colors.gridline;
-      ctx.beginPath();
-      ctx.moveTo(x, HEADER_HEIGHT);
-      ctx.lineTo(x, HEIGHT);
-      ctx.stroke();
+    // Year stacked above the mark where it changes information — the first
+    // month on the sheet and every January, as TimelineHeader prints it
+    if (mark.wantsYear && (!axisYearShown || mark.date.getMonth() === 0)) {
+      ctx.font = '11px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = colors.textMuted;
+      ctx.fillText(String(mark.date.getFullYear()), x, HEADER_HEIGHT - 30);
     }
+    if (mark.wantsYear) axisYearShown = true;
+
+    // Draw vertical grid line — lighter than the ground, reads as a gap in the paper
+    ctx.strokeStyle = colors.gridline;
+    ctx.beginPath();
+    ctx.moveTo(x, HEADER_HEIGHT);
+    ctx.lineTo(x, plotBottom);
+    ctx.stroke();
   }
 
-  // Draw year indicator, stacked above the first month label and sharing its
-  // centre so the two read as one axis mark (matching TimelineHeader on screen)
-  ctx.font = '11px system-ui, -apple-system, sans-serif';
-  ctx.fillStyle = colors.textMuted;
-  ctx.textAlign = 'center';
-  const firstMarker = monthMarkers[0];
-  const yearX = firstMarker ? xForKey(toDayKey(firstMarker.date)) : timelineX;
-  ctx.fillText(String(viewport.startDate.getFullYear()), yearX, HEADER_HEIGHT - 30);
-
-  // Draw project title
+  // Title on the left, the covered range on the right: the range names the
+  // years a finer axis cadence prints nowhere, and an image leaves the app.
   ctx.font = '600 16px system-ui, -apple-system, sans-serif';
   ctx.fillStyle = colors.text;
   ctx.textAlign = 'left';
-  ctx.fillText(project.name, PADDING, HEADER_HEIGHT - 18);
+  ctx.fillText(
+    fitCanvasText(ctx, project.name, WIDTH - PADDING * 2 - 220),
+    PADDING,
+    HEADER_HEIGHT - 18
+  );
+
+  // On the axis's upper line, where only the stacked years print — the month
+  // labels' own baseline reaches the right edge and would collide.
+  const startLabel = formatDayKey(rawStart, 'MMM yyyy');
+  const endLabel = formatDayKey(rawEnd, 'MMM yyyy');
+  ctx.font = '12px system-ui, -apple-system, sans-serif';
+  ctx.fillStyle = colors.textMuted;
+  ctx.textAlign = 'right';
+  ctx.fillText(
+    startLabel === endLabel ? startLabel : `${startLabel} – ${endLabel}`,
+    WIDTH - PADDING,
+    HEADER_HEIGHT - 30
+  );
+
+  /** Row centre for every item, for dependency ink to point at. */
+  const itemY = new Map<string, number>();
 
   // Draw sections
-  let y = HEADER_HEIGHT + PADDING;
+  let y = HEADER_HEIGHT + PADDING + centerOffset;
 
   for (const plan of plans) {
     const { section, rows } = plan;
@@ -592,16 +669,26 @@ export const exportTimelineAsImage = async (
     ctx.fillStyle = colors.text;
     ctx.textAlign = 'left';
     const sectionLabel = section.name + (isPinned ? ' ★' : '');
-    ctx.fillText(sectionLabel, PADDING, y + scaledSectionRowHeight / 2 + 4, LABEL_WIDTH - PADDING);
+    ctx.fillText(
+      fitCanvasText(ctx, sectionLabel, LABEL_WIDTH - PADDING - 6),
+      PADDING,
+      y + scaledSectionRowHeight / 2 + 4
+    );
 
     // Root milestones sit on the schedule's own row and rule a line down past
     // its items; the pinned schedule's lines run the whole sheet, as on screen.
+    // Sorted by day: a name's room runs to the next marker on the sheet, and
+    // the items array keeps insertion order, not date order.
     const milestoneY = y + scaledSectionRowHeight / 2;
-    const lineBottom = isPinned ? HEIGHT : y + scaledSectionRowHeight + scaledBodyHeight;
+    const lineBottom = isPinned ? plotBottom : y + scaledSectionRowHeight + scaledBodyHeight;
+    const markerRow = [...headerMilestones(section)].sort((a, b) =>
+      a.start < b.start ? -1 : a.start > b.start ? 1 : 0
+    );
 
-    for (const milestone of headerMilestones(section)) {
+    markerRow.forEach((milestone, index) => {
       const x = xForKey(milestone.start);
       const size = 6 * verticalScale;
+      itemY.set(milestone.id, milestoneY);
 
       ctx.strokeStyle = colors.milestoneLine;
       ctx.lineWidth = 1;
@@ -610,13 +697,21 @@ export const exportTimelineAsImage = async (
       ctx.lineTo(x, lineBottom);
       ctx.stroke();
 
-      drawDiamond(x, milestoneY, size, milestone.color ?? section.color);
+      // Ink, not the item colour — the screen prints every milestone as an
+      // ink tick (`MilestoneGlyph`), and the image follows it.
+      drawDiamond(x, milestoneY, size, colors.text);
 
       ctx.font = `${Math.max(9 * verticalScale, 8)}px system-ui, -apple-system, sans-serif`;
       ctx.fillStyle = colors.text;
       ctx.textAlign = 'left';
-      ctx.fillText(milestone.name, x + size + 4, milestoneY + 3, 100);
-    }
+      const next = markerRow[index + 1];
+      const room = Math.min(
+        next ? xForKey(next.start) - x - size - 8 : timelineX + timelineWidth - x,
+        200
+      );
+      const name = fitCanvasText(ctx, milestone.name, room);
+      if (name) ctx.fillText(name, x + size + 4, milestoneY + 3);
+    });
 
     y += scaledSectionRowHeight;
 
@@ -626,12 +721,17 @@ export const exportTimelineAsImage = async (
       const rowHeight = imageRowHeight(depth) * verticalScale;
       const centerY = y + rowHeight / 2;
       const indent = PADDING + 16 * (depth + 1);
+      itemY.set(item.id, centerY);
 
       // Label in the left column, one step lighter and smaller per level down
       ctx.font = `${Math.max(10, 12 - depth)}px system-ui, -apple-system, sans-serif`;
       ctx.fillStyle = depth === 0 ? colors.textSecondary : colors.textMuted;
       ctx.textAlign = 'left';
-      ctx.fillText(item.name, indent, centerY + (depth === 0 ? 4 : 3), LABEL_WIDTH - indent - 4);
+      ctx.fillText(
+        fitCanvasText(ctx, item.name, LABEL_WIDTH - indent - 4),
+        indent,
+        centerY + (depth === 0 ? 4 : 3)
+      );
 
       if (item.kind === 'bar') {
         const left = xForKey(item.start);
@@ -652,35 +752,98 @@ export const exportTimelineAsImage = async (
           ctx.font = `${Math.max(size * verticalScale, size - 1)}px system-ui, -apple-system, sans-serif`;
           ctx.fillStyle = getReadableTextColor(color);
           ctx.textAlign = 'left';
-          ctx.fillText(item.name, left + 6, barY + barHeight / 2 + 3, width - 12);
+          const name = fitCanvasText(ctx, item.name, width - 12);
+          if (name) ctx.fillText(name, left + 6, barY + barHeight / 2 + 3);
         }
       } else {
         const x = xForKey(item.start);
         const size = 4 * verticalScale;
 
-        drawDiamond(x, centerY, size, color);
+        // Ink, as on screen — `MilestoneGlyph` never takes the item colour
+        drawDiamond(x, centerY, size, colors.text);
 
         ctx.font = `${Math.max(8 * verticalScale, 7)}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = colors.textMuted;
         ctx.textAlign = 'left';
-        ctx.fillText(item.name, x + size + 2, centerY + 2, 60);
+        const room = Math.min(timelineX + timelineWidth - x - size - 4, 160);
+        const name = fitCanvasText(ctx, item.name, room);
+        if (name) ctx.fillText(name, x + size + 2, centerY + 2);
       }
 
       y += rowHeight;
     }
   }
 
-  // Draw today line if in range
+  // Draw today line if in range — over the bars, as on screen. Its foot names
+  // the day, because an image is static: "today" drifts the moment the file
+  // is saved, a date does not.
   const today = todayKey();
-  if (today >= viewport.startKey && today <= viewport.endKey) {
+  if (today >= startKey && today <= endKey) {
     const todayX = xForKey(today);
 
     ctx.strokeStyle = colors.today;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(todayX, HEADER_HEIGHT);
-    ctx.lineTo(todayX, HEIGHT);
+    ctx.lineTo(todayX, plotBottom);
     ctx.stroke();
+
+    ctx.font = '11px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = colors.today;
+    ctx.textAlign = 'center';
+    ctx.fillText(formatDayKey(today, 'MMM d'), todayX, HEIGHT - 4);
+  }
+
+  // Draw dependency ink last, over everything — the same elbow the slide
+  // routes with, scaled to this sheet's pixels. Everything is expanded on a
+  // PNG, so every item has its own row for a link to point at.
+  if (dependencies.length > 0) {
+    const byId = indexItems(plans.map((plan) => plan.section));
+    const STUB = 14;
+    const CLEARANCE = 16;
+
+    for (const edge of dependencies) {
+      const from = byId.get(edge.from);
+      const to = byId.get(edge.to);
+      if (!from || !to) continue;
+
+      const y1 = itemY.get(edge.from);
+      const y2 = itemY.get(edge.to);
+      if (y1 === undefined || y2 === undefined) continue;
+
+      const fromX = xForKey(anchorDay(from, edge.fromAnchor));
+      const toX = xForKey(anchorDay(to, edge.toAnchor));
+      const points = routeDependency(
+        { x: fromX, y: y1, away: awaySide(from, edge.fromAnchor, fromX, toX) },
+        { x: toX, y: y2, away: awaySide(to, edge.toAnchor, toX, fromX) },
+        STUB,
+        CLEARANCE
+      );
+
+      const violated = isDependencyViolated(edge, from, to);
+      const ink = violated ? colors.danger : colors.textMuted;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = violated ? 2 : 1.5;
+      ctx.beginPath();
+      points.forEach((point, index) =>
+        index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y)
+      );
+      ctx.stroke();
+
+      // Arrowhead on the final segment, pointing the way in
+      const a = points[points.length - 2];
+      const b = points[points.length - 1];
+      const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const ux = (b.x - a.x) / length;
+      const uy = (b.y - a.y) / length;
+      ctx.fillStyle = ink;
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y);
+      ctx.lineTo(b.x - ux * 10 - uy * 5, b.y - uy * 10 + ux * 5);
+      ctx.lineTo(b.x - ux * 10 + uy * 5, b.y - uy * 10 - ux * 5);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
   // Draw label column border

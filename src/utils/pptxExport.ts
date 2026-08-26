@@ -67,7 +67,9 @@ function renderShape(slide: PptxGenJS.Slide, shape: SlideShape): void {
         w: toIn(shape.w),
         h: toIn(shape.h),
         fill: { color: shape.fill, transparency: shape.transparency },
-        line: { type: 'none' },
+        line: shape.outline
+          ? { color: shape.outline.color, width: shape.outline.width }
+          : { type: 'none' },
         color: shape.textColor,
         fontFace: SLIDE_FONT,
         fontSize: shape.fontSize,
@@ -107,6 +109,8 @@ function renderShape(slide: PptxGenJS.Slide, shape: SlideShape): void {
         drawn.push([from, to]);
       }
 
+      // A multi-segment line numbers its parts, so the selection pane does not
+      // show one name four times over.
       drawn.forEach(([from, to], index) => {
         addSegment(
           slide,
@@ -116,7 +120,7 @@ function renderShape(slide: PptxGenJS.Slide, shape: SlideShape): void {
           shape.width,
           shape.dashed === true,
           shape.arrow === true && index === drawn.length - 1,
-          shape.name
+          drawn.length > 1 ? `${shape.name} · ${index + 1}` : shape.name
         );
       });
       return;

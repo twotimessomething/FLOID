@@ -1,14 +1,14 @@
 import type { Project } from '../types/project';
-import type { DependencyAnchor, DependencyEdge, Section } from '../types/timeline';
-import { getItemColor } from '../types/itemColor';
-import { flattenSection, headerMilestones, type FlatRow } from './timelineUtils';
+import type { DependencyAnchor, DependencyEdge, Section, TimelineItem } from '../types/timeline';
+import { flattenSection, headerMilestones, tapeStrips, type FlatRow } from './timelineUtils';
 import { forEachItem, sectionsExtent } from './itemTree';
 import { addDaysToKey, dayKeyDiff, fromDayKey, toDayKey, todayKey } from './dayKeys';
-import { getMonthMarkers } from './dateUtils';
+import { formatDate, getAxisMarks } from './dateUtils';
 import { getReadableTextColor, hexToHsl, hslToHex } from './colorUtils';
 import { anchorDay, indexItems, isDependencyViolated } from './dependencyUtils';
 import {
   SLIDE_AXIS_HEIGHT,
+  SLIDE_DEP_CLEARANCE,
   SLIDE_DEP_STUB,
   SLIDE_HEIGHT_PT,
   SLIDE_INK,
@@ -24,6 +24,7 @@ import {
   SLIDE_ROOT_ROW,
   SLIDE_SCHEDULE_ROW,
   SLIDE_SECTION_GAP,
+  SLIDE_TAPE_SEAM,
   SLIDE_TITLE_HEIGHT,
   SLIDE_WIDTH_PT,
 } from '../constants/slideDimensions';
@@ -58,6 +59,8 @@ export interface SlideRect extends SlideShapeBase {
   readonly fill: string;
   /** 0-100, matching the wash nested bars take on screen. */
   readonly transparency?: number;
+  /** A hairline edge, for shapes that are drawn covering one another. */
+  readonly outline?: { readonly color: string; readonly width: number };
   readonly text?: string;
   readonly textColor?: string;
   readonly fontSize?: number;
@@ -129,11 +132,52 @@ export interface SlidePlanOptions {
 // Text
 // ---------------------------------------------------------------------------
 
-/** Mean glyph width of a sans face, as a fraction of its point size. */
-const CHAR_WIDTH_RATIO = 0.52;
+/**
+ * Helvetica's advance widths as fractions of the point size — Arial, the face
+ * the slide ships with, shares them to the unit. Grouped by width and unrolled
+ * into a per-character map once at module load. A flat mean here made "WWW"
+ * spill past its bar (the renderer never wraps) and cut "illim" names short.
+ */
+const CHAR_WIDTH_GROUPS: ReadonlyArray<readonly [number, string]> = [
+  [0.191, "'"],
+  [0.222, 'ijl'],
+  [0.26, '|'],
+  [0.278, ' !,./:;[]\\ftI'],
+  [0.333, '-()`r'],
+  [0.334, '{}'],
+  [0.355, '"'],
+  [0.389, '*'],
+  [0.469, '^'],
+  [0.5, 'cksvxyzJ'],
+  [0.556, '0123456789#$?_abdeghnopquL–'],
+  [0.584, '+<=>~'],
+  [0.611, 'FTZ'],
+  [0.667, '&ABEKPSVXY'],
+  [0.722, 'CDHNRUw'],
+  [0.778, 'GOQ'],
+  [0.833, 'Mm'],
+  [0.889, '%'],
+  [0.944, 'W'],
+  [1, '@…—'],
+];
+
+const CHAR_WIDTHS = new Map<string, number>();
+for (const [width, chars] of CHAR_WIDTH_GROUPS) {
+  for (const ch of chars) CHAR_WIDTHS.set(ch, width);
+}
+
+/** Glyphs off the table: CJK and fullwidth forms print square, the rest land mid-table. */
+const FALLBACK_CHAR_WIDTH = 0.6;
+const WIDE_CHAR_START = 0x2e80;
 
 export function estimateTextWidth(text: string, fontSizePt: number): number {
-  return text.length * fontSizePt * CHAR_WIDTH_RATIO;
+  let units = 0;
+  for (const ch of text) {
+    units +=
+      CHAR_WIDTHS.get(ch) ??
+      ((ch.codePointAt(0) ?? 0) >= WIDE_CHAR_START ? 1 : FALLBACK_CHAR_WIDTH);
+  }
+  return units * fontSizePt;
 }
 
 /**
@@ -214,21 +258,8 @@ function orderSections(sections: readonly Section[], pinnedSectionId: string | n
   });
 }
 
-/**
- * Which months carry a mark.
- *
- * A two-year sheet has no room for twelve labels a year, so the cadence comes
- * from the space each mark would get rather than from the zoom the user last
- * picked — months, quarters, half-years, then years.
- */
-function axisStep(monthCount: number, plotWidth: number): number {
-  const perMonth = monthCount > 0 ? plotWidth / monthCount : plotWidth;
-  const MIN_MARK_SPACING = 26;
-  for (const step of [1, 3, 6, 12]) {
-    if (perMonth * step >= MIN_MARK_SPACING) return step;
-  }
-  return 12;
-}
+/** Space the tightest axis mark may claim, in points. */
+const AXIS_MIN_MARK_SPACING = 26;
 
 /**
  * Build the slide.
@@ -254,34 +285,6 @@ export function buildSlidePlan(
   const contentTop = SLIDE_MARGIN_TOP + SLIDE_TITLE_HEIGHT + SLIDE_AXIS_HEIGHT;
   const contentBottom = SLIDE_HEIGHT_PT - SLIDE_MARGIN_BOTTOM;
 
-  // -- title ---------------------------------------------------------------
-  shapes.push({
-    kind: 'text',
-    name: 'Project name',
-    x: SLIDE_MARGIN_X,
-    y: SLIDE_MARGIN_TOP,
-    w: SLIDE_WIDTH_PT - SLIDE_MARGIN_X * 2,
-    h: SLIDE_TITLE_HEIGHT,
-    text: project.name,
-    color: SLIDE_INK.title,
-    fontSize: 14,
-    bold: true,
-    align: 'left',
-  });
-
-  const ordered = orderSections(sections, project.pinnedSectionId ?? null);
-
-  const plans: SectionPlan[] = ordered.map((section) => {
-    const rows = flattenSection(section);
-    return {
-      section,
-      rows,
-      naturalBody: rows.reduce((sum, row) => sum + naturalRowHeight(row.depth), 0),
-    };
-  });
-
-  const rowCount = plans.reduce((sum, plan) => sum + plan.rows.length, 0);
-
   // -- horizontal scale ----------------------------------------------------
   //
   // The window is the union of every schedule's declared range and every item
@@ -300,6 +303,56 @@ export function buildSlidePlan(
   const xForKey = (key: string): number =>
     plotX + (dayKeyDiff(startKey, key) / totalDays) * plotWidth;
 
+  // -- title ---------------------------------------------------------------
+  //
+  // The covered range prints beside the name because the slide leaves the app:
+  // the axis below only names a year where one changes, and a deck read months
+  // later should not need the app open to say which year this was.
+  const startLabel = formatDate(fromDayKey(rawStart), 'MMM yyyy');
+  const endLabel = formatDate(fromDayKey(rawEnd), 'MMM yyyy');
+  const rangeText = startLabel === endLabel ? startLabel : `${startLabel} – ${endLabel}`;
+  const rangeWidth = 200;
+  const titleWidth = SLIDE_WIDTH_PT - SLIDE_MARGIN_X * 2 - rangeWidth - 12;
+
+  shapes.push({
+    kind: 'text',
+    name: 'Project name',
+    x: SLIDE_MARGIN_X,
+    y: SLIDE_MARGIN_TOP,
+    w: titleWidth,
+    h: SLIDE_TITLE_HEIGHT,
+    text: fitText(project.name, 14, titleWidth),
+    color: SLIDE_INK.title,
+    fontSize: 14,
+    bold: true,
+    align: 'left',
+  });
+  shapes.push({
+    kind: 'text',
+    name: 'Date range',
+    x: SLIDE_WIDTH_PT - SLIDE_MARGIN_X - rangeWidth,
+    y: SLIDE_MARGIN_TOP,
+    w: rangeWidth,
+    h: SLIDE_TITLE_HEIGHT,
+    text: rangeText,
+    color: SLIDE_INK.muted,
+    fontSize: 9,
+    align: 'right',
+  });
+
+  const ordered = orderSections(sections, project.pinnedSectionId ?? null);
+
+  const plans: SectionPlan[] = ordered.map((section) => {
+    const rows = flattenSection(section);
+    return {
+      section,
+      rows,
+      naturalBody: rows.reduce((sum, row) => sum + naturalRowHeight(row.depth), 0),
+    };
+  });
+
+  const rowCount = plans.reduce((sum, plan) => sum + plan.rows.length, 0);
+
   // -- vertical scale ------------------------------------------------------
   const naturalHeight =
     plans.reduce((sum, plan) => sum + SLIDE_SCHEDULE_ROW + plan.naturalBody, 0) +
@@ -308,27 +361,28 @@ export function buildSlidePlan(
   const available = contentBottom - contentTop;
   const scale = naturalHeight > 0 ? Math.min(SLIDE_MAX_SCALE, available / naturalHeight) : 1;
 
+  // A plan shorter than the page floats to the middle of the plot rather than
+  // huddling under the axis over a run of dead paper.
+  const blockTop = contentTop + Math.max(0, (available - naturalHeight * scale) / 2);
+
   const scheduleRowHeight = SLIDE_SCHEDULE_ROW * scale;
   const sectionGap = SLIDE_SECTION_GAP * scale;
 
   // -- axis ----------------------------------------------------------------
-  const markers = getMonthMarkers(fromDayKey(startKey), fromDayKey(endKey));
-  const step = axisStep(markers.length, plotWidth);
   const axisFont = 8;
+  const marks = getAxisMarks(startKey, endKey, plotWidth / totalDays, AXIS_MIN_MARK_SPACING);
 
-  for (const marker of markers) {
-    const month = marker.date.getMonth();
-    if (step > 1 && month % step !== 0) continue;
-
-    const x = xForKey(toDayKey(marker.date));
+  let axisYearShown = false;
+  for (const mark of marks) {
+    const x = xForKey(toDayKey(mark.date));
     if (x < plotX - 0.5 || x > plotRight + 0.5) continue;
 
-    const label =
-      step >= 12
-        ? String(marker.date.getFullYear())
-        : month === 0
-          ? `${marker.label} ${String(marker.date.getFullYear()).slice(2)}`
-          : marker.label;
+    // The first month on the sheet says which year it is, not just January.
+    const showYear = mark.wantsYear && (!axisYearShown || mark.date.getMonth() === 0);
+    if (mark.wantsYear) axisYearShown = true;
+    const label = showYear
+      ? `${mark.label} ${String(mark.date.getFullYear()).slice(2)}`
+      : mark.label;
 
     foreground.push({
       kind: 'text',
@@ -363,7 +417,7 @@ export function buildSlidePlan(
   /** Each schedule's own row, which is where everything folded into it lands. */
   const sectionCenters = new Map<string, number>();
 
-  let y = contentTop;
+  let y = blockTop;
 
   plans.forEach((plan, planIndex) => {
     const { section, rows } = plan;
@@ -409,16 +463,22 @@ export function buildSlidePlan(
     // A folded schedule keeps its bars: they print as a tape across the upper
     // half of its own row, exactly as `CollapsedBars` draws them, and the lower
     // half stays free for the markers that share the row.
-    const rootBars = section.items.filter((item) => item.kind === 'bar');
-    if (section.isCollapsed && rootBars.length > 0) {
+    //
+    // `tapeStrips` decides the order, so the slide covers the same bar the
+    // screen covers, and hands back the day each strip is covered from — a
+    // name is typeset into the run that is still visible rather than across
+    // ink another bar has taken over. The paper hairline is what tells two
+    // touching strips apart; PowerPoint draws it as the shape's own edge.
+    const strips = section.isCollapsed ? tapeStrips(section) : [];
+    if (strips.length > 0) {
       const tapeTop = scheduleTop + scheduleRowHeight * 0.14;
       const tapeHeight = scheduleRowHeight * 0.38;
       const tapeFont = fontForRow(tapeHeight * 2, 0.4);
 
-      rootBars.forEach((item, index) => {
-        const color = getItemColor(item, section, index, rootBars.length);
+      strips.forEach(({ item, color, coveredFrom }) => {
         const left = xForKey(item.start);
         const width = Math.max(1.5, xForKey(item.end) - left);
+        const visible = coveredFrom === null ? width : Math.max(0, xForKey(coveredFrom) - left);
         foreground.push({
           kind: 'rect',
           name: item.name || 'Bar',
@@ -427,9 +487,10 @@ export function buildSlidePlan(
           w: width,
           h: tapeHeight,
           fill: hex(color),
+          outline: { color: SLIDE_INK.paper, width: SLIDE_TAPE_SEAM },
           text:
-            width >= SLIDE_MIN_LABEL_WIDTH && fitsOnRow(tapeHeight, tapeFont, 0.95)
-              ? fitText(item.name, tapeFont, width - 6)
+            visible >= SLIDE_MIN_LABEL_WIDTH && fitsOnRow(tapeHeight, tapeFont, 0.95)
+              ? fitText(item.name, tapeFont, visible - 6)
               : undefined,
           textColor: hex(getReadableTextColor(color)),
           fontSize: tapeFont,
@@ -442,7 +503,11 @@ export function buildSlidePlan(
     // Root milestones belong to the schedule rather than to any row, and rule a
     // reference line down past its items — the pinned schedule's runs the whole
     // sheet, as on screen.
-    const markerRow = headerMilestones(section);
+    // Sorted by day: a name's room runs to the next marker on the sheet, and
+    // the items array keeps insertion order, not date order.
+    const markerRow = [...headerMilestones(section)].sort((a, b) =>
+      a.start < b.start ? -1 : a.start > b.start ? 1 : 0
+    );
     const markerCenter = section.isCollapsed
       ? scheduleTop + scheduleRowHeight * 0.74
       : scheduleCenter;
@@ -452,7 +517,6 @@ export function buildSlidePlan(
 
     markerRow.forEach((milestone, index) => {
       const x = xForKey(milestone.start);
-      const color = milestone.color ?? section.color;
       itemY.set(milestone.id, markerCenter);
 
       background.push({
@@ -466,13 +530,15 @@ export function buildSlidePlan(
         width: 0.75,
       });
 
+      // Ink, not the item colour: the screen prints every milestone as an ink
+      // tick (`MilestoneGlyph`), and the slide follows it.
       foreground.push({
         kind: 'diamond',
         name: milestone.name || 'Milestone',
         cx: x,
         cy: markerCenter,
         size: markerSize,
-        fill: hex(color),
+        fill: SLIDE_INK.title,
       });
 
       // The name runs to whatever the next marker leaves free, so a crowded
@@ -506,7 +572,11 @@ export function buildSlidePlan(
       const rowHeight = naturalRowHeight(depth) * scale;
       const rowTop = y;
       const center = rowTop + rowHeight / 2;
-      itemY.set(item.id, center);
+      const isGroup = item.kind === 'bar' && item.children.length > 0 && !item.isCollapsed;
+      // An open group's ink is its span line, low in the row — dependency
+      // arrows aim at what is printed, not at the row's empty middle.
+      const spanY = rowTop + rowHeight * 0.72;
+      itemY.set(item.id, isGroup ? spanY : center);
 
       const labelFont = fontForRow(rowHeight, depth === 0 ? 0.42 : 0.46);
       const indent = SLIDE_MARGIN_X + 10 + 9 * depth;
@@ -528,13 +598,14 @@ export function buildSlidePlan(
       if (item.kind === 'milestone') {
         const x = xForKey(item.start);
         const size = clamp(rowHeight * 0.42, 4, 10);
+        // Ink, as on screen — `MilestoneGlyph` never takes the item colour.
         foreground.push({
           kind: 'diamond',
           name: item.name || 'Milestone',
           cx: x,
           cy: center,
           size,
-          fill: hex(color),
+          fill: SLIDE_INK.title,
         });
         const text = fitsOnRow(rowHeight, labelFont, 1.1)
           ? fitText(item.name, labelFont, plotRight - x - size)
@@ -559,7 +630,6 @@ export function buildSlidePlan(
 
       const left = xForKey(item.start);
       const width = Math.max(1.5, xForKey(item.end) - left);
-      const isGroup = item.children.length > 0 && !item.isCollapsed;
 
       if (isGroup) {
         // A bar whose children are on the slide is a rollup, not a block of
@@ -567,7 +637,6 @@ export function buildSlidePlan(
         // on the paper above, so the children below read as what fills it.
         // A *folded* group keeps its fill — its children are not on the sheet,
         // so the block is the only thing standing for them.
-        const spanY = rowTop + rowHeight * 0.72;
         const strokeHeight = Math.max(1.5, rowHeight * 0.1);
         const dot = clamp(rowHeight * 0.3, 3.5, 9);
         const ink = inkForPaper(color);
@@ -599,9 +668,12 @@ export function buildSlidePlan(
         });
 
         const groupFont = fontForRow(rowHeight, 0.44);
+        // A short span still gets room for a name — but never past the paper's
+        // right edge, where it would print over whatever stands there.
+        const nameWidth = Math.min(Math.max(width, 60), plotRight - left);
         // The name sits above the span, so the row has to hold two bands
         const text = fitsOnRow(rowHeight, groupFont, 1.9)
-          ? fitText(item.name, groupFont, Math.max(width, 60))
+          ? fitText(item.name, groupFont, nameWidth)
           : '';
         if (text) {
           foreground.push({
@@ -609,7 +681,7 @@ export function buildSlidePlan(
             name: `${item.name || 'Group'} name`,
             x: left,
             y: rowTop + rowHeight * 0.06,
-            w: Math.max(width, 60),
+            w: nameWidth,
             h: rowHeight * 0.56,
             text,
             color: ink,
@@ -628,9 +700,8 @@ export function buildSlidePlan(
           w: width,
           h: barHeight,
           fill: hex(color),
-          // Nested bars sit over the parent they belong to; the wash is what
-          // stands in for the multiply blend the screen gets and PowerPoint
-          // has no equivalent of.
+          // A nested bar inherits its parent's colour, so on paper the wash
+          // is what keeps a child from reading as more of the same bar.
           transparency: depth === 0 ? undefined : 22,
           text:
             width >= SLIDE_MIN_LABEL_WIDTH && fitsOnRow(barHeight, barFont, 0.95)
@@ -675,9 +746,14 @@ export function buildSlidePlan(
   }
 
   // -- today ---------------------------------------------------------------
+  //
+  // Ruled over the bars, as on screen — behind them it disappears into a
+  // dense sheet. Its foot names the day, because a slide is static: "today"
+  // drifts the moment the file is saved, a date does not.
+  const overlay: SlideShape[] = [];
   if (today >= startKey && today <= endKey) {
     const x = xForKey(today);
-    background.push({
+    overlay.push({
       kind: 'polyline',
       name: 'Today',
       points: [
@@ -686,6 +762,18 @@ export function buildSlidePlan(
       ],
       color: SLIDE_INK.today,
       width: 1,
+    });
+    overlay.push({
+      kind: 'text',
+      name: 'Today date',
+      x: x - 26,
+      y: contentBottom + 1,
+      w: 52,
+      h: 9,
+      text: formatDate(fromDayKey(today), 'MMM d'),
+      color: SLIDE_INK.today,
+      fontSize: 7,
+      align: 'center',
     });
   }
 
@@ -703,12 +791,11 @@ export function buildSlidePlan(
       const y2 = itemY.get(edge.to);
       if (y1 === undefined || y2 === undefined) continue;
 
+      const fromX = xForKey(anchorDay(from, edge.fromAnchor));
+      const toX = xForKey(anchorDay(to, edge.toAnchor));
       const points = routeDependency(
-        xForKey(anchorDay(from, edge.fromAnchor)),
-        y1,
-        edge.fromAnchor,
-        xForKey(anchorDay(to, edge.toAnchor)),
-        y2
+        { x: fromX, y: y1, away: awaySide(from, edge.fromAnchor, fromX, toX) },
+        { x: toX, y: y2, away: awaySide(to, edge.toAnchor, toX, fromX) }
       );
 
       const violated = isDependencyViolated(edge, from, to);
@@ -723,7 +810,7 @@ export function buildSlidePlan(
     }
   }
 
-  shapes.push(...background, ...foreground, ...links);
+  shapes.push(...background, ...foreground, ...overlay, ...links);
 
   return {
     widthPt: SLIDE_WIDTH_PT,
@@ -735,38 +822,87 @@ export function buildSlidePlan(
 }
 
 /**
- * A connector's corners, dot to dot.
+ * Which side of an item a connector stands off: a bar's anchor edge faces
+ * outward, and a point has no sides, so it faces the other end. The same rule
+ * `resolveEndpoints` applies on screen. Exported for the PNG exporter, which
+ * routes its connectors with the same elbow.
+ */
+export function awaySide(
+  item: TimelineItem,
+  anchor: DependencyAnchor,
+  ownX: number,
+  otherX: number
+): 1 | -1 {
+  if (item.kind === 'milestone') return otherX >= ownX ? 1 : -1;
+  return anchor === 'end' ? 1 : -1;
+}
+
+export interface SlideEndpoint {
+  readonly x: number;
+  readonly y: number;
+  /** Which side the connector leaves or enters from: +1 right, -1 left. */
+  readonly away: 1 | -1;
+}
+
+/**
+ * A connector's corners, edge to edge — the square elbow `routeConnector`
+ * draws on screen, minus the terminal-dot offsets a slide has no dots to hold.
+ * Out of the end it leaves from, over, and in **from the anchor's own side**:
+ * an end is entered from the right, a start from the left, so a line never
+ * crosses the bar it is pointing at. Three segments when the approach already
+ * lands from that side; five when it has to double back — or when both ends
+ * share a row and the straight line would run the wrong way, where the link
+ * dips below the row rather than striking back through the bars it annotates.
  *
- * Square corners like everything else on this paper: out of the end it leaves
- * from, down or up to the row it is going to, then straight in. One corner
- * column rather than two — a second one only ever produced a backtrack, and
- * back-to-back work, where the two ends stand on the same day, is the case
- * that suffers most from it.
- *
- * A link that runs backwards gets the same three segments; its final run
- * crosses the sheet right to left, which is exactly the shape of the problem
- * it is reporting.
+ * `stub` and `clearance` default to the slide's points; the PNG passes its
+ * own, scaled to its pixels.
  */
 export function routeDependency(
-  x1: number,
-  y1: number,
-  fromAnchor: DependencyAnchor,
-  x2: number,
-  y2: number
+  from: SlideEndpoint,
+  to: SlideEndpoint,
+  stub: number = SLIDE_DEP_STUB,
+  clearance: number = SLIDE_DEP_CLEARANCE
 ): SlidePoint[] {
-  if (Math.abs(y1 - y2) < 0.5) {
+  const p1x = from.x + from.away * stub;
+  const p4x = to.x + to.away * stub;
+
+  if (Math.abs(from.y - to.y) < 0.5) {
+    const travel = Math.sign(to.x - from.x) || 1;
+    const agreeable = from.away === travel && to.away === -travel;
+    if (agreeable && Math.abs(to.x - from.x) >= 2 * stub) {
+      return [
+        { x: from.x, y: from.y },
+        { x: to.x, y: to.y },
+      ];
+    }
+    const clearY = from.y + clearance;
     return [
-      { x: x1, y: y1 },
-      { x: x2, y: y2 },
+      { x: from.x, y: from.y },
+      { x: p1x, y: from.y },
+      { x: p1x, y: clearY },
+      { x: p4x, y: clearY },
+      { x: p4x, y: to.y },
+      { x: to.x, y: to.y },
     ];
   }
 
-  const cornerX = x1 + (fromAnchor === 'end' ? SLIDE_DEP_STUB : -SLIDE_DEP_STUB);
+  const finalDir = Math.sign(to.x - p1x) || 1;
+  if (finalDir === -to.away && Math.abs(to.x - p1x) >= stub) {
+    return [
+      { x: from.x, y: from.y },
+      { x: p1x, y: from.y },
+      { x: p1x, y: to.y },
+      { x: to.x, y: to.y },
+    ];
+  }
 
+  const midY = (from.y + to.y) / 2;
   return [
-    { x: x1, y: y1 },
-    { x: cornerX, y: y1 },
-    { x: cornerX, y: y2 },
-    { x: x2, y: y2 },
+    { x: from.x, y: from.y },
+    { x: p1x, y: from.y },
+    { x: p1x, y: midY },
+    { x: p4x, y: midY },
+    { x: p4x, y: to.y },
+    { x: to.x, y: to.y },
   ];
 }

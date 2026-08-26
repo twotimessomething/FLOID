@@ -142,6 +142,36 @@ describe('buildSlidePlan — collapse state', () => {
     expect(folded.shapes.filter((s) => s.name === 'Row a')).toHaveLength(0);
   });
 
+  it('lays a folded schedule as tape in date order, names fitted to what shows', () => {
+    const plan = buildSlidePlan(project(), [
+      section(
+        's1',
+        [
+          bar('taken over', '2026-01-05', '2026-12-01'),
+          bar('runs the year', '2026-01-01', '2026-12-01'),
+        ],
+        { isCollapsed: true }
+      ),
+    ]);
+
+    const tape = plan.shapes.filter(
+      (shape) => shape.name === 'taken over' || shape.name === 'runs the year'
+    );
+    // The strip that starts later is laid down last, so it covers rather than
+    // blends — three bars over one week stay three colours instead of black
+    expect(tape.map((shape) => shape.name)).toEqual(['runs the year', 'taken over']);
+
+    const under = tape[0];
+    const over = tape[1];
+    if (under.kind !== 'rect' || over.kind !== 'rect') throw new Error('unreachable');
+    // Four days of the year-long bar are left in the open, which is nowhere to
+    // print a name — so it gives its name up rather than print it on the ink
+    // that has covered it
+    expect(under.w).toBeGreaterThan(over.w);
+    expect(under.text).toBeUndefined();
+    expect(over.text).toBe('taken over');
+  });
+
   it('keeps a collapsed group solid and its children off the sheet', () => {
     const child = bar('child', '2026-01-05', '2026-02-01');
     const folded = buildSlidePlan(project(), [
@@ -366,6 +396,25 @@ describe('buildSlidePlan — dependencies', () => {
     );
   });
 
+  it('aims a link at an open group at its span line, not mid-air', () => {
+    const plan = buildSlidePlan(
+      project(),
+      [
+        section('s1', [
+          bar('a', '2026-01-01', '2026-02-01'),
+          bar('g', '2026-03-01', '2026-08-01', [bar('c', '2026-03-01', '2026-05-01')]),
+        ]),
+      ],
+      [edge({ to: 'g' })]
+    );
+
+    const link = named(plan.shapes, 'Link a → g')[0];
+    const span = named(plan.shapes, 'g span')[0];
+    if (link.kind !== 'polyline' || span.kind !== 'rect') throw new Error('unreachable');
+    const arrival = link.points[link.points.length - 1].y;
+    expect(arrival).toBeCloseTo(span.y + span.h / 2, 5);
+  });
+
   it('can be left off', () => {
     const plan = buildSlidePlan(
       project(),
@@ -377,17 +426,117 @@ describe('buildSlidePlan — dependencies', () => {
   });
 });
 
+describe('buildSlidePlan — axis and framing', () => {
+  const axisLabels = (shapes: readonly SlideShape[]): string[] =>
+    shapes.flatMap((s) => (s.kind === 'text' && s.name.startsWith('Axis ') ? [s.text] : []));
+
+  it('prints the year on the first month label, not just January', () => {
+    const plan = buildSlidePlan(project(), [
+      section('s1', [bar('a', '2026-03-10', '2026-10-20')], {
+        startDate: '2026-03-10',
+        endDate: '2026-10-20',
+      }),
+    ]);
+    const labels = axisLabels(plan.shapes);
+    expect(labels[0]).toMatch(/ 26$/);
+    expect(labels[1]).not.toMatch(/26$/);
+  });
+
+  it('marks weeks on a sheet a few months wide', () => {
+    const plan = buildSlidePlan(project(), [
+      section('s1', [bar('a', '2026-03-02', '2026-04-13')], {
+        startDate: '2026-03-02',
+        endDate: '2026-04-13',
+      }),
+    ]);
+    const labels = axisLabels(plan.shapes);
+    expect(labels.length).toBeGreaterThan(3);
+    expect(labels.every((label) => /^[A-Z][a-z]{2} \d+$/.test(label))).toBe(true);
+  });
+
+  it('names days on a sheet a few weeks wide', () => {
+    const plan = buildSlidePlan(project(), [
+      section('s1', [bar('a', '2026-03-02', '2026-03-16')], {
+        startDate: '2026-03-02',
+        endDate: '2026-03-16',
+      }),
+    ]);
+    const labels = axisLabels(plan.shapes);
+    expect(labels.length).toBeGreaterThan(10);
+    expect(labels[0]).toMatch(/^[A-Z][a-z]{2} \d+$/);
+  });
+
+  it('prints the covered range beside the title', () => {
+    const plan = buildSlidePlan(project(), [
+      section('s1', [bar('a', '2026-03-10', '2026-10-20')], {
+        startDate: '2026-03-10',
+        endDate: '2026-10-20',
+      }),
+    ]);
+    const range = named(plan.shapes, 'Date range')[0];
+    if (range.kind !== 'text') throw new Error('unreachable');
+    expect(range.text).toBe('Mar 2026 – Oct 2026');
+  });
+
+  it('rules today over the bars, not under them', () => {
+    const plan = buildSlidePlan(
+      project(),
+      [section('s1', [bar('a', '2026-01-01', '2026-12-01')])],
+      [],
+      { today: '2026-06-15' }
+    );
+    const order = plan.shapes.map((s) => s.name);
+    expect(order.indexOf('Today')).toBeGreaterThan(order.indexOf('a'));
+    expect(texts(named(plan.shapes, 'Today date'))).toEqual(['Jun 15']);
+  });
+});
+
+describe('buildSlidePlan — milestones as ink', () => {
+  it('prints every diamond in ink, as the screen does', () => {
+    const plan = buildSlidePlan(project(), [
+      section('s1', [
+        milestone('Ship', '2026-06-01', { color: '#B1E3F9' }),
+        bar('Build', '2026-01-01', '2026-06-01', [milestone('Review', '2026-03-01')]),
+      ]),
+    ]);
+    for (const name of ['Ship', 'Review']) {
+      const diamond = named(plan.shapes, name)[0];
+      if (diamond.kind !== 'diamond') throw new Error('unreachable');
+      expect(diamond.fill).toBe(SLIDE_INK.title);
+    }
+  });
+
+  it('gives header milestone names room by date, not insertion order', () => {
+    const plan = buildSlidePlan(project(), [
+      section('s1', [
+        milestone('Later', '2026-09-01'),
+        milestone('Sooner', '2026-02-01'),
+        bar('a', '2026-01-01', '2026-12-01'),
+      ]),
+    ]);
+    expect(named(plan.shapes, 'Label Later')).toHaveLength(1);
+    expect(named(plan.shapes, 'Label Sooner')).toHaveLength(1);
+  });
+});
+
 describe('routeDependency', () => {
-  it('runs straight when both ends share a row', () => {
-    const points = routeDependency(10, 50, 'end', 90, 50);
+  it('runs straight when both ends share a row and face each other', () => {
+    const points = routeDependency({ x: 10, y: 50, away: 1 }, { x: 90, y: 50, away: -1 });
     expect(points).toEqual([
       { x: 10, y: 50 },
       { x: 90, y: 50 },
     ]);
   });
 
+  it('dips below a shared row rather than striking back through it', () => {
+    const points = routeDependency({ x: 90, y: 50, away: 1 }, { x: 10, y: 50, away: -1 });
+    expect(Math.max(...points.map((p) => p.y))).toBeGreaterThan(50);
+    expect(points[0]).toEqual({ x: 90, y: 50 });
+    expect(points[points.length - 1]).toEqual({ x: 10, y: 50 });
+  });
+
   it('turns square corners between rows', () => {
-    const points = routeDependency(10, 50, 'end', 90, 120);
+    const points = routeDependency({ x: 10, y: 50, away: 1 }, { x: 90, y: 120, away: -1 });
     for (let i = 0; i < points.length - 1; i += 1) {
       const a = points[i];
       const b = points[i + 1];
@@ -395,8 +544,17 @@ describe('routeDependency', () => {
     }
     expect(points[0]).toEqual({ x: 10, y: 50 });
     expect(points[points.length - 1]).toEqual({ x: 90, y: 120 });
-    // One corner column, so a back-to-back link never doubles back on itself
+    // One corner column when the approach already lands from the right side
     expect(new Set(points.map((p) => p.x)).size).toBe(3);
+  });
+
+  it('enters every anchor from its own side', () => {
+    // end → end: the target's right edge is approached from the right, so the
+    // line never crosses the bar it points at.
+    const points = routeDependency({ x: 10, y: 50, away: 1 }, { x: 60, y: 120, away: 1 });
+    const [prev, last] = points.slice(-2);
+    expect(prev.x).toBeGreaterThan(60);
+    expect(Math.sign(last.x - prev.x)).toBe(-1);
   });
 });
 

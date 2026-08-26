@@ -10,7 +10,10 @@ import { useProjectStore } from '../../stores/projectStore';
 import { downloadScheduleFloid } from '../../utils/exportUtils';
 import { createBarAt, createMilestoneAt } from '../../utils/creationUtils';
 import { findItem, locateItem } from '../../utils/itemTree';
-import { PHASE_COLORS } from '../../constants/colors';
+import { PHASE_COLORS, isPaletteColor } from '../../constants/colors';
+import { resolveItemColor } from '../../utils/timelineUtils';
+import { getReadableTextColor } from '../../utils/colorUtils';
+import { CustomColorPopover } from '../common/CustomColorPopover';
 
 interface MenuItem {
   readonly label: string;
@@ -54,17 +57,26 @@ export function ContextMenu(): JSX.Element | null {
   const { isOpen, position, targetType, targetId, sectionId, location, clickDay } = contextMenu;
 
   const [showColorSubmenu, setShowColorSubmenu] = useState(false);
+  const [isCustomPickerOpen, setIsCustomPickerOpen] = useState(false);
   const colorButtonRef = useRef<HTMLButtonElement>(null);
+  const customColorButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!isOpen) setShowColorSubmenu(false);
+    if (!isOpen) {
+      setShowColorSubmenu(false);
+      setIsCustomPickerOpen(false);
+    }
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: PointerEvent): void => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) closeContextMenu();
+      const target = e.target as Node;
+      // The custom picker is a portal, so it is outside the menu in the DOM
+      // while being very much inside it as far as the user is concerned.
+      if (target instanceof Element && target.closest('[data-color-popover]')) return;
+      if (menuRef.current && !menuRef.current.contains(target)) closeContextMenu();
     };
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') closeContextMenu();
@@ -319,6 +331,30 @@ export function ContextMenu(): JSX.Element | null {
     [sectionId, targetId, updateItem, close]
   );
 
+  /**
+   * A custom pick paints without dismissing anything — the picker is a drag,
+   * and a menu that closed on the first committed colour would take the
+   * picker with it. The menu closes when the picker is dismissed instead.
+   */
+  const handleCustomColorChange = useCallback(
+    (color: string) => {
+      if (!sectionId || !targetId) return;
+      updateItem(sectionId, targetId, { color });
+    },
+    [sectionId, targetId, updateItem]
+  );
+
+  const handleCustomPickerClose = useCallback(() => {
+    setIsCustomPickerOpen(false);
+    setShowColorSubmenu(false);
+    close();
+  }, [close]);
+
+  // What the picker opens on: the item's own ink, or the one it inherits.
+  const resolvedItemColor =
+    section && targetId && targetType === 'item' ? resolveItemColor(section, targetId) : null;
+  const isCustomColor = Boolean(item?.color && !isPaletteColor(item.color));
+
   if (!isOpen || menuItems.length === 0) return null;
 
   return createPortal(
@@ -364,7 +400,10 @@ export function ContextMenu(): JSX.Element | null {
 
       {showColorSubmenu && item && (
         <div className="px-2 py-1.5 border-t border-[var(--color-border)]">
-          <div className="flex gap-1.5 flex-wrap">
+          {/* Held to seven a row. A menu is sized against the room it has, so
+              an unconstrained swatch strip would stretch it to four hundred
+              pixels wide and make the menu itself the widest thing on screen. */}
+          <div className="flex gap-1.5 flex-wrap max-w-[204px]">
             {Object.entries(PHASE_COLORS).map(([name, color]) => {
               const label = name.charAt(0).toUpperCase() + name.slice(1);
               return (
@@ -380,7 +419,42 @@ export function ContextMenu(): JSX.Element | null {
                 />
               );
             })}
+            <button
+              ref={customColorButtonRef}
+              onClick={() => setIsCustomPickerOpen((open) => !open)}
+              className={`w-6 h-6 flex items-center justify-center rounded-full transition-opacity duration-fast hover:opacity-80 ${
+                isCustomColor
+                  ? 'ring-2 ring-offset-1 ring-[var(--color-focus)]'
+                  : 'border border-[var(--color-border)]'
+              }`}
+              style={isCustomColor && item.color ? { backgroundColor: item.color } : undefined}
+              title="Custom"
+              aria-label="Choose a custom color"
+              aria-haspopup="dialog"
+              aria-expanded={isCustomPickerOpen}
+            >
+              <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none" aria-hidden="true">
+                <path
+                  d="M6 2v8M2 6h8"
+                  stroke={
+                    isCustomColor && item.color
+                      ? getReadableTextColor(item.color)
+                      : 'var(--color-text-muted)'
+                  }
+                  strokeWidth="1.25"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
           </div>
+          {isCustomPickerOpen && (
+            <CustomColorPopover
+              anchor={customColorButtonRef.current}
+              value={item.color ?? resolvedItemColor ?? PHASE_COLORS.teal}
+              onChange={handleCustomColorChange}
+              onClose={handleCustomPickerClose}
+            />
+          )}
         </div>
       )}
     </div>,

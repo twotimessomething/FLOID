@@ -40,7 +40,7 @@ import {
 } from '../../utils/timelineUtils';
 import { isTodayInViewport } from '../../utils/dateUtils';
 import { dayKeyDiff, todayKey } from '../../utils/dayKeys';
-import type { Section } from '../../types';
+import { DEFAULT_PROJECT_SETTINGS, type Section } from '../../types';
 
 /**
  * The walkthrough is the first run and only the first run: a returning user
@@ -63,6 +63,13 @@ export function Timeline(): JSX.Element {
   const showDependencies = useShowDependencies();
   const { pinnedSection, unpinnedSections } = usePinnedSection();
   const reorderSections = useSectionStore((s) => s.reorderSections);
+
+  /* Off unless the project asks for it — see `.timeline-traveling-labels`. The
+     class goes on the scrollport because that is what the effect is measured
+     against, and it keeps the drag clone (reparented to `<body>`) out of it. */
+  const travelingLabels = useProjectStore(
+    (state) => state.project?.settings?.travelingLabels ?? DEFAULT_PROJECT_SETTINGS.travelingLabels
+  );
 
   const labelColumnWidth = useUIStore((state) => state.labelColumnWidth);
   const setLabelColumnWidth = useUIStore((state) => state.setLabelColumnWidth);
@@ -457,7 +464,9 @@ export function Timeline(): JSX.Element {
         {/* Timeline column */}
         <div
           ref={scrollContainerRef}
-          className={`flex-1 overflow-auto timeline-scroll-container${isPanning ? ' panning' : ''}`}
+          className={`flex-1 overflow-auto timeline-scroll-container${
+            isPanning ? ' panning' : ''
+          }${travelingLabels ? ' timeline-traveling-labels' : ''}`}
           onScroll={handleTimelineScroll}
           role="region"
           aria-label="Timeline content"

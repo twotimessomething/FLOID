@@ -233,9 +233,13 @@ body {
 /* =========================================
    Timeline bars
 
-   Flat rectangles. No radius, no shadow, no scale-on-hover.
-   Overlapping bars darken through each other like printed ink — the
-   plot area isolates the blend so it never leaks into the page stack.
+   Flat rectangles. No radius, no shadow, no scale-on-hover. A bar is opaque
+   ink: two of them meeting cover each other rather than blending, so a colour
+   on the sheet is the colour that was chosen and nothing anywhere darkens
+   towards black.
+
+   The plot keeps its own stacking to itself, so nothing drawn on the sheet can
+   climb over the page around it.
    ========================================= */
 .timeline-plot {
   isolation: isolate;
@@ -248,26 +252,22 @@ body {
   mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0) 100%);
 }
 
-/* The wrapper must stay free of opacity, transform, filter and z-index — any
-   of those would make it a stacking context and trap the fill's blending
-   inside the bar instead of letting it overprint its neighbours. */
+/* The wrapper is geometry and nothing else: where the bar starts, how long it
+   runs, how tall it is. Ink, name, handles and glyphs are layers inside it, so
+   a state can drain the colour without touching the text, or ring the bar
+   without touching either. */
 .timeline-bar {
   border-radius: var(--radius-bar);
 }
 
-/* The colour lives in its own layer so overlapping bars overprint like ink,
-   while everything stacked above it — labels, handles, milestone glyphs —
-   composites normally and stays crisp. */
+/* The colour lives in its own layer so a bar can be drained, tinted or
+   outlined without touching what is stacked above it — labels, handles,
+   milestone glyphs — which composites normally and stays crisp. */
 .timeline-bar__fill {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  mix-blend-mode: multiply;
   transition: opacity var(--duration-fast) linear;
-}
-
-.dark .timeline-bar__fill {
-  mix-blend-mode: screen;
 }
 
 /* A collapsed group's children are hidden, not gone — this line under the
@@ -280,12 +280,7 @@ body {
   top: 100%;
   margin-top: 2px;
   height: 2px;
-  mix-blend-mode: multiply;
   pointer-events: none;
-}
-
-.dark .timeline-bar__collapsed-line {
-  mix-blend-mode: screen;
 }
 
 .timeline-bar:hover .timeline-bar__fill {
@@ -293,10 +288,24 @@ body {
 }
 
 /* Selection is an ink outline, not a glow. Riding on the fill puts it above
-   the colour, and the blend mode carries it correctly in both themes: ink
-   multiplied stays dark, light ink screened stays light. */
+   the colour, where it reads in both themes: `--color-text-primary` is ink on
+   paper in light and paper on ink in dark. */
 .timeline-bar--selected .timeline-bar__fill {
   box-shadow: inset 0 0 0 1.5px var(--color-text-primary);
+}
+
+/* A folded schedule's tape: strips of paper laid down in date order, the later
+   one over the one before it. Each strip carries its own paper, with the ink
+   inset a hairline at either end — against the ground that hairline is
+   invisible, and against the strip underneath it is the cut edge of the tape,
+   which is the only thing that tells two touching bars apart once the palette
+   has walked their colours close together. */
+.timeline-tape-bar {
+  background-color: var(--color-background);
+}
+
+.timeline-tape-bar .timeline-bar__fill {
+  inset: 0 1px;
 }
 
 /* =========================================
@@ -304,8 +313,8 @@ body {
 
    An item in flight leaves its outline behind and travels as a clone of
    itself, so the sheet never reflows while the user is still deciding where
-   it lands. Nothing here touches `.timeline-bar` itself — opacity on the
-   wrapper would make it a stacking context and trap the fill's blending.
+   it lands. Nothing here touches `.timeline-bar` itself — every state rides a
+   layer inside the bar, which leaves the wrapper free for an outline.
    ========================================= */
 
 /* The row it left: the shape stays, the ink drains out of it. */
@@ -320,16 +329,14 @@ body {
 
 /* A bar that will take the dragged item if it is released now.
    The outline sits OUTSIDE the bar so it still reads when the preview is
-   parked on top of it, which is exactly when the user needs to see it.
-   `outline` is safe on the wrapper — unlike opacity or transform it makes no
-   stacking context, so the fill underneath keeps overprinting its neighbours. */
+   parked on top of it, which is exactly when the user needs to see it. */
 .timeline-bar--receiving {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
-/* The clone under the cursor. It floats, so it is allowed a shadow — and it
-   composites normally rather than overprinting the page behind it. */
+/* The clone under the cursor. It has left the sheet, so unlike a placed bar it
+   is allowed a shadow. */
 .drag-preview {
   opacity: 0.94;
   box-shadow: var(--shadow-md);
@@ -366,6 +373,44 @@ body.dragging-item * {
   pointer-events: none;
   font-size: 0.75rem;
   line-height: 1;
+}
+
+/* =========================================
+   Travelling labels — off unless the project asks for it
+
+   With the setting on, a bar's name rides the sheet: `sticky` holds it against
+   the left edge of the plot once the bar's own start has scrolled past it, so
+   a span that began three months back still says what it is. The travel is
+   free but bounded — sticky clamps an element to its containing block, which
+   here is the bar itself, so the name walks the bar's full length, stops dead
+   at its far end, and then leaves with the bar. That last part is the point:
+   the name belongs to the bar, not to the viewport.
+
+   Two rules, both gated, so the default sheet is byte-for-byte the one that
+   was there before the setting existed. `flex` on the wrapper is what gives
+   the label a box of its own to travel in — a flex item is shrink-to-fit, so
+   the name is as wide as its text rather than as wide as the bar, which is the
+   room it needs to slide. It is safe on the wrapper because it makes no
+   stacking context, and every other child of a bar is absolutely positioned,
+   so the label is the only flex item there is.
+
+   The gate sits on `.timeline-scroll-container` because that is the scrollport
+   the whole effect is measured against — and because the drag clone is
+   reparented to `<body>`, which puts it outside the gate and hands it the
+   resting style, which is the right one for something that has left the sheet.
+   ========================================= */
+.timeline-traveling-labels .timeline-bar {
+  display: flex;
+  align-items: center;
+}
+
+.timeline-traveling-labels .timeline-bar__label {
+  position: sticky;
+  /* `inset` first: it is shorthand for all four offsets, so setting it after
+     `left` would blank it and the label would never leave the bar's start. */
+  inset: auto;
+  left: 0;
+  max-width: 100%;
 }
 
 /* Drag handles stay invisible until the bar is hovered. */
@@ -545,6 +590,19 @@ body.dependency-drawing * {
 .focus-ring:focus-visible {
   outline: 1.5px solid var(--color-focus);
   outline-offset: 1px;
+}
+
+/* The chosen swatch in a palette.
+
+   An ink ring with a hairline of paper held between it and the colour, so it
+   reads on a dark plum and on a pale mint alike. Drawn as a box-shadow rather
+   than an outline on purpose: every swatch also carries .focus-ring, which
+   zeroes the outline and, sitting later in this file, wins the cascade against
+   Tailwind's utility. An outline ring here is simply never painted. */
+.color-swatch--selected {
+  box-shadow:
+    0 0 0 1.5px var(--color-raised),
+    0 0 0 3px var(--color-text-primary);
 }
 
 .collapse-chevron {
@@ -952,8 +1010,8 @@ body.dependency-drawing * {
    This design carries its structure in almost-invisible values: gridlines
    lighter than the ground, hairlines at seven percent, three greys of ink.
    Asked for more contrast, the sheet keeps its shape but draws every one of
-   those in a value that survives — and bars, which normally separate only by
-   overprinting, take a real edge.
+   those in a value that survives — and bars, which normally separate on colour
+   alone, take a real edge.
    ========================================= */
 @media (prefers-contrast: more) {
   :root {
@@ -982,7 +1040,7 @@ body.dependency-drawing * {
     --color-active: rgba(255, 255, 255, 0.2);
   }
 
-  /* Overprinting alone stops telling two bars apart once colours are pushed
+  /* Colour alone stops telling two bars apart once the palette is pushed
      together, so each one gets an edge of its own. */
   .timeline-bar__fill {
     box-shadow: inset 0 0 0 1px var(--color-text-primary);

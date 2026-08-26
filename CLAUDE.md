@@ -20,20 +20,42 @@ chart, not a dashboard. Five rules carry it:
    than the ground, so they read as gaps in the paper rather than rules drawn on
    it. A single `--color-hairline` is allowed between schedules and beside the
    label column; that is the whole budget.
-3. **Flat, square bars.** `--radius-bar` is `0`. No shadows, no gradients, no
-   hover scaling. Bars carry `mix-blend-mode: multiply` (`screen` in dark) so
-   overlaps darken like overprinted ink; their container must have
-   `isolation: isolate` via `.timeline-plot`. Selection is an inset ink outline
-   (`.timeline-bar--selected`), never a colored ring.
+3. **Flat, square bars, opaque ink.** `--radius-bar` is `0`. No shadows, no
+   gradients, no hover scaling — and no blend modes: a bar prints the colour it
+   was given. Bars do not overlap on the sheet (every item has a row of its
+   own), and where they do overlap — a folded schedule's tape — the later one
+   covers the earlier rather than blending with it. Overprinting was tried and
+   only ever produced black: multiply is fine for two tints and mud for three.
+   Selection is an inset ink outline (`.timeline-bar--selected`), never a
+   colored ring.
 4. **Bars are layered, never a single painted div.** A bar is a plain wrapper
-   (`.timeline-bar`) holding a blended `.timeline-bar__fill` and, above it, a
-   `.timeline-bar__label` plus any handles or glyphs. The wrapper must stay free
-   of `opacity`, `transform`, `filter`, and `z-index` — each of those makes it a
-   stacking context and traps the fill's blending inside the bar. `outline` and
-   `box-shadow` are safe there, which is why the drop-target ring lives on the
-   wrapper and the lifted-source state drains `.timeline-bar__fill` instead. Bar
-   text is regular weight and takes its color from `getReadableTextColor`, never
-   white.
+   (`.timeline-bar`) holding a `.timeline-bar__fill` and, above it, a
+   `.timeline-bar__label` plus any handles or glyphs. The wrapper is geometry;
+   every state rides a layer inside it — the lifted source drains
+   `.timeline-bar__fill`, the drop target rings the wrapper — so a bar can lose
+   its colour without losing its name. Bar text is regular weight and takes its
+   color from `getReadableTextColor`, never white.
+
+   **A collapsed schedule's bars are a tape**, drawn by `CollapsedBars` from
+   `tapeStrips` (`utils/timelineUtils.ts`) and by `slidePlan` from the same
+   list, so the sheet and the slide cover the same bar. Strips are laid down in
+   date order, ties broken longest-first so a bar drawn inside another ends up
+   on top of it; each strip carries its own paper with the ink inset a hairline,
+   which is the cut edge that tells two touching bars apart; and a name is
+   typeset into the run before the strip that covers it (`coveredFrom`) rather
+   than onto ink that now belongs to another bar.
+
+   **Travelling labels are opt-in.** With `settings.travelingLabels` on, the
+   scrollport takes `.timeline-traveling-labels` and a bar's name rides the
+   sheet: `position: sticky; left: 0` on a shrink-to-fit flex item, so once the
+   bar's own start scrolls past the plot's left edge the name walks along the
+   bar, stops dead at its far end (sticky clamps to the containing block, which
+   is the bar) and then leaves with it. Nothing is measured and nothing listens
+   for scroll. Both rules are gated, so the default sheet is exactly the one
+   that predates the setting; the drag clone is reparented to `<body>`, which
+   puts it outside the gate and correctly hands it the resting style. Keep the
+   label a *flow* child under the gate — absolute positioning kills sticky, and
+   a full-width label has nowhere to travel to.
 5. **Affordances hide until hover.** Chevrons, drag grips, add buttons, and empty
    -state hints use `.row-affordance` inside a `.group` row. A populated project
    should look as empty as a blank one.
@@ -254,8 +276,8 @@ is what someone chose not to show. One slide is a hard constraint, so rows are
 scaled to whatever fits and type is clamped to a legible floor. A bar with
 visible children prints as a span with a terminal at each end and its name on
 the paper above it: its children are already below it, so a filled block would
-be claiming the same work twice. PowerPoint has no `multiply`, so overlapping
-ink does not darken — nested bars carry a wash instead.
+be claiming the same work twice. A nested bar inherits its parent's colour, so
+it carries a wash to keep it from reading as more of the same bar.
 
 ---
 
