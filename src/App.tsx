@@ -102,9 +102,16 @@ function App(): JSX.Element {
   // Desktop wiring (Finder opens, native drag-drop) waits for storage so an
   // opened file lands in an initialized store. Declared after the handler
   // effect above so a cold-start schedule import finds its modal flow.
+  // Caught rather than left floating: this chain also releases the window's
+  // pinned appearance, so a silent rejection here is a Mac app that can never
+  // change theme again — worth a line in the console.
   useEffect(() => {
     if (!isStorageReady || !isDesktop()) return;
-    void import('./platform/initDesktop').then((m) => m.initDesktop());
+    void import('./platform/initDesktop')
+      .then((m) => m.initDesktop())
+      .catch((error) => {
+        console.error('Desktop init failed:', error);
+      });
   }, [isStorageReady]);
 
   // Initialize auto-save functionality

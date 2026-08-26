@@ -39,6 +39,12 @@ async function drainPendingFiles(): Promise<void> {
  * reach the webview at all — which is what shipped as build 1. Release it once
  * a frame has actually been painted: two rAFs, because the first fires before
  * the frame it schedules is on screen.
+ *
+ * Paint is the *only* thing the release waits on, which is why this is called
+ * first and synchronously. Sequenced after the awaits below it would inherit
+ * their failure modes — a rejected menu build or a failed pending-files IPC
+ * would leave the window pinned for the rest of the process, which is build 1
+ * again, only now intermittently.
  */
 function followSystemTheme(): void {
   requestAnimationFrame(() => {
@@ -57,6 +63,8 @@ export async function initDesktop(): Promise<void> {
   if (initialized) return;
   initialized = true;
 
+  followSystemTheme();
+
   await setupAppMenu();
 
   await listen('floid://pending-files', () => {
@@ -71,6 +79,4 @@ export async function initDesktop(): Promise<void> {
       void importPaths(event.payload.paths);
     }
   });
-
-  followSystemTheme();
 }

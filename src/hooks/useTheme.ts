@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useUIStore, type ThemeMode } from '../stores/uiStore';
+import { setNativeGround } from '../platform/ground';
 
 const STORAGE_KEY = 'floid-theme';
 
@@ -15,6 +16,10 @@ function applyTheme(theme: ThemeMode): void {
   } else {
     document.documentElement.classList.remove('dark');
   }
+
+  // Every path that changes what the sheet is painted in goes through here, so
+  // this is the one place the native ground behind it can be kept in step.
+  setNativeGround(resolvedTheme);
 }
 
 export function useTheme(): void {

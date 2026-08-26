@@ -23,6 +23,19 @@ fn follow_system_theme(window: tauri::WebviewWindow) {
     let _ = window.set_theme(None);
 }
 
+/// Paint the native ground behind the webview.
+///
+/// Only the frontend can decide this. Light/Dark/System is a FLOID setting, so
+/// the app's theme and the system's appearance are two different things: a
+/// forced dark sheet inside a light system needs a dark ground, and no native
+/// signal says so. `setup` still guesses from the system, because at that
+/// moment there is no webview to ask; from first paint on, the frontend calls
+/// this whenever it applies a theme.
+#[tauri::command]
+fn set_ground(window: tauri::WebviewWindow, dark: bool) {
+    let _ = window.set_background_color(Some(if dark { GROUND_DARK } else { GROUND_LIGHT }));
+}
+
 #[tauri::command]
 fn take_pending_files(state: tauri::State<PendingFiles>) -> Vec<String> {
     let mut pending = state.0.lock().unwrap();
@@ -43,7 +56,10 @@ pub fn run() {
         // `theme()` follows the system, which is what the app's default
         // "system" setting follows too. Someone who has forced a theme that
         // differs from the system still sees one frame of the other ground —
-        // grey rather than white, and only in that case.
+        // grey rather than white, and only in that case. This is a guess made
+        // once, in the only moment where there is nobody to ask; the frontend
+        // corrects it through `set_ground` as soon as it has a theme, and owns
+        // it from then on.
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 let theme = window.theme().unwrap_or(tauri::Theme::Light);
@@ -81,24 +97,15 @@ pub fn run() {
             }
             Ok(())
         })
-        // Once unpinned the window follows the system, so this now fires on a
-        // real appearance change. The webview repaints itself; the native
-        // ground behind it would otherwise keep the launch-time colour and
-        // show through during a resize.
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::ThemeChanged(theme) = event {
-                let _ = window.set_background_color(Some(if matches!(theme, tauri::Theme::Dark) {
-                    GROUND_DARK
-                } else {
-                    GROUND_LIGHT
-                }));
-            }
-        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_persisted_scope::init())
         .manage(PendingFiles::default())
-        .invoke_handler(tauri::generate_handler![take_pending_files, follow_system_theme])
+        .invoke_handler(tauri::generate_handler![
+            take_pending_files,
+            follow_system_theme,
+            set_ground
+        ])
         .build(tauri::generate_context!())
         .expect("error while building FLOID")
         .run(|app, event| {
