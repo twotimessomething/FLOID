@@ -292,21 +292,26 @@ export function InfoSidebar(): JSX.Element {
   if (!isInfoSidebarOpen) {
     return (
       <aside
-        className="flex-shrink-0 h-full overflow-hidden bg-[var(--color-background)] border-l border-[var(--color-hairline)] sidebar-fold"
+        onClick={toggleInfoSidebar}
+        className="group flex-shrink-0 h-full overflow-hidden bg-[var(--color-background)] border-l border-[var(--color-hairline)] sidebar-fold cursor-pointer"
         style={{ width: RAIL_WIDTH }}
       >
         {/* The rail keeps the panel's own width so the fold clips it rather
             than reflowing it, exactly as the open panel is handled below. The
             chevron's own padding leaves its icon 16px down, where the open
-            panel's header keeps it, so folding does not shift it. */}
+            panel's header keeps it, so folding does not shift it.
+
+            The whole rail opens the panel — the chevron only says where. It
+            carries the keyboard route (Enter on it fires a click that bubbles
+            to the rail), so it needs no handler of its own. Closing stays on
+            the open panel's chevron. */}
         <div
           className="sidebar-enter h-full flex flex-col items-center pt-2.5 pb-3"
           style={{ width: RAIL_WIDTH }}
         >
           <button
             type="button"
-            onClick={toggleInfoSidebar}
-            className="group p-1.5 rounded-[var(--radius-sm)] focus-ring"
+            className="p-1.5 rounded-[var(--radius-sm)] focus-ring"
             aria-label="Open status sidebar"
           >
             <svg
@@ -322,8 +327,10 @@ export function InfoSidebar(): JSX.Element {
 
           {/* Folding the panel away must not fold away the only route to
               settings, support and the shortcut list. Same pair, same order as
-              the open panel's footer, stood on end. */}
-          <div className="mt-auto flex flex-col items-center gap-1">
+              the open panel's footer, stood on end. These already mean
+              something, so they swallow the click rather than spending it on
+              the fold. */}
+          <div className="mt-auto flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
             <QuietIconButton label="Shortcuts and gestures" onClick={openKeyboardHelpModal}>
               <HelpIcon />
             </QuietIconButton>

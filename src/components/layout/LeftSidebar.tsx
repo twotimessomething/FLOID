@@ -193,15 +193,19 @@ export function LeftSidebar(): JSX.Element {
   if (!isLeftSidebarOpen) {
     return (
       <aside
-        className="flex-shrink-0 h-full overflow-hidden bg-[var(--color-background)] border-r border-[var(--color-hairline)] sidebar-fold"
+        onClick={toggleLeftSidebar}
+        className="group flex-shrink-0 h-full overflow-hidden bg-[var(--color-background)] border-r border-[var(--color-hairline)] sidebar-fold cursor-pointer"
         style={{ width: RAIL_WIDTH }}
       >
-        {/* The chevron keeps the 16px offset it had when this rail was one
-            full-height button, so folding the panel does not shift it. */}
+        {/* The whole rail opens the panel; the chevron only says where. It keeps
+            the 16px offset it had when this rail was one full-height button, so
+            folding the panel does not shift it, and it keeps the keyboard route
+            — Enter on it fires a click that bubbles to the rail — so it needs no
+            handler of its own. Closing stays on the open panel's chevron. */}
         <div className="sidebar-enter h-full flex flex-col items-center" style={{ width: RAIL_WIDTH }}>
           <button
-            onClick={toggleLeftSidebar}
-            className="group w-8 flex items-start justify-center pt-4 focus-ring"
+            type="button"
+            className="w-8 flex items-start justify-center pt-4 focus-ring"
             aria-label="Open sidebar"
           >
             <svg
@@ -215,8 +219,10 @@ export function LeftSidebar(): JSX.Element {
           </button>
 
           {/* Folding the panel away must not fold away the only route to
-              contact and privacy — the same move the status rail makes. */}
-          <div className="mt-auto pb-3 flex flex-col items-center">
+              contact and privacy — the same move the status rail makes. These
+              already mean something, so they swallow the click rather than
+              spending it on the fold. */}
+          <div className="mt-auto pb-3 flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
             <QuietIconButton label="About FLOID" onClick={openAboutModal}>
               <InfoIcon />
             </QuietIconButton>
