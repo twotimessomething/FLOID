@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useSectionStore, selectItem, selectSection } from '../../stores/sectionStore';
 import { useUIStore, showItemDeletedToast } from '../../stores/uiStore';
-import { Input, TextArea, DateInput, ColorPicker, Button } from '../common';
+import { Input, TextArea, DateInput, ColorPicker, Button, Toggle } from '../common';
 import { countItems, findItemPath } from '../../utils/itemTree';
 import { resolveItemColor } from '../../utils/timelineUtils';
 import { fromDayKey, toDayKey } from '../../utils/dayKeys';
@@ -30,6 +30,7 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
   const updateItem = useSectionStore((s) => s.updateItem);
   const setItemDates = useSectionStore((s) => s.setItemDates);
   const deleteItem = useSectionStore((s) => s.deleteItem);
+  const toggleItemDone = useSectionStore((s) => s.toggleItemDone);
 
   const sectionId = selection.sectionId;
   const itemId = selection.id;
@@ -87,6 +88,11 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
     [sectionId, itemId, item, setItemDates]
   );
 
+  const handleToggleDone = useCallback(() => {
+    if (!sectionId || !itemId) return;
+    toggleItemDone(sectionId, itemId);
+  }, [sectionId, itemId, toggleItemDone]);
+
   const handleDelete = useCallback(() => {
     if (!sectionId || !itemId || !item) return;
     // Read it while it still exists, so the notice can name what it cost
@@ -99,7 +105,9 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
     return <div className="text-body text-[var(--color-text-secondary)]">Nothing selected</div>;
   }
 
-  const isMilestone = item.kind === 'milestone';
+  const isTask = item.kind === 'task';
+  // A milestone or a task: one date, no colour of its own
+  const isPoint = item.kind !== 'bar';
   // The whole subtree, not just the first level — that is what a delete takes
   const childCount = countItems(item.children);
   // What the bar actually paints with — an inherited colour, not the schedule's
@@ -123,7 +131,7 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
         value={item.name}
         onChange={handleNameChange}
         autoFocus
-        placeholder={isMilestone ? 'Milestone name' : 'Name'}
+        placeholder={isTask ? 'Task name' : isPoint ? 'Milestone name' : 'Name'}
       />
 
       <TextArea
@@ -133,11 +141,11 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
         placeholder="Add a description..."
       />
 
-      {!isMilestone && (
+      {!isPoint && (
         <ColorPicker label="Color" value={effectiveColor} onChange={handleColorChange} />
       )}
 
-      {isMilestone ? (
+      {isPoint ? (
         <DateInput label="Date" value={fromDayKey(item.start)} onChange={handleStartChange} />
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -153,6 +161,15 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
             onChange={handleEndChange}
             min={fromDayKey(item.start)}
           />
+        </div>
+      )}
+
+      {isTask && (
+        <div className="flex items-center justify-between">
+          <label htmlFor="item-editor-done" className="text-body text-[var(--color-text-primary)]">
+            Done
+          </label>
+          <Toggle id="item-editor-done" checked={item.isDone === true} onChange={handleToggleDone} />
         </div>
       )}
 

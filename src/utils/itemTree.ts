@@ -229,9 +229,17 @@ export function sectionsExtent(sections: readonly Section[]): DateExtent | null 
   return start && end ? { start, end } : null;
 }
 
-/** Duration in days. A milestone is 0; a bar is at least 1. */
+/**
+ * A milestone or a task: one day, no width, no children. Everything that
+ * treats a milestone as a point treats a task the same way.
+ */
+export function isPointItem(item: Pick<TimelineItem, 'kind'>): boolean {
+  return item.kind !== 'bar';
+}
+
+/** Duration in days. A point is 0; a bar is at least 1. */
 export function itemDays(item: TimelineItem): number {
-  if (item.kind === 'milestone') return 0;
+  if (isPointItem(item)) return 0;
   return Math.max(1, dayKeyDiff(item.start, item.end));
 }
 

@@ -173,6 +173,44 @@ export function createMilestoneAt(
   return newId;
 }
 
+interface CreateTaskOptions {
+  readonly day: string;
+  readonly parentId?: string | null;
+  readonly index?: number;
+}
+
+/**
+ * Create a task, select it, and return its id. A task is a milestone that can
+ * be checked off: one day, its own row, and a circle instead of a diamond.
+ */
+export function createTaskAt(
+  sectionId: string,
+  options: CreateTaskOptions,
+  selectAt: ModalPosition
+): string | null {
+  const store = useSectionStore.getState();
+  if (!store.sections.some((s) => s.id === sectionId)) return null;
+
+  const newId = store.addItem(
+    sectionId,
+    options.parentId ?? null,
+    {
+      kind: 'task',
+      name: '',
+      description: '',
+      start: options.day,
+      end: options.day,
+      color: null,
+      isCollapsed: false,
+      isDone: false,
+    },
+    options.index
+  );
+
+  useUIStore.getState().selectItem(newId, sectionId, selectAt);
+  return newId;
+}
+
 /** Where a bar goes when nothing said where: after whatever is already there. */
 function nextFreeDay(sectionId: string, parentId: string | null): string {
   const section = useSectionStore.getState().sections.find((s) => s.id === sectionId);

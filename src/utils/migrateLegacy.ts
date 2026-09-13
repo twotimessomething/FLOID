@@ -160,7 +160,7 @@ function normalizeSection(section: Section, index: number): Section {
 function normalizeItems(items: readonly TimelineItem[]): TimelineItem[] {
   return items.map((item) => {
     const start = normalizeDayKey(item.start);
-    const end = item.kind === 'milestone' ? start : normalizeDayKey(item.end);
+    const end = item.kind !== 'bar' ? start : normalizeDayKey(item.end);
     return {
       ...item,
       start,

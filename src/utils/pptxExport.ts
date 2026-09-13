@@ -90,7 +90,10 @@ function renderShape(slide: PptxGenJS.Slide, shape: SlideShape): void {
         w: toIn(shape.size),
         h: toIn(shape.size),
         fill: { color: shape.fill },
-        line: { type: 'none' },
+        line:
+          shape.kind === 'dot' && shape.outline
+            ? { color: shape.outline.color, width: shape.outline.width }
+            : { type: 'none' },
         objectName: shape.name,
       });
       return;

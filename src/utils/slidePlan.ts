@@ -80,6 +80,8 @@ export interface SlideDot extends SlideShapeBase {
   readonly cy: number;
   readonly size: number;
   readonly fill: string;
+  /** A ring — an open task prints as an outline on the paper. */
+  readonly outline?: { readonly color: string; readonly width: number };
 }
 
 export interface SlidePoint {
@@ -595,18 +597,32 @@ export function buildSlidePlan(
         align: 'left',
       });
 
-      if (item.kind === 'milestone') {
+      if (item.kind !== 'bar') {
         const x = xForKey(item.start);
         const size = clamp(rowHeight * 0.42, 4, 10);
-        // Ink, as on screen — `MilestoneGlyph` never takes the item colour.
-        foreground.push({
-          kind: 'diamond',
-          name: item.name || 'Milestone',
-          cx: x,
-          cy: center,
-          size,
-          fill: SLIDE_INK.title,
-        });
+        // Ink, as on screen — neither glyph takes the item colour. A task is a
+        // circle: hollow while open, solid once checked off.
+        if (item.kind === 'task') {
+          const isDone = item.isDone === true;
+          foreground.push({
+            kind: 'dot',
+            name: item.name || 'Task',
+            cx: x,
+            cy: center,
+            size,
+            fill: isDone ? SLIDE_INK.title : SLIDE_INK.paper,
+            outline: isDone ? undefined : { color: SLIDE_INK.title, width: 0.75 },
+          });
+        } else {
+          foreground.push({
+            kind: 'diamond',
+            name: item.name || 'Milestone',
+            cx: x,
+            cy: center,
+            size,
+            fill: SLIDE_INK.title,
+          });
+        }
         const text = fitsOnRow(rowHeight, labelFont, 1.1)
           ? fitText(item.name, labelFont, plotRight - x - size)
           : '';

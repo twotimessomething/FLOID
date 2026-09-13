@@ -608,7 +608,7 @@ function displayName(name: string): string {
  */
 export function showItemDeletedToast(item: TimelineItem): void {
   const buried = countItems(item.children);
-  const noun = item.kind === 'milestone' ? 'milestone' : 'bar';
+  const noun = item.kind === 'bar' ? 'bar' : item.kind;
   const message =
     buried > 0
       ? `Deleted "${displayName(item.name)}" and the ${buried} ${buried === 1 ? 'item' : 'items'} inside it`

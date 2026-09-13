@@ -81,6 +81,7 @@ export const ItemRow = memo(function ItemRow({
   const updateItem = useSectionStore((s) => s.updateItem);
   const setItemDates = useSectionStore((s) => s.setItemDates);
   const toggleItemCollapse = useSectionStore((s) => s.toggleItemCollapse);
+  const toggleItemDone = useSectionStore((s) => s.toggleItemDone);
 
   const skipWeekends = useProjectStore(
     (s) => s.project?.settings?.skipWeekends ?? DEFAULT_PROJECT_SETTINGS.skipWeekends
@@ -123,6 +124,8 @@ export const ItemRow = memo(function ItemRow({
   const inset = barInsetForDepth(depth);
   const textColor = getReadableTextColor(color);
   const isBar = item.kind === 'bar';
+  const isTask = item.kind === 'task';
+  const isDone = isTask && item.isDone === true;
   const hasChildren = item.children.length > 0;
 
   // -- selection, rename ---------------------------------------------------
@@ -185,6 +188,39 @@ export const ItemRow = memo(function ItemRow({
       bar.handleClick(e);
     },
     [bar, hasDraggedRef]
+  );
+
+  /**
+   * The circle is the checkbox, but the click never reaches it: the drag hook
+   * captures the pointer on the wrapper the moment it is pressed, and a
+   * captured pointer's click is retargeted to the capturing element. So the
+   * wrapper answers every click and asks where the press began. A click that
+   * arrives after a move is the move's echo, not a tick; a keyboard click on
+   * the focused circle has no press at all, so the target speaks for it.
+   */
+  const pressedCheckRef = useRef(false);
+
+  const handleCheckPointerDown = useCallback((): void => {
+    pressedCheckRef.current = true;
+  }, []);
+
+  const handleTaskClick = useCallback(
+    (e: React.MouseEvent): void => {
+      const pressedCheck =
+        pressedCheckRef.current ||
+        (e.target instanceof Element && e.target.closest('[data-task-check]') !== null);
+      pressedCheckRef.current = false;
+      if (hasDraggedRef.current) {
+        hasDraggedRef.current = false;
+        return;
+      }
+      if (pressedCheck) {
+        toggleItemDone(section.id, item.id);
+        return;
+      }
+      bar.handleClick(e);
+    },
+    [hasDraggedRef, toggleItemDone, section.id, item.id, bar]
   );
 
   const handleToggleCollapse = useCallback(
@@ -461,7 +497,7 @@ export const ItemRow = memo(function ItemRow({
         aria-selected={isSelected}
         aria-label={`${item.name || 'Untitled'}${isSelected ? ', selected' : ''}${
           isLocked ? ', locked' : ''
-        }`}
+        }${isTask ? (isDone ? ', done' : ', not done') : ''}`}
       >
         {isBar && hasChildren ? (
           <button
@@ -487,8 +523,14 @@ export const ItemRow = memo(function ItemRow({
           </button>
         ) : (
           <span className="w-5 flex-shrink-0" aria-hidden="true">
-            {!isBar && (
-              <span className="block w-1.5 h-1.5 mx-auto rotate-45 bg-[var(--color-text-muted)]" />
+            {isTask ? (
+              <span
+                className={`task-check task-check--small mx-auto ${isDone ? 'task-check--done' : ''}`}
+              />
+            ) : (
+              !isBar && (
+                <span className="block w-1.5 h-1.5 mx-auto rotate-45 bg-[var(--color-text-muted)]" />
+              )
             )}
           </span>
         )}
@@ -510,9 +552,9 @@ export const ItemRow = memo(function ItemRow({
               depth === 0
                 ? 'text-body text-[var(--color-text-primary)]'
                 : 'text-body text-[var(--color-text-secondary)]'
-            }`}
+            } ${isDone ? 'task-name--done' : ''}`}
           >
-            {item.name || (isBar ? 'Untitled' : 'Milestone')}
+            {item.name || (isBar ? 'Untitled' : isTask ? 'Task' : 'Milestone')}
           </span>
         )}
 
@@ -646,6 +688,58 @@ export const ItemRow = memo(function ItemRow({
                 label={`Link ${item.name || 'bar'} from its end`}
               />
             </>
+          )}
+        </div>
+      ) : isTask ? (
+        <div
+          className={`absolute top-0 bottom-0 cursor-grab active:cursor-grabbing touch-none ${
+            isDragged ? 'opacity-30' : ''
+          }`}
+          style={{ left: rect.left }}
+          onPointerDown={handleBarPointerDown}
+          onPointerEnter={handleDependencyHoverEnter}
+          onPointerLeave={handleDependencyHoverLeave}
+          onClick={handleTaskClick}
+          onContextMenu={handleBarContextMenu}
+          onKeyDown={handleKeyDown}
+          aria-label={`${item.name || 'Task'}, ${formatDayKey(item.start)}${
+            isDone ? ', done' : ', not done'
+          }`}
+        >
+          {/* A point is a small target; this box is what a drawn link lands on */}
+          <span
+            className="absolute top-0 bottom-0 -left-3 w-6"
+            data-dep-milestone={item.id}
+            data-drop-section={section.id}
+            aria-hidden="true"
+          />
+          {/* The circle is the checkbox: click to tick, press and move to drag */}
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={isDone}
+            aria-label={`${isDone ? 'Uncheck' : 'Check'} ${item.name || 'task'}`}
+            data-task-check=""
+            onPointerDown={handleCheckPointerDown}
+            className={`task-check absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 focus-ring ${
+              isDone ? 'task-check--done' : ''
+            } ${isSelected ? 'task-check--selected' : ''}`}
+          />
+          <span
+            className={`absolute top-1/2 left-3 -translate-y-1/2 text-meta text-[var(--color-text-secondary)] whitespace-nowrap pointer-events-none ${
+              isDone ? 'task-name--done' : ''
+            }`}
+          >
+            {item.name}
+          </span>
+          {showDependencies && (
+            <DependencyDot
+              anchor="end"
+              variant="milestone"
+              isConnected={isMilestoneConnected}
+              onStartDraw={handleDependencyDraw}
+              label={`Link ${item.name || 'task'}`}
+            />
           )}
         </div>
       ) : (

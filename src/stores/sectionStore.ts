@@ -89,6 +89,8 @@ interface SectionState {
   moveItem: (payload: MoveItemPayload) => void;
   toggleItemCollapse: (sectionId: string, itemId: string) => void;
   toggleItemLock: (sectionId: string, itemId: string) => void;
+  /** Check a task off, or uncheck it. Bars and milestones have nothing to tick. */
+  toggleItemDone: (sectionId: string, itemId: string) => void;
   reorderItem: (sectionId: string, itemId: string, toIndex: number) => void;
 
   // Dependencies — ink between items, never physics
@@ -282,7 +284,7 @@ export const useSectionStore = create<SectionState>()(
             touch(section, {
               isMulticolor,
               items: section.items.map((item) =>
-                item.kind === 'milestone' ? item : { ...item, color: null }
+                item.kind !== 'bar' ? item : { ...item, color: null }
               ),
             })
           ),
@@ -365,8 +367,8 @@ export const useSectionStore = create<SectionState>()(
             touch(section, {
               items: updateItemIn(section.items, itemId, (item) => {
                 const next = { ...item, ...updates };
-                // A milestone is a point; keep its two edges in step
-                return next.kind === 'milestone' ? { ...next, end: next.start } : next;
+                // A milestone or task is a point; keep its two edges in step
+                return next.kind !== 'bar' ? { ...next, end: next.start } : next;
               }),
             })
           ),
@@ -403,7 +405,7 @@ export const useSectionStore = create<SectionState>()(
           sections: mapSection(state.sections, sectionId, (section) =>
             touch(section, {
               items: updateItemIn(section.items, itemId, (item) => {
-                if (item.kind === 'milestone') return { ...item, start, end: start };
+                if (item.kind !== 'bar') return { ...item, start, end: start };
                 const from = minDayKey(start, end);
                 const to = dayKeyDiff(from, maxDayKey(start, end)) < 1
                   ? addDaysToKey(from, 1)
@@ -522,6 +524,17 @@ export const useSectionStore = create<SectionState>()(
               isLocked: !item.isLocked,
             })),
           })),
+        })),
+
+      toggleItemDone: (sectionId, itemId) =>
+        set((state) => ({
+          sections: mapSection(state.sections, sectionId, (section) =>
+            touch(section, {
+              items: updateItemIn(section.items, itemId, (item) =>
+                item.kind === 'task' ? { ...item, isDone: !item.isDone } : item
+              ),
+            })
+          ),
         })),
 
       setDependencies: (dependencies) => set({ dependencies }),

@@ -98,7 +98,7 @@ export function resolveEndpoints(
   pixelsPerDay: number
 ): { from: EndpointGeometry; to: EndpointGeometry } {
   const rawX = (point: ItemPoint, anchor: DependencyAnchor): number => {
-    if (point.item.kind === 'milestone') return dayToX(point.item.start, viewport, pixelsPerDay);
+    if (point.item.kind !== 'bar') return dayToX(point.item.start, viewport, pixelsPerDay);
     const rect = getBarRect(point.item, viewport, pixelsPerDay);
     return anchor === 'start' ? rect.left : rect.left + rect.width;
   };
@@ -107,7 +107,7 @@ export function resolveEndpoints(
   const toX = rawX(toPoint, edge.toAnchor);
 
   const side = (point: ItemPoint, anchor: DependencyAnchor, otherX: number, ownX: number): 1 | -1 => {
-    if (point.item.kind === 'milestone') return otherX >= ownX ? 1 : -1;
+    if (point.item.kind !== 'bar') return otherX >= ownX ? 1 : -1;
     return anchor === 'end' ? 1 : -1;
   };
 
@@ -115,7 +115,7 @@ export function resolveEndpoints(
   const toAway = side(toPoint, edge.toAnchor, fromX, toX);
 
   const offset = (point: ItemPoint): number =>
-    point.item.kind === 'milestone' ? MILESTONE_CLEARANCE : DEP_DOT_OFFSET;
+    point.item.kind !== 'bar' ? MILESTONE_CLEARANCE : DEP_DOT_OFFSET;
 
   return {
     from: { x: fromX + fromAway * offset(fromPoint), y: fromPoint.y, away: fromAway },

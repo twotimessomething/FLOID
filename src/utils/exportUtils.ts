@@ -593,6 +593,20 @@ export const exportTimelineAsImage = async (
     ctx.fill();
   };
 
+  // A task's circle: an ink ring while open, solid ink once checked off
+  const drawTaskCircle = (x: number, y: number, radius: number, isDone: boolean): void => {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    if (isDone) {
+      ctx.fillStyle = colors.text;
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = colors.text;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  };
+
   // Draw header with month markers
   ctx.fillStyle = colors.surface;
   ctx.fillRect(0, 0, WIDTH, HEADER_HEIGHT);
@@ -759,8 +773,9 @@ export const exportTimelineAsImage = async (
         const x = xForKey(item.start);
         const size = 4 * verticalScale;
 
-        // Ink, as on screen — `MilestoneGlyph` never takes the item colour
-        drawDiamond(x, centerY, size, colors.text);
+        // Ink, as on screen — neither glyph takes the item colour
+        if (item.kind === 'task') drawTaskCircle(x, centerY, size, item.isDone === true);
+        else drawDiamond(x, centerY, size, colors.text);
 
         ctx.font = `${Math.max(8 * verticalScale, 7)}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = colors.textMuted;

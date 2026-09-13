@@ -157,7 +157,7 @@ export const getBarRect = (
   pixelsPerDay: number
 ): BarRect => {
   const left = dayToX(item.start, viewport, pixelsPerDay);
-  if (item.kind === 'milestone') return { left, width: 0 };
+  if (item.kind !== 'bar') return { left, width: 0 };
   const right = dayToX(item.end, viewport, pixelsPerDay);
   return { left, width: Math.max(MIN_BAR_WIDTH, right - left) };
 };
@@ -191,7 +191,7 @@ export interface FlatRow {
  *
  * Root milestones are left out on purpose: they live in the schedule's header
  * row, drawn against the whole schedule. Every other item — including a
- * milestone dragged inside a bar — gets a row of its own.
+ * milestone dragged inside a bar, and every task — gets a row of its own.
  */
 export function flattenSection(section: Section): FlatRow[] {
   const rows: FlatRow[] = [];

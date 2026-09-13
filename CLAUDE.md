@@ -122,14 +122,15 @@ Mac app ships.
 
 ## Core Concepts
 
-Everything on the timeline is one recursive type. There is no phase type, no task
-type, and no separate marker-on-a-bar type — depth in the tree is the only
-difference between them, and depth is decided by dragging.
+Everything on the timeline is one recursive type. There is no phase type, no
+sub-task type, and no separate marker-on-a-bar type — depth in the tree is the
+only difference between them, and depth is decided by dragging. `kind` only says
+what an item is on its own: a span, a point, or a point that can be ticked.
 
 | Term | Description |
 |------|-------------|
 | Schedule (`Section`) | A track on the timeline. Holds items. A project has several. |
-| Item (`TimelineItem`) | Anything on a schedule. Either a **bar** (spans days, holds children) or a **milestone** (a single date). Nests to any depth. |
+| Item (`TimelineItem`) | Anything on a schedule. A **bar** (spans days, holds children), a **milestone** (a single date) or a **task** (a single date with an `isDone` check). Nests to any depth; milestones and tasks are leaves. |
 | Group | A bar with children. Made by dropping an item onto a bar, unmade by dragging it out. |
 | Pinned Schedule | Optional (0 or 1). Renders on top; its root milestones draw reference lines through every schedule. Purely visual — never moves or rescales anything. |
 | Multicolor | Per-schedule option. Root bars take palette colours instead of a gradient of the schedule colour; children inherit from their parent. |
@@ -151,13 +152,18 @@ Drag and drop is the whole organising story.
   everything under it.
 - **Group** — drop an item onto a bar and it becomes that bar's child, keeping the
   dates it already had. Dragging is the only way to move something between
-  groups; there is no "add task" button.
+  groups; there is no "add child" button.
 - **Un-group** — drag it back out onto open space.
 - **Resize** — drag a bar's edge. Only that bar's edge moves; children keep their
   own dates.
 - **Milestones** — double-click a schedule's own row to drop one there (those draw
   a reference line down the schedule). Everywhere else they come from the context
   menu and take a row of their own; they are never drawn on top of a bar.
+- **Tasks** — a milestone that can be checked off. Made from the context menu
+  ("Add task"), always on a row of their own, even at the root. The circle is
+  the checkbox: click it to tick, press and move to drag. A done task prints as
+  solid ink with its name struck through; everything else about it — dragging,
+  nesting, linking — is the milestone story.
 - **Link** — hover a bar and a small dot appears outside each end; drag it onto
   another bar or milestone to draw a dependency. Which ends connect *is* the
   type — end→start, start→start, end→end — so there is no picker, and

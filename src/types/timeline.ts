@@ -11,11 +11,14 @@
  * a pure list operation: re-parenting an item does not move it.
  */
 
-export type ItemKind = 'bar' | 'milestone';
+export type ItemKind = 'bar' | 'milestone' | 'task';
 
 export interface TimelineItem {
   id: string;
-  /** A bar spans days and can hold children. A milestone is a single point. */
+  /**
+   * A bar spans days and can hold children. A milestone and a task are each a
+   * single point; a task is the one that can be checked off.
+   */
   kind: ItemKind;
   name: string;
   description: string;
@@ -29,6 +32,8 @@ export interface TimelineItem {
   isCollapsed: boolean;
   /** Blocks moving and resizing this item and everything under it. */
   isLocked?: boolean;
+  /** Tasks only: checked off from the timeline. */
+  isDone?: boolean;
   children: TimelineItem[];
 }
 

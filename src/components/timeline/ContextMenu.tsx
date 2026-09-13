@@ -8,7 +8,7 @@ import {
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { downloadScheduleFloid } from '../../utils/exportUtils';
-import { createBarAt, createMilestoneAt } from '../../utils/creationUtils';
+import { createBarAt, createMilestoneAt, createTaskAt } from '../../utils/creationUtils';
 import { findItem, locateItem } from '../../utils/itemTree';
 import { PHASE_COLORS, isPaletteColor } from '../../constants/colors';
 import { resolveItemColor } from '../../utils/timelineUtils';
@@ -171,6 +171,12 @@ export function ContextMenu(): JSX.Element | null {
           ),
         });
         items.push({
+          label: 'Add task inside',
+          action: run(() =>
+            createTaskAt(sectionId, { day: clickDay ?? item.start, parentId: targetId }, position)
+          ),
+        });
+        items.push({
           label: 'Color',
           action: () => setShowColorSubmenu((open) => !open),
           hasSubmenu: true,
@@ -243,6 +249,12 @@ export function ContextMenu(): JSX.Element | null {
               createMilestoneAt(sectionId, { day: clickDay ?? section.startDate }, position)
             ),
           },
+          {
+            label: 'Add task here',
+            action: run(() =>
+              createTaskAt(sectionId, { day: clickDay ?? section.startDate }, position)
+            ),
+          },
         ];
       }
 
@@ -260,6 +272,10 @@ export function ContextMenu(): JSX.Element | null {
         {
           label: 'Add milestone',
           action: run(() => createMilestoneAt(sectionId, { day: section.startDate }, position)),
+        },
+        {
+          label: 'Add task',
+          action: run(() => createTaskAt(sectionId, { day: section.startDate }, position)),
         },
         {
           label: project?.pinnedSectionId === sectionId ? 'Unpin' : 'Pin to top',

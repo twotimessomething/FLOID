@@ -469,6 +469,59 @@ body.dragging-item * {
   right: -26px;
 }
 
+/* A task's checkbox: a ring of ink on the paper, solid ink once it is done.
+   The tick is paper, so it reads on the ink without a second colour. */
+.task-check {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 1.5px solid var(--color-text-primary);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) linear,
+    border-color var(--duration-fast) linear;
+}
+
+.task-check--small {
+  width: 8px;
+  height: 8px;
+  border-width: 1px;
+  border-color: var(--color-text-muted);
+  cursor: inherit;
+}
+
+.task-check--done {
+  background-color: var(--color-text-primary);
+  border-color: var(--color-text-primary);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M3 6.2l2 2 4-4.4'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 70%;
+}
+
+.task-check--small.task-check--done {
+  background-color: var(--color-text-muted);
+  border-color: var(--color-text-muted);
+  background-image: none;
+}
+
+.task-check--selected {
+  border-color: var(--color-accent);
+}
+
+.task-check--selected.task-check--done {
+  background-color: var(--color-accent);
+}
+
+/* A done task's name stays legible but recedes. */
+.task-name--done {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
 /* A milestone keeps its one dot beside the glyph, clear of the label. */
 .dep-dot--milestone {
   left: -22px;

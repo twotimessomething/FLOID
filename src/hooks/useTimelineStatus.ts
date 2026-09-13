@@ -78,7 +78,7 @@ function walkSection(section: Section, visit: (entry: WalkEntry) => void): void 
     // A root milestone belongs to the schedule rather than to any one bar, so
     // it takes the schedule's colour instead of a slot in the palette.
     const color =
-      item.kind === 'milestone'
+      item.kind !== 'bar'
         ? (item.color ?? inherited ?? section.color)
         : getItemColor(item, section, Math.max(0, rootIndex), rootBarCount, inherited);
     colors.set(item.id, color);
@@ -112,6 +112,8 @@ export function useTimelineStatus(): TimelineStatus {
 
     for (const section of ordered) {
       walkSection(section, ({ item, color, ancestors, isLeafBar }) => {
+        // A task is its own record of progress; the panel reports work and dates
+        if (item.kind === 'task') return;
         if (item.kind === 'milestone') {
           if (item.start >= today) {
             upcomingMilestones.push({
