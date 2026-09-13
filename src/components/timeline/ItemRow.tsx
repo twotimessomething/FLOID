@@ -719,9 +719,9 @@ export const ItemRow = memo(function ItemRow({
         </div>
       ) : isTask ? (
         <div
-          className={`absolute top-0 bottom-0 cursor-grab active:cursor-grabbing touch-none ${
+          className={`absolute top-0 bottom-0 timeline-task cursor-grab active:cursor-grabbing touch-none ${
             isDragged ? 'opacity-30' : ''
-          }`}
+          } ${isSelected ? 'timeline-task--selected' : ''}`}
           style={{ left: rect.left }}
           onPointerDown={handleBarPointerDown}
           onPointerEnter={handleDependencyHoverEnter}
@@ -752,8 +752,10 @@ export const ItemRow = memo(function ItemRow({
               isDone ? 'task-check--done' : ''
             } ${isSelected ? 'task-check--selected' : ''}`}
           />
+          {/* The name is part of the task: hovering it reveals the dot, a click
+              on it selects, and a press on it drags — as a bar's label does */}
           <span
-            className={`absolute top-1/2 left-3 -translate-y-1/2 text-meta text-[var(--color-text-secondary)] whitespace-nowrap pointer-events-none ${
+            className={`absolute top-1/2 left-3 -translate-y-1/2 text-meta text-[var(--color-text-secondary)] whitespace-nowrap ${
               isDone ? 'task-name--done' : ''
             }`}
           >
@@ -762,7 +764,7 @@ export const ItemRow = memo(function ItemRow({
           {showDependencies && (
             <DependencyDot
               anchor="end"
-              variant="milestone"
+              variant="task"
               isConnected={isMilestoneConnected}
               onStartDraw={handleDependencyDraw}
               label={`Link ${item.name || 'task'}`}

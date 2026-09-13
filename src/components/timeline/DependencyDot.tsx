@@ -6,8 +6,12 @@ interface DependencyDotProps {
   readonly anchor: DependencyAnchor;
   /** Connected dots stay printed — the period at the end of the bar. */
   readonly isConnected: boolean;
-  /** Bars hold a dot outside each edge; a milestone keeps one beside its glyph. */
-  readonly variant: 'bar' | 'milestone';
+  /**
+   * Bars hold a dot outside each edge; a milestone or task keeps one beside
+   * its glyph. A task's reveals only while the task itself is hovered — its
+   * circle is a real target, where a milestone's tick needs the whole row.
+   */
+  readonly variant: 'bar' | 'milestone' | 'task';
   readonly onStartDraw: (e: React.PointerEvent, anchor: DependencyAnchor) => void;
   readonly label: string;
 }
@@ -46,9 +50,11 @@ export function DependencyDot({
   const placement =
     variant === 'milestone'
       ? 'dep-dot--milestone'
-      : anchor === 'start'
-        ? 'dep-dot--start'
-        : 'dep-dot--end';
+      : variant === 'task'
+        ? 'dep-dot--task'
+        : anchor === 'start'
+          ? 'dep-dot--start'
+          : 'dep-dot--end';
 
   return (
     <div

@@ -533,14 +533,19 @@ body.task-pointer .timeline-scroll-container .cursor-copy {
   color: var(--color-text-muted);
 }
 
-/* A milestone keeps its one dot beside the glyph, clear of the label. */
-.dep-dot--milestone {
+/* A milestone keeps its one dot beside the glyph, clear of the label. A
+   task's sits in the same place but answers to the task, not the row: the
+   circle is a real target, so it reveals its dot the way a bar does. */
+.dep-dot--milestone,
+.dep-dot--task {
   left: -22px;
 }
 
 .timeline-bar:hover .dep-dot,
 .timeline-bar--selected .dep-dot,
 .group:hover .dep-dot--milestone,
+.timeline-task:hover .dep-dot--task,
+.timeline-task--selected .dep-dot--task,
 .dep-dot[data-connected='true'] {
   opacity: 1;
   pointer-events: auto;
