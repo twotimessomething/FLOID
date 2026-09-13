@@ -21,6 +21,7 @@ export type CommandId =
   | 'view.toggleInfoSidebar'
   | 'app.settings'
   | 'help.shortcuts'
+  | 'help.whatsNew'
   | 'help.about';
 
 export interface Command {

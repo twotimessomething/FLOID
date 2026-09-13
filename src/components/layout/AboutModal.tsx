@@ -1,10 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useUIStore } from '../../stores/uiStore';
+import { openWhatsNewOnDemand } from '../../hooks/useWhatsNew';
 import { usePresence } from '../../hooks/usePresence';
 import { isDesktop } from '../../platform/detect';
 
 const CONTACT_EMAIL = 'support@floid.design';
 const SOURCE_URL = 'https://github.com/twotimessomething/FLOID';
+
+/**
+ * The web build's only pointer to the Mac app. The query string is an App
+ * Store Connect campaign token (`pt` provider, `ct` campaign) — it is what
+ * attributes an install to this panel rather than to organic search, so it
+ * must survive verbatim: trimming it to a bare `apps.apple.com/app/id…` still
+ * opens the listing and silently stops reporting.
+ */
+const MAC_APP_URL =
+  'https://apps.apple.com/app/apple-store/id6804945737?pt=129226834&ct=webapp&mt=8';
 
 type AboutTab = 'about' | 'privacy';
 
@@ -54,6 +65,14 @@ const COPY = {
   },
 } as const;
 
+
+function AppleIcon(): JSX.Element {
+  return (
+    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M17.05 12.54c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.61-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.75-.78-2.87-.76-1.48.02-2.84.86-3.6 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.2 1.1-.04 1.51-.71 2.84-.71 1.33 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5zM14.88 5.9c.6-.74 1.01-1.76.9-2.78-.87.04-1.93.58-2.56 1.31-.56.65-1.05 1.69-.92 2.69.97.07 1.96-.49 2.58-1.22z" />
+    </svg>
+  );
+}
 
 function MailIcon(): JSX.Element {
   return (
@@ -109,7 +128,15 @@ export function AboutModal(): JSX.Element | null {
   const isAboutModalOpen = useUIStore((state) => state.isAboutModalOpen);
   const closeAboutModal = useUIStore((state) => state.closeAboutModal);
   const [tab, setTab] = useState<AboutTab>('about');
-  const copy = isDesktop() ? COPY.desktop : COPY.web;
+  const isDesktopApp = isDesktop();
+  const copy = isDesktopApp ? COPY.desktop : COPY.web;
+
+  // One panel at a time: the release notes replace this one rather than
+  // stacking on it.
+  const handleWhatsNew = useCallback(() => {
+    closeAboutModal();
+    openWhatsNewOnDemand();
+  }, [closeAboutModal]);
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
@@ -205,6 +232,26 @@ export function AboutModal(): JSX.Element | null {
               <p className="text-body text-[var(--color-text-secondary)] leading-relaxed">
                 {copy.summary}
               </p>
+
+              {/* The web has no menu bar, so this is where someone goes looking
+                  for the release notes after dismissing them. */}
+              <button
+                onClick={handleWhatsNew}
+                className="text-body text-[var(--color-focus)] hover:underline focus-ring rounded-[var(--radius-sm)]"
+              >
+                What&rsquo;s new
+              </button>
+
+              {/* Only the web needs telling there is a Mac app; on the Mac
+                  this would point at the app you are already in. */}
+              {!isDesktopApp && (
+                <div>
+                  <h3 className="eyebrow mb-1">FLOID for Mac</h3>
+                  <LinkRow href={MAC_APP_URL} label="Download on the Mac App Store" isExternal>
+                    <AppleIcon />
+                  </LinkRow>
+                </div>
+              )}
 
               <div>
                 <h3 className="eyebrow mb-1">Get in touch</h3>

@@ -5,6 +5,7 @@ import { countItems } from '../utils/itemTree';
 import { computeViewportBounds } from '../utils/dateUtils';
 import { getFitPixelsPerDay } from '../utils/timelineUtils';
 import { ZOOM_LEVELS, stepFromFit } from '../utils/zoomSteps';
+import type { ReleaseNote } from '../data/releaseNotes';
 import type {
   ZoomLevel,
   SelectionState,
@@ -15,6 +16,9 @@ import type {
   Section,
   TimelineItem,
 } from '../types';
+
+/** Hoisted: a fresh [] on every close would re-render the panel for nothing. */
+const EMPTY_RELEASES: readonly ReleaseNote[] = [];
 
 // Theme mode
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -285,6 +289,13 @@ interface UIState {
   openAboutModal: () => void;
   closeAboutModal: () => void;
 
+  // What's new panel. Carries the releases it was opened with, so it reads a
+  // fixed list rather than recomputing one as the stamp is written.
+  isWhatsNewOpen: boolean;
+  whatsNewReleases: readonly ReleaseNote[];
+  openWhatsNew: (releases: readonly ReleaseNote[]) => void;
+  closeWhatsNew: () => void;
+
   // Theme
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
@@ -545,6 +556,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   isAboutModalOpen: false,
   openAboutModal: () => set({ isAboutModalOpen: true }),
   closeAboutModal: () => set({ isAboutModalOpen: false }),
+
+  isWhatsNewOpen: false,
+  whatsNewReleases: EMPTY_RELEASES,
+  openWhatsNew: (releases) => set({ isWhatsNewOpen: true, whatsNewReleases: releases }),
+  // The list outlives the close: clearing it here would empty the panel
+  // mid-exit. Every open sets it, so a closed panel's leftover list is inert.
+  closeWhatsNew: () => set({ isWhatsNewOpen: false }),
 
   // Theme
   theme: 'system',

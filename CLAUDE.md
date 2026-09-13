@@ -524,6 +524,31 @@ src/
 └── data/                # Templates, defaults
 ```
 
+## What's new
+
+`src/data/releaseNotes.ts` is the changelog users actually read — the panel
+(`WhatsNewModal`) raises itself once per release for someone who already has
+projects, and never for a new install.
+
+**Add an entry whenever a change is big enough that a user would notice it on
+the sheet**: a new kind of thing on the timeline, a new gesture, a new export,
+the app arriving on a new platform. Bug fixes, refactors, performance work and
+tuning do not get an entry — a panel that opens to say "improved internals" is
+an interruption, and one that cries wolf gets dismissed unread next time. A
+release with nothing worth saying simply has no entry.
+
+Writing one:
+
+- Newest first. The list order *is* the version order; nothing parses a version
+  string, and the stamp in `AppSettings.lastSeenReleaseVersion` is matched
+  against `version` exactly, so a shipped entry is never renamed or reordered.
+- Three or four bullets, each a plain sentence about what someone can now do.
+  No file names, no internals.
+- Add the entry in the same change that ships the feature, and give it the
+  version that change ships as — `package.json` and `tauri.conf.json` carry
+  that number, and it goes in `guide.json`'s release notes too if that is
+  where the release is tracked.
+
 ## guide.json
 
 `guide.json` at the project root is this project's entry in GUIDE, a local app

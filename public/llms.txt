@@ -8,7 +8,7 @@ FLOID is a browser-based scheduling tool built for product development. It helps
 
 - Website: https://floid.design/
 - Pricing: Free
-- Platform: Web browser (no install required)
+- Platform: Web browser (no install required), or a free native Mac app from the Mac App Store: https://apps.apple.com/app/id6804945737
 - Category: Product development scheduling, project timelines, timeline builder, milestone tracking
 
 ## What FLOID Does
@@ -24,6 +24,7 @@ FLOID lets you create project timelines with multiple schedule tracks — one pe
 - Ready-made templates: complete product development, engineering, industrial design, software, and marketing
 - Color-coded schedules with a multicolor phase option
 - Export as .floid file, full project backup, or timeline image
+- Native Mac app with a full menu bar and Finder file opening
 - Dark mode
 - Keyboard shortcuts
 - No account required

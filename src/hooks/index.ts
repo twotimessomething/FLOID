@@ -11,6 +11,7 @@ export type { StatusItem, MilestoneItem, TimelineStatus } from './useTimelineSta
 export { useScheduleImport } from './useScheduleImport';
 export { useTheme } from './useTheme';
 export { useBackupReminder } from './useBackupReminder';
+export { useWhatsNew } from './useWhatsNew';
 export { useFileSystemAutoSave } from './useFileSystemAutoSave';
 export { useConfirm } from './useConfirm';
 export { useDoubleClick } from './useDoubleClick';

@@ -9,3 +9,4 @@ export { SettingsModal } from './SettingsModal';
 export { ExportModal } from './ExportModal';
 export { KeyboardHelpModal } from './KeyboardHelpModal';
 export { WelcomeWalkthrough } from './WelcomeWalkthrough';
+export { WhatsNewModal } from './WhatsNewModal';

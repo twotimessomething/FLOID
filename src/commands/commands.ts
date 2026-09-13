@@ -1,3 +1,4 @@
+import { openWhatsNewOnDemand } from '../hooks/useWhatsNew';
 import { useUIStore } from '../stores/uiStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useSectionStore } from '../stores/sectionStore';
@@ -138,6 +139,11 @@ export const COMMANDS: Record<CommandId, Command> = {
     id: 'help.shortcuts',
     label: 'Keyboard Shortcuts',
     run: () => useUIStore.getState().openKeyboardHelpModal(),
+  },
+  'help.whatsNew': {
+    id: 'help.whatsNew',
+    label: "What's New",
+    run: () => openWhatsNewOnDemand(),
   },
   'help.about': {
     id: 'help.about',

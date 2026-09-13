@@ -41,6 +41,7 @@ export async function setupAppMenu(): Promise<void> {
     text: 'FLOID',
     items: [
       await menuItemFor('help.about'),
+      await menuItemFor('help.whatsNew'),
       await separator(),
       await menuItemFor('app.settings'),
       await separator(),

@@ -18,6 +18,7 @@ import {
   useTheme,
 } from './hooks';
 import { useBackupReminder } from './hooks/useBackupReminder';
+import { useWhatsNew } from './hooks/useWhatsNew';
 import { useFileSystemAutoSave } from './hooks/useFileSystemAutoSave';
 import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
@@ -60,6 +61,9 @@ const KeyboardHelpModal = lazy(() =>
 const AboutModal = lazy(() =>
   import('./components/layout/AboutModal').then((m) => ({ default: m.AboutModal }))
 );
+const WhatsNewModal = lazy(() =>
+  import('./components/layout/WhatsNewModal').then((m) => ({ default: m.WhatsNewModal }))
+);
 
 /**
  * True from the first time a surface is wanted, and true from then on.
@@ -96,6 +100,7 @@ function App(): JSX.Element {
   const wantsExport = useOnceWanted(useUIStore((state) => state.isExportModalOpen));
   const wantsKeyboardHelp = useOnceWanted(useUIStore((state) => state.isKeyboardHelpModalOpen));
   const wantsAbout = useOnceWanted(useUIStore((state) => state.isAboutModalOpen));
+  const wantsWhatsNew = useOnceWanted(useUIStore((state) => state.isWhatsNewOpen));
 
   const { handleImport: handleScheduleImport, handleConfirmAction } = useScheduleImport();
 
@@ -132,6 +137,9 @@ function App(): JSX.Element {
 
   // Initialize backup reminder
   useBackupReminder();
+
+  // Raise the what's-new panel once per release, for returning users only
+  useWhatsNew();
 
   // Initialize file system auto-save
   useFileSystemAutoSave();
@@ -287,6 +295,11 @@ function App(): JSX.Element {
       {wantsAbout && (
         <Suspense fallback={null}>
           <AboutModal />
+        </Suspense>
+      )}
+      {wantsWhatsNew && (
+        <Suspense fallback={null}>
+          <WhatsNewModal />
         </Suspense>
       )}
       {/* Eager: these four answer a gesture or a state the app is already in —

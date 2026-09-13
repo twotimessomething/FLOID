@@ -4,7 +4,7 @@
 
 Website: https://floid.design/
 Pricing: Free (no account required, no usage limits)
-Platform: Web browser — works on desktop and tablet
+Platform: Web browser (desktop and tablet), plus a native Mac app on the Mac App Store
 Category: Product development scheduling, project timelines, timeline builder, milestone tracking
 
 ---
@@ -105,7 +105,10 @@ Yes. FLOID is completely free to use with no account required and no usage limit
 No. FLOID runs entirely in your browser. No sign-up, no login, no account needed.
 
 ### What platforms does FLOID support?
-FLOID runs in any modern web browser on desktop or tablet. There is no native mobile app, but the web app works on tablet-sized screens.
+FLOID runs in any modern web browser on desktop or tablet, and as a native Mac app from the Mac App Store. There is no native mobile app, but the web app works on tablet-sized screens.
+
+### Is there a Mac app for FLOID?
+Yes. FLOID for Mac is free on the Mac App Store: https://apps.apple.com/app/id6804945737. It is the same timeline with a full macOS menu bar, native save and open panels, and Finder support for .floid and .floid-project files, and it runs entirely offline — the Mac app makes no network requests at all. It requires macOS 12 Monterey or later and runs natively on both Apple silicon and Intel Macs.
 
 ### How do I create a product development timeline?
 Start from a ready-made template — complete product development, engineering, industrial design, software, or marketing — or from a blank schedule. Then drag and drop phases, tasks, and milestones, add a schedule for each team, and pin one schedule so its milestones draw reference lines through the whole project.
