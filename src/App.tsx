@@ -10,7 +10,13 @@ import { Toast } from './components/common/Toast';
 import { ConfirmDialog } from './components/common/ConfirmDialog';
 import { MobileNotice } from './components/common/MobileNotice';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
-import { useAutoSave, useKeyboardShortcuts, useScheduleImport, useTheme } from './hooks';
+import {
+  useAutoSave,
+  useKeyboardShortcuts,
+  useScheduleImport,
+  useTaskPointer,
+  useTheme,
+} from './hooks';
 import { useBackupReminder } from './hooks/useBackupReminder';
 import { useFileSystemAutoSave } from './hooks/useFileSystemAutoSave';
 import { useSectionStore } from './stores/sectionStore';
@@ -119,6 +125,7 @@ function App(): JSX.Element {
 
   // Initialize global keyboard shortcuts
   useKeyboardShortcuts();
+  useTaskPointer();
 
   // Initialize theme handling
   useTheme();

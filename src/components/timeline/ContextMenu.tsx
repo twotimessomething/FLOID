@@ -14,10 +14,14 @@ import { PHASE_COLORS, isPaletteColor } from '../../constants/colors';
 import { resolveItemColor } from '../../utils/timelineUtils';
 import { getReadableTextColor } from '../../utils/colorUtils';
 import { CustomColorPopover } from '../common/CustomColorPopover';
+import { MenuIcon, type MenuIconName } from '../common/MenuIcon';
 
 interface MenuItem {
   readonly label: string;
   readonly action: () => void;
+  readonly icon?: MenuIconName;
+  /** Fill for a `swatch` icon — the ink the item currently prints in. */
+  readonly iconColor?: string;
   readonly danger?: boolean;
   readonly disabled?: boolean;
   readonly hasSubmenu?: boolean;
@@ -134,6 +138,14 @@ export function ContextMenu(): JSX.Element | null {
     [section, targetId, targetType]
   );
 
+  // What the Color row's swatch prints, and what the picker opens on: the
+  // item's own ink, or the one it inherits.
+  const resolvedItemColor = useMemo(
+    () =>
+      section && targetId && targetType === 'item' ? resolveItemColor(section, targetId) : null,
+    [section, targetId, targetType]
+  );
+
   const close = useCallback(() => closeContextMenu(), [closeContextMenu]);
 
   const run = useCallback(
@@ -150,34 +162,44 @@ export function ContextMenu(): JSX.Element | null {
     // ---- an item -------------------------------------------------------
     if (targetType === 'item' && item && targetId) {
       const items: MenuItem[] = [
-        { label: 'Edit', action: run(() => selectItem(targetId, sectionId, position)) },
+        {
+          label: 'Edit',
+          icon: 'edit',
+          action: run(() => selectItem(targetId, sectionId, position)),
+        },
       ];
 
       if (item.kind === 'bar') {
         if (item.children.length > 0) {
           items.push({
             label: item.isCollapsed ? 'Expand' : 'Collapse',
+            icon: item.isCollapsed ? 'expand' : 'collapse',
             action: run(() => toggleItemCollapse(sectionId, targetId)),
           });
         }
         items.push({
           label: 'Add bar inside',
+          icon: 'bar',
           action: run(() => createBarAt(sectionId, { parentId: targetId }, position)),
         });
         items.push({
           label: 'Add milestone inside',
+          icon: 'milestone',
           action: run(() =>
             createMilestoneAt(sectionId, { day: clickDay ?? item.start, parentId: targetId }, position)
           ),
         });
         items.push({
           label: 'Add task inside',
+          icon: 'task',
           action: run(() =>
             createTaskAt(sectionId, { day: clickDay ?? item.start, parentId: targetId }, position)
           ),
         });
         items.push({
           label: 'Color',
+          icon: 'swatch',
+          iconColor: resolvedItemColor ?? undefined,
           action: () => setShowColorSubmenu((open) => !open),
           hasSubmenu: true,
         });
@@ -185,6 +207,7 @@ export function ContextMenu(): JSX.Element | null {
 
       items.push({
         label: item.isLocked ? 'Unlock' : 'Lock',
+        icon: item.isLocked ? 'unlock' : 'lock',
         action: run(() => toggleItemLock(sectionId, targetId)),
         disabled: section.isLocked === true,
       });
@@ -192,6 +215,7 @@ export function ContextMenu(): JSX.Element | null {
       if (itemLocation && itemLocation.parent !== null) {
         items.push({
           label: 'Move out of group',
+          icon: 'move-out',
           action: run(() =>
             moveItem({
               itemId: targetId,
@@ -208,11 +232,13 @@ export function ContextMenu(): JSX.Element | null {
       if (itemLocation) {
         items.push({
           label: 'Move up',
+          icon: 'move-up',
           action: run(() => reorderItem(sectionId, targetId, itemLocation.index - 1)),
           disabled: itemLocation.index === 0,
         });
         items.push({
           label: 'Move down',
+          icon: 'move-down',
           action: run(() => reorderItem(sectionId, targetId, itemLocation.index + 2)),
           disabled: itemLocation.index >= itemLocation.siblings.length - 1,
         });
@@ -220,6 +246,7 @@ export function ContextMenu(): JSX.Element | null {
 
       items.push({
         label: 'Delete',
+        icon: 'delete',
         action: run(() => {
           // Named while it still exists — a group takes its children with it
           showItemDeletedToast(item);
@@ -239,18 +266,21 @@ export function ContextMenu(): JSX.Element | null {
         return [
           {
             label: 'Add bar here',
+            icon: 'bar',
             action: run(() =>
               createBarAt(sectionId, { startDay: clickDay ?? section.startDate }, position)
             ),
           },
           {
             label: 'Add milestone here',
+            icon: 'milestone',
             action: run(() =>
               createMilestoneAt(sectionId, { day: clickDay ?? section.startDate }, position)
             ),
           },
           {
             label: 'Add task here',
+            icon: 'task',
             action: run(() =>
               createTaskAt(sectionId, { day: clickDay ?? section.startDate }, position)
             ),
@@ -259,32 +289,38 @@ export function ContextMenu(): JSX.Element | null {
       }
 
       return [
-        { label: 'Edit', action: run(() => selectSection(sectionId, position)) },
+        { label: 'Edit', icon: 'edit', action: run(() => selectSection(sectionId, position)) },
         {
           label: section.isCollapsed ? 'Expand' : 'Collapse',
+          icon: section.isCollapsed ? 'expand' : 'collapse',
           action: run(() => toggleSectionCollapse(sectionId)),
         },
         {
           label: section.isLocked ? 'Unlock schedule' : 'Lock schedule',
+          icon: section.isLocked ? 'unlock' : 'lock',
           action: run(() => toggleSectionLock(sectionId)),
         },
-        { label: 'Add bar', action: run(() => createBarAt(sectionId, {}, position)) },
+        { label: 'Add bar', icon: 'bar', action: run(() => createBarAt(sectionId, {}, position)) },
         {
           label: 'Add milestone',
+          icon: 'milestone',
           action: run(() => createMilestoneAt(sectionId, { day: section.startDate }, position)),
         },
         {
           label: 'Add task',
+          icon: 'task',
           action: run(() => createTaskAt(sectionId, { day: section.startDate }, position)),
         },
         {
           label: project?.pinnedSectionId === sectionId ? 'Unpin' : 'Pin to top',
+          icon: project?.pinnedSectionId === sectionId ? 'unpin' : 'pin',
           action: run(() =>
             setPinnedSection(project?.pinnedSectionId === sectionId ? null : sectionId)
           ),
         },
         {
           label: 'Export schedule',
+          icon: 'export',
           action: run(() => {
             if (project) {
               void downloadScheduleFloid(
@@ -297,6 +333,7 @@ export function ContextMenu(): JSX.Element | null {
         },
         {
           label: 'Delete',
+          icon: 'delete',
           danger: true,
           action: () => {
             const wasPinned = project?.pinnedSectionId === sectionId;
@@ -321,6 +358,7 @@ export function ContextMenu(): JSX.Element | null {
     clickDay,
     position,
     project,
+    resolvedItemColor,
     run,
     close,
     selectItem,
@@ -366,9 +404,6 @@ export function ContextMenu(): JSX.Element | null {
     close();
   }, [close]);
 
-  // What the picker opens on: the item's own ink, or the one it inherits.
-  const resolvedItemColor =
-    section && targetId && targetType === 'item' ? resolveItemColor(section, targetId) : null;
   const isCustomColor = Boolean(item?.color && !isPaletteColor(item.color));
 
   if (!isOpen || menuItems.length === 0) return null;
@@ -387,19 +422,26 @@ export function ContextMenu(): JSX.Element | null {
           ref={menuItem.hasSubmenu ? colorButtonRef : undefined}
           onClick={menuItem.disabled ? undefined : menuItem.action}
           disabled={menuItem.disabled}
-          className={`w-full px-3 py-1.5 text-left text-xs transition-colors duration-fast ${
+          className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors duration-fast ${
             menuItem.disabled
               ? 'text-[var(--color-text-muted)] cursor-default'
               : menuItem.danger
                 ? 'text-[var(--color-error)] hover:bg-[var(--color-error-bg)]'
                 : 'text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
-          } ${menuItem.hasSubmenu ? 'flex items-center justify-between' : ''}`}
+          }`}
           role="menuitem"
         >
-          {menuItem.label}
+          {/* The slot is held open whether or not there is a glyph in it, so
+              every label in the menu starts on the same vertical line. */}
+          {menuItem.icon ? (
+            <MenuIcon name={menuItem.icon} color={menuItem.iconColor} />
+          ) : (
+            <span className="w-3.5 flex-shrink-0" aria-hidden="true" />
+          )}
+          <span className="flex-1 truncate">{menuItem.label}</span>
           {menuItem.hasSubmenu && (
             <svg
-              className="w-4 h-4 text-[var(--color-text-muted)]"
+              className="w-4 h-4 flex-shrink-0 text-[var(--color-text-muted)]"
               viewBox="0 0 20 20"
               fill="currentColor"
               aria-hidden="true"

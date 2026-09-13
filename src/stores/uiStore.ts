@@ -167,6 +167,10 @@ interface UIState {
   dragType: 'resize-start' | 'resize-end' | 'move' | 'draw' | null;
   setDragging: (isDragging: boolean, dragType?: 'resize-start' | 'resize-end' | 'move' | 'draw' | null) => void;
 
+  // Task pointer — ⌥ held: a click on open paper drops a task
+  isTaskPointer: boolean;
+  setTaskPointer: (isTaskPointer: boolean) => void;
+
   // Item drag (move / re-parent)
   itemDrag: ItemDragState;
   beginItemDrag: (itemId: string, sectionId: string, kind: ItemKind) => void;
@@ -360,6 +364,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   dragType: null,
   setDragging: (isDragging, dragType = null) =>
     set({ isDragging, dragType }),
+
+  // Task pointer
+  isTaskPointer: false,
+  setTaskPointer: (isTaskPointer) =>
+    set((state) => (state.isTaskPointer === isTaskPointer ? state : { isTaskPointer })),
 
   // Item drag
   itemDrag: IDLE_ITEM_DRAG,

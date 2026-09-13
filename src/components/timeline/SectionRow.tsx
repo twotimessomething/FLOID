@@ -12,7 +12,12 @@ import {
   xToDay,
 } from '../../utils/timelineUtils';
 import { layoutLabels, measureMilestoneLabelWidth } from '../../utils/labelLayoutUtils';
-import { createBarAt, drawnSpanDescriber, DEFAULT_BAR_DAYS } from '../../utils/creationUtils';
+import {
+  createBarAt,
+  createTaskAt,
+  drawnSpanDescriber,
+  DEFAULT_BAR_DAYS,
+} from '../../utils/creationUtils';
 import { getItemColor } from '../../types';
 import { snapKeyToBusinessDay } from '../../utils/dayKeys';
 import { sectionTintColor } from '../../utils/colorUtils';
@@ -27,6 +32,7 @@ import { MilestoneLines } from './MilestoneLines';
 import { DropLine } from './DropLine';
 import { GhostBar } from './GhostBar';
 import { GhostMilestone } from './GhostMilestone';
+import { GhostTask } from './GhostTask';
 
 interface DragHandleProps {
   readonly onPointerDown: (e: React.PointerEvent) => void;
@@ -122,6 +128,18 @@ export const SectionRow = memo(function SectionRow({
     [section.id, viewport, pixelsPerDay, snapCreateDay]
   );
 
+  // ⌥-click on the open space below the rows: a task at the end of the schedule
+  const handleBodyGhostClick = useCallback(
+    ({ startPx, point }: CreateGestureInfo): void => {
+      createTaskAt(
+        section.id,
+        { day: snapCreateDay(xToDay(startPx, viewport, pixelsPerDay)) },
+        point
+      );
+    },
+    [section.id, viewport, pixelsPerDay, snapCreateDay]
+  );
+
   const handleBodyGhostDraw = useCallback(
     ({ startPx, endPx, point }: CreateGestureInfo): void => {
       createBarAt(
@@ -151,6 +169,8 @@ export const SectionRow = memo(function SectionRow({
     describeSpan,
     onDoubleClickCreate: handleBodyGhostDoubleClick,
     onDrawCreate: handleBodyGhostDraw,
+    pointMode: headerGestures.isTaskGhost,
+    onClickCreate: handleBodyGhostClick,
   });
 
   const ghostColor = section.isMulticolor
@@ -210,14 +230,18 @@ export const SectionRow = memo(function SectionRow({
         style={{ height: ROW_HEIGHT }}
         data-drop-header={section.id}
         data-drop-section={section.id}
+        onClick={headerGestures.handleClick}
         onDoubleClick={headerGestures.handleDoubleClick}
         onContextMenu={headerGestures.handleContextMenu}
         onPointerMove={headerGestures.handlePointerMove}
         onPointerLeave={headerGestures.handlePointerLeave}
       >
-        {headerGestures.ghostX !== null && (
-          <GhostMilestone x={headerGestures.ghostX} lineHeight={bodyHeight} />
-        )}
+        {headerGestures.ghostX !== null &&
+          (headerGestures.isTaskGhost ? (
+            <GhostTask left={headerGestures.ghostX} />
+          ) : (
+            <GhostMilestone x={headerGestures.ghostX} lineHeight={bodyHeight} />
+          ))}
 
         <CollapsedBars section={section} viewport={viewport} pixelsPerDay={pixelsPerDay} />
 
@@ -266,22 +290,26 @@ export const SectionRow = memo(function SectionRow({
             style={{ height: CREATE_ROW_HEIGHT }}
             data-drop-body={section.id}
             data-drop-count={section.items.length}
+            onClick={bodyGhost.handleClick}
             onDoubleClick={bodyGhost.handleDoubleClick}
             onPointerMove={bodyGhost.handlePointerMove}
             onPointerLeave={bodyGhost.handlePointerLeave}
             onPointerDown={bodyGhost.handlePointerDown}
           >
             {isAppendSlot && <DropLine position="top" />}
-            {bodyGhost.ghost !== null && (
-              <GhostBar
-                ref={bodyGhost.ghostRef}
-                readoutRef={bodyGhost.readoutRef}
-                left={bodyGhost.ghost.left}
-                width={bodyGhost.ghost.width}
-                color={ghostColor}
-                isDrawing={bodyGhost.ghost.isDrawing}
-              />
-            )}
+            {bodyGhost.ghost !== null &&
+              (headerGestures.isTaskGhost ? (
+                <GhostTask left={bodyGhost.ghost.left} />
+              ) : (
+                <GhostBar
+                  ref={bodyGhost.ghostRef}
+                  readoutRef={bodyGhost.readoutRef}
+                  left={bodyGhost.ghost.left}
+                  width={bodyGhost.ghost.width}
+                  color={ghostColor}
+                  isDrawing={bodyGhost.ghost.isDrawing}
+                />
+              ))}
           </div>
         </div>
       )}

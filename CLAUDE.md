@@ -159,9 +159,13 @@ Drag and drop is the whole organising story.
 - **Milestones** — double-click a schedule's own row to drop one there (those draw
   a reference line down the schedule). Everywhere else they come from the context
   menu and take a row of their own; they are never drawn on top of a bar.
-- **Tasks** — a milestone that can be checked off. Made from the context menu
-  ("Add task"), always on a row of their own, even at the root. The circle is
-  the checkbox: click it to tick, press and move to drag. A done task prints as
+- **Tasks** — a milestone that can be checked off. Hold ⌥ and the pointer is a
+  task pointer: open paper previews a circle and one click drops a task on that
+  day, in that row's group (`useTaskPointer`, `pointMode` on `useCreateGhost`);
+  the editor's backdrop lets those clicks through so tasks can be dropped and
+  named in a run. The context menu ("Add task") is the slow road. Tasks always
+  take a row of their own, even at the root. The circle is the checkbox: click
+  it to tick, press and move to drag. A done task prints as
   solid ink with its name struck through; everything else about it — dragging,
   nesting, linking — is the milestone story.
 - **Link** — hover a bar and a small dot appears outside each end; drag it onto

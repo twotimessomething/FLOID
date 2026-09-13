@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { usePresence } from '../../hooks/usePresence';
+import { useIsTaskPointer } from '../../hooks/useTaskPointer';
 import { SectionEditor } from '../panels/SectionEditor';
 import { ItemEditor } from '../panels/ItemEditor';
 import type { SelectionState } from '../../types';
@@ -13,6 +14,9 @@ export function EditorModal(): JSX.Element | null {
   const { isModalOpen, selection, closeModal } = useUIStore();
   const modalRef = useRef<HTMLDivElement>(null);
   const shownRef = useRef<SelectionState | null>(null);
+  // Under the task pointer the backdrop steps aside: the next ⌥-click is the
+  // next task, and the editor simply moves to it. The panel itself stays live.
+  const isTaskPointer = useIsTaskPointer();
 
   // Close on escape key or enter key (save and close)
   useEffect(() => {
@@ -98,7 +102,10 @@ export function EditorModal(): JSX.Element | null {
       case 'section':
         return <SectionEditor selection={shown} />;
       case 'item':
-        return <ItemEditor selection={shown} />;
+        // Keyed by item: a task dropped while the panel is already open is a
+        // new thing to name, so the panel comes up fresh with its name field
+        // focused rather than carrying focus the click just took away.
+        return <ItemEditor key={shown.id} selection={shown} />;
       default:
         return null;
     }
@@ -106,7 +113,9 @@ export function EditorModal(): JSX.Element | null {
 
   return (
     <div
-      className={`modal-layer fixed inset-0 z-50 ${isLeaving ? 'is-leaving' : ''}`}
+      className={`modal-layer fixed inset-0 z-50 ${isLeaving ? 'is-leaving' : ''} ${
+        isTaskPointer ? 'pointer-events-none' : ''
+      }`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
@@ -114,7 +123,7 @@ export function EditorModal(): JSX.Element | null {
     >
       <div
         ref={modalRef}
-        className="fixed bg-[var(--color-raised)] border border-[var(--color-border)] overflow-hidden rounded-[var(--radius-lg)] shadow-lg modal-enter"
+        className="fixed pointer-events-auto bg-[var(--color-raised)] border border-[var(--color-border)] overflow-hidden rounded-[var(--radius-lg)] shadow-lg modal-enter"
         style={{
           width: MODAL_WIDTH,
           maxHeight: MODAL_MAX_HEIGHT,

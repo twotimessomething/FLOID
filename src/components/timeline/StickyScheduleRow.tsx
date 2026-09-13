@@ -15,6 +15,7 @@ import { sectionTintColor } from '../../utils/colorUtils';
 import { useScheduleRowGestures } from '../../hooks/useScheduleRowGestures';
 import { CollapsedBars } from './CollapsedBars';
 import { GhostMilestone } from './GhostMilestone';
+import { GhostTask } from './GhostTask';
 import { MilestoneGlyph } from './MilestoneGlyph';
 import { MilestoneLabel } from './MilestoneLabel';
 import { MilestoneLines } from './MilestoneLines';
@@ -115,6 +116,7 @@ export function StickyScheduleRow({
         style={{ height: ROW_HEIGHT }}
         data-drop-header={section.id}
         data-drop-section={section.id}
+        onClick={gestures.handleClick}
         onDoubleClick={gestures.handleDoubleClick}
         onContextMenu={gestures.handleContextMenu}
         onPointerMove={gestures.handlePointerMove}
@@ -138,7 +140,12 @@ export function StickyScheduleRow({
         {/* The schedule's rows are elsewhere on the sheet, so the ghost shows
             the marker alone — a preview line dropped from here would rule
             through whatever happens to have scrolled underneath. */}
-        {gestures.ghostX !== null && <GhostMilestone x={gestures.ghostX} lineHeight={0} />}
+        {gestures.ghostX !== null &&
+          (gestures.isTaskGhost ? (
+            <GhostTask left={gestures.ghostX} />
+          ) : (
+            <GhostMilestone x={gestures.ghostX} lineHeight={0} />
+          ))}
 
         {sticky.map((milestone) => (
           <div

@@ -29,6 +29,8 @@ const GESTURES: readonly Gesture[] = [
   { description: 'Draw a bar in empty space', action: 'Double-click' },
   { description: 'Draw a bar to an exact span', action: 'Drag' },
   { description: 'Add a milestone to a schedule row', action: 'Double-click' },
+  { description: 'Drop a task on any day', action: '⌥-click' },
+  { description: 'Check a task off, or uncheck it', action: 'Click its circle' },
   { description: 'Move an item, or carry it to another schedule', action: 'Drag' },
   { description: 'Group an item inside a bar', action: 'Drop it on the bar' },
   { description: 'Take an item back out of its group', action: 'Drop it on open space' },

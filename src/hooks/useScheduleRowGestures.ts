@@ -3,7 +3,8 @@ import type { ViewportBounds } from '../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../types';
 import { useProjectStore } from '../stores/projectStore';
 import { useUIStore } from '../stores/uiStore';
-import { createMilestoneAt } from '../utils/creationUtils';
+import { createMilestoneAt, createTaskAt } from '../utils/creationUtils';
+import { useIsTaskPointer } from './useTaskPointer';
 import { snapKeyToBusinessDay } from '../utils/dayKeys';
 import { xToDay } from '../utils/timelineUtils';
 
@@ -12,6 +13,10 @@ interface ScheduleRowGestures {
   readonly rowRef: React.RefObject<HTMLDivElement>;
   /** Where the ghost marker is standing, or null when the row is not being hovered. */
   readonly ghostX: number | null;
+  /** The ghost is a task, not a milestone: ⌥ is held. */
+  readonly isTaskGhost: boolean;
+  /** ⌥-click: a task at the top of the schedule, on the day under the cursor. */
+  readonly handleClick: (e: React.MouseEvent) => void;
   readonly handleDoubleClick: (e: React.MouseEvent) => void;
   readonly handleContextMenu: (e: React.MouseEvent) => void;
   readonly handlePointerMove: (e: React.PointerEvent) => void;
@@ -39,6 +44,7 @@ export function useScheduleRowGestures(
     (s) => s.project?.settings?.skipWeekends ?? DEFAULT_PROJECT_SETTINGS.skipWeekends
   );
 
+  const isTaskPointer = useIsTaskPointer();
   const rowRef = useRef<HTMLDivElement>(null);
   const [ghostX, setGhostX] = useState<number | null>(null);
 
@@ -75,16 +81,34 @@ export function useScheduleRowGestures(
     setGhostX(null);
   }, []);
 
+  // A root task takes a row of its own, so from the schedule's row it goes
+  // to the top of the schedule — the row directly below the one clicked.
+  const handleClick = useCallback(
+    (e: React.MouseEvent): void => {
+      if (e.target !== e.currentTarget) return;
+      if (!(isTaskPointer || e.altKey)) return;
+      e.stopPropagation();
+      createTaskAt(
+        sectionId,
+        { day: snapCreateDay(dayAtEvent(e)), index: 0 },
+        { x: e.clientX, y: e.clientY }
+      );
+    },
+    [sectionId, isTaskPointer, dayAtEvent, snapCreateDay]
+  );
+
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent): void => {
       if (e.target !== e.currentTarget) return;
+      // Two ⌥-clicks were two tasks, not a milestone
+      if (isTaskPointer || e.altKey) return;
       createMilestoneAt(
         sectionId,
         { day: snapCreateDay(dayAtEvent(e)) },
         { x: e.clientX, y: e.clientY }
       );
     },
-    [sectionId, dayAtEvent, snapCreateDay]
+    [sectionId, isTaskPointer, dayAtEvent, snapCreateDay]
   );
 
   const handleContextMenu = useCallback(
@@ -106,6 +130,8 @@ export function useScheduleRowGestures(
   return {
     rowRef,
     ghostX,
+    isTaskGhost: isTaskPointer,
+    handleClick,
     handleDoubleClick,
     handleContextMenu,
     handlePointerMove,

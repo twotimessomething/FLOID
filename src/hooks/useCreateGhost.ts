@@ -57,6 +57,13 @@ interface UseCreateGhostOptions {
   readonly describeSpan?: (startPx: number, endPx: number) => DrawnSpanReadout;
   readonly onDoubleClickCreate: (info: CreateGestureInfo) => void;
   readonly onDrawCreate: (info: CreateGestureInfo) => void;
+  /**
+   * The task pointer (⌥ held). The ghost has no width, a press does not draw,
+   * and a single click creates through `onClickCreate` — the double-click and
+   * the draw stand down, since two quick clicks are two tasks.
+   */
+  readonly pointMode?: boolean;
+  readonly onClickCreate?: (info: CreateGestureInfo) => void;
 }
 
 interface UseCreateGhostReturn {
@@ -69,6 +76,8 @@ interface UseCreateGhostReturn {
   readonly handlePointerLeave: () => void;
   readonly handlePointerDown: (e: React.PointerEvent) => void;
   readonly handleDoubleClick: (e: React.MouseEvent) => void;
+  /** A single click. Creates only under the task pointer. */
+  readonly handleClick: (e: React.MouseEvent) => void;
 }
 
 interface DrawState {
@@ -107,6 +116,8 @@ export function useCreateGhost({
   describeSpan,
   onDoubleClickCreate,
   onDrawCreate,
+  pointMode = false,
+  onClickCreate,
 }: UseCreateGhostOptions): UseCreateGhostReturn {
   const [ghost, setGhost] = useState<CreateGhostState | null>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
@@ -265,7 +276,7 @@ export function useCreateGhost({
       const x = clampPx(e.clientX - rect.left, rect.width);
       const next: CreateGhostState = {
         left: x,
-        width: Math.min(defaultWidth, max - x),
+        width: pointMode ? 0 : Math.min(defaultWidth, max - x),
         offsetY: e.clientY - rect.top,
         isDrawing: false,
       };
@@ -283,7 +294,7 @@ export function useCreateGhost({
         setGhost(next);
       }, HOVER_STILL_DELAY_MS);
     },
-    [disabled, isEligible, clampBounds, defaultWidth, clampPx, clearHoverTimer]
+    [disabled, isEligible, clampBounds, defaultWidth, pointMode, clampPx, clearHoverTimer]
   );
 
   const handlePointerLeave = useCallback((): void => {
@@ -306,6 +317,9 @@ export function useCreateGhost({
       // Stop text selection. The event still propagates — a press that never
       // travels is not a draw, and whatever else is listening may want it.
       e.preventDefault();
+
+      // Under the task pointer a press is the start of a click, not a draw
+      if (pointMode || e.altKey) return;
 
       const rect = container.getBoundingClientRect();
 
@@ -395,12 +409,36 @@ export function useCreateGhost({
       document.addEventListener('pointerup', handleDocPointerUp);
       document.addEventListener('pointercancel', handleDocPointerCancel);
     },
-    [disabled, isEligible, clampPx, paintDraw, clearHoverTimer]
+    [disabled, isEligible, pointMode, clampPx, paintDraw, clearHoverTimer]
+  );
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent): void => {
+      if (disabled || !onClickCreate) return;
+      // The key itself is the fallback: a press that began before the window
+      // had focus never reached the store, but it is still on the event
+      if (!(pointMode || e.altKey)) return;
+      const container = e.currentTarget as HTMLElement;
+      if (!isEligible(e.target as HTMLElement, container)) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const clickPx = clampPx(e.clientX - rect.left, rect.width);
+      onClickCreate({
+        startPx: clickPx,
+        endPx: clickPx,
+        offsetY: e.clientY - rect.top,
+        point: { x: e.clientX, y: e.clientY },
+      });
+    },
+    [disabled, onClickCreate, pointMode, isEligible, clampPx]
   );
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent): void => {
       if (disabled) return;
+      // Two clicks under the task pointer were two tasks, not a bar
+      if (pointMode || e.altKey) return;
       // A just-finished draw can double-fire as a dblclick — swallow it
       if (Date.now() < suppressUntilRef.current) {
         e.stopPropagation();
@@ -419,7 +457,7 @@ export function useCreateGhost({
         point: { x: e.clientX, y: e.clientY },
       });
     },
-    [disabled, isEligible, clampPx, onDoubleClickCreate]
+    [disabled, pointMode, isEligible, clampPx, onDoubleClickCreate]
   );
 
   return {
@@ -430,5 +468,6 @@ export function useCreateGhost({
     handlePointerLeave,
     handlePointerDown,
     handleDoubleClick,
+    handleClick,
   };
 }

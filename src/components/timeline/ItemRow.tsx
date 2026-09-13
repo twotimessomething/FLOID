@@ -26,9 +26,11 @@ import {
 } from '../../hooks/useDependencyState';
 import { reportDependencyHover, reportDependencyLeave } from '../../utils/dependencyHover';
 import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGhost';
+import { useIsTaskPointer } from '../../hooks/useTaskPointer';
 import { useIsDragged, useIsDropReceiver, useIsDropSlot } from '../../hooks/useDropState';
 import {
   createBarAt,
+  createTaskAt,
   drawnSpanDescriber,
   DEFAULT_BAR_DAYS,
   DEFAULT_NESTED_BAR_DAYS,
@@ -36,6 +38,7 @@ import {
 import { DragHandle } from './DragHandle';
 import { DependencyDot } from './DependencyDot';
 import { GhostBar } from './GhostBar';
+import { GhostTask } from './GhostTask';
 import { DropLine } from './DropLine';
 
 /** The dates a resize is currently showing, and which edge is doing it. */
@@ -421,6 +424,22 @@ export const ItemRow = memo(function ItemRow({
     [section.id, viewport, pixelsPerDay, row.parentId, row.index, snapCreateDay]
   );
 
+  // ⌥-click drops a task where the bar would have gone
+  const handleGhostClick = useCallback(
+    ({ startPx, point }: CreateGestureInfo): void => {
+      createTaskAt(
+        section.id,
+        {
+          day: snapCreateDay(xToDay(startPx, viewport, pixelsPerDay)),
+          parentId: row.parentId,
+          index: row.index + 1,
+        },
+        point
+      );
+    },
+    [section.id, viewport, pixelsPerDay, row.parentId, row.index, snapCreateDay]
+  );
+
   const handleGhostDraw = useCallback(
     ({ startPx, endPx, point }: CreateGestureInfo): void => {
       // Both drawn edges were chosen, so each squares up on its own — the same
@@ -448,6 +467,8 @@ export const ItemRow = memo(function ItemRow({
     [viewport, pixelsPerDay, snapCreateDay]
   );
 
+  const isTaskPointer = useIsTaskPointer();
+
   const ghost = useCreateGhost({
     // The hover ghost previews the bar creation will actually produce, which is
     // shorter inside a group than at the root
@@ -457,6 +478,8 @@ export const ItemRow = memo(function ItemRow({
     describeSpan,
     onDoubleClickCreate: handleGhostDoubleClick,
     onDrawCreate: handleGhostDraw,
+    pointMode: isTaskPointer,
+    onClickCreate: handleGhostClick,
   });
 
   const handleRowContextMenu = useCallback(
@@ -587,6 +610,7 @@ export const ItemRow = memo(function ItemRow({
       data-drop-parent={row.parentId ?? ''}
       data-drop-index={row.index}
       onContextMenu={handleRowContextMenu}
+      onClick={canCreateHere ? ghost.handleClick : undefined}
       onDoubleClick={canCreateHere ? ghost.handleDoubleClick : undefined}
       onPointerMove={canCreateHere ? ghost.handlePointerMove : undefined}
       onPointerLeave={canCreateHere ? ghost.handlePointerLeave : undefined}
@@ -597,18 +621,21 @@ export const ItemRow = memo(function ItemRow({
       {isSlotBefore && !isDragged && <DropLine position="top" />}
       {row.isLastRenderedSibling && isSlotAfter && !isDragged && <DropLine position="bottom" />}
 
-      {ghost.ghost !== null && (
-        <GhostBar
-          ref={ghost.ghostRef}
-          readoutRef={ghost.readoutRef}
-          left={ghost.ghost.left}
-          width={ghost.ghost.width}
-          color={color}
-          isDrawing={ghost.ghost.isDrawing}
-          verticalClassName=""
-          style={{ top: inset, bottom: inset }}
-        />
-      )}
+      {ghost.ghost !== null &&
+        (isTaskPointer ? (
+          <GhostTask left={ghost.ghost.left} />
+        ) : (
+          <GhostBar
+            ref={ghost.ghostRef}
+            readoutRef={ghost.readoutRef}
+            left={ghost.ghost.left}
+            width={ghost.ghost.width}
+            color={color}
+            isDrawing={ghost.ghost.isDrawing}
+            verticalClassName=""
+            style={{ top: inset, bottom: inset }}
+          />
+        ))}
 
       {isBar ? (
         <div

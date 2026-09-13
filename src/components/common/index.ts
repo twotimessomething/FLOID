@@ -12,3 +12,4 @@ export { Toggle } from './Toggle';
 export { TemplateIcon } from './TemplateIcon';
 export { SyncStatusIndicator } from './SyncStatusIndicator';
 export { SplashScreen } from './SplashScreen';
+export { MenuIcon } from './MenuIcon';

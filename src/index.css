@@ -516,6 +516,17 @@ body.dragging-item * {
   background-color: var(--color-accent);
 }
 
+/* ⌥ held: the pointer is a task pointer. The cursor is the checkbox it will
+   drop, and it rides over the whole sheet — the copy cursor a hovered row
+   would otherwise show stands down, while bars keep their grab. */
+body.task-pointer .timeline-scroll-container,
+body.task-pointer .timeline-scroll-container .cursor-copy {
+  cursor:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><circle cx='10' cy='10' r='6.5' fill='white' fill-opacity='0.9' stroke='%2317171A' stroke-width='1.5'/></svg>")
+      10 10,
+    copy;
+}
+
 /* A done task's name stays legible but recedes. */
 .task-name--done {
   text-decoration: line-through;

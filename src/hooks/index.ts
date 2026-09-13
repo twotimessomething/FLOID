@@ -5,6 +5,7 @@ export { useDragReorder } from './useDragReorder';
 export { useItemDrag } from './useItemDrag';
 export { useIsDragged, useIsDropReceiver, useIsDropSlot, useIsItemDragActive } from './useDropState';
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';
+export { useTaskPointer, useIsTaskPointer } from './useTaskPointer';
 export { useTimelineStatus } from './useTimelineStatus';
 export type { StatusItem, MilestoneItem, TimelineStatus } from './useTimelineStatus';
 export { useScheduleImport } from './useScheduleImport';
