@@ -502,6 +502,14 @@ body.dragging-item * {
   background-size: 70%;
 }
 
+/* The tick is knocked out of the ink, so it has to be the ground — and the
+   ground moves with the theme. A data-URI cannot read a custom property, so
+   the dark ground is written out here; the light rule above carries white.
+   Without this the check is #fff on a #f2f2f3 disc and simply is not there. */
+.dark .task-check--done {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%23141416' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M3 6.2l2 2 4-4.4'/></svg>");
+}
+
 .task-check--small.task-check--done {
   background-color: var(--color-text-muted);
   border-color: var(--color-text-muted);
@@ -915,28 +923,53 @@ body.dependency-drawing * {
   }
 }
 
-.walkthrough-slide-enter {
-  animation: fadeIn var(--duration-base) var(--ease-out);
-}
-
 @keyframes fadeIn {
   from {
     opacity: 0;
   }
 }
 
-/* Walkthrough drag demo — bars gently drift to show move/resize */
-.walkthrough-drift {
-  animation: walkthroughDrift 2.6s ease-in-out infinite alternate;
+/* =========================================
+   Walkthrough
+
+   First run is the first minute of using the app rather than a place to read
+   about it, so only three things move on it: the line rewriting itself, the one
+   invitation a lesson makes, and the way on arriving once the step is done.
+   Each is a beat of its own — beats that overlap read as a figure playing at
+   you, beats in sequence read as things happening.
+   ========================================= */
+
+/* A rewritten line fades in rather than swapping mid-word. */
+.walkthrough-line {
+  animation: fadeIn var(--duration-base) var(--ease-out);
 }
 
-@keyframes walkthroughDrift {
-  from {
-    transform: translateX(-7px);
+/* The one invitation a lesson makes. The thing to grab breathes until it is
+   touched; the class comes off on first contact and does not come back.
+   
+   The breath is shallow on purpose. Fading a bar toward the ground is in the
+   app's vocabulary — a lifted bar drains to 0.16 — but a deep breath on the
+   dark ground takes a warm ink through olive on its way down, and a bar is
+   supposed to print the colour it was given. */
+.walkthrough-invite {
+  animation: walkthroughBreathe 2400ms var(--ease-out) infinite;
+}
+
+@keyframes walkthroughBreathe {
+  50% {
+    opacity: 0.72;
   }
-  to {
-    transform: translateX(7px);
-  }
+}
+
+/* Something the person just asked for, arriving at once. */
+.walkthrough-appear {
+  animation: fadeIn var(--duration-base) var(--ease-out);
+}
+
+/* The way on. The delay is the beat: whatever just happened on the sheet
+   finishes before the button turns up to take you off it. */
+.walkthrough-arrive {
+  animation: fadeIn var(--duration-base) var(--ease-out) 240ms both;
 }
 
 .btn-press {
@@ -1061,11 +1094,6 @@ body.dependency-drawing * {
     animation-iteration-count: 1 !important;
     transition-property:
       opacity, color, background-color, border-color, outline-color, box-shadow, fill, stroke !important;
-  }
-
-  /* Nothing should be mid-flight when the page settles. */
-  .walkthrough-drift {
-    transform: none !important;
   }
 
   html {
