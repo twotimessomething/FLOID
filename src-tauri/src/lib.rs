@@ -36,6 +36,66 @@ fn set_ground(window: tauri::WebviewWindow, dark: bool) {
     let _ = window.set_background_color(Some(if dark { GROUND_DARK } else { GROUND_LIGHT }));
 }
 
+/// The App Store's own review flow, via StoreKit. Both calls are AppKit-side,
+/// so they hop to the main thread; a command handler runs on a worker.
+#[cfg(target_os = "macos")]
+mod store_review {
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyClass, AnyObject};
+    use objc2::msg_send;
+    use objc2_foundation::{NSString, NSURL};
+
+    // Nothing else in the binary links StoreKit, so the class would not be
+    // registered at runtime without this.
+    #[link(name = "StoreKit", kind = "framework")]
+    extern "C" {}
+
+    /// macOS decides whether the sheet actually appears — at most three times
+    /// in 365 days, and never in a TestFlight or development build's count.
+    /// A call that shows nothing is the expected outcome, not an error.
+    pub fn request() {
+        let Some(class) = AnyClass::get(c"SKStoreReviewController") else {
+            return;
+        };
+        unsafe {
+            let _: () = msg_send![class, requestReview];
+        }
+    }
+
+    pub fn open_write_review(url: &str) {
+        let Some(class) = AnyClass::get(c"NSWorkspace") else {
+            return;
+        };
+        let Some(url) = NSURL::URLWithString(&NSString::from_str(url)) else {
+            return;
+        };
+        unsafe {
+            let workspace: Retained<AnyObject> = msg_send![class, sharedWorkspace];
+            let _: bool = msg_send![&*workspace, openURL: &*url];
+        }
+    }
+}
+
+/// `macappstore:` goes straight to the Mac App Store app; an https link would
+/// detour through Safari first.
+const WRITE_REVIEW_URL: &str = "macappstore://apps.apple.com/app/id6804945737?action=write-review";
+
+#[tauri::command]
+fn request_review(app: tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.run_on_main_thread(store_review::request);
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+#[tauri::command]
+fn open_write_review(app: tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.run_on_main_thread(|| store_review::open_write_review(WRITE_REVIEW_URL));
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, WRITE_REVIEW_URL);
+}
+
 #[tauri::command]
 fn take_pending_files(state: tauri::State<PendingFiles>) -> Vec<String> {
     let mut pending = state.0.lock().unwrap();
@@ -104,7 +164,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             take_pending_files,
             follow_system_theme,
-            set_ground
+            set_ground,
+            request_review,
+            open_write_review
         ])
         .build(tauri::generate_context!())
         .expect("error while building FLOID")

@@ -22,7 +22,8 @@ export type CommandId =
   | 'app.settings'
   | 'help.shortcuts'
   | 'help.whatsNew'
-  | 'help.about';
+  | 'help.about'
+  | 'help.rate';
 
 export interface Command {
   readonly id: CommandId;

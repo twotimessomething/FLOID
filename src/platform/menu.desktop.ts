@@ -42,6 +42,7 @@ export async function setupAppMenu(): Promise<void> {
     items: [
       await menuItemFor('help.about'),
       await menuItemFor('help.whatsNew'),
+      await menuItemFor('help.rate'),
       await separator(),
       await menuItemFor('app.settings'),
       await separator(),

@@ -4,6 +4,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { importFloidText } from '../utils/importFloid';
 import { setupAppMenu } from './menu.desktop';
+import { countSessionForReview } from './review.desktop';
 
 /**
  * Desktop-only boot wiring, dynamically imported behind `isDesktop()` so the
@@ -66,6 +67,10 @@ export async function initDesktop(): Promise<void> {
   followSystemTheme();
 
   await setupAppMenu();
+
+  void countSessionForReview().catch((error) => {
+    console.error('Failed to count the session for review:', error);
+  });
 
   await listen('floid://pending-files', () => {
     void drainPendingFiles();

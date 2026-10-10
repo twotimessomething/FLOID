@@ -5,6 +5,8 @@ import { useSectionStore } from '../stores/sectionStore';
 import { downloadProjectJson } from '../utils/exportUtils';
 import { importFloidText, FLOID_OPEN_FILTERS } from '../utils/importFloid';
 import { openFiles } from '../platform/files';
+import { isDesktop } from '../platform/detect';
+import { openWriteReview } from '../platform/review';
 import type { Command, CommandId } from './types';
 
 /**
@@ -149,5 +151,12 @@ export const COMMANDS: Record<CommandId, Command> = {
     id: 'help.about',
     label: 'About FLOID',
     run: () => useUIStore.getState().openAboutModal(),
+  },
+  'help.rate': {
+    id: 'help.rate',
+    label: 'Rate FLOID…',
+    // Only the App Store build has a listing to rate
+    isEnabled: isDesktop,
+    run: () => openWriteReview(),
   },
 };

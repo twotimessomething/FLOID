@@ -3,6 +3,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { openWhatsNewOnDemand } from '../../hooks/useWhatsNew';
 import { usePresence } from '../../hooks/usePresence';
 import { isDesktop } from '../../platform/detect';
+import { openWriteReview } from '../../platform/review';
 
 const CONTACT_EMAIL = 'support@floid.design';
 const SOURCE_URL = 'https://github.com/twotimessomething/FLOID';
@@ -138,6 +139,10 @@ export function AboutModal(): JSX.Element | null {
     openWhatsNewOnDemand();
   }, [closeAboutModal]);
 
+  const handleRate = useCallback(() => {
+    void openWriteReview();
+  }, []);
+
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget) {
@@ -241,6 +246,18 @@ export function AboutModal(): JSX.Element | null {
               >
                 What&rsquo;s new
               </button>
+
+              {/* The App Store build's standing invitation to rate it. Apple
+                  allows a link to the listing; it does not allow a home-made
+                  rating prompt, so this is all the asking the sheet does. */}
+              {isDesktopApp && (
+                <button
+                  onClick={handleRate}
+                  className="block text-body text-[var(--color-focus)] hover:underline focus-ring rounded-[var(--radius-sm)]"
+                >
+                  Rate FLOID on the App Store
+                </button>
+              )}
 
               {/* Only the web needs telling there is a Mac app; on the Mac
                   this would point at the app you are already in. */}
