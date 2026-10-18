@@ -5,6 +5,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useConfirm } from '../../hooks';
 import { QuietIconButton } from '../common/QuietIconButton';
 import { POPOVER_EXIT_MS } from '../../hooks/usePresence';
+import { deleteProjectAndOpenNext } from '../../utils/deleteProject';
 
 /**
  * The panel, and the rail it folds down to. Both are fixed numbers so the
@@ -20,7 +21,7 @@ export function LeftSidebar(): JSX.Element {
   // Use selective store subscriptions to prevent unnecessary re-renders
   const projects = useProjectStore((state) => state.projects);
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
-  const { selectProject, deleteProject, saveCurrentProject, updateProjectIndex, updateProject } = useProjectStore();
+  const { selectProject, saveCurrentProject, updateProjectIndex, updateProject } = useProjectStore();
 
   const sections = useSectionStore((state) => state.sections);
   const dependencies = useSectionStore((state) => state.dependencies);
@@ -44,18 +45,17 @@ export function LeftSidebar(): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSelectProject = useCallback(
-    (projectId: string) => {
+    async (projectId: string) => {
       if (projectId === activeProjectId) return;
-
-      // Save current project before switching
-      saveCurrentProject(sections, dependencies);
 
       // Clear any selection
       closeModal();
 
-      // Switch to new project
-      selectProject(projectId);
-      loadSectionsForProject(projectId);
+      // Finish saving the current project before switching, so nothing from
+      // it can land on the one being opened
+      await saveCurrentProject(sections, dependencies);
+
+      await Promise.all([selectProject(projectId), loadSectionsForProject(projectId)]);
     },
     [
       activeProjectId,
@@ -72,8 +72,6 @@ export function LeftSidebar(): JSX.Element {
     openProjectSetupModal();
   }, [openProjectSetupModal]);
 
-  const clearSections = useSectionStore((state) => state.clearSections);
-
   const handleDeleteProject = useCallback(
     async (projectId: string, e: React.MouseEvent) => {
       e.stopPropagation();
@@ -88,20 +86,11 @@ export function LeftSidebar(): JSX.Element {
         variant: 'danger',
       });
 
-      if (confirmed) {
-        deleteProject(projectId);
-
-        // If we deleted the active project, load the new active one (if any remain)
-        const newActiveId = useProjectStore.getState().activeProjectId;
-        if (newActiveId) {
-          loadSectionsForProject(newActiveId);
-        } else {
-          // No projects left, clear sections
-          clearSections();
-        }
-      }
+      if (!confirmed) return;
+      // The editor may be open on something in the project that just went
+      if (await deleteProjectAndOpenNext(projectId)) closeModal();
     },
-    [projects, deleteProject, loadSectionsForProject, clearSections, confirm]
+    [projects, closeModal, confirm]
   );
 
   // Focus edit input when editing starts
@@ -277,7 +266,7 @@ export function LeftSidebar(): JSX.Element {
             {sortedProjects.map((proj) => (
               <div
                 key={proj.id}
-                onClick={() => handleSelectProject(proj.id)}
+                onClick={() => void handleSelectProject(proj.id)}
                 className={`row-selectable group flex items-center justify-between px-3 py-2 rounded-[var(--radius-sm)] cursor-pointer ${
                   proj.id === activeProjectId
                     ? 'selected text-[var(--color-text-primary)]'

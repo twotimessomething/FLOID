@@ -1,4 +1,5 @@
 import type { DependencyEdge, Section, TimelineItem } from './timeline';
+import type { ProjectSettings } from './project';
 
 /**
  * The file formats: `.floid` for one schedule, `.floid-project` for the lot.
@@ -92,6 +93,8 @@ export interface ProjectExportData {
     readonly projectEndDate: string;
     readonly createdAt: string;
     readonly updatedAt: string;
+    /** The project's own settings. Absent from files written before they travelled. */
+    readonly settings?: ProjectSettings;
   };
   readonly sections: readonly Section[];
   /** Every link in the project, cross-schedule ones included. Absent pre-v4. */

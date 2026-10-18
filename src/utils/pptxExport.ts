@@ -172,6 +172,8 @@ export interface PptxExportResult {
   /** Below 1 the rows were squeezed to hold one slide; worth telling the user. */
   readonly scale: number;
   readonly rowCount: number;
+  /** False when the save dialog was cancelled — nothing was written. */
+  readonly saved: boolean;
 }
 
 /**
@@ -186,12 +188,12 @@ export async function exportTimelineAsPptx(
   const plan = buildSlidePlan(project, sections, dependencies);
   const blob = await renderPlanToPptx(plan, `${project.name} — timeline`);
 
-  await saveFile({
+  const { saved } = await saveFile({
     suggestedName: `${sanitizeFilename(project.name)}-timeline.pptx`,
     filters: [{ name: 'PowerPoint Slide', extensions: ['pptx'] }],
     data: blob,
     mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   });
 
-  return { scale: plan.scale, rowCount: plan.rowCount };
+  return { scale: plan.scale, rowCount: plan.rowCount, saved };
 }

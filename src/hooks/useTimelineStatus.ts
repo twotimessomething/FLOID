@@ -142,7 +142,9 @@ export function useTimelineStatus(): TimelineStatus {
           ancestors,
         };
 
-        if (item.start <= today && today <= item.end) {
+        // A bar's `end` is its exclusive right edge: a bar ending today
+        // finished yesterday, and the one starting today is what's in flight
+        if (item.start <= today && today < item.end) {
           inFlight.push(entry);
           return;
         }

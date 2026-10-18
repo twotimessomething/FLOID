@@ -445,13 +445,38 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dependencies,
     });
 
-    const state = get();
-    const updatedProjects = state.projects.map((p) =>
+    const updatedProjects = get().projects.map((p) =>
       p.id === activeProjectId ? { ...p, updatedAt } : p
     );
     await saveProjectsIndex(updatedProjects);
 
-    set({ project: updatedProject, projects: updatedProjects });
+    // The save was awaited, and the user may have switched projects or edited
+    // this one meanwhile: write back only the derived dates, onto whatever
+    // project is open now. The `updatedAt` stamp stays in storage — a new
+    // `project` object for a timestamp alone re-arms autosave, which saves
+    // again, forever.
+    set((state) => {
+      const projects = state.projects.map((p) =>
+        p.id === activeProjectId ? { ...p, updatedAt } : p
+      );
+      if (state.activeProjectId !== activeProjectId || !state.project || !dateRange) {
+        return { projects };
+      }
+      if (
+        state.project.projectStartDate === dateRange.startDate &&
+        state.project.projectEndDate === dateRange.endDate
+      ) {
+        return { projects };
+      }
+      return {
+        projects,
+        project: {
+          ...state.project,
+          projectStartDate: dateRange.startDate,
+          projectEndDate: dateRange.endDate,
+        },
+      };
+    });
   },
 
   loadProjectData: async (projectId) => {

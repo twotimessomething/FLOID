@@ -141,7 +141,10 @@ export function ExportModal(): JSX.Element | null {
 
     try {
       if (exportMode === 'active-project') {
-        await downloadProjectJson(targetProject, [...targetSections], targetDependencies);
+        // A cancelled save dialog wrote nothing: stay open, say nothing
+        if (!(await downloadProjectJson(targetProject, [...targetSections], targetDependencies))) {
+          return;
+        }
         showToast('success', `Exported "${targetProject.name}"`);
       } else if (exportMode === 'schedules') {
         if (selectedScheduleIds.size === 0) {
@@ -151,6 +154,7 @@ export function ExportModal(): JSX.Element | null {
         }
 
         const selectedSections = targetSections.filter((s) => selectedScheduleIds.has(s.id));
+        let count = selectedSections.length;
 
         if (selectedSections.length > 1 && supportsDirectorySave()) {
           const files = selectedSections.map((section) => ({
@@ -166,12 +170,13 @@ export function ExportModal(): JSX.Element | null {
             return;
           }
         } else {
+          count = 0;
           for (const section of selectedSections) {
-            await downloadScheduleFloid(targetProject, section, targetDependencies);
+            if (await downloadScheduleFloid(targetProject, section, targetDependencies)) count++;
           }
+          if (count === 0) return;
         }
 
-        const count = selectedSections.length;
         showToast('success', `Exported ${count} schedule${count > 1 ? 's' : ''}`);
       } else if (exportMode === 'all-projects') {
         const projectFiles: ScopedProject[] = [];
@@ -189,6 +194,7 @@ export function ExportModal(): JSX.Element | null {
           }
         }
 
+        let count = projectFiles.length;
         if (projectFiles.length > 1 && supportsDirectorySave()) {
           const files = projectFiles.map((entry) => ({
             filename: projectFloidFilename(entry.project),
@@ -200,12 +206,15 @@ export function ExportModal(): JSX.Element | null {
           }
           await stampBackupDate();
         } else {
+          count = 0;
           for (const entry of projectFiles) {
-            await downloadProjectJson(entry.project, entry.sections, entry.dependencies);
+            if (await downloadProjectJson(entry.project, entry.sections, entry.dependencies)) {
+              count++;
+            }
           }
+          if (count === 0) return;
         }
 
-        const count = projectFiles.length;
         showToast('success', `Exported ${count} project${count > 1 ? 's' : ''}`);
       }
 

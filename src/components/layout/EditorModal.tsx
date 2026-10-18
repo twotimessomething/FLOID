@@ -1,15 +1,18 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { usePresence } from '../../hooks/usePresence';
+import { useFloatingPanelSize } from '../../hooks/useFloatingPanelSize';
 import { useIsTaskPointer } from '../../hooks/useTaskPointer';
 import { SectionEditor } from '../panels/SectionEditor';
 import { ItemEditor } from '../panels/ItemEditor';
 import type { SelectionState } from '../../types';
 import { keyBelongsToGesture } from '../../commands/gesture';
+import { placeFloatingPanel } from '../../utils/floatingPanel';
 
 const MODAL_WIDTH = 280;
-const MODAL_MAX_HEIGHT = 400;
 const VIEWPORT_PADDING = 16;
+/** Between the click and a panel that had to open to its left. */
+const FLIP_GAP = 8;
 
 export function EditorModal(): JSX.Element | null {
   const { isModalOpen, selection, closeModal } = useUIStore();
@@ -53,6 +56,7 @@ export function EditorModal(): JSX.Element | null {
   const { isMounted, isLeaving } = usePresence(
     isModalOpen && selection.type !== null && selection.id !== null
   );
+  const { height, viewportWidth, viewportHeight } = useFloatingPanelSize(modalRef, isMounted);
 
   // Closing drops the selection, and the panel is still on screen for the
   // length of its exit. It leaves showing what it was editing, not an empty box.
@@ -63,7 +67,8 @@ export function EditorModal(): JSX.Element | null {
 
   const position = shown.position;
 
-  // Calculate modal position
+  // As tall as the editor needs, up to the window; moved up rather than
+  // squeezed when it would run off the bottom
   const getModalStyle = (): React.CSSProperties => {
     if (!position) {
       // Fallback to center of screen if no position
@@ -71,33 +76,21 @@ export function EditorModal(): JSX.Element | null {
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
+        maxHeight: viewportHeight - VIEWPORT_PADDING * 2,
       };
     }
 
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    let left = position.x;
-    let top = position.y;
-
-    // Adjust if modal would overflow right edge
-    if (left + MODAL_WIDTH + VIEWPORT_PADDING > viewportWidth) {
-      left = position.x - MODAL_WIDTH - 8;
-    }
-
-    // Adjust if modal would overflow bottom edge
-    if (top + MODAL_MAX_HEIGHT + VIEWPORT_PADDING > viewportHeight) {
-      top = viewportHeight - MODAL_MAX_HEIGHT - VIEWPORT_PADDING;
-    }
-
-    // Ensure minimum distance from edges
-    left = Math.max(VIEWPORT_PADDING, left);
-    top = Math.max(VIEWPORT_PADDING, top);
-
-    return {
-      left: `${left}px`,
-      top: `${top}px`,
-    };
+    const { left, top, maxHeight } = placeFloatingPanel({
+      anchorX: position.x,
+      anchorY: position.y,
+      width: MODAL_WIDTH,
+      height,
+      viewportWidth,
+      viewportHeight,
+      padding: VIEWPORT_PADDING,
+      flipGap: FLIP_GAP,
+    });
+    return { left: `${left}px`, top: `${top}px`, maxHeight };
   };
 
   const renderEditor = (): JSX.Element | null => {
@@ -126,15 +119,14 @@ export function EditorModal(): JSX.Element | null {
     >
       <div
         ref={modalRef}
-        className="fixed pointer-events-auto bg-[var(--color-raised)] border border-[var(--color-border)] overflow-hidden rounded-[var(--radius-lg)] shadow-lg modal-enter"
+        className="fixed flex flex-col pointer-events-auto bg-[var(--color-raised)] border border-[var(--color-border)] overflow-hidden rounded-[var(--radius-lg)] shadow-lg modal-enter"
         style={{
           width: MODAL_WIDTH,
-          maxHeight: MODAL_MAX_HEIGHT,
           ...getModalStyle(),
         }}
         role="document"
       >
-        <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex flex-shrink-0 items-center justify-between px-4 py-3">
           <h2 className="text-title font-medium text-[var(--color-text-primary)]" id="modal-title">
             Edit
           </h2>
@@ -159,11 +151,7 @@ export function EditorModal(): JSX.Element | null {
             </svg>
           </button>
         </div>
-        <div
-          className="p-4 overflow-y-auto"
-          style={{ maxHeight: MODAL_MAX_HEIGHT - 52 }}
-          aria-labelledby="modal-title"
-        >
+        <div className="min-h-0 flex-1 p-4 overflow-y-auto" aria-labelledby="modal-title">
           {renderEditor()}
         </div>
       </div>

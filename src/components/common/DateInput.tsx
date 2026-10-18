@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 
 /** Below this a typed year is still being typed. */
@@ -30,8 +30,14 @@ export function DateInput({
     return format(d, 'yyyy-MM-dd');
   };
 
+  // What the field shows while it is being typed in. A parent may decline a
+  // half-typed date (an end before the start), and a controlled field that
+  // snapped back to the stored value would wipe the keystroke mid-entry.
+  const [draft, setDraft] = useState<string | null>(null);
+
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      setDraft(e.target.value);
       const newDate = parseISO(e.target.value);
       // The native field reports every keystroke, so typing a year passes
       // through 0002, 0020 and 0202 on the way to 2027. Those are not dates
@@ -43,6 +49,9 @@ export function DateInput({
     },
     [onChange]
   );
+
+  // Leaving the field shows what was actually kept
+  const handleBlur = useCallback(() => setDraft(null), []);
 
   return (
     <div className="flex flex-col gap-1">
@@ -57,8 +66,9 @@ export function DateInput({
       <input
         id={inputId}
         type="date"
-        value={formatForInput(dateValue)}
+        value={draft ?? formatForInput(dateValue)}
         onChange={handleChange}
+        onBlur={handleBlur}
         min={min ? formatForInput(min) : undefined}
         max={max ? formatForInput(max) : undefined}
         disabled={disabled}

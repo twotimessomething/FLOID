@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { useProjectStore } from './projectStore';
 import { useSectionStore } from './sectionStore';
 import { commitWithSlide } from '../commands/slideCommit';
 import { countItems, findItem } from '../utils/itemTree';
@@ -639,16 +638,13 @@ export const useUIStore = create<UIState>((set, get) => ({
  * section store does — directly.
  * ------------------------------------------------------------------ */
 
-function undoAction(restore?: () => void): ToastAction {
+function undoAction(): ToastAction {
   return {
     label: 'Undo',
     // The same slide every other undo gets: what comes back fades up into
     // the room the sheet makes for it
     onClick: () => {
-      commitWithSlide(() => {
-        useSectionStore.temporal.getState().undo();
-        restore?.();
-      });
+      commitWithSlide(() => useSectionStore.temporal.getState().undo());
     },
   };
 }
@@ -671,22 +667,15 @@ export function showItemDeletedToast(item: TimelineItem): void {
   useUIStore.getState().showToast('success', message, { action: undoAction() });
 }
 
-/**
- * `deleteSection` clears the pin as a side effect, and the pin lives in
- * another store than the one undo rewinds — so undo has to put it back.
- */
-export function showSectionDeletedToast(section: Section, wasPinned: boolean): void {
+/** Call before deleting: the count has to be read while the schedule still exists. */
+export function showSectionDeletedToast(section: Section): void {
   const count = countItems(section.items);
   const message =
     count > 0
       ? `Deleted schedule "${displayName(section.name)}" and the ${count} ${count === 1 ? 'item' : 'items'} on it`
       : `Deleted schedule "${displayName(section.name)}"`;
   useUIStore.getState().showToast('success', message, {
-    action: undoAction(
-      wasPinned
-        ? () => useProjectStore.getState().setPinnedSection(section.id)
-        : undefined
-    ),
+    action: undoAction(),
   });
 }
 

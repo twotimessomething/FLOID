@@ -145,9 +145,8 @@ export function useKeyboardShortcuts(): void {
 
     // What was below closes over the gap rather than jumping into it
     if (type === 'section') {
-      const wasPinned = pinnedSection?.id === sectionId;
       const result = commitWithSlide(() => deleteSection(sectionId));
-      if (result.success && section) showSectionDeletedToast(section, wasPinned);
+      if (result.success && section) showSectionDeletedToast(section);
       else if (result.reason) showToast('warning', result.reason);
     } else if (type === 'item') {
       const item = section ? findItem(section.items, id) : null;
@@ -156,7 +155,7 @@ export function useKeyboardShortcuts(): void {
     }
 
     closeModal();
-  }, [selection, sections, pinnedSection, deleteSection, deleteItem, closeModal, showToast]);
+  }, [selection, sections, deleteSection, deleteItem, closeModal, showToast]);
 
   /** Only a bar with children has anything to fold. */
   const canToggleSelection = useMemo((): boolean => {

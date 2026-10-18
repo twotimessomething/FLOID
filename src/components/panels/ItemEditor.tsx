@@ -74,11 +74,16 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
   );
 
   // A date typed here moves the bar on the sheet behind the panel: it glides
-  // to its new days, as it would going back to them on undo
+  // to its new days, as it would going back to them on undo. The field reports
+  // every keystroke, so typing November into an end of December passes through
+  // January first; a bar's edges never cross on the way, or the store would
+  // swap them and the bar would land months from anything typed.
   const handleStartChange = useCallback(
     (date: Date) => {
       if (!sectionId || !itemId || !item) return;
-      commitWithSlide(() => setItemDates(sectionId, itemId, toDayKey(date), item.end));
+      const start = toDayKey(date);
+      if (item.kind === 'bar' && start >= item.end) return;
+      commitWithSlide(() => setItemDates(sectionId, itemId, start, item.end));
     },
     [sectionId, itemId, item, setItemDates]
   );
@@ -86,7 +91,9 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
   const handleEndChange = useCallback(
     (date: Date) => {
       if (!sectionId || !itemId || !item) return;
-      commitWithSlide(() => setItemDates(sectionId, itemId, item.start, toDayKey(date)));
+      const end = toDayKey(date);
+      if (end <= item.start) return;
+      commitWithSlide(() => setItemDates(sectionId, itemId, item.start, end));
     },
     [sectionId, itemId, item, setItemDates]
   );

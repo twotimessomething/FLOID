@@ -55,7 +55,11 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
   const handleStartDateChange = useCallback(
     (date: Date) => {
       if (!sectionId || !section) return;
-      updateSectionWindow(sectionId, toDayKey(date), section.endDate);
+      // Typed a keystroke at a time, a start can pass beyond the end on its
+      // way somewhere sensible — the store would swap the two
+      const startDate = toDayKey(date);
+      if (startDate > section.endDate) return;
+      updateSectionWindow(sectionId, startDate, section.endDate);
     },
     [sectionId, section, updateSectionWindow]
   );
@@ -63,7 +67,9 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
   const handleEndDateChange = useCallback(
     (date: Date) => {
       if (!sectionId || !section) return;
-      updateSectionWindow(sectionId, section.startDate, toDayKey(date));
+      const endDate = toDayKey(date);
+      if (endDate < section.startDate) return;
+      updateSectionWindow(sectionId, section.startDate, endDate);
     },
     [sectionId, section, updateSectionWindow]
   );
@@ -77,17 +83,16 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
 
   const handleDelete = useCallback(() => {
     if (!sectionId || !section) return;
-    // Held before the delete: the notice names it, and undo re-pins it
+    // Held before the delete: the notice names it
     const deleted = section;
-    const wasPinned = isPinned;
     const result = commitWithSlide(() => deleteSection(sectionId));
     if (!result.success && result.reason) {
       showToast('warning', result.reason);
       return;
     }
-    showSectionDeletedToast(deleted, wasPinned);
+    showSectionDeletedToast(deleted);
     closeModal();
-  }, [sectionId, section, isPinned, deleteSection, closeModal, showToast]);
+  }, [sectionId, section, deleteSection, closeModal, showToast]);
 
   if (!section) {
     return <div className="text-body text-[var(--color-text-secondary)]">Schedule not found</div>;

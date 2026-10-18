@@ -296,10 +296,9 @@ export const useSectionStore = create<SectionState>()(
           return { success: false, reason: 'Cannot delete the only schedule.' };
         }
 
-        const projectStore = useProjectStore.getState();
-        if (projectStore.project?.pinnedSectionId === sectionId) {
-          projectStore.setPinnedSection(null);
-        }
+        // The pin is left naming the schedule: a pin id with no schedule
+        // behind it reads as "no pin" (usePinnedSection), and the pin is not
+        // in undo history — so undoing the delete brings it back pinned.
 
         // Links to items that are going go with them
         const gone = state.sections.find((s) => s.id === sectionId);

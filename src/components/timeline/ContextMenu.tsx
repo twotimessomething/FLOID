@@ -360,9 +360,8 @@ export function ContextMenu(): JSX.Element | null {
           icon: 'delete',
           danger: true,
           action: () => {
-            const wasPinned = project?.pinnedSectionId === sectionId;
             const result = commitWithSlide(() => deleteSection(sectionId));
-            if (result.success) showSectionDeletedToast(section, wasPinned);
+            if (result.success) showSectionDeletedToast(section);
             else if (result.reason) showToast('warning', result.reason);
             close();
           },

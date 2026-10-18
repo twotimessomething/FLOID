@@ -77,7 +77,8 @@ export function Header(): JSX.Element {
     // No toast until there is something to report: the export is fast, and a
     // 'success' that only means 'started' is a lie the user has to unlearn.
     try {
-      await exportTimelineAsImage(project, sections, dependencies);
+      // A cancelled save dialog wrote nothing, so there is nothing to report
+      if (!(await exportTimelineAsImage(project, sections, dependencies))) return;
       showToast('success', 'Timeline exported as image');
     } catch (error) {
       console.error('Failed to export timeline as image:', error);
@@ -93,7 +94,8 @@ export function Header(): JSX.Element {
     try {
       // Loaded on demand: the PowerPoint writer is far larger than the app
       const { exportTimelineAsPptx } = await import('../../utils/pptxExport');
-      const { scale } = await exportTimelineAsPptx(project, sections, dependencies);
+      const { scale, saved } = await exportTimelineAsPptx(project, sections, dependencies);
+      if (!saved) return;
 
       // A slide is one slide, so a tall timeline is squeezed to hold it. Say so
       // rather than let someone find 5pt type in front of a room.

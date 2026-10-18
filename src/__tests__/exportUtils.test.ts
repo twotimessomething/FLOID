@@ -236,6 +236,46 @@ describe('project round-trip', () => {
     expect(sections[0].items[0].isLocked).toBe(true);
     expect(sections[0].items[0].children[1].kind).toBe('milestone');
   });
+
+  it("carries the project's settings, so a restored backup reads the same", () => {
+    const settings = {
+      skipWeekends: false,
+      coloredRows: false,
+      showDependencies: false,
+      travelingLabels: true,
+    };
+    const project = makeProject({ settings });
+
+    const parsed = parseProjectJson(JSON.stringify(exportProjectToJson(project, [makeSection()])));
+    const { project: imported } = convertImportedProject(parsed!);
+
+    expect(imported.settings).toEqual(settings);
+  });
+
+  it('reads settings flag by flag over the defaults', () => {
+    const file = exportProjectToJson(makeProject(), [makeSection()]);
+    const tampered = {
+      ...file,
+      project: { ...file.project, settings: { skipWeekends: false, coloredRows: 'no' } },
+    };
+
+    const { project: imported } = convertImportedProject(parseProjectJson(JSON.stringify(tampered))!);
+
+    expect(imported.settings).toEqual({
+      skipWeekends: false,
+      coloredRows: true,
+      showDependencies: true,
+      travelingLabels: false,
+    });
+  });
+
+  it('leaves settings unset for a file written without them', () => {
+    const { project: imported } = convertImportedProject(
+      parseProjectJson(JSON.stringify(exportProjectToJson(makeProject(), [makeSection()])))!
+    );
+
+    expect(imported.settings).toBeUndefined();
+  });
 });
 
 describe('exportScheduleToFloid / parseScheduleFloid', () => {

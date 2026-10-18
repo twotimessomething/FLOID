@@ -30,3 +30,4 @@ export { useScheduleRowGestures } from './useScheduleRowGestures';
 export { usePinnedSection } from './usePinnedSection';
 export { useInlineEdit } from './useInlineEdit';
 export { useTimelinePan } from './useTimelinePan';
+export { useFloatingPanelSize } from './useFloatingPanelSize';

@@ -1,4 +1,5 @@
-import type { Project } from '../types/project';
+import type { Project, ProjectSettings } from '../types/project';
+import { DEFAULT_PROJECT_SETTINGS } from '../types/project';
 import type { DependencyEdge, Section, TimelineItem } from '../types/timeline';
 import type { LegacySection } from '../types/legacy';
 import type {
@@ -61,10 +62,26 @@ interface RawProjectFile {
     readonly projectEndDate?: string;
     readonly createdAt?: string;
     readonly updatedAt?: string;
+    readonly settings?: unknown;
   };
   readonly sections?: unknown;
   readonly dependencies?: unknown;
 }
+
+/**
+ * A file's settings over the defaults, one flag at a time: a flag the writer
+ * did not know about yet keeps its default, and a tampered value is ignored.
+ */
+const readProjectSettings = (raw: unknown): ProjectSettings | undefined => {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const fields = raw as Partial<Record<keyof ProjectSettings, unknown>>;
+  const settings: ProjectSettings = { ...DEFAULT_PROJECT_SETTINGS };
+  for (const key of Object.keys(DEFAULT_PROJECT_SETTINGS) as (keyof ProjectSettings)[]) {
+    const value = fields[key];
+    if (typeof value === 'boolean') settings[key] = value;
+  }
+  return settings;
+};
 
 /** Loosely typed view of a parsed `.floid` file, v2 or v3. */
 interface RawScheduleFile {
@@ -106,11 +123,16 @@ export const exportProjectToJson = (
   project: {
     id: project.id,
     name: project.name,
-    pinnedSectionId: project.pinnedSectionId,
+    // A deleted schedule leaves its pin behind for undo to find; a backup
+    // has no undo, so it only names a pin that is still there
+    pinnedSectionId: sections.some((s) => s.id === project.pinnedSectionId)
+      ? project.pinnedSectionId
+      : null,
     projectStartDate: project.projectStartDate,
     projectEndDate: project.projectEndDate,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
+    ...(project.settings && { settings: project.settings }),
   },
   sections,
   dependencies,
@@ -134,7 +156,7 @@ export const downloadProjectJson = async (
   project: Project,
   sections: Section[],
   dependencies: readonly DependencyEdge[] = []
-): Promise<void> => {
+): Promise<boolean> => {
   const json = exportToJson(project, sections, dependencies);
 
   const { saved } = await saveFile({
@@ -149,6 +171,7 @@ export const downloadProjectJson = async (
   if (saved) {
     await stampBackupDate();
   }
+  return saved;
 };
 
 /** Mark the project backed up; `useBackupReminder` reads this. */
@@ -199,6 +222,7 @@ export const parseProjectJson = (json: string): ProjectExportData | null => {
         projectEndDate: normalizeDayKey(rawProject.projectEndDate ?? derived?.endDate ?? todayKey()),
         createdAt: rawProject.createdAt ?? new Date().toISOString(),
         updatedAt: rawProject.updatedAt ?? new Date().toISOString(),
+        settings: readProjectSettings(rawProject.settings),
       },
       sections,
     };
@@ -220,6 +244,7 @@ export const convertImportedProject = (
     projectEndDate: data.project.projectEndDate,
     createdAt: data.project.createdAt,
     updatedAt: data.project.updatedAt,
+    ...(data.project.settings && { settings: data.project.settings }),
   };
 
   // Migrating again is a no-op on v3 sections, and covers a caller that built
@@ -278,15 +303,16 @@ export const downloadScheduleFloid = async (
   project: Project,
   section: Section,
   dependencies: readonly DependencyEdge[] = []
-): Promise<void> => {
+): Promise<boolean> => {
   const data = exportScheduleToFloid(project, section, dependencies);
 
-  await saveFile({
+  const { saved } = await saveFile({
     suggestedName: scheduleFloidFilename(project, section),
     filters: [FLOID_FILE_FILTER],
     data: JSON.stringify(data, null, 2),
     mimeType: 'application/json',
   });
+  return saved;
 };
 
 /**
@@ -492,7 +518,7 @@ export const exportTimelineAsImage = async (
   project: Project,
   sections: Section[],
   dependencies: readonly DependencyEdge[] = []
-): Promise<void> => {
+): Promise<boolean> => {
   const WIDTH = IMAGE_WIDTH;
   const HEIGHT = IMAGE_HEIGHT;
   const PADDING = IMAGE_PADDING;
@@ -871,12 +897,13 @@ export const exportTimelineAsImage = async (
 
   // Await the encode so callers report success only once the file exists
   const blob = await canvasToBlob(canvas);
-  await saveFile({
+  const { saved } = await saveFile({
     suggestedName: `${sanitizeFilename(project.name)}-timeline.png`,
     filters: [{ name: 'PNG Image', extensions: ['png'] }],
     data: blob,
     mimeType: 'image/png',
   });
+  return saved;
 };
 
 const canvasToBlob = (canvas: HTMLCanvasElement): Promise<Blob> =>
