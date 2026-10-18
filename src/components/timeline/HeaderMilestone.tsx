@@ -10,6 +10,7 @@ import { useDependencyDraw } from '../../hooks/useDependencyDraw';
 import { useItemConnected, useShowDependencies } from '../../hooks/useDependencyState';
 import { reportDependencyHover, reportDependencyLeave } from '../../utils/dependencyHover';
 import { useIsDragged } from '../../hooks/useDropState';
+import { resistLockedDrag } from '../../utils/lockedResist';
 import { DependencyDot } from './DependencyDot';
 import { MilestoneGlyph } from './MilestoneGlyph';
 import { MilestoneLabel } from './MilestoneLabel';
@@ -49,12 +50,23 @@ export const HeaderMilestone = memo(function HeaderMilestone({
 
   const left = dayToX(item.start, viewport, pixelsPerDay);
 
+  const isLocked = section.isLocked === true || item.isLocked === true;
+
+  // The outline on the press, like every other item: the marker under the
+  // pointer is the one being moved, and its clone should say so.
   const handlePointerDown = useCallback(
     (e: React.PointerEvent): void => {
-      if (section.isLocked || item.isLocked) return;
+      if (useUIStore.getState().isDragging) return;
+      if (e.button === 0 && !e.ctrlKey) {
+        selectItem(item.id, section.id, { x: e.clientX, y: e.clientY }, { openEditor: false });
+      }
+      if (isLocked) {
+        resistLockedDrag(e, e.currentTarget as HTMLElement);
+        return;
+      }
       startDrag(e, { item, sectionId: section.id, pixelsPerDay });
     },
-    [section.isLocked, section.id, item, startDrag, pixelsPerDay]
+    [isLocked, selectItem, section.id, item, startDrag, pixelsPerDay]
   );
 
   // -- dependencies --------------------------------------------------------
@@ -115,10 +127,11 @@ export const HeaderMilestone = memo(function HeaderMilestone({
 
   return (
     <div
-      className={`absolute top-0 bottom-0 group cursor-grab active:cursor-grabbing hover:z-10 touch-none ${
-        isDragged ? 'opacity-30' : ''
-      }`}
+      className={`absolute top-0 bottom-0 group timeline-point hover:z-10 touch-none ${
+        isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+      } ${isDragged ? 'timeline-point--lifted' : ''}`}
       style={{ left }}
+      data-drag-item={item.id}
       onPointerDown={handlePointerDown}
       onPointerEnter={handleDependencyHoverEnter}
       onPointerLeave={handleDependencyHoverLeave}

@@ -15,6 +15,8 @@ import { resolveItemColor } from '../../utils/timelineUtils';
 import { getReadableTextColor } from '../../utils/colorUtils';
 import { CustomColorPopover } from '../common/CustomColorPopover';
 import { MenuIcon, type MenuIconName } from '../common/MenuIcon';
+import { commitWithSlide } from '../../commands/slideCommit';
+import { keyBelongsToGesture } from '../../commands/gesture';
 
 interface MenuItem {
   readonly label: string;
@@ -35,6 +37,13 @@ interface MenuItem {
  * reordered and deleted. Only one entry is genuinely exclusive to this menu —
  * adding a milestone anywhere other than a schedule's own row, which is
  * deliberately not a click-anywhere gesture.
+ *
+ * Every entry that changes what is on the sheet — moving, folding, deleting,
+ * pinning — commits through `commitWithSlide`, so the rows it displaces slide
+ * to their new places exactly as they would after a drop. Adding is the one
+ * exception, and only because it already moves: `creationUtils` opens the
+ * rows and fades the new item in on its own, and wrapping it a second time
+ * would play the rows twice over.
  */
 export function ContextMenu(): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -83,7 +92,8 @@ export function ContextMenu(): JSX.Element | null {
       if (menuRef.current && !menuRef.current.contains(target)) closeContextMenu();
     };
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') closeContextMenu();
+      // An Escape that called a drag off is spent
+      if (e.key === 'Escape' && !keyBelongsToGesture(e)) closeContextMenu();
     };
 
     // Deferred so the click that opened the menu does not immediately close it
@@ -156,6 +166,18 @@ export function ContextMenu(): JSX.Element | null {
     [close]
   );
 
+  /**
+   * `run`, for an entry that rearranges the sheet: the rows slide, then the
+   * menu goes. Not for the Add entries, which animate themselves.
+   */
+  const slide = useCallback(
+    (fn: () => void) => () => {
+      commitWithSlide(fn);
+      close();
+    },
+    [close]
+  );
+
   const menuItems = useMemo((): MenuItem[] => {
     if (!sectionId || !section) return [];
 
@@ -174,7 +196,7 @@ export function ContextMenu(): JSX.Element | null {
           items.push({
             label: item.isCollapsed ? 'Expand' : 'Collapse',
             icon: item.isCollapsed ? 'expand' : 'collapse',
-            action: run(() => toggleItemCollapse(sectionId, targetId)),
+            action: slide(() => toggleItemCollapse(sectionId, targetId)),
           });
         }
         items.push({
@@ -216,7 +238,7 @@ export function ContextMenu(): JSX.Element | null {
         items.push({
           label: 'Move out of group',
           icon: 'move-out',
-          action: run(() =>
+          action: slide(() =>
             moveItem({
               itemId: targetId,
               fromSectionId: sectionId,
@@ -233,13 +255,13 @@ export function ContextMenu(): JSX.Element | null {
         items.push({
           label: 'Move up',
           icon: 'move-up',
-          action: run(() => reorderItem(sectionId, targetId, itemLocation.index - 1)),
+          action: slide(() => reorderItem(sectionId, targetId, itemLocation.index - 1)),
           disabled: itemLocation.index === 0,
         });
         items.push({
           label: 'Move down',
           icon: 'move-down',
-          action: run(() => reorderItem(sectionId, targetId, itemLocation.index + 2)),
+          action: slide(() => reorderItem(sectionId, targetId, itemLocation.index + 2)),
           disabled: itemLocation.index >= itemLocation.siblings.length - 1,
         });
       }
@@ -247,7 +269,7 @@ export function ContextMenu(): JSX.Element | null {
       items.push({
         label: 'Delete',
         icon: 'delete',
-        action: run(() => {
+        action: slide(() => {
           // Named while it still exists — a group takes its children with it
           showItemDeletedToast(item);
           deleteItem(sectionId, targetId);
@@ -293,7 +315,7 @@ export function ContextMenu(): JSX.Element | null {
         {
           label: section.isCollapsed ? 'Expand' : 'Collapse',
           icon: section.isCollapsed ? 'expand' : 'collapse',
-          action: run(() => toggleSectionCollapse(sectionId)),
+          action: slide(() => toggleSectionCollapse(sectionId)),
         },
         {
           label: section.isLocked ? 'Unlock schedule' : 'Lock schedule',
@@ -314,7 +336,9 @@ export function ContextMenu(): JSX.Element | null {
         {
           label: project?.pinnedSectionId === sectionId ? 'Unpin' : 'Pin to top',
           icon: project?.pinnedSectionId === sectionId ? 'unpin' : 'pin',
-          action: run(() =>
+          // The whole schedule travels to the top (or back to its place), and
+          // the ones it passes make room for it on the way
+          action: slide(() =>
             setPinnedSection(project?.pinnedSectionId === sectionId ? null : sectionId)
           ),
         },
@@ -337,7 +361,7 @@ export function ContextMenu(): JSX.Element | null {
           danger: true,
           action: () => {
             const wasPinned = project?.pinnedSectionId === sectionId;
-            const result = deleteSection(sectionId);
+            const result = commitWithSlide(() => deleteSection(sectionId));
             if (result.success) showSectionDeletedToast(section, wasPinned);
             else if (result.reason) showToast('warning', result.reason);
             close();
@@ -360,6 +384,7 @@ export function ContextMenu(): JSX.Element | null {
     project,
     resolvedItemColor,
     run,
+    slide,
     close,
     selectItem,
     selectSection,

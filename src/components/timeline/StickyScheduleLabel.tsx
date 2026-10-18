@@ -10,6 +10,8 @@ interface StickyScheduleLabelProps {
   readonly section: Section;
   /** Its slot in the held stack — the same one its band takes on the timeline. */
   readonly slot: number;
+  /** The schedule is in the hand: its name drains here as it does on the sheet. */
+  readonly isLifted?: boolean;
 }
 
 /**
@@ -24,7 +26,11 @@ interface StickyScheduleLabelProps {
  * markers belongs to which schedule. Each band carries the hairline its
  * schedule prints under, so the stack keeps the separators the sheet has.
  */
-export function StickyScheduleLabel({ section, slot }: StickyScheduleLabelProps): JSX.Element {
+export function StickyScheduleLabel({
+  section,
+  slot,
+  isLifted = false,
+}: StickyScheduleLabelProps): JSX.Element {
   const coloredRows = useProjectStore(
     (s) => s.project?.settings?.coloredRows ?? DEFAULT_PROJECT_SETTINGS.coloredRows
   );
@@ -35,10 +41,13 @@ export function StickyScheduleLabel({ section, slot }: StickyScheduleLabelProps)
     <div
       className="absolute inset-x-0 z-10 border-t border-[var(--color-hairline)] bg-[var(--color-background)]"
       style={{ top: stickySlotTop(slot), height: STICKY_SLOT_HEIGHT }}
+      data-sticky-label={section.id}
     >
       {tint && <div className="absolute inset-0" style={{ backgroundColor: tint }} />}
-      <div className="relative">
-        <ScheduleLabelRow section={section} />
+      {/* The band's paper stays opaque — rows scroll beneath it — so only
+          what is printed on it drains */}
+      <div className={`relative schedule-block ${isLifted ? 'schedule-block--lifted' : ''}`}>
+        <ScheduleLabelRow section={section} isSticky />
       </div>
     </div>
   );

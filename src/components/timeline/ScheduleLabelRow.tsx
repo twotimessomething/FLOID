@@ -6,16 +6,16 @@ import { useUIStore } from '../../stores/uiStore';
 import { LABEL_ROOT_INSET, ROW_HEIGHT } from '../../utils/timelineUtils';
 import { useInlineEdit } from '../../hooks/useInlineEdit';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
+import { useIsDropHeader } from '../../hooks/useDropState';
+import { commitWithSlide } from '../../commands/slideCommit';
 import { PinBadge } from '../common';
-
-interface DragHandleProps {
-  readonly onPointerDown: (e: React.PointerEvent) => void;
-  readonly style: React.CSSProperties;
-}
 
 interface ScheduleLabelRowProps {
   readonly section: Section;
-  readonly dragHandleProps?: DragHandleProps;
+  /** Present when the schedule can be reordered from here; absent in the bands. */
+  readonly onGripPointerDown?: (e: React.PointerEvent, sectionId: string) => void;
+  /** Drawn in the band under the axis, standing in for a scrolled-away schedule. */
+  readonly isSticky?: boolean;
 }
 
 /**
@@ -28,7 +28,8 @@ interface ScheduleLabelRowProps {
  */
 export const ScheduleLabelRow = memo(function ScheduleLabelRow({
   section,
-  dragHandleProps,
+  onGripPointerDown,
+  isSticky = false,
 }: ScheduleLabelRowProps): JSX.Element {
   const toggleSectionCollapse = useSectionStore((s) => s.toggleSectionCollapse);
   const updateSection = useSectionStore((s) => s.updateSection);
@@ -39,6 +40,7 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
     (s) => s.selection.type === 'section' && s.selection.id === section.id
   );
 
+  const isHeaderTarget = useIsDropHeader(section.id);
   const inlineEdit = useInlineEdit();
   const isEditingName = inlineEdit.editingId === section.id;
   const isPinned = section.id === pinnedSectionId;
@@ -73,10 +75,15 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
 
   const labelClick = useDoubleClick(handleSelectSection, handleRenameSection);
 
+  const handleGripPointerDown = useCallback(
+    (e: React.PointerEvent): void => onGripPointerDown?.(e, section.id),
+    [onGripPointerDown, section.id]
+  );
+
   const handleToggleCollapse = useCallback(
     (e: React.MouseEvent): void => {
       e.stopPropagation();
-      toggleSectionCollapse(section.id);
+      commitWithSlide(() => toggleSectionCollapse(section.id));
     },
     [toggleSectionCollapse, section.id]
   );
@@ -111,8 +118,14 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
     <div
       className={`group flex items-center gap-1.5 pr-3 cursor-pointer row-selectable focus-ring ${
         isSelected ? 'selected' : ''
-      }`}
+      } ${isHeaderTarget ? 'drop-header--receiving' : ''}`}
       style={{ height: ROW_HEIGHT, paddingLeft: LABEL_ROOT_INSET }}
+      data-section-label={section.id}
+      data-drop-header={section.id}
+      data-drop-section={section.id}
+      data-drop-collapsed={section.isCollapsed ? '' : undefined}
+      data-drop-sticky={isSticky ? '' : undefined}
+      data-drop-slot-locked={section.isLocked ? '' : undefined}
       onPointerDown={isEditingName ? undefined : handlePressSelectSection}
       onClick={isEditingName ? undefined : labelClick.handleClick}
       onDoubleClick={isEditingName ? undefined : labelClick.handleDoubleClick}
@@ -174,10 +187,10 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
         </svg>
       )}
       {isPinned && <PinBadge size="sm" />}
-      {dragHandleProps && (
+      {onGripPointerDown && (
         <div
-          {...dragHandleProps}
-          className="row-affordance flex-shrink-0 flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-fast touch-none"
+          onPointerDown={handleGripPointerDown}
+          className="row-affordance flex-shrink-0 flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-fast touch-none cursor-grab active:cursor-grabbing"
           title="Drag to reorder"
           aria-label={`Drag to reorder ${section.name}`}
         >

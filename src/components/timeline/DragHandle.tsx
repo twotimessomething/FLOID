@@ -69,6 +69,13 @@ export function DragHandle({
     };
 
     const handlePointerMove = (e: PointerEvent): void => {
+      // The release happened somewhere the page never heard: call it off
+      // rather than resize to wherever the hover wanders next
+      if (e.buttons === 0) {
+        finish();
+        onDragCancel(edge);
+        return;
+      }
       const deltaX = e.clientX - lastX.current;
       lastX.current = e.clientX;
       onDrag(edge, deltaX);
@@ -92,16 +99,24 @@ export function DragHandle({
       onDragCancel(edge);
     };
 
+    // Focus leaving the window takes the pointerup with it
+    const handleBlur = (): void => {
+      finish();
+      onDragCancel(edge);
+    };
+
     document.addEventListener('pointermove', handlePointerMove);
     document.addEventListener('pointerup', handlePointerUp);
     document.addEventListener('pointercancel', handlePointerCancel);
     document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('blur', handleBlur);
 
     return () => {
       document.removeEventListener('pointermove', handlePointerMove);
       document.removeEventListener('pointerup', handlePointerUp);
       document.removeEventListener('pointercancel', handlePointerCancel);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('blur', handleBlur);
     };
   }, [isDragging, onDrag, onDragEnd, onDragCancel, edge]);
 

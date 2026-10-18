@@ -35,6 +35,10 @@ interface GhostBarProps {
  * While a span is being drawn its geometry arrives through the forwarded ref
  * rather than through props: the gesture writes `left` and `width` straight to
  * this element, so following the pointer costs no render at all.
+ *
+ * It is marked as a create preview of a span so the gesture can find it in its
+ * row when it commits: the bar it made flies out of this exact box
+ * (`createHandoff`).
  */
 export const GhostBar = forwardRef<HTMLDivElement, GhostBarProps>(function GhostBar(
   {
@@ -55,6 +59,7 @@ export const GhostBar = forwardRef<HTMLDivElement, GhostBarProps>(function Ghost
         isDrawing ? '' : 'ghost-enter'
       } pointer-events-none border border-dashed`}
       style={{ left, width, borderColor: color, ...style }}
+      data-create-ghost="span"
       aria-hidden="true"
     >
       <div className="absolute inset-0" style={{ backgroundColor: color, opacity: 0.16 }} />

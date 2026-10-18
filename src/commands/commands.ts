@@ -7,6 +7,8 @@ import { importFloidText, FLOID_OPEN_FILTERS } from '../utils/importFloid';
 import { openFiles } from '../platform/files';
 import { isDesktop } from '../platform/detect';
 import { openWriteReview } from '../platform/review';
+import { isGestureInFlight } from './gesture';
+import { commitWithSlide } from './slideCommit';
 import type { Command, CommandId } from './types';
 
 /**
@@ -16,6 +18,18 @@ import type { Command, CommandId } from './types';
  */
 
 const hasProject = (): boolean => useProjectStore.getState().project !== null;
+
+/**
+ * History is greyed out, not merely ignored, while a drag is in the hand: the
+ * gesture is resolving its drop against the sheet as it stands, and a step
+ * back in time under it would leave that drop landing on rows that no longer
+ * exist. `executeCommand` holds every other command back too; these two say
+ * so, so a menu built from them can show it.
+ */
+const canUndo = (): boolean =>
+  !isGestureInFlight() && useSectionStore.temporal.getState().pastStates.length > 0;
+const canRedo = (): boolean =>
+  !isGestureInFlight() && useSectionStore.temporal.getState().futureStates.length > 0;
 
 export const COMMANDS: Record<CommandId, Command> = {
   'project.new': {
@@ -71,16 +85,18 @@ export const COMMANDS: Record<CommandId, Command> = {
     label: 'Undo',
     shortcutKeys: ['⌘', 'Z'],
     accelerator: 'CmdOrCtrl+Z',
-    isEnabled: () => useSectionStore.temporal.getState().pastStates.length > 0,
-    run: () => useSectionStore.temporal.getState().undo(),
+    isEnabled: canUndo,
+    // A step back is a move like any other: rows slide to where they were,
+    // bars glide back to their old dates, and whatever returns fades in.
+    run: () => commitWithSlide(() => useSectionStore.temporal.getState().undo()),
   },
   'edit.redo': {
     id: 'edit.redo',
     label: 'Redo',
     shortcutKeys: ['⌘', '⇧', 'Z'],
     accelerator: 'Shift+CmdOrCtrl+Z',
-    isEnabled: () => useSectionStore.temporal.getState().futureStates.length > 0,
-    run: () => useSectionStore.temporal.getState().redo(),
+    isEnabled: canRedo,
+    run: () => commitWithSlide(() => useSectionStore.temporal.getState().redo()),
   },
   'view.zoomIn': {
     id: 'view.zoomIn',

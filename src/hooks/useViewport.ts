@@ -1,7 +1,11 @@
 import { useMemo } from 'react';
 import { useSectionStore } from '../stores/sectionStore';
 import { useUIStore } from '../stores/uiStore';
-import { computeViewportBounds, getSectionsDateRange } from '../utils/dateUtils';
+import {
+  computeViewportBounds,
+  getSectionsDateRange,
+  viewportFromKeys,
+} from '../utils/dateUtils';
 import { getPixelsPerDay, zoomLevelForPixelsPerDay } from '../utils/timelineUtils';
 import type { ViewportBounds, ZoomLevel } from '../types';
 
@@ -24,9 +28,17 @@ export function useViewport(): UseViewportResult {
   const zoomLevel = useUIStore((state) => state.zoomLevel);
   const fitPixelsPerDay = useUIStore((state) => state.fitPixelsPerDay);
 
+  // Every edit makes a new `sections`, but most leave the sheet's span alone.
+  // Bounds are handed to every row on the sheet, so they are rebuilt only when
+  // the span itself moves: a drop that re-renders two schedules should not
+  // re-render every row of every schedule because of a fresh, equal object.
+  const { startKey, endKey } = useMemo(() => {
+    const bounds = computeViewportBounds(sections);
+    return { startKey: bounds.startKey, endKey: bounds.endKey };
+  }, [sections]);
   const viewportBounds = useMemo(
-    () => computeViewportBounds(sections),
-    [sections]
+    () => viewportFromKeys(startKey, endKey),
+    [startKey, endKey]
   );
 
   const contentStartKey = useMemo(

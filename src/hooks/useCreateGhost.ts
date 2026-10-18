@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import type { DrawnSpanReadout } from '../utils/creationUtils';
+import {
+  captureCreateSource,
+  dismissCreatePreview,
+  finishCreateMotion,
+  withCreateSource,
+  type CreateShape,
+} from '../utils/createHandoff';
+import { finishDragMotion } from '../utils/dragCluster';
 import { rubberBandOffset } from '../utils/rubberBand';
 
 const DRAW_THRESHOLD_PX = 4;
@@ -81,6 +89,8 @@ interface UseCreateGhostReturn {
 }
 
 interface DrawState {
+  /** The row the press began on — where the ghost lives. */
+  container: HTMLElement;
   rect: DOMRect;
   anchorClientX: number;
   anchorPx: number;
@@ -107,6 +117,12 @@ function isHoverPointer(pointerType: string): boolean {
  * gesture writes them straight to the DOM on the display's own clock — the same
  * bargain `useItemDrag` strikes, so drawing a bar and dragging one cost the
  * same. React sees the ghost appear and sees it go; nothing in between.
+ *
+ * It going is not a cut, either way it goes. Every commit records the ghost
+ * as it stood (`captureCreateSource`) and creates inside `withCreateSource`,
+ * so the creation can fly the new item out of it; every abandoned draw —
+ * Escape, the window losing focus, a release the page never heard, a gesture
+ * the browser took back — fades the ghost out where it was and makes nothing.
  */
 export function useCreateGhost({
   defaultWidth,
@@ -143,6 +159,25 @@ export function useCreateGhost({
       hoverTimerRef.current = null;
     }
   }, []);
+
+  /**
+   * Hand a commit the ghost it came from. The ghost is recorded before the
+   * render that removes it, and that render is the creation's own: it commits
+   * synchronously, so the ghost and the new item are never on screen apart.
+   */
+  const commitFrom = useCallback(
+    (
+      container: HTMLElement,
+      shape: CreateShape,
+      info: CreateGestureInfo,
+      create: (info: CreateGestureInfo) => void
+    ): void => {
+      const source = captureCreateSource(container, shape, info.point);
+      setGhost(null);
+      withCreateSource(source, () => create(info));
+    },
+    []
+  );
 
   // Abort a draw mid-gesture if the component unmounts
   useEffect(() => {
@@ -208,10 +243,7 @@ export function useCreateGhost({
       if (!describe) return;
       const currentPx = clampPx(pointerPx, draw.rect.width);
       const anchorPx = clampPx(draw.anchorPx, draw.rect.width);
-      const readout = describe(
-        Math.min(anchorPx, currentPx),
-        Math.max(anchorPx, currentPx)
-      );
+      const readout = describe(Math.min(anchorPx, currentPx), Math.max(anchorPx, currentPx));
       drawnReadoutRef.current = { readout, width };
       readoutRef.current?.show(readout, width);
     },
@@ -318,14 +350,50 @@ export function useCreateGhost({
       // travels is not a draw, and whatever else is listening may want it.
       e.preventDefault();
 
+      // A new gesture wins: anything still landing lands now, before this
+      // press measures a row that is still on its way somewhere.
+      finishCreateMotion();
+      finishDragMotion();
+
       // Under the task pointer a press is the start of a click, not a draw
       if (pointMode || e.altKey) return;
 
       const rect = container.getBoundingClientRect();
 
+      /**
+       * The draw is called off. Nothing is made, and a ghost that had started
+       * drawing fades where it stands rather than blinking out — the gesture
+       * was abandoned, not refused.
+       */
+      const abandon = (): void => {
+        const draw = drawStateRef.current;
+        if (!draw) return;
+        const wasDrawing = draw.isDrawing;
+        const source = wasDrawing
+          ? captureCreateSource(draw.container, 'span', {
+              x: draw.clientX,
+              y: draw.rect.top + draw.offsetY,
+            })
+          : null;
+        draw.cleanup();
+        if (!wasDrawing) return;
+        // The release that follows (if it ever arrives) is not a click
+        suppressUntilRef.current = Date.now() + POST_DRAW_SUPPRESS_MS;
+        isGhostVisibleRef.current = false;
+        setGhost(null);
+        if (source) dismissCreatePreview(source);
+      };
+
       const handleDocPointerMove = (me: PointerEvent): void => {
         const draw = drawStateRef.current;
         if (!draw) return;
+        // No button held means the release happened somewhere this page was
+        // never told about — another window, a system gesture. The press is
+        // over; without this the ghost would go on drawing under a hover.
+        if (me.buttons === 0) {
+          abandon();
+          return;
+        }
         draw.clientX = me.clientX;
         if (!draw.isDrawing) {
           if (Math.abs(me.clientX - draw.anchorClientX) < DRAW_THRESHOLD_PX) return;
@@ -354,28 +422,52 @@ export function useCreateGhost({
         const draw = drawStateRef.current;
         if (!draw) return;
         const wasDrawing = draw.isDrawing;
+        if (wasDrawing && draw.frame !== 0) {
+          // The last move may still be waiting for its frame; the ghost the
+          // handoff starts from has to be the one at the release.
+          draw.clientX = me.clientX;
+          paintDraw();
+        }
         draw.cleanup();
         if (!wasDrawing) return;
 
         suppressUntilRef.current = Date.now() + POST_DRAW_SUPPRESS_MS;
         isGhostVisibleRef.current = false;
-        setGhost(null);
         const releasePx = clampPx(me.clientX - draw.rect.left, draw.rect.width);
         const anchorPx = clampPx(draw.anchorPx, draw.rect.width);
-        latestRef.current.onDrawCreate({
-          startPx: Math.min(anchorPx, releasePx),
-          endPx: Math.max(anchorPx, releasePx),
-          offsetY: draw.offsetY,
-          point: { x: me.clientX, y: me.clientY },
-        });
+        commitFrom(
+          draw.container,
+          'span',
+          {
+            startPx: Math.min(anchorPx, releasePx),
+            endPx: Math.max(anchorPx, releasePx),
+            offsetY: draw.offsetY,
+            point: { x: me.clientX, y: me.clientY },
+          },
+          latestRef.current.onDrawCreate
+        );
       };
 
-      const handleDocPointerCancel = (): void => {
-        const draw = drawStateRef.current;
-        if (!draw) return;
-        draw.cleanup();
-        isGhostVisibleRef.current = false;
-        setGhost(null);
+      // A gesture the browser took back is not a drop
+      const handleDocPointerCancel = (): void => abandon();
+
+      // Escape calls the draw off. It is this gesture's key while the ghost is
+      // drawing, so nothing behind it — closing the editor, clearing the
+      // selection — also answers it.
+      const handleKeyDown = (ke: KeyboardEvent): void => {
+        if (ke.key !== 'Escape') return;
+        if (drawStateRef.current?.isDrawing) {
+          ke.preventDefault();
+          ke.stopPropagation();
+        }
+        abandon();
+      };
+
+      // Focus leaving the window takes the pointer with it: the release will
+      // land somewhere else, if it is reported at all.
+      const handleBlur = (): void => abandon();
+      const handleVisibility = (): void => {
+        if (document.visibilityState === 'hidden') abandon();
       };
 
       const cleanup = (): void => {
@@ -388,6 +480,9 @@ export function useCreateGhost({
         document.removeEventListener('pointermove', handleDocPointerMove);
         document.removeEventListener('pointerup', handleDocPointerUp);
         document.removeEventListener('pointercancel', handleDocPointerCancel);
+        window.removeEventListener('keydown', handleKeyDown, true);
+        window.removeEventListener('blur', handleBlur);
+        document.removeEventListener('visibilitychange', handleVisibility);
         if (wasDrawing) {
           useUIStore.getState().setDragging(false);
           document.body.classList.remove('no-select');
@@ -395,6 +490,7 @@ export function useCreateGhost({
       };
 
       drawStateRef.current = {
+        container,
         rect,
         anchorClientX: e.clientX,
         anchorPx: clampPx(e.clientX - rect.left, rect.width),
@@ -408,8 +504,13 @@ export function useCreateGhost({
       document.addEventListener('pointermove', handleDocPointerMove);
       document.addEventListener('pointerup', handleDocPointerUp);
       document.addEventListener('pointercancel', handleDocPointerCancel);
+      // Capture, on the window: the first to hear Escape, ahead of the
+      // app's own Escape handling
+      window.addEventListener('keydown', handleKeyDown, true);
+      window.addEventListener('blur', handleBlur);
+      document.addEventListener('visibilitychange', handleVisibility);
     },
-    [disabled, isEligible, pointMode, clampPx, paintDraw, clearHoverTimer]
+    [disabled, isEligible, pointMode, clampPx, paintDraw, clearHoverTimer, commitFrom]
   );
 
   const handleClick = useCallback(
@@ -424,14 +525,22 @@ export function useCreateGhost({
       e.preventDefault();
       const rect = container.getBoundingClientRect();
       const clickPx = clampPx(e.clientX - rect.left, rect.width);
-      onClickCreate({
-        startPx: clickPx,
-        endPx: clickPx,
-        offsetY: e.clientY - rect.top,
-        point: { x: e.clientX, y: e.clientY },
-      });
+      // The circle flies down into the task it made. It stays "shown", so the
+      // next move puts it straight back under the pointer for the next one —
+      // tasks are dropped in a run.
+      commitFrom(
+        container,
+        'point',
+        {
+          startPx: clickPx,
+          endPx: clickPx,
+          offsetY: e.clientY - rect.top,
+          point: { x: e.clientX, y: e.clientY },
+        },
+        onClickCreate
+      );
     },
-    [disabled, onClickCreate, pointMode, isEligible, clampPx]
+    [disabled, onClickCreate, pointMode, isEligible, clampPx, commitFrom]
   );
 
   const handleDoubleClick = useCallback(
@@ -450,14 +559,21 @@ export function useCreateGhost({
       e.preventDefault();
       const rect = container.getBoundingClientRect();
       const clickPx = clampPx(e.clientX - rect.left, rect.width);
-      onDoubleClickCreate({
-        startPx: clickPx,
-        endPx: clickPx,
-        offsetY: e.clientY - rect.top,
-        point: { x: e.clientX, y: e.clientY },
-      });
+      // The hover ghost becomes the bar; it does not stay behind beside it
+      isGhostVisibleRef.current = false;
+      commitFrom(
+        container,
+        'span',
+        {
+          startPx: clickPx,
+          endPx: clickPx,
+          offsetY: e.clientY - rect.top,
+          point: { x: e.clientX, y: e.clientY },
+        },
+        onDoubleClickCreate
+      );
     },
-    [disabled, pointMode, isEligible, clampPx, onDoubleClickCreate]
+    [disabled, pointMode, isEligible, clampPx, onDoubleClickCreate, commitFrom]
   );
 
   return {

@@ -106,6 +106,11 @@
   --shadow-sm: 0 1px 2px rgba(23, 23, 26, 0.06);
   --shadow-md: 0 6px 20px rgba(23, 23, 26, 0.08);
   --shadow-lg: 0 16px 40px rgba(23, 23, 26, 0.12);
+  /* Something in the hand: lifted off the sheet, so it casts what nothing on
+     the sheet may. A member of a lifted group casts less — the group reads as
+     one object, not as a pile of them. */
+  --shadow-lift: 0 8px 24px rgba(23, 23, 26, 0.14), 0 2px 6px rgba(23, 23, 26, 0.08);
+  --shadow-lift-member: 0 3px 10px rgba(23, 23, 26, 0.12);
 
   /* Motion — one curve for surfaces that appear, one for surfaces that slide. */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -171,6 +176,10 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  /* A shadow on near-black ground is barely a shadow; the hairline ring is
+     what actually lifts the clone off the sheet in the dark. */
+  --shadow-lift: 0 10px 28px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  --shadow-lift-member: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.09);
 }
 
 * {
@@ -317,14 +326,48 @@ body {
    layer inside the bar, which leaves the wrapper free for an outline.
    ========================================= */
 
-/* The row it left: the shape stays, the ink drains out of it. */
-.timeline-bar--lifted .timeline-bar__fill {
+/* The row it left: the shape stays, the ink drains out of it.
+
+   Heavier than the hover rule on purpose. The bar under the pointer holds the
+   pointer capture, and a captured element is given :hover for the whole
+   gesture — at equal weight `.timeline-bar:hover` would keep the source at
+   hover ink and it would look as if nothing had been picked up. */
+.timeline-bar.timeline-bar--lifted .timeline-bar__fill,
+.timeline-bar.timeline-bar--lifted:hover .timeline-bar__fill {
   opacity: 0.16;
   box-shadow: inset 0 0 0 1px var(--color-text-muted);
 }
 
-.timeline-bar--lifted .timeline-bar__label {
+.timeline-bar--lifted .timeline-bar__label,
+.timeline-bar--lifted .timeline-bar__collapsed-line {
   opacity: 0.35;
+}
+
+/* An empty outline is not something to resize. */
+.timeline-bar.timeline-bar--lifted:hover .drag-handle,
+.timeline-bar.timeline-bar--lifted .drag-handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* A milestone or a task left behind, and a label row left behind: the same
+   drain, without a fill to drain. */
+.timeline-point {
+  transition: opacity var(--duration-fast) linear;
+}
+
+.timeline-point--lifted,
+.row-selectable.is-dragged-row {
+  opacity: 0.32;
+}
+
+/* A schedule in the hand leaves both of its columns drained. */
+.schedule-block {
+  transition: opacity var(--duration-fast) linear;
+}
+
+.schedule-block--lifted {
+  opacity: 0.32;
 }
 
 /* A bar that will take the dragged item if it is released now.
@@ -335,18 +378,83 @@ body {
   outline-offset: 2px;
 }
 
+/* The same promise in the labels column, where a row has no bar to ring. */
+.row-selectable.is-drop-receiver {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+/* A schedule's own row, when releasing now puts the item there: a milestone
+   coming home to the header, or anything dropped on a schedule that is folded
+   or held under the axis, where there is no row to draw a line beside. */
+.drop-header--receiving {
+  background-color: var(--color-selection);
+}
+
 /* The clone under the cursor. It has left the sheet, so unlike a placed bar it
-   is allowed a shadow. */
+   is allowed a shadow — which it takes on the frame after pickup and gives up
+   on the way down, so lifting and landing both read as motion in depth. It is
+   opaque: a clone that let the rows beneath show through its name read as two
+   things at once. */
 .drag-preview {
-  opacity: 0.94;
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
+  transition: box-shadow var(--duration-base) var(--ease-out);
+}
+
+.drag-preview.is-lifted {
+  box-shadow: var(--shadow-lift);
+}
+
+.drag-preview--plot.drag-preview--member.is-lifted {
+  box-shadow: var(--shadow-lift-member);
+}
+
+/* A point has no box to cast from; a shadow there is a smudge. */
+.drag-preview--point.is-lifted {
+  box-shadow: none;
+}
+
+/* A label row has no ink of its own — its paper is what it is. In flight that
+   paper is a floating surface, so it takes the raised white, and a selected
+   row keeps its tint laid over it rather than over whatever it passes. */
+/* Weighted past `.row-selectable.selected`, which sits later in this file and
+   would otherwise leave a selected row's translucent tint as its only paper. */
+.drag-preview.drag-preview--labels.is-lifted {
+  background-color: var(--color-raised);
+}
+
+/* A row drawn shallower than its content keeps its name inside its own
+   paper; the deep tail of a big group reads as the edges of a deck, not as
+   names printed over one another. */
+.drag-preview.drag-preview--labels {
+  overflow: hidden;
+}
+
+.drag-preview.drag-preview--labels.is-lifted.selected {
+  background-color: var(--color-raised);
+  background-image: linear-gradient(var(--color-selection), var(--color-selection));
+}
+
+/* The rows of a lifted group stack edge to edge into one card. A full shadow
+   on each would bleed up over the row above and rule the card into cells, so
+   the rows under the first cast downward only, and in the dark carry just the
+   card's side edges on. */
+.drag-preview.drag-preview--labels.drag-preview--member.is-lifted {
+  box-shadow: 0 14px 18px -12px rgba(23, 23, 26, 0.26);
+}
+
+.dark .drag-preview.drag-preview--labels.drag-preview--member.is-lifted {
+  box-shadow:
+    0 14px 18px -12px rgba(0, 0, 0, 0.8),
+    1px 0 0 rgba(255, 255, 255, 0.12),
+    -1px 0 0 rgba(255, 255, 255, 0.12);
 }
 
 .drag-preview__date {
-  position: absolute;
-  top: 100%;
+  position: fixed;
+  top: 0;
   left: 0;
-  margin-top: 6px;
+  z-index: 10000;
+  pointer-events: none;
   padding: 2px 6px;
   background: var(--color-tooltip);
   color: var(--color-tooltip-text);
@@ -354,6 +462,45 @@ body {
   line-height: 1.4;
   border-radius: var(--radius-sm);
   white-space: nowrap;
+  will-change: transform;
+}
+
+/* Where a released item lands among its siblings: the line fades in, so one
+   stepping from row to row under a moving pointer reads as travelling. */
+.drop-line {
+  animation: fadeIn var(--duration-fast) linear;
+}
+
+/* Where a schedule in the hand will go, one line per column. It is placed by
+   transform from script, and glides between boundaries rather than jumping. */
+.schedule-drop-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  margin-top: -1px;
+  background-color: var(--color-accent);
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0;
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) linear;
+}
+
+.schedule-drop-line.is-visible {
+  opacity: 1;
+}
+
+/* The row a clone is flying down into. It is already in its new place — the
+   commit does not wait for the flight — but it stays unseen until the clone
+   arrives on top of it and hands over. */
+[data-drag-landing] {
+  opacity: 0 !important;
+  /* At once, not on the element's own fade: a milestone, a task or a label row
+     that eased out would show twice — here at full ink, and in the hand. */
+  transition: none !important;
 }
 
 body.dragging-item,
@@ -373,6 +520,7 @@ body.dragging-item * {
   pointer-events: none;
   font-size: 0.75rem;
   line-height: 1;
+  transition: opacity var(--duration-fast) linear;
 }
 
 /* =========================================
@@ -570,6 +718,21 @@ body.dragging-item .dep-dot {
   pointer-events: none !important;
 }
 
+/* Links are drawn from data, so while rows are still sliding to where a
+   commit put them the ink is already there. It steps aside for the settle and
+   comes back once the rows have arrived. */
+.dependency-layer {
+  transition: opacity var(--duration-base) linear;
+}
+
+body.layout-settling .dependency-layer,
+body.drag-settling .dependency-layer,
+body.resizing-bar .dependency-layer,
+body.dragging-item .dependency-layer {
+  opacity: 0;
+  transition-duration: 0ms;
+}
+
 body.dependency-drawing,
 body.dependency-drawing * {
   cursor: crosshair !important;
@@ -591,7 +754,9 @@ body.dependency-drawing * {
    Rows
    ========================================= */
 .row-selectable {
-  transition: background-color var(--duration-fast) linear;
+  transition:
+    background-color var(--duration-fast) linear,
+    opacity var(--duration-fast) linear;
 }
 
 .row-selectable:hover {

@@ -99,7 +99,20 @@ interface SheetLabelProps {
   readonly depth?: number;
   readonly isSchedule?: boolean;
   readonly hasChildren?: boolean;
+  /** The row's item is in the hand: its name stays, drained, as on the sheet. */
+  readonly isLifted?: boolean;
 }
+
+/**
+ * A label row carries two motions on two clocks, as its bar does: it slides to
+ * a new depth on the sheet's slow settle, and drains on the fast linear fade
+ * the app's own label rows use (`.row-selectable`). One Tailwind duration
+ * would put both on the same clock, so both are written out.
+ */
+const LABEL_TRANSITION =
+  'height var(--duration-slow) var(--ease-out), padding var(--duration-slow) var(--ease-out), opacity var(--duration-fast) linear';
+/** `.row-selectable.is-dragged-row`: the row a lifted item leaves behind. */
+const LIFTED_LABEL_OPACITY = 0.32;
 
 /** One row of the label column. Indent is 16px a level, as on the real sheet. */
 export function SheetLabel({
@@ -107,12 +120,18 @@ export function SheetLabel({
   depth = 0,
   isSchedule = false,
   hasChildren = false,
+  isLifted = false,
 }: SheetLabelProps): ReactElement {
   const height = depth > 0 ? NESTED_ROW_HEIGHT : ROW_HEIGHT;
   return (
     <div
-      className="flex items-center gap-1.5 pr-2 transition-[height,padding] duration-slow ease-out"
-      style={{ height, paddingLeft: 10 + (isSchedule ? 0 : depth + 1) * 16 }}
+      className="flex items-center gap-1.5 pr-2"
+      style={{
+        height,
+        paddingLeft: 10 + (isSchedule ? 0 : depth + 1) * 16,
+        opacity: isLifted ? LIFTED_LABEL_OPACITY : undefined,
+        transition: LABEL_TRANSITION,
+      }}
     >
       <svg
         className={`w-3 h-3 flex-shrink-0 rotate-90 text-[var(--color-text-muted)] transition-opacity duration-base ${
@@ -178,43 +197,75 @@ export interface SheetBarProps {
 }
 
 /**
+ * The fill carries two motions on two clocks: the drain when its bar is lifted
+ * is the app's own (`.timeline-bar__fill`, fast and linear), and the ink
+ * changing hands when a bar joins a group is the slower settle. Tailwind's
+ * `transition-colors` would replace the first with the second, so both are
+ * written out.
+ */
+const FILL_TRANSITION =
+  'background-color var(--duration-slow) var(--ease-out), opacity var(--duration-fast) linear';
+/**
+ * The name changes ink on the fill's clock. `getReadableTextColor` answers for
+ * the colour the fill is going to, so a name that switched at once would sit
+ * in paper on the old ink — the one pairing it was chosen to avoid — for the
+ * whole of the fill's change.
+ */
+const NAME_TRANSITION = 'color var(--duration-slow) var(--ease-out)';
+
+/**
  * A bar, layered the way every bar in the app is: a plain wrapper carrying the
  * geometry, a fill under a label. Every state rides a layer inside it, so a bar
  * can lose its colour without losing its name.
+ *
+ * The element is forwarded because a drag needs it twice: once to clone when
+ * the bar is picked up, and again as the place the clone lands.
  */
-export function SheetBar({
-  from,
-  to,
-  color,
-  name,
-  depth = 0,
-  isInviting = false,
-  isLifted = false,
-  isReceiving = false,
-  onPointerDown,
-  dropId,
-}: SheetBarProps): ReactElement {
+export const SheetBar = forwardRef<HTMLDivElement, SheetBarProps>(function SheetBar(
+  {
+    from,
+    to,
+    color,
+    name,
+    depth = 0,
+    isInviting = false,
+    isLifted = false,
+    isReceiving = false,
+    onPointerDown,
+    dropId,
+  },
+  ref
+): ReactElement {
   const inset = barInsetForDepth(depth);
   return (
     <div
+      ref={ref}
       data-drop-bar={dropId}
       onPointerDown={onPointerDown}
-      className={`absolute timeline-bar transition-[left,width,top,bottom] duration-slow ease-out ${
-        onPointerDown ? 'cursor-grab active:cursor-grabbing touch-none' : ''
-      } ${isLifted ? 'timeline-bar--lifted' : ''} ${
-        isReceiving ? 'timeline-bar--receiving' : ''
-      } ${isInviting ? 'walkthrough-invite' : ''}`}
+      // A lifted bar is the one its drag clones, and the clone takes every
+      // class with it. Its size is written on every frame of the landing, so
+      // a geometry transition riding along would trail each write by 200ms.
+      // The transition comes back in the same render as the drop that moves
+      // the bar, which is all a transition needs to run.
+      className={`absolute timeline-bar ${
+        isLifted ? '' : 'transition-[left,width,top,bottom] duration-slow ease-out'
+      } ${onPointerDown ? 'cursor-grab active:cursor-grabbing touch-none' : ''} ${
+        isLifted ? 'timeline-bar--lifted' : ''
+      } ${isReceiving ? 'timeline-bar--receiving' : ''} ${isInviting ? 'walkthrough-invite' : ''}`}
       style={{ left: `${from * 100}%`, width: `${(to - from) * 100}%`, top: inset, bottom: inset }}
     >
       <div
-        className="timeline-bar__fill transition-colors duration-slow ease-out"
-        style={{ backgroundColor: color }}
+        className="timeline-bar__fill"
+        style={{ backgroundColor: color, transition: FILL_TRANSITION }}
       />
       <span className="timeline-bar__label">
-        <span className="truncate" style={{ color: getReadableTextColor(color) }}>
+        <span
+          className="truncate"
+          style={{ color: getReadableTextColor(color), transition: NAME_TRANSITION }}
+        >
           {name}
         </span>
       </span>
     </div>
   );
-}
+});

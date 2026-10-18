@@ -1,20 +1,18 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef } from 'react';
 import type { DependencyAnchor, Section, ViewportBounds } from '../../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import type { FlatRow } from '../../utils/timelineUtils';
-import {
-  barInsetForDepth,
-  getBarRect,
-  labelInsetForDepth,
-  xToDay,
-} from '../../utils/timelineUtils';
-import { addDaysToKey, dayKeyDiff, snapKeyToBusinessDay } from '../../utils/dayKeys';
+import { barInsetForDepth, labelInsetForDepth, xToDay } from '../../utils/timelineUtils';
+import { snapKeyToBusinessDay } from '../../utils/dayKeys';
 import { formatDayKey } from '../../utils/dateUtils';
 import { getReadableTextColor } from '../../utils/colorUtils';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useInlineEdit } from '../../hooks/useInlineEdit';
+import { useBarResize } from '../../hooks/useBarResize';
+import { resistLockedDrag } from '../../utils/lockedResist';
+import { commitWithSlide } from '../../commands/slideCommit';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useContextMenu } from '../../hooks/useContextMenu';
 import { useItemDrag } from '../../hooks/useItemDrag';
@@ -27,7 +25,12 @@ import {
 import { reportDependencyHover, reportDependencyLeave } from '../../utils/dependencyHover';
 import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGhost';
 import { useIsTaskPointer } from '../../hooks/useTaskPointer';
-import { useIsDragged, useIsDropReceiver, useIsDropSlot } from '../../hooks/useDropState';
+import {
+  useDropClosingDepth,
+  useIsDragged,
+  useIsDropReceiver,
+  useIsDropSlotIn,
+} from '../../hooks/useDropState';
 import {
   createBarAt,
   createTaskAt,
@@ -40,21 +43,6 @@ import { DependencyDot } from './DependencyDot';
 import { GhostBar } from './GhostBar';
 import { GhostTask } from './GhostTask';
 import { DropLine } from './DropLine';
-
-/** The dates a resize is currently showing, and which edge is doing it. */
-interface ResizeState {
-  readonly edge: 'start' | 'end';
-  readonly start: string;
-  readonly end: string;
-}
-
-/** Where the resize began, plus what it has most recently shown. */
-interface ResizeOrigin {
-  accumulated: number;
-  readonly start: string;
-  readonly end: string;
-  latest: ResizeState;
-}
 
 interface ItemRowProps {
   readonly row: FlatRow;
@@ -82,7 +70,6 @@ export const ItemRow = memo(function ItemRow({
   const { item, depth, color, isLocked } = row;
 
   const updateItem = useSectionStore((s) => s.updateItem);
-  const setItemDates = useSectionStore((s) => s.setItemDates);
   const toggleItemCollapse = useSectionStore((s) => s.toggleItemCollapse);
   const toggleItemDone = useSectionStore((s) => s.toggleItemDone);
 
@@ -91,13 +78,12 @@ export const ItemRow = memo(function ItemRow({
   );
 
   const selectItem = useUIStore((s) => s.selectItem);
-  const setDragging = useUIStore((s) => s.setDragging);
   const isSelected = useUIStore((s) => s.selection.type === 'item' && s.selection.id === item.id);
 
   const isDragged = useIsDragged(item.id);
   const isReceiver = useIsDropReceiver(item.id);
-  const isSlotBefore = useIsDropSlot(section.id, row.parentId, row.index);
-  const isSlotAfter = useIsDropSlot(section.id, row.parentId, row.index + 1);
+  const isSlotBefore = useIsDropSlotIn(section.id, row.parentId, row.slotFrom, row.index);
+  const closingDepth = useDropClosingDepth(section.id, row.closes);
 
   const { startDrag, hasDraggedRef } = useItemDrag();
   const inlineEdit = useInlineEdit();
@@ -108,28 +94,24 @@ export const ItemRow = memo(function ItemRow({
     section.id
   );
 
-  /**
-   * A resize in flight is a local preview, not a store write. The rect is the
-   * one place that has to know, so the bar answers the pointer while the rest
-   * of the timeline carries on believing the dates it already had.
-   */
-  const [resize, setResize] = useState<ResizeState | null>(null);
-
-  const rect = useMemo(
-    () =>
-      getBarRect(
-        resize ? { ...item, start: resize.start, end: resize.end } : item,
-        viewport,
-        pixelsPerDay
-      ),
-    [item, resize, viewport, pixelsPerDay]
-  );
   const inset = barInsetForDepth(depth);
   const textColor = getReadableTextColor(color);
   const isBar = item.kind === 'bar';
   const isTask = item.kind === 'task';
   const isDone = isTask && item.isDone === true;
   const hasChildren = item.children.length > 0;
+  const isOpenGroup = isBar && hasChildren && !item.isCollapsed;
+  // What a drop beside or onto this row may do. A locked list takes no new
+  // members; a locked bar takes no children.
+  const dropAttributes = {
+    'data-drop-row': item.id,
+    'data-drop-section': section.id,
+    'data-drop-parent': row.parentId ?? '',
+    'data-drop-index': row.index,
+    'data-drop-expanded': isOpenGroup ? '' : undefined,
+    'data-drop-into-locked': isOpenGroup && isLocked ? '' : undefined,
+    'data-drop-slot-locked': row.parentLocked ? '' : undefined,
+  };
 
   // -- selection, rename ---------------------------------------------------
 
@@ -170,7 +152,7 @@ export const ItemRow = memo(function ItemRow({
 
   // Double-click on a bar opens or closes the group it holds
   const handleToggleFromBar = useCallback((): void => {
-    if (isBar && hasChildren) toggleItemCollapse(section.id, item.id);
+    if (isBar && hasChildren) commitWithSlide(() => toggleItemCollapse(section.id, item.id));
   }, [isBar, hasChildren, toggleItemCollapse, section.id, item.id]);
 
   const label = useDoubleClick(handleSelect, handleRename);
@@ -226,10 +208,12 @@ export const ItemRow = memo(function ItemRow({
     [hasDraggedRef, toggleItemDone, section.id, item.id, bar]
   );
 
+  // Folding is the sheet changing shape: the rows below slide, the children
+  // fade, as they do when the same fold comes from the keyboard or the menu
   const handleToggleCollapse = useCallback(
     (e: React.MouseEvent): void => {
       e.stopPropagation();
-      toggleItemCollapse(section.id, item.id);
+      commitWithSlide(() => toggleItemCollapse(section.id, item.id));
     },
     [toggleItemCollapse, section.id, item.id]
   );
@@ -271,8 +255,13 @@ export const ItemRow = memo(function ItemRow({
 
   const handleBarPointerDown = useCallback(
     (e: React.PointerEvent): void => {
+      // Another pointer is already moving something; this press is not news
+      if (useUIStore.getState().isDragging) return;
       handlePressSelect(e);
-      if (isLocked) return;
+      if (isLocked) {
+        resistLockedDrag(e, e.currentTarget as HTMLElement);
+        return;
+      }
       startDrag(e, { item, sectionId: section.id, pixelsPerDay });
     },
     [handlePressSelect, isLocked, startDrag, item, section.id, pixelsPerDay]
@@ -293,8 +282,12 @@ export const ItemRow = memo(function ItemRow({
   // axis over there, so nothing should move in time.
   const handleLabelPointerDown = useCallback(
     (e: React.PointerEvent): void => {
+      if (useUIStore.getState().isDragging) return;
       handlePressSelect(e);
-      if (isLocked) return;
+      if (isLocked) {
+        resistLockedDrag(e, e.currentTarget as HTMLElement);
+        return;
+      }
       startDrag(e, { item, sectionId: section.id, pixelsPerDay: 0 });
     },
     [handlePressSelect, isLocked, startDrag, item, section.id]
@@ -302,98 +295,25 @@ export const ItemRow = memo(function ItemRow({
 
   // -- resizing ------------------------------------------------------------
 
-  /**
-   * Resizing is the same bargain dragging already struck: show it, then write
-   * it once.
-   *
-   * The old path called `setItemDates` on every move, which re-rendered the
-   * whole timeline column at pointer rate to move one edge of one bar. Holding
-   * the candidate dates here instead means a move costs this row and nothing
-   * else, undo gets a single step without needing a transaction to collapse
-   * one, and Escape is free — there is nothing written to take back.
-   */
-  const resizeOrigin = useRef<ResizeOrigin | null>(null);
-
-  const handleResizeStart = useCallback(
-    (edge: 'start' | 'end'): void => {
-      if (isLocked) return;
-      setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
-      resizeOrigin.current = {
-        accumulated: 0,
-        start: item.start,
-        end: item.end,
-        latest: { edge, start: item.start, end: item.end },
-      };
-      setResize({ edge, start: item.start, end: item.end });
-    },
-    [isLocked, setDragging, item.start, item.end]
-  );
-
-  const handleResize = useCallback(
-    (edge: 'start' | 'end', deltaX: number): void => {
-      const origin = resizeOrigin.current;
-      if (!origin || pixelsPerDay <= 0) return;
-      origin.accumulated += deltaX;
-      const days = Math.round(origin.accumulated / pixelsPerDay);
-
-      let next: ResizeState;
-      if (edge === 'start') {
-        const candidate = addDaysToKey(origin.start, days);
-        // An edge never crosses the other one; one day is the floor
-        const start =
-          dayKeyDiff(candidate, origin.end) < 1 ? addDaysToKey(origin.end, -1) : candidate;
-        next = { edge, start, end: origin.end };
-      } else {
-        const candidate = addDaysToKey(origin.end, days);
-        const end =
-          dayKeyDiff(origin.start, candidate) < 1 ? addDaysToKey(origin.start, 1) : candidate;
-        next = { edge, start: origin.start, end };
-      }
-
-      const previous = origin.latest;
-      if (previous.start === next.start && previous.end === next.end) return;
-      // Pixels arrive far faster than days change. Only a new day is news.
-      origin.latest = next;
-      setResize(next);
-    },
-    [pixelsPerDay]
-  );
-
-  const handleResizeEnd = useCallback((): void => {
-    const origin = resizeOrigin.current;
-    resizeOrigin.current = null;
-    setDragging(false);
-    hasDraggedRef.current = true;
-    setResize(null);
-    if (!origin) return;
-
-    const { start: from, end: to, latest } = origin;
-    if (latest.start === from && latest.end === to) return;
-
-    // "Skip weekends" belongs to the commit, not the gesture: both edges were
-    // chosen, so each squares up on its own — unless squaring up would leave no
-    // bar at all, in which case the dragged dates stand.
-    const start = skipWeekends ? snapKeyToBusinessDay(latest.start) : latest.start;
-    const end = skipWeekends ? snapKeyToBusinessDay(latest.end) : latest.end;
-    const collapsed = dayKeyDiff(start, end) < 1;
-    setItemDates(
-      section.id,
-      item.id,
-      collapsed ? latest.start : start,
-      collapsed ? latest.end : end
-    );
-  }, [setDragging, hasDraggedRef, skipWeekends, setItemDates, section.id, item.id]);
-
-  /** Escape, or a gesture the browser took back. The preview simply goes. */
-  const handleResizeCancel = useCallback((): void => {
-    resizeOrigin.current = null;
-    setDragging(false);
-    hasDraggedRef.current = true;
-    setResize(null);
-  }, [setDragging, hasDraggedRef]);
-
-  const startBubble = resize?.edge === 'start' ? formatDayKey(resize.start, 'MMM d') : undefined;
-  const endBubble = resize?.edge === 'end' ? formatDayKey(resize.end, 'MMM d') : undefined;
+  const barRef = useRef<HTMLDivElement>(null);
+  const {
+    rect,
+    startBubble,
+    endBubble,
+    handleResizeStart,
+    handleResize,
+    handleResizeEnd,
+    handleResizeCancel,
+  } = useBarResize({
+    item,
+    sectionId: section.id,
+    isLocked,
+    viewport,
+    pixelsPerDay,
+    skipWeekends,
+    barRef,
+    hasDraggedRef,
+  });
 
   // -- creating in this row's empty space ----------------------------------
 
@@ -506,10 +426,14 @@ export const ItemRow = memo(function ItemRow({
   if (isLabel) {
     return (
       <div
-        className={`group flex items-center gap-1.5 pr-3 cursor-pointer row-selectable focus-ring ${
+        className={`group relative flex items-center gap-1.5 pr-3 cursor-pointer row-selectable focus-ring touch-none ${
           isSelected ? 'selected' : ''
-        } ${isDragged ? 'is-dragged-row' : ''}`}
+        } ${isDragged ? 'is-dragged-row' : ''} ${isReceiver ? 'is-drop-receiver' : ''}`}
         style={{ height: row.height, paddingLeft: labelInsetForDepth(depth) }}
+        data-flip-item={item.id}
+        data-drag-item={item.id}
+        {...dropAttributes}
+        data-drop-into={isBar && !isLocked ? item.id : undefined}
         onClick={isEditingName ? undefined : handleLabelClick}
         onDoubleClick={isEditingName ? undefined : label.handleDoubleClick}
         onPointerDown={isEditingName ? undefined : handleLabelPointerDown}
@@ -522,6 +446,10 @@ export const ItemRow = memo(function ItemRow({
           isLocked ? ', locked' : ''
         }${isTask ? (isDone ? ', done' : ', not done') : ''}`}
       >
+        {isSlotBefore && <DropLine position="top" inset={labelInsetForDepth(depth)} />}
+        {closingDepth >= 0 && (
+          <DropLine position="bottom" inset={labelInsetForDepth(closingDepth)} />
+        )}
         {isBar && hasChildren ? (
           <button
             onClick={handleToggleCollapse}
@@ -605,10 +533,8 @@ export const ItemRow = memo(function ItemRow({
     <div
       className={`group relative ${ghost.ghost !== null ? 'cursor-copy' : ''}`}
       style={{ height: row.height }}
-      data-drop-row={item.id}
-      data-drop-section={section.id}
-      data-drop-parent={row.parentId ?? ''}
-      data-drop-index={row.index}
+      data-flip-item={item.id}
+      {...dropAttributes}
       onContextMenu={handleRowContextMenu}
       onClick={canCreateHere ? ghost.handleClick : undefined}
       onDoubleClick={canCreateHere ? ghost.handleDoubleClick : undefined}
@@ -617,9 +543,8 @@ export const ItemRow = memo(function ItemRow({
       onPointerDown={canCreateHere ? ghost.handlePointerDown : undefined}
       role="listitem"
     >
-      {/* The row in flight is already where it is; a line there says nothing */}
-      {isSlotBefore && !isDragged && <DropLine position="top" />}
-      {row.isLastRenderedSibling && isSlotAfter && !isDragged && <DropLine position="bottom" />}
+      {isSlotBefore && <DropLine position="top" />}
+      {closingDepth >= 0 && <DropLine position="bottom" />}
 
       {ghost.ghost !== null &&
         (isTaskPointer ? (
@@ -639,8 +564,11 @@ export const ItemRow = memo(function ItemRow({
 
       {isBar ? (
         <div
+          ref={barRef}
           data-drop-bar={item.id}
           data-drop-section={section.id}
+          data-drop-locked={isLocked ? '' : undefined}
+          data-drag-item={item.id}
           className={`absolute timeline-bar group/bar overflow-visible touch-none ${
             isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
           } ${isSelected ? 'timeline-bar--selected' : ''} ${
@@ -719,10 +647,13 @@ export const ItemRow = memo(function ItemRow({
         </div>
       ) : isTask ? (
         <div
-          className={`absolute top-0 bottom-0 timeline-task cursor-grab active:cursor-grabbing touch-none ${
-            isDragged ? 'opacity-30' : ''
+          className={`absolute top-0 bottom-0 timeline-task timeline-point touch-none ${
+            isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+          } ${
+            isDragged ? 'timeline-point--lifted' : ''
           } ${isSelected ? 'timeline-task--selected' : ''}`}
           style={{ left: rect.left }}
+          data-drag-item={item.id}
           onPointerDown={handleBarPointerDown}
           onPointerEnter={handleDependencyHoverEnter}
           onPointerLeave={handleDependencyHoverLeave}
@@ -773,10 +704,13 @@ export const ItemRow = memo(function ItemRow({
         </div>
       ) : (
         <div
-          className={`absolute top-0 bottom-0 cursor-grab active:cursor-grabbing touch-none ${
-            isDragged ? 'opacity-30' : ''
+          className={`absolute top-0 bottom-0 timeline-point touch-none ${
+            isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+          } ${
+            isDragged ? 'timeline-point--lifted' : ''
           }`}
           style={{ left: rect.left }}
+          data-drag-item={item.id}
           onPointerDown={handleBarPointerDown}
           onPointerEnter={handleDependencyHoverEnter}
           onPointerLeave={handleDependencyHoverLeave}

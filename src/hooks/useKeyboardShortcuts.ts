@@ -8,6 +8,8 @@ import { useSectionStore } from '../stores/sectionStore';
 import { usePinnedSection } from './usePinnedSection';
 import { SHORTCUTS } from '../constants/shortcuts';
 import { commandForKeydown, executeCommand } from '../commands/executeCommand';
+import { keyBelongsToGesture, watchGestureKeys } from '../commands/gesture';
+import { commitWithSlide } from '../commands/slideCommit';
 import { isDesktop } from '../platform/detect';
 import { flattenSection, headerMilestones } from '../utils/timelineUtils';
 import { findItem } from '../utils/itemTree';
@@ -17,6 +19,25 @@ interface NavigableRow {
   readonly id: string;
   readonly type: 'section' | 'item';
   readonly sectionId: string;
+}
+
+/**
+ * Keys this hook acts on by itself. While a gesture holds the sheet they do
+ * nothing, but they are still claimed: left to the browser, Space and the
+ * arrows would scroll the sheet out from under the drag.
+ */
+const CLAIMED_KEYS: ReadonlySet<string> = new Set([
+  SHORTCUTS.ARROW_UP,
+  SHORTCUTS.ARROW_DOWN,
+  SHORTCUTS.ENTER,
+  SHORTCUTS.SPACE,
+  SHORTCUTS.DELETE,
+  SHORTCUTS.BACKSPACE,
+]);
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 }
 
 /**
@@ -102,31 +123,36 @@ export function useKeyboardShortcuts(): void {
     [navigableItems, getCurrentIndex, selectItem, selectSection]
   );
 
+  // Folding opens or closes rows mid-sheet: everything below slides to its
+  // new place rather than jumping there
   const handleToggleCollapse = useCallback((): void => {
-    if (!selection.id || !selection.sectionId) return;
-    if (selection.type === 'section') {
-      toggleSectionCollapse(selection.sectionId);
+    const { id, sectionId, type } = selection;
+    if (!id || !sectionId) return;
+    if (type === 'section') {
+      commitWithSlide(() => toggleSectionCollapse(sectionId));
       return;
     }
-    if (selection.type === 'item') {
-      toggleItemCollapse(selection.sectionId, selection.id);
+    if (type === 'item') {
+      commitWithSlide(() => toggleItemCollapse(sectionId, id));
     }
   }, [selection, toggleSectionCollapse, toggleItemCollapse]);
 
   const handleDelete = useCallback((): void => {
-    if (!selection.id || !selection.sectionId) return;
+    const { id, sectionId, type } = selection;
+    if (!id || !sectionId) return;
     // Read before the delete: the notice names what went, and offers it back
-    const section = sections.find((s) => s.id === selection.sectionId);
+    const section = sections.find((s) => s.id === sectionId);
 
-    if (selection.type === 'section') {
-      const wasPinned = pinnedSection?.id === selection.sectionId;
-      const result = deleteSection(selection.sectionId);
+    // What was below closes over the gap rather than jumping into it
+    if (type === 'section') {
+      const wasPinned = pinnedSection?.id === sectionId;
+      const result = commitWithSlide(() => deleteSection(sectionId));
       if (result.success && section) showSectionDeletedToast(section, wasPinned);
       else if (result.reason) showToast('warning', result.reason);
-    } else if (selection.type === 'item') {
-      const item = section ? findItem(section.items, selection.id) : null;
+    } else if (type === 'item') {
+      const item = section ? findItem(section.items, id) : null;
       if (item) showItemDeletedToast(item);
-      deleteItem(selection.sectionId, selection.id);
+      commitWithSlide(() => deleteItem(sectionId, id));
     }
 
     closeModal();
@@ -144,6 +170,11 @@ export function useKeyboardShortcuts(): void {
   // Main keyboard event handler
   const handleKeyDown = useCallback(
     (event: KeyboardEvent): void => {
+      // A drag in the hand owns the sheet, and Escape is its key: it calls
+      // the drag off. Nothing here may act on the same press — not close the
+      // editor, not drop a selection, not rewrite the rows the drop is aimed at.
+      const isHeldByGesture = keyBelongsToGesture(event);
+
       // Menu-grade combos route through the command registry — the same
       // handlers a native menu drives. On desktop the menu owns these
       // accelerators, so the DOM handler stands down. Runs before the
@@ -151,19 +182,21 @@ export function useKeyboardShortcuts(): void {
       if (!isDesktop()) {
         const commandId = commandForKeydown(event);
         if (commandId) {
-          executeCommand(commandId);
+          // Mid-gesture the combo is swallowed, not handed back: ⌘S left to
+          // the browser would open its own Save dialog under the drag.
+          if (!isHeldByGesture) executeCommand(commandId);
           event.preventDefault();
           return;
         }
       }
 
+      if (isHeldByGesture) {
+        if (CLAIMED_KEYS.has(event.key) && !isTypingTarget(event.target)) event.preventDefault();
+        return;
+      }
+
       // Ignore other shortcuts if user is typing in an input or textarea
-      const target = event.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
+      if (isTypingTarget(event.target)) {
         // Only allow Escape to close modal when in input
         if (event.key === SHORTCUTS.ESCAPE && isModalOpen) {
           closeModal();
@@ -227,6 +260,10 @@ export function useKeyboardShortcuts(): void {
       handleDelete,
     ]
   );
+
+  // Asked at the very start of every keydown's dispatch, before any gesture's
+  // own Escape handler can end the gesture and make the answer a lie
+  useEffect(() => watchGestureKeys(), []);
 
   // Set up and clean up event listener
   useEffect(() => {

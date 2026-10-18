@@ -29,7 +29,8 @@ function Logo(): JSX.Element {
   const isDark = theme === 'dark' || (theme === 'system' && systemIsDark);
   const src = isDark ? '/FLOID_logo_dark.svg' : '/FLOID_logo.svg';
 
-  return <img src={src} alt="FLOID" className="h-6" />;
+  // The mark is not a file to drag out of the window
+  return <img src={src} alt="FLOID" className="h-6" draggable={false} />;
 }
 
 export function Header(): JSX.Element {

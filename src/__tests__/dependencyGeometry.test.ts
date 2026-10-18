@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { Section, TimelineItem } from '../types';
-import { computeItemPoints, routeConnector } from '../utils/dependencyGeometry';
+import {
+  computeItemPoints,
+  parseRoute,
+  pathThrough,
+  routeConnector,
+  routePoints,
+} from '../utils/dependencyGeometry';
 import {
   CREATE_ROW_HEIGHT,
   NESTED_ROW_HEIGHT,
@@ -139,5 +145,56 @@ describe('routeConnector', () => {
     const path = routeConnector({ x: 100, y: 10, away: 1 }, { x: 0, y: 10, away: -1 });
     expect(path.split('L')).toHaveLength(6);
     expect(path).toContain(' 26'); // the clearance line under the row
+  });
+});
+
+describe('routePoints', () => {
+  const cases: Array<[string, Parameters<typeof routePoints>]> = [
+    ['straight', [{ x: 0, y: 10, away: 1 }, { x: 100, y: 10, away: -1 }]],
+    ['three segments', [{ x: 0, y: 10, away: 1 }, { x: 100, y: 50, away: -1 }]],
+    ['doubling back', [{ x: 100, y: 10, away: 1 }, { x: 0, y: 50, away: -1 }]],
+    ['same row, wrong way', [{ x: 100, y: 10, away: 1 }, { x: 0, y: 10, away: -1 }]],
+  ];
+
+  it.each(cases)('is the corners routeConnector draws (%s)', (_, [from, to]) => {
+    expect(pathThrough(routePoints(from, to))).toBe(routeConnector(from, to));
+  });
+
+  it('runs from the from terminal to the to terminal', () => {
+    const points = routePoints({ x: 100, y: 10, away: 1 }, { x: 0, y: 50, away: -1 });
+    expect(points[0]).toEqual({ x: 100, y: 10 });
+    expect(points[points.length - 1]).toEqual({ x: 0, y: 50 });
+  });
+
+  it('turns only square corners', () => {
+    const points = routePoints({ x: 100, y: 10, away: 1 }, { x: 0, y: 50, away: -1 });
+    for (let i = 1; i < points.length; i += 1) {
+      const horizontal = points[i].y === points[i - 1].y;
+      const vertical = points[i].x === points[i - 1].x;
+      expect(horizontal || vertical).toBe(true);
+    }
+  });
+});
+
+describe('parseRoute', () => {
+  it('reads back exactly what pathThrough wrote, fractions and negatives included', () => {
+    const points = [
+      { x: -10.5, y: 30 },
+      { x: 110.25, y: 30 },
+      { x: 110.25, y: 1e-7 },
+      { x: 0, y: 50.125 },
+    ];
+    expect(parseRoute(pathThrough(points))).toEqual(points);
+  });
+
+  it('reads a route the layer printed', () => {
+    const d = routeConnector({ x: 100, y: 10, away: 1 }, { x: 0, y: 50, away: -1 });
+    expect(parseRoute(d)).toEqual(
+      routePoints({ x: 100, y: 10, away: 1 }, { x: 0, y: 50, away: -1 })
+    );
+  });
+
+  it('gives nothing for an empty path', () => {
+    expect(parseRoute('')).toEqual([]);
   });
 });

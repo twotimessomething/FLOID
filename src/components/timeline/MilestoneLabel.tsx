@@ -34,6 +34,7 @@ export function MilestoneLabel({
         isHoverReveal ? 'opacity-0 transition-opacity duration-fast group-hover:opacity-100' : ''
       }`}
       style={placement.offsetX !== 0 ? { marginLeft: placement.offsetX } : undefined}
+      data-reveal-on-drag={isHoverReveal ? '' : undefined}
       role="tooltip"
     >
       {name}

@@ -1,16 +1,26 @@
+import { flushSync } from 'react-dom';
 import { useSectionStore } from '../stores/sectionStore';
 import { useUIStore } from '../stores/uiStore';
 import { addDaysToKey, dayKeyDiff, maxDayKey, minDayKey, type DayKey } from './dayKeys';
 import { formatDayKey } from './dateUtils';
+import { finishDragMotion, settleDuration } from './dragCluster';
+import { finishCreateMotion, playCreateHandoff, takeCreateSource } from './createHandoff';
 import { findItem } from './itemTree';
+import { animateLayout } from './layoutFlip';
 import { xToDay } from './timelineUtils';
-import type { ModalPosition, ViewportBounds } from '../types/timeline';
+import type { ModalPosition, TimelineItem, ViewportBounds } from '../types/timeline';
 
 /**
  * Every interactive way to make something on the timeline funnels through here,
  * so a bar drawn by dragging, dropped by a context menu, or added from a
  * keyboard shortcut is the same bar with the same defaults — and, in every
  * case, is selected afterwards so the naming editor opens on it.
+ *
+ * It is also where making something becomes motion rather than a cut. The
+ * insert is committed with the rows sliding open around it (`layoutFlip`), and
+ * when it came from a gesture the preview that gesture was showing flies into
+ * the new item (`createHandoff`) — so a bar drawn in one row and made into the
+ * row below is seen to go there.
  */
 
 /** A bar drawn with a single double-click, in days. */
@@ -92,6 +102,42 @@ interface CreateBarOptions {
   readonly index?: number;
 }
 
+type NewItem = Omit<TimelineItem, 'id' | 'children'>;
+
+/**
+ * Insert an item, select it, and play its arrival.
+ *
+ * The insert and the selection land in one synchronous render: the rows are
+ * measured right after it, and the copy that flies in is taken from the new
+ * element as it will be revealed — already selected, its outline already on —
+ * so the hand-over at the end of the flight changes nothing on screen.
+ */
+function commitNewItem(
+  sectionId: string,
+  parentId: string | null,
+  item: NewItem,
+  index: number | undefined,
+  selectAt: ModalPosition
+): string {
+  // Taken first and unconditionally: whatever made this item, the preview is
+  // spent once it has been asked for.
+  const source = takeCreateSource();
+  // A new creation wins over anything still landing from the last one.
+  finishCreateMotion();
+  finishDragMotion();
+
+  const duration = settleDuration(0);
+  let newId = '';
+  animateLayout(() => {
+    flushSync(() => {
+      newId = useSectionStore.getState().addItem(sectionId, parentId, item, index);
+      useUIStore.getState().selectItem(newId, sectionId, selectAt);
+    });
+  }, duration);
+  playCreateHandoff(newId, source, duration);
+  return newId;
+}
+
 /** Create a bar, select it, and return its id. */
 export function createBarAt(
   sectionId: string,
@@ -120,7 +166,7 @@ export function createBarAt(
   // Colour is left unset: a root bar resolves the schedule's palette or gradient
   // from its position, and a nested bar takes its parent's. Baking a colour in
   // here would survive the next drag and break the group it lands in.
-  const newId = store.addItem(
+  return commitNewItem(
     sectionId,
     parentId,
     {
@@ -132,11 +178,9 @@ export function createBarAt(
       color: null,
       isCollapsed: false,
     },
-    options.index
+    options.index,
+    selectAt
   );
-
-  useUIStore.getState().selectItem(newId, sectionId, selectAt);
-  return newId;
 }
 
 interface CreateMilestoneOptions {
@@ -151,10 +195,9 @@ export function createMilestoneAt(
   options: CreateMilestoneOptions,
   selectAt: ModalPosition
 ): string | null {
-  const store = useSectionStore.getState();
-  if (!store.sections.some((s) => s.id === sectionId)) return null;
+  if (!useSectionStore.getState().sections.some((s) => s.id === sectionId)) return null;
 
-  const newId = store.addItem(
+  return commitNewItem(
     sectionId,
     options.parentId ?? null,
     {
@@ -166,11 +209,9 @@ export function createMilestoneAt(
       color: null,
       isCollapsed: false,
     },
-    options.index
+    options.index,
+    selectAt
   );
-
-  useUIStore.getState().selectItem(newId, sectionId, selectAt);
-  return newId;
 }
 
 interface CreateTaskOptions {
@@ -188,10 +229,9 @@ export function createTaskAt(
   options: CreateTaskOptions,
   selectAt: ModalPosition
 ): string | null {
-  const store = useSectionStore.getState();
-  if (!store.sections.some((s) => s.id === sectionId)) return null;
+  if (!useSectionStore.getState().sections.some((s) => s.id === sectionId)) return null;
 
-  const newId = store.addItem(
+  return commitNewItem(
     sectionId,
     options.parentId ?? null,
     {
@@ -204,11 +244,9 @@ export function createTaskAt(
       isCollapsed: false,
       isDone: false,
     },
-    options.index
+    options.index,
+    selectAt
   );
-
-  useUIStore.getState().selectItem(newId, sectionId, selectAt);
-  return newId;
 }
 
 /** Where a bar goes when nothing said where: after whatever is already there. */

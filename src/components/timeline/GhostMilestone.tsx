@@ -13,12 +13,17 @@ interface GhostMilestoneProps {
  * The schedule row carries no other affordance — there is no bar to grab and no
  * "+" to find — so this ghost is the only thing that says the row is live, and
  * it keeps its hint text for that reason.
+ *
+ * Marked as a create preview of a point: the milestone a double-click makes
+ * glides from this diamond onto its day, and the hint and line fade as it goes
+ * (`createHandoff`).
  */
 export function GhostMilestone({ x, lineHeight }: GhostMilestoneProps): JSX.Element {
   return (
     <div
       className="absolute top-0 pointer-events-none z-20"
       style={{ left: x, height: ROW_HEIGHT }}
+      data-create-ghost="point"
       aria-hidden="true"
     >
       <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[var(--color-text-primary)] opacity-25" />

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { useProjectStore } from './projectStore';
 import { useSectionStore } from './sectionStore';
-import { countItems } from '../utils/itemTree';
+import { commitWithSlide } from '../commands/slideCommit';
+import { countItems, findItem } from '../utils/itemTree';
 import { computeViewportBounds } from '../utils/dateUtils';
 import { getFitPixelsPerDay } from '../utils/timelineUtils';
 import { ZOOM_LEVELS, stepFromFit } from '../utils/zoomSteps';
@@ -67,7 +68,14 @@ export interface ItemDragState {
   kind: ItemKind | null;
   /** `dropTargetKey` of the resolved target; rows compare against their own. */
   dropKey: string | null;
+  /**
+   * The item and everything under it. A group travels as one cluster, so every
+   * row it leaves behind drains together — not just the one under the pointer.
+   */
+  liftedIds: ReadonlySet<string>;
 }
+
+const NO_LIFTED_IDS: ReadonlySet<string> = new Set();
 
 const IDLE_ITEM_DRAG: ItemDragState = {
   isActive: false,
@@ -75,6 +83,7 @@ const IDLE_ITEM_DRAG: ItemDragState = {
   sectionId: null,
   kind: null,
   dropKey: null,
+  liftedIds: NO_LIFTED_IDS,
 };
 
 // Toast state
@@ -165,6 +174,8 @@ interface UIState {
     options?: SelectOptions
   ) => void;
   clearSelection: () => void;
+  /** The selected item moved schedules: keep it selected, in its new one. */
+  retargetSelection: (itemId: string, sectionId: string) => void;
 
   // Drag state
   isDragging: boolean;
@@ -177,7 +188,12 @@ interface UIState {
 
   // Item drag (move / re-parent)
   itemDrag: ItemDragState;
-  beginItemDrag: (itemId: string, sectionId: string, kind: ItemKind) => void;
+  beginItemDrag: (
+    itemId: string,
+    sectionId: string,
+    kind: ItemKind,
+    liftedIds?: ReadonlySet<string>
+  ) => void;
   setItemDropKey: (dropKey: string | null) => void;
   endItemDrag: () => void;
 
@@ -369,6 +385,14 @@ export const useUIStore = create<UIState>((set, get) => ({
       isModalOpen: false,
       selectedDependencyId: null,
     }),
+  retargetSelection: (itemId, sectionId) =>
+    set((state) =>
+      state.selection.type === 'item' &&
+      state.selection.id === itemId &&
+      state.selection.sectionId !== sectionId
+        ? { selection: { ...state.selection, sectionId } }
+        : state
+    ),
 
   // Drag state
   isDragging: false,
@@ -383,8 +407,8 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   // Item drag
   itemDrag: IDLE_ITEM_DRAG,
-  beginItemDrag: (itemId, sectionId, kind) =>
-    set({ itemDrag: { isActive: true, itemId, sectionId, kind, dropKey: null } }),
+  beginItemDrag: (itemId, sectionId, kind, liftedIds = new Set([itemId])) =>
+    set({ itemDrag: { isActive: true, itemId, sectionId, kind, dropKey: null, liftedIds } }),
 
   // Dependencies
   dependencyHoverItemId: null,
@@ -618,9 +642,13 @@ export const useUIStore = create<UIState>((set, get) => ({
 function undoAction(restore?: () => void): ToastAction {
   return {
     label: 'Undo',
+    // The same slide every other undo gets: what comes back fades up into
+    // the room the sheet makes for it
     onClick: () => {
-      useSectionStore.temporal.getState().undo();
-      restore?.();
+      commitWithSlide(() => {
+        useSectionStore.temporal.getState().undo();
+        restore?.();
+      });
     },
   };
 }
@@ -661,3 +689,17 @@ export function showSectionDeletedToast(section: Section, wasPinned: boolean): v
     ),
   });
 }
+
+/**
+ * An item's selection names the schedule it is in, and the keyboard and the
+ * editor address it through that. History can move an item between schedules
+ * with nothing selecting it again — undoing a drop across schedules, say — so
+ * the selection follows the item wherever the tree puts it.
+ */
+useSectionStore.subscribe((state) => {
+  const { selection, retargetSelection } = useUIStore.getState();
+  if (selection.type !== 'item' || !selection.id) return;
+  const id = selection.id;
+  const owner = state.sections.find((section) => findItem(section.items, id) !== null);
+  if (owner && owner.id !== selection.sectionId) retargetSelection(id, owner.id);
+});

@@ -8,6 +8,8 @@ import {
   dayToX,
   flattenSection,
   headerMilestones,
+  labelInsetForDepth,
+  rootAppendRange,
   sectionBodyHeight,
   xToDay,
 } from '../../utils/timelineUtils';
@@ -23,7 +25,7 @@ import { snapKeyToBusinessDay } from '../../utils/dayKeys';
 import { sectionTintColor } from '../../utils/colorUtils';
 import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGhost';
 import { useScheduleRowGestures } from '../../hooks/useScheduleRowGestures';
-import { useIsDropSlot } from '../../hooks/useDropState';
+import { useIsDropHeader, useIsDropSlotIn } from '../../hooks/useDropState';
 import { CollapsedBars } from './CollapsedBars';
 import { ItemRow } from './ItemRow';
 import { HeaderMilestone } from './HeaderMilestone';
@@ -34,18 +36,13 @@ import { GhostBar } from './GhostBar';
 import { GhostMilestone } from './GhostMilestone';
 import { GhostTask } from './GhostTask';
 
-interface DragHandleProps {
-  readonly onPointerDown: (e: React.PointerEvent) => void;
-  readonly style: React.CSSProperties;
-}
-
 interface SectionRowProps {
   readonly section: Section;
   readonly isLabel: boolean;
   readonly viewport: ViewportBounds;
   readonly pixelsPerDay: number;
-  readonly sectionIndex?: number;
-  readonly dragHandleProps?: DragHandleProps;
+  /** Reordering by the grip, for schedules that can be reordered. */
+  readonly onGripPointerDown?: (e: React.PointerEvent, sectionId: string) => void;
   readonly isDragging?: boolean;
   /** True while this schedule is held in the stack of bands under the axis. */
   readonly isSticky?: boolean;
@@ -62,8 +59,7 @@ export const SectionRow = memo(function SectionRow({
   isLabel,
   viewport,
   pixelsPerDay,
-  sectionIndex,
-  dragHandleProps,
+  onGripPointerDown,
   isDragging,
   isSticky,
 }: SectionRowProps): JSX.Element {
@@ -89,8 +85,13 @@ export const SectionRow = memo(function SectionRow({
     [section.items]
   );
 
-  // Slot at the very end of the root list — where "drop past the last row" goes
-  const isAppendSlot = useIsDropSlot(section.id, null, section.items.length);
+  // Slots at the very end of the root list — where "drop past the last row"
+  // goes. Root milestones after the last bar have no row, so their slots land
+  // here too.
+  const appendRange = useMemo(() => rootAppendRange(section), [section]);
+  const isAppendSlot = useIsDropSlotIn(section.id, null, appendRange.from, appendRange.to);
+  const isHeaderTarget = useIsDropHeader(section.id);
+  const isLocked = section.isLocked === true;
 
   // Collision-aware label placement. A sticky schedule prints its labels up in
   // the sticky band, so they do not reserve room here. A collapsed schedule
@@ -185,15 +186,15 @@ export const SectionRow = memo(function SectionRow({
   if (isLabel) {
     return (
       <div
-        className={`border-t border-[var(--color-hairline)] ${isDragging ? 'opacity-50' : ''}`}
+        className={`border-t border-[var(--color-hairline)] schedule-block ${
+          isDragging ? 'schedule-block--lifted' : ''
+        }`}
         style={tint}
+        data-flip-section={section.id}
         role="group"
         aria-label={`${section.name} schedule`}
       >
-        <ScheduleLabelRow
-          section={section}
-          dragHandleProps={sectionIndex !== undefined ? dragHandleProps : undefined}
-        />
+        <ScheduleLabelRow section={section} onGripPointerDown={onGripPointerDown} />
 
         {!section.isCollapsed && (
           <div role="list" aria-label={`${section.name} items`}>
@@ -207,7 +208,17 @@ export const SectionRow = memo(function SectionRow({
                 pixelsPerDay={pixelsPerDay}
               />
             ))}
-            <div style={{ height: CREATE_ROW_HEIGHT }} aria-hidden="true" />
+            <div
+              className="relative"
+              style={{ height: CREATE_ROW_HEIGHT }}
+              data-drop-body={section.id}
+              data-drop-count={section.items.length}
+              data-drop-section={section.id}
+              data-drop-slot-locked={isLocked ? '' : undefined}
+              aria-hidden="true"
+            >
+              {isAppendSlot && <DropLine position="top" inset={labelInsetForDepth(0)} />}
+            </div>
           </div>
         )}
       </div>
@@ -218,18 +229,25 @@ export const SectionRow = memo(function SectionRow({
 
   return (
     <div
-      className={`border-t border-[var(--color-hairline)] ${isDragging ? 'opacity-50' : ''}`}
+      className={`border-t border-[var(--color-hairline)] schedule-block ${
+        isDragging ? 'schedule-block--lifted' : ''
+      }`}
       style={tint}
+      data-flip-section={section.id}
       role="group"
       aria-label={`${section.name} schedule timeline`}
     >
       {/* The schedule's own row: root milestones, and its bars when collapsed */}
       <div
         ref={headerGestures.rowRef}
-        className={`relative timeline-plot ${headerGestures.ghostX !== null ? 'cursor-copy' : ''}`}
+        className={`relative timeline-plot ${headerGestures.ghostX !== null ? 'cursor-copy' : ''} ${
+          isHeaderTarget ? 'drop-header--receiving' : ''
+        }`}
         style={{ height: ROW_HEIGHT }}
         data-drop-header={section.id}
         data-drop-section={section.id}
+        data-drop-collapsed={section.isCollapsed ? '' : undefined}
+        data-drop-slot-locked={isLocked ? '' : undefined}
         onClick={headerGestures.handleClick}
         onDoubleClick={headerGestures.handleDoubleClick}
         onContextMenu={headerGestures.handleContextMenu}
@@ -290,6 +308,8 @@ export const SectionRow = memo(function SectionRow({
             style={{ height: CREATE_ROW_HEIGHT }}
             data-drop-body={section.id}
             data-drop-count={section.items.length}
+            data-drop-section={section.id}
+            data-drop-slot-locked={isLocked ? '' : undefined}
             onClick={bodyGhost.handleClick}
             onDoubleClick={bodyGhost.handleDoubleClick}
             onPointerMove={bodyGhost.handlePointerMove}

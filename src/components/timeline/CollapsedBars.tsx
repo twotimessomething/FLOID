@@ -61,6 +61,7 @@ export function CollapsedBars({
           <div
             key={item.id}
             className="absolute timeline-bar timeline-tape-bar pointer-events-none"
+            data-tape-item={item.id}
             style={{
               left: rect.left,
               width: rect.width,

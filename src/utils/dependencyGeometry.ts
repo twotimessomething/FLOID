@@ -123,39 +123,78 @@ export function resolveEndpoints(
   };
 }
 
+/** A corner of a connector, in whatever frame its terminals were given in. */
+export interface RoutePoint {
+  readonly x: number;
+  readonly y: number;
+}
+
 /**
  * The elbow route between two terminals: out, over, in — square corners only.
  * Three segments when the approach lands from the arrow's own side; five when
  * the connector has to double back, or when both ends share a row and the
  * straight line would run the wrong way.
+ *
+ * Returned as its corners rather than a path, because the line being drawn by
+ * hand has to fold into exactly this shape when it lands (`dependencyDrawPreview.ts`).
  */
-export function routeConnector(from: EndpointGeometry, to: EndpointGeometry): string {
+export function routePoints(from: EndpointGeometry, to: EndpointGeometry): RoutePoint[] {
   const p1x = from.x + from.away * STUB;
   const p4x = to.x + to.away * STUB;
+  const start = { x: from.x, y: from.y };
+  const end = { x: to.x, y: to.y };
 
   if (from.y === to.y) {
     const travel = Math.sign(to.x - from.x) || 1;
     const agreeable = from.away === travel && to.away === -travel;
-    if (agreeable && Math.abs(to.x - from.x) >= 2 * STUB) {
-      return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
-    }
+    if (agreeable && Math.abs(to.x - from.x) >= 2 * STUB) return [start, end];
     const my = from.y + SAME_ROW_CLEARANCE;
-    return (
-      `M ${from.x} ${from.y} L ${p1x} ${from.y} L ${p1x} ${my}` +
-      ` L ${p4x} ${my} L ${p4x} ${to.y} L ${to.x} ${to.y}`
-    );
+    return [
+      start,
+      { x: p1x, y: from.y },
+      { x: p1x, y: my },
+      { x: p4x, y: my },
+      { x: p4x, y: to.y },
+      end,
+    ];
   }
 
   const finalDir = Math.sign(to.x - p1x) || 1;
   if (finalDir === -to.away && Math.abs(to.x - p1x) >= STUB) {
-    return `M ${from.x} ${from.y} L ${p1x} ${from.y} L ${p1x} ${to.y} L ${to.x} ${to.y}`;
+    return [start, { x: p1x, y: from.y }, { x: p1x, y: to.y }, end];
   }
 
   const my = (from.y + to.y) / 2;
-  return (
-    `M ${from.x} ${from.y} L ${p1x} ${from.y} L ${p1x} ${my}` +
-    ` L ${p4x} ${my} L ${p4x} ${to.y} L ${to.x} ${to.y}`
-  );
+  return [
+    start,
+    { x: p1x, y: from.y },
+    { x: p1x, y: my },
+    { x: p4x, y: my },
+    { x: p4x, y: to.y },
+    end,
+  ];
+}
+
+/** The route as an SVG path: one move, then a straight run to every corner. */
+export function routeConnector(from: EndpointGeometry, to: EndpointGeometry): string {
+  return pathThrough(routePoints(from, to));
+}
+
+export function pathThrough(points: readonly RoutePoint[]): string {
+  return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+}
+
+/**
+ * Read a route back off the sheet. Only ever handed paths `pathThrough`
+ * wrote — absolute moves and lines — so the numbers simply pair up.
+ */
+export function parseRoute(d: string): RoutePoint[] {
+  const numbers = d.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)?.map(Number) ?? [];
+  const points: RoutePoint[] = [];
+  for (let i = 0; i + 1 < numbers.length; i += 2) {
+    points.push({ x: numbers[i], y: numbers[i + 1] });
+  }
+  return points;
 }
 
 /** Small solid triangle at the target terminal, pointing the way in. */

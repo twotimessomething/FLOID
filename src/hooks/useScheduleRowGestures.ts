@@ -4,6 +4,7 @@ import { DEFAULT_PROJECT_SETTINGS } from '../types';
 import { useProjectStore } from '../stores/projectStore';
 import { useUIStore } from '../stores/uiStore';
 import { createMilestoneAt, createTaskAt } from '../utils/creationUtils';
+import { captureCreateSource, withCreateSource } from '../utils/createHandoff';
 import { useIsTaskPointer } from './useTaskPointer';
 import { snapKeyToBusinessDay } from '../utils/dayKeys';
 import { xToDay } from '../utils/timelineUtils';
@@ -33,6 +34,12 @@ interface ScheduleRowGestures {
  * once the schedule has scrolled past. The band stands in for the row, so it
  * has to be the row: a marker that could only be dropped at the top of the
  * sheet would vanish the moment the sheet moved.
+ *
+ * Whatever the ghost marker promised is what the click makes, and it is seen
+ * to be: the ghost is recorded as the click lands and handed to the creation
+ * (`withCreateSource`), which flies a milestone from the ghost diamond onto
+ * its day and a task from the ghost circle down into its new row at the top
+ * of the schedule.
  */
 export function useScheduleRowGestures(
   sectionId: string,
@@ -88,11 +95,12 @@ export function useScheduleRowGestures(
       if (e.target !== e.currentTarget) return;
       if (!(isTaskPointer || e.altKey)) return;
       e.stopPropagation();
-      createTaskAt(
-        sectionId,
-        { day: snapCreateDay(dayAtEvent(e)), index: 0 },
-        { x: e.clientX, y: e.clientY }
-      );
+      const point = { x: e.clientX, y: e.clientY };
+      const day = snapCreateDay(dayAtEvent(e));
+      const source = captureCreateSource(rowRef.current, 'point', point);
+      // The ghost becomes the task; the next move brings a fresh one back
+      setGhostX(null);
+      withCreateSource(source, () => createTaskAt(sectionId, { day, index: 0 }, point));
     },
     [sectionId, isTaskPointer, dayAtEvent, snapCreateDay]
   );
@@ -102,11 +110,12 @@ export function useScheduleRowGestures(
       if (e.target !== e.currentTarget) return;
       // Two ⌥-clicks were two tasks, not a milestone
       if (isTaskPointer || e.altKey) return;
-      createMilestoneAt(
-        sectionId,
-        { day: snapCreateDay(dayAtEvent(e)) },
-        { x: e.clientX, y: e.clientY }
-      );
+      const point = { x: e.clientX, y: e.clientY };
+      const day = snapCreateDay(dayAtEvent(e));
+      const source = captureCreateSource(rowRef.current, 'point', point);
+      // The ghost becomes the milestone rather than standing beside it
+      setGhostX(null);
+      withCreateSource(source, () => createMilestoneAt(sectionId, { day }, point));
     },
     [sectionId, isTaskPointer, dayAtEvent, snapCreateDay]
   );

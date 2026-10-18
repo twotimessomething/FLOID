@@ -184,6 +184,38 @@ export interface FlatRow {
   readonly top: number;
   readonly height: number;
   readonly isLocked: boolean;
+  /** True when the list this row sits in is locked — nothing may join it. */
+  readonly parentLocked: boolean;
+  /**
+   * The first sibling slot this row's top edge stands for. Usually its own
+   * index; lower when root milestones before it print on the schedule's row
+   * and so have no edge of their own to mark a drop beside.
+   */
+  readonly slotFrom: number;
+  /**
+   * Sibling lists whose last slot falls on this row's bottom edge — the row
+   * that closes a group, which is the last row of its last child's subtree,
+   * not the last child's own row. Innermost first.
+   */
+  readonly closes: readonly ClosedList[];
+}
+
+/** The trailing slots of one sibling list, drawn at the bottom of its last row. */
+export interface ClosedList {
+  readonly parentId: string;
+  readonly from: number;
+  readonly to: number;
+  /** Depth of the list's members — where an indented line starts. */
+  readonly depth: number;
+}
+
+/** The root list's trailing slots: they belong to the open space under the rows. */
+export function rootAppendRange(section: Section): { from: number; to: number } {
+  const lastRendered = section.items.reduce(
+    (last, item, index) => (item.kind === 'milestone' ? last : index),
+    -1
+  );
+  return { from: lastRendered + 1, to: section.items.length };
 }
 
 /**
@@ -198,6 +230,7 @@ export function flattenSection(section: Section): FlatRow[] {
   if (section.isCollapsed) return rows;
 
   const rootCount = section.items.filter((item) => item.kind === 'bar').length;
+  const closing = new Map<number, ClosedList[]>();
   let top = 0;
   let rootIndex = -1;
 
@@ -214,6 +247,7 @@ export function flattenSection(section: Section): FlatRow[] {
       (last, item, index) => (depth === 0 && item.kind === 'milestone' ? last : index),
       -1
     );
+    let slotFrom = 0;
 
     items.forEach((item, index) => {
       if (depth === 0) {
@@ -236,17 +270,34 @@ export function flattenSection(section: Section): FlatRow[] {
         top,
         height,
         isLocked,
+        parentLocked,
+        slotFrom,
+        closes: [],
       });
       top += height;
+      slotFrom = index + 1;
 
       if (item.kind === 'bar' && !item.isCollapsed && item.children.length > 0) {
         walk(item.children, item.id, depth + 1, color, isLocked);
       }
     });
+
+    // The root list's tail is the open space under the rows, which marks its
+    // own slots. A group's tail is the bottom of whatever row ends it.
+    if (parentId !== null && rows.length > 0) {
+      const last = rows.length - 1;
+      const list = closing.get(last) ?? [];
+      list.push({ parentId, from: lastRenderedIndex + 1, to: items.length, depth });
+      closing.set(last, list);
+    }
   };
 
   walk(section.items, null, 0, undefined, section.isLocked === true);
-  return rows;
+  if (closing.size === 0) return rows;
+  return rows.map((row, index) => {
+    const closes = closing.get(index);
+    return closes ? { ...row, closes } : row;
+  });
 }
 
 /**

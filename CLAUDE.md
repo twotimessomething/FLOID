@@ -149,13 +149,22 @@ Drag and drop is the whole organising story.
   way the editor opens on it.
 - **Move** — drag a bar anywhere: sideways changes its dates, up and down changes
   where it sits, and it can cross into another schedule. Moving a bar moves
-  everything under it.
+  everything under it, and everything under it that is on screen travels with
+  it as one cluster, drawn in a little, that opens back out as it lands.
+  The labels column is the same drag without a time axis: a row's outer
+  quarters are the slots beside it, a bar row's middle is the bar. Released
+  off the timeline, or called off with Escape, the item flies home.
 - **Group** — drop an item onto a bar and it becomes that bar's child, keeping the
   dates it already had. Dragging is the only way to move something between
   groups; there is no "add child" button.
 - **Un-group** — drag it back out onto open space.
 - **Resize** — drag a bar's edge. Only that bar's edge moves; children keep their
-  own dates.
+  own dates. The edge follows the pointer exactly and eases onto its day on
+  release.
+- **Reorder schedules** — drag a schedule's grip. Its names lift off the labels
+  column as one card; a line in both columns says where it will go.
+- **Locked** — a locked item answers a drag with a small nudge and stays put;
+  locked bars and schedules take no drops.
 - **Milestones** — double-click a schedule's own row to drop one there (those draw
   a reference line down the schedule). Everywhere else they come from the context
   menu and take a row of their own; they are never drawn on top of a bar.
@@ -240,13 +249,36 @@ two cancel out — no bounce, and scroll position silently lost. `utils/rubberBa
 supplies the curve; `Timeline.tsx` writes it to `.timeline-scroll-container`
 itself, where it touches no geometry at all.
 
-**Live drag without reflow.** `useItemDrag` clones the dragged bar into a
-`position: fixed` preview that follows the cursor, and resolves the drop target
-by hit-testing `data-drop-*` attributes with `elementsFromPoint`. Nothing is
-written to the store until mouseup, so rows never move while the user is still
-choosing. Pointer position is written straight to the preview's transform; only
-the resolved drop key reaches the store, so a drag re-renders two rows rather
-than the timeline.
+**Live drag without reflow.** `useItemDrag` lifts the dragged item — and every
+visible row under it — into clones on `<body>` (`utils/dragCluster.ts`), and
+resolves the drop target by hit-testing `data-drop-*` attributes with
+`elementsFromPoint`. Nothing is written to the store until mouseup, so rows
+never move while the user is still choosing. Pointer position is written
+straight to the clones' transforms; only the resolved drop *indicator* key
+reaches the store, so a drag re-renders two rows rather than the timeline. The
+indicator is not always the target: a no-op slot shows nothing, and a milestone
+headed for the root lights the schedule's own row (`dropIndicatorKey`).
+
+**Landing is never a cut.** The drop is one `flushSync` store write, bracketed
+by `captureLayout`/`playLayout` (`utils/layoutFlip.ts`): every schedule
+(`data-flip-section`) is pinned to its old height and then grows or shrinks to
+its new one, and every row (`data-flip-item`) slides from where it was, in both
+columns, on one clock. The cluster flies to the elements it became
+(`utils/dragLanding.ts` finds them by `data-drag-item`), chasing their live
+rects because they are still sliding, while those elements wait under
+`[data-drag-landing]` and are revealed in the frame the clone goes. Escape,
+`pointercancel`, window blur and a release off the timeline fly the cluster
+home instead. `finishDragMotion()` ends anything still settling — every new
+gesture calls it first; other motions (a link folding, a new bar leaving its
+ghost) join it through `registerMotionFinisher`. Store writes that move rows
+without a pointer — the menu's moves, pin, delete, fold, undo/redo — go through
+`commands/slideCommit.ts` `commitWithSlide`, which adds date glides, arrivals
+and departures on top of the same slide; creation goes through
+`utils/createHandoff.ts`, where the new bar flies out of the ghost that drew
+it. A press claims the gesture (`uiStore.isDragging`) before it is even a drag,
+and `commands/gesture.ts` keeps the keyboard and menus out until it ends.
+Under reduced motion nothing flies or slides; the sheet is simply where the
+commit put it.
 
 **Single selection.** One item, or one schedule, at a time. Opens the editor.
 
@@ -260,7 +292,10 @@ resolved by hit-testing `data-drop-bar` / `data-dep-milestone`, and nothing
 written to the store until release. Edge mutations cascade inside
 `sectionStore` in the same undoable step (`deleteItem`, `deleteSection`,
 `moveItem` all prune), and undo's partialized state carries `dependencies`
-beside `sections` — hand-written history entries must include both.
+beside `sections` — hand-written history entries must include both. The pen
+never cuts either: a committed link's preview folds into its route, a miss
+retracts into the dot, and a re-target called off flies back
+(`utils/dependencyDrawPreview.ts`).
 
 **Migration.** `utils/migrateLegacy.ts` reads the old phase/task/bar-milestone
 shape and returns item trees. It is reached from `storageUtils.migrateStoredData`

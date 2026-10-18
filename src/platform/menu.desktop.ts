@@ -2,6 +2,7 @@ import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/men
 import { COMMANDS } from '../commands/commands';
 import { executeCommand } from '../commands/executeCommand';
 import { useSectionStore } from '../stores/sectionStore';
+import { useUIStore } from '../stores/uiStore';
 import { useProjectStore } from '../stores/projectStore';
 import type { CommandId } from '../commands/types';
 
@@ -113,9 +114,12 @@ export async function setupAppMenu(): Promise<void> {
   // drag from spamming IPC with redundant setEnabled calls.
   let couldUndo = false;
   let couldRedo = false;
-  useSectionStore.temporal.subscribe((state) => {
-    const canUndo = state.pastStates.length > 0;
-    const canRedo = state.futureStates.length > 0;
+  // The registry decides — it also says no while a drag holds the sheet, so
+  // the menu greys out for the length of the gesture rather than offering an
+  // undo that would rewind what the hand is still holding.
+  const refreshHistory = (): void => {
+    const canUndo = COMMANDS['edit.undo'].isEnabled?.() ?? true;
+    const canRedo = COMMANDS['edit.redo'].isEnabled?.() ?? true;
     if (canUndo !== couldUndo) {
       couldUndo = canUndo;
       void undoItem.setEnabled(canUndo);
@@ -124,7 +128,9 @@ export async function setupAppMenu(): Promise<void> {
       couldRedo = canRedo;
       void redoItem.setEnabled(canRedo);
     }
-  });
+  };
+  useSectionStore.temporal.subscribe(refreshHistory);
+  useUIStore.subscribe(refreshHistory);
 
   let hadProject = hasProject();
   useProjectStore.subscribe((state) => {

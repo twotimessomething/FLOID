@@ -1,6 +1,9 @@
 import { useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 
+/** Below this a typed year is still being typed. */
+const MIN_TYPED_YEAR = 1900;
+
 interface DateInputProps {
   readonly label?: string;
   readonly value: Date | string;
@@ -30,7 +33,11 @@ export function DateInput({
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const newDate = parseISO(e.target.value);
-      if (!isNaN(newDate.getTime())) {
+      // The native field reports every keystroke, so typing a year passes
+      // through 0002, 0020 and 0202 on the way to 2027. Those are not dates
+      // anyone means, and committing them would send the bar — and the whole
+      // sheet's anchor — two thousand years away and back.
+      if (!isNaN(newDate.getTime()) && newDate.getFullYear() >= MIN_TYPED_YEAR) {
         onChange(newDate);
       }
     },

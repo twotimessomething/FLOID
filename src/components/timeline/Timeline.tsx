@@ -8,13 +8,12 @@ import {
   useLayoutEffect,
   useState,
 } from 'react';
-import { useSectionStore } from '../../stores/sectionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useViewport } from '../../hooks/useViewport';
 import { usePlayhead } from '../../hooks/usePlayhead';
 import { useTimelinePan } from '../../hooks/useTimelinePan';
-import { useDragReorder } from '../../hooks/useDragReorder';
+import { useScheduleDrag } from '../../hooks/useScheduleDrag';
 import { usePinnedSection } from '../../hooks/usePinnedSection';
 import { TimelineHeader } from './TimelineHeader';
 import { TimelineGrid } from './TimelineGrid';
@@ -62,7 +61,6 @@ export function Timeline(): JSX.Element {
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const showDependencies = useShowDependencies();
   const { pinnedSection, unpinnedSections } = usePinnedSection();
-  const reorderSections = useSectionStore((s) => s.reorderSections);
 
   /* Off unless the project asks for it — see `.timeline-traveling-labels`. The
      class goes on the scrollport because that is what the effect is measured
@@ -232,53 +230,12 @@ export function Timeline(): JSX.Element {
     [pinnedSection]
   );
 
-  const sectionHeights = useMemo(
-    () => unpinnedSections.map((section) => sectionBoxHeight(section)),
-    [unpinnedSections]
-  );
-
-  const { state: dragState, getDragHandleProps } = useDragReorder({
-    onReorder: (from, to) => {
-      const allSections = useSectionStore.getState().sections;
-      const pinnedId = useProjectStore.getState().project?.pinnedSectionId;
-      const visible = allSections.filter((s) => s.id !== pinnedId);
-      const fromSection = visible[from];
-      const toSection = visible[to];
-      if (!fromSection || !toSection) return;
-      reorderSections(
-        allSections.findIndex((s) => s.id === fromSection.id),
-        allSections.findIndex((s) => s.id === toSection.id)
-      );
-    },
-    itemCount: unpinnedSections.length,
-    rowHeight: ROW_HEIGHT,
-  });
-
-  const dropIndicatorStyle = useMemo((): React.CSSProperties | null => {
-    if (
-      !dragState.isDragging ||
-      dragState.dropIndex === null ||
-      dragState.dropIndex === dragState.dragIndex
-    ) {
-      return null;
-    }
-    const targetIndex =
-      dragState.dropIndex > (dragState.dragIndex ?? 0)
-        ? dragState.dropIndex + 1
-        : dragState.dropIndex;
-    let top = 0;
-    for (let i = 0; i < targetIndex && i < sectionHeights.length; i += 1) top += sectionHeights[i];
-    return {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      top: `${top}px`,
-      height: '1px',
-      backgroundColor: 'var(--color-text-primary)',
-      zIndex: 50,
-      pointerEvents: 'none',
-    };
-  }, [dragState.isDragging, dragState.dropIndex, dragState.dragIndex, sectionHeights]);
+  const {
+    draggingId: draggingSectionId,
+    startScheduleDrag,
+    labelsLineRef,
+    plotLineRef,
+  } = useScheduleDrag(unpinnedSections);
 
   const allSections = useMemo(() => {
     const list: Section[] = [];
@@ -421,9 +378,17 @@ export function Timeline(): JSX.Element {
             role="list"
             aria-label="Schedules and items"
           >
-            <div ref={labelsContentRef} style={{ willChange: 'transform' }}>
+            <div
+              ref={labelsContentRef}
+              style={{ willChange: 'transform' }}
+              data-flip-column="labels"
+            >
               {pinnedSection && (
                 <SectionRow
+                  // Keyed, so pinning another schedule mounts its own row
+                  // rather than handing it the last one's element — and that
+                  // element's layout — mid-slide
+                  key={pinnedSection.id}
                   section={pinnedSection}
                   isLabel
                   viewport={viewportBounds}
@@ -432,19 +397,18 @@ export function Timeline(): JSX.Element {
               )}
 
               <div className="relative" data-drag-container>
-                {unpinnedSections.map((section, index) => (
+                {unpinnedSections.map((section) => (
                   <SectionRow
                     key={section.id}
                     section={section}
                     isLabel
                     viewport={viewportBounds}
                     pixelsPerDay={pixelsPerDay}
-                    sectionIndex={index}
-                    dragHandleProps={getDragHandleProps(index)}
-                    isDragging={dragState.isDragging && dragState.dragIndex === index}
+                    onGripPointerDown={startScheduleDrag}
+                    isDragging={draggingSectionId === section.id}
                   />
                 ))}
-                {dropIndicatorStyle && <div style={dropIndicatorStyle} />}
+                <div ref={labelsLineRef} className="schedule-drop-line" aria-hidden="true" />
               </div>
 
               {/* The label column's share of the sheet's bottom edge */}
@@ -455,7 +419,12 @@ export function Timeline(): JSX.Element {
           </div>
 
           {stickySections.map((section, index) => (
-            <StickyScheduleLabel key={section.id} section={section} slot={index} />
+            <StickyScheduleLabel
+              key={section.id}
+              section={section}
+              slot={index}
+              isLifted={draggingSectionId === section.id}
+            />
           ))}
 
           <ScrollEdgeFade top={stickySlotTop(stickyCount)} isVisible={isScrolled} />
@@ -482,6 +451,7 @@ export function Timeline(): JSX.Element {
                 pinnedMarkers={pinnedMarkers}
                 viewport={viewportBounds}
                 pixelsPerDay={pixelsPerDay}
+                isLifted={draggingSectionId === section.id}
               />
             ))}
 
@@ -499,6 +469,9 @@ export function Timeline(): JSX.Element {
               className="relative cursor-crosshair timeline-plot"
               role="list"
               aria-label="Timeline bars"
+              data-flip-column="plot"
+              data-flip-origin={viewportBounds.startKey}
+              data-flip-ppd={pixelsPerDay}
             >
               <TimelineGrid />
 
@@ -526,6 +499,10 @@ export function Timeline(): JSX.Element {
 
               {pinnedSection && (
                 <SectionRow
+                  // Keyed, so pinning another schedule mounts its own row
+                  // rather than handing it the last one's element — and that
+                  // element's layout — mid-slide
+                  key={pinnedSection.id}
                   section={pinnedSection}
                   isLabel={false}
                   viewport={viewportBounds}
@@ -541,11 +518,12 @@ export function Timeline(): JSX.Element {
                   isLabel={false}
                   viewport={viewportBounds}
                   pixelsPerDay={pixelsPerDay}
-                  sectionIndex={index}
-                  isDragging={dragState.isDragging && dragState.dragIndex === index}
+                  isDragging={draggingSectionId === section.id}
                   isSticky={index + unpinnedStackOffset < stickyCount}
                 />
               ))}
+
+              <div ref={plotLineRef} className="schedule-drop-line" aria-hidden="true" />
 
               {/* The sheet's bottom edge. Every other schedule end is drawn by
                   the border-t of the schedule after it; the last one ends here. */}

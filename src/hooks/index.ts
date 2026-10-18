@@ -1,9 +1,17 @@
 export { useViewport } from './useViewport';
 export { useAutoSave } from './useAutoSave';
 export { usePlayhead } from './usePlayhead';
-export { useDragReorder } from './useDragReorder';
+export { useScheduleDrag } from './useScheduleDrag';
+export { useBarResize } from './useBarResize';
 export { useItemDrag } from './useItemDrag';
-export { useIsDragged, useIsDropReceiver, useIsDropSlot, useIsItemDragActive } from './useDropState';
+export {
+  useDropClosingDepth,
+  useIsDragged,
+  useIsDropHeader,
+  useIsDropReceiver,
+  useIsDropSlotIn,
+  useIsItemDragActive,
+} from './useDropState';
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';
 export { useTaskPointer, useIsTaskPointer } from './useTaskPointer';
 export { useTimelineStatus } from './useTimelineStatus';

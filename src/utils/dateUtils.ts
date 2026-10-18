@@ -165,17 +165,17 @@ export const computeViewportBounds = (sections: readonly Section[]): ViewportBou
 
   const startDate = extent ? subMonths(fromDayKey(extent.start), 1) : subMonths(new Date(), 6);
   const endDate = extent ? addMonths(fromDayKey(extent.end), 1) : addMonths(new Date(), 6);
-  const startKey = toDayKey(startDate);
-  const endKey = toDayKey(endDate);
-
-  return {
-    startDate: fromDayKey(startKey),
-    endDate: fromDayKey(endKey),
-    startKey,
-    endKey,
-    totalDays: Math.max(1, dayKeyDiff(startKey, endKey)),
-  };
+  return viewportFromKeys(toDayKey(startDate), toDayKey(endDate));
 };
+
+/** The bounds a span of day keys describes. */
+export const viewportFromKeys = (startKey: string, endKey: string): ViewportBounds => ({
+  startDate: fromDayKey(startKey),
+  endDate: fromDayKey(endKey),
+  startKey,
+  endKey,
+  totalDays: Math.max(1, dayKeyDiff(startKey, endKey)),
+});
 
 /** The union span of every schedule, with no padding. */
 export const getSectionsDateRange = (

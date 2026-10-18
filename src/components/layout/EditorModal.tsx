@@ -5,6 +5,7 @@ import { useIsTaskPointer } from '../../hooks/useTaskPointer';
 import { SectionEditor } from '../panels/SectionEditor';
 import { ItemEditor } from '../panels/ItemEditor';
 import type { SelectionState } from '../../types';
+import { keyBelongsToGesture } from '../../commands/gesture';
 
 const MODAL_WIDTH = 280;
 const MODAL_MAX_HEIGHT = 400;
@@ -21,6 +22,8 @@ export function EditorModal(): JSX.Element | null {
   // Close on escape key or enter key (save and close)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
+      // A key pressed while something is in the hand belongs to that gesture
+      if (keyBelongsToGesture(e)) return;
       if (e.key === 'Escape') {
         closeModal();
       }

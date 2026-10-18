@@ -5,6 +5,7 @@ import { Input, TextArea, DateInput, ColorPicker, Button, Toggle } from '../comm
 import { countItems, findItemPath } from '../../utils/itemTree';
 import { resolveItemColor } from '../../utils/timelineUtils';
 import { fromDayKey, toDayKey } from '../../utils/dayKeys';
+import { commitWithSlide } from '../../commands/slideCommit';
 import type { SelectionState } from '../../types';
 
 /**
@@ -72,10 +73,12 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
     [sectionId, itemId, updateItem]
   );
 
+  // A date typed here moves the bar on the sheet behind the panel: it glides
+  // to its new days, as it would going back to them on undo
   const handleStartChange = useCallback(
     (date: Date) => {
       if (!sectionId || !itemId || !item) return;
-      setItemDates(sectionId, itemId, toDayKey(date), item.end);
+      commitWithSlide(() => setItemDates(sectionId, itemId, toDayKey(date), item.end));
     },
     [sectionId, itemId, item, setItemDates]
   );
@@ -83,7 +86,7 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
   const handleEndChange = useCallback(
     (date: Date) => {
       if (!sectionId || !itemId || !item) return;
-      setItemDates(sectionId, itemId, item.start, toDayKey(date));
+      commitWithSlide(() => setItemDates(sectionId, itemId, item.start, toDayKey(date)));
     },
     [sectionId, itemId, item, setItemDates]
   );
@@ -97,7 +100,8 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
     if (!sectionId || !itemId || !item) return;
     // Read it while it still exists, so the notice can name what it cost
     showItemDeletedToast(item);
-    deleteItem(sectionId, itemId);
+    // The rows below close over the gap rather than jumping into it
+    commitWithSlide(() => deleteItem(sectionId, itemId));
     closeModal();
   }, [sectionId, itemId, item, deleteItem, closeModal]);
 

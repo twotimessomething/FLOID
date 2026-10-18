@@ -4,6 +4,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore, showSectionDeletedToast } from '../../stores/uiStore';
 import { Input, ColorPicker, Button, PinBadge, DateInput } from '../common';
 import { fromDayKey, toDayKey } from '../../utils/dayKeys';
+import { commitWithSlide } from '../../commands/slideCommit';
 import type { SelectionState } from '../../types';
 
 interface SectionEditorProps {
@@ -67,9 +68,11 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
     [sectionId, section, updateSectionWindow]
   );
 
+  // Pinning carries the whole schedule to the top of the sheet (unpinning,
+  // back to its place); it travels there, and the schedules it passes make room
   const handleTogglePin = useCallback(() => {
     if (!sectionId) return;
-    setPinnedSection(isPinned ? null : sectionId);
+    commitWithSlide(() => setPinnedSection(isPinned ? null : sectionId));
   }, [sectionId, isPinned, setPinnedSection]);
 
   const handleDelete = useCallback(() => {
@@ -77,7 +80,7 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
     // Held before the delete: the notice names it, and undo re-pins it
     const deleted = section;
     const wasPinned = isPinned;
-    const result = deleteSection(sectionId);
+    const result = commitWithSlide(() => deleteSection(sectionId));
     if (!result.success && result.reason) {
       showToast('warning', result.reason);
       return;

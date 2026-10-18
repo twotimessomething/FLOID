@@ -13,12 +13,12 @@ import {
 import { layoutLabels, measureMilestoneLabelWidth } from '../../utils/labelLayoutUtils';
 import { sectionTintColor } from '../../utils/colorUtils';
 import { useScheduleRowGestures } from '../../hooks/useScheduleRowGestures';
+import { useIsDropHeader } from '../../hooks/useDropState';
 import { CollapsedBars } from './CollapsedBars';
 import { GhostMilestone } from './GhostMilestone';
 import { GhostTask } from './GhostTask';
-import { MilestoneGlyph } from './MilestoneGlyph';
-import { MilestoneLabel } from './MilestoneLabel';
 import { MilestoneLines } from './MilestoneLines';
+import { StickyMilestone } from './StickyMilestone';
 import { TimelineGrid } from './TimelineGrid';
 import { TodayLine } from './TodayLine';
 
@@ -31,12 +31,15 @@ interface StickyScheduleRowProps {
   readonly pinnedMarkers: readonly TimelineItem[];
   readonly viewport: ViewportBounds;
   readonly pixelsPerDay: number;
+  /** The schedule is in the hand: what the band prints drains with it. */
+  readonly isLifted?: boolean;
 }
 
 interface StickyMilestoneData {
   readonly id: string;
   readonly name: string;
   readonly left: number;
+  readonly item: TimelineItem;
 }
 
 /**
@@ -63,21 +66,24 @@ export function StickyScheduleRow({
   pinnedMarkers,
   viewport,
   pixelsPerDay,
+  isLifted = false,
 }: StickyScheduleRowProps): JSX.Element {
   const selectedId = useUIStore((s) => (s.selection.type === 'item' ? s.selection.id : null));
-  const selectItem = useUIStore((s) => s.selectItem);
-  const openContextMenu = useUIStore((s) => s.openContextMenu);
   const coloredRows = useProjectStore(
     (s) => s.project?.settings?.coloredRows ?? DEFAULT_PROJECT_SETTINGS.coloredRows
   );
 
   const gestures = useScheduleRowGestures(section.id, viewport, pixelsPerDay);
+  // The band stands in for a schedule whose rows have scrolled away, so a drop
+  // aimed at it has nowhere else to show
+  const isHeaderTarget = useIsDropHeader(section.id);
 
   const sticky = useMemo((): StickyMilestoneData[] => {
     return headerMilestones(section).map((milestone) => ({
       id: milestone.id,
       name: milestone.name,
       left: dayToX(milestone.start, viewport, pixelsPerDay),
+      item: milestone,
     }));
   }, [section, viewport, pixelsPerDay]);
 
@@ -112,10 +118,16 @@ export function StickyScheduleRow({
           happen to have scrolled underneath it. */}
       <div
         ref={gestures.rowRef}
-        className={`relative timeline-plot ${gestures.ghostX !== null ? 'cursor-copy' : ''}`}
+        className={`relative timeline-plot schedule-block ${
+          gestures.ghostX !== null ? 'cursor-copy' : ''
+        } ${isHeaderTarget ? 'drop-header--receiving' : ''} ${
+          isLifted ? 'schedule-block--lifted' : ''
+        }`}
         style={{ height: ROW_HEIGHT }}
         data-drop-header={section.id}
         data-drop-section={section.id}
+        data-drop-sticky=""
+        data-drop-slot-locked={section.isLocked ? '' : undefined}
         onClick={gestures.handleClick}
         onDoubleClick={gestures.handleDoubleClick}
         onContextMenu={gestures.handleContextMenu}
@@ -148,36 +160,15 @@ export function StickyScheduleRow({
           ))}
 
         {sticky.map((milestone) => (
-          <div
+          <StickyMilestone
             key={milestone.id}
-            className="absolute hover:z-10 cursor-pointer group"
-            style={{ left: milestone.left, top: 0, height: ROW_HEIGHT }}
-            onClick={(e) => {
-              e.stopPropagation();
-              selectItem(milestone.id, section.id, { x: e.clientX, y: e.clientY });
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openContextMenu({
-                position: { x: e.clientX, y: e.clientY },
-                targetType: 'item',
-                targetId: milestone.id,
-                sectionId: section.id,
-                location: 'bar',
-              });
-            }}
-            role="button"
-            tabIndex={0}
-            aria-label={`${milestone.name} milestone (sticky)`}
-          >
-            <MilestoneGlyph isSelected={selectedId === milestone.id} />
-            <MilestoneLabel
-              name={milestone.name}
-              placement={labelPlacements.get(milestone.id)}
-              forceVisible={selectedId === milestone.id}
-            />
-          </div>
+            item={milestone.item}
+            section={section}
+            left={milestone.left}
+            pixelsPerDay={pixelsPerDay}
+            isSelected={selectedId === milestone.id}
+            labelPlacement={labelPlacements.get(milestone.id)}
+          />
         ))}
       </div>
     </div>
