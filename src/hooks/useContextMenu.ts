@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useUIStore } from '../stores/uiStore';
+import { isTextEntry } from '../utils/keyboard';
 import type { ContextMenuLocation } from '../stores/uiStore';
 import type { SelectionState } from '../types/timeline';
 
@@ -20,6 +21,8 @@ export function useContextMenu(
 
   const openAt = useCallback(
     (e: React.MouseEvent, location: ContextMenuLocation, clickDay?: string): void => {
+      // A rename field in the row keeps the system's Cut, Copy and Paste
+      if (isTextEntry(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
       openContextMenu({

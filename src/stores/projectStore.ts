@@ -156,39 +156,42 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return;
     }
 
-    // Load the most recently updated project
+    // Open the most recently updated project whose data is still there. An
+    // index entry with nothing behind it is dropped, best effort: a failed
+    // housekeeping write is logged, never allowed to keep the app on its
+    // loading screen. The walk is in memory — re-reading an index that could
+    // not be rewritten would find the same missing entry forever.
     const sortedProjects = [...projects].sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-    const mostRecent = sortedProjects[0];
-    const projectData = await loadProjectFromStorage(mostRecent.id);
-
-    if (projectData?.project) {
-      set({
-        projects,
-        project: projectData.project,
-        activeProjectId: mostRecent.id,
-        isStorageReady: true,
-      });
-    } else {
-      // Project data missing - remove from index and try next
-      const remainingProjects = projects.filter(p => p.id !== mostRecent.id);
-      await saveProjectsIndex(remainingProjects);
-      await deleteProjectFromStorage(mostRecent.id);
-
-      if (remainingProjects.length === 0) {
+    let remainingProjects = projects;
+    for (const candidate of sortedProjects) {
+      const projectData = await loadProjectFromStorage(candidate.id);
+      if (projectData?.project) {
         set({
-          projects: [],
-          project: null as unknown as Project,
-          activeProjectId: null,
+          projects: remainingProjects,
+          project: projectData.project,
+          activeProjectId: candidate.id,
           isStorageReady: true,
         });
-      } else {
-        // Recursively try to load remaining projects
-        set({ projects: remainingProjects });
-        await get().initializeProjects();
+        return;
+      }
+
+      remainingProjects = remainingProjects.filter((p) => p.id !== candidate.id);
+      try {
+        await saveProjectsIndex(remainingProjects);
+        await deleteProjectFromStorage(candidate.id);
+      } catch (error) {
+        console.error('Failed to drop a project whose data is missing:', error);
       }
     }
+
+    set({
+      projects: [],
+      project: null as unknown as Project,
+      activeProjectId: null,
+      isStorageReady: true,
+    });
   },
 
   addProject: async (config) => {

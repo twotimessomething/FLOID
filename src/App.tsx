@@ -20,10 +20,17 @@ import {
 import { useBackupReminder } from './hooks/useBackupReminder';
 import { useWhatsNew } from './hooks/useWhatsNew';
 import { useFileSystemAutoSave } from './hooks/useFileSystemAutoSave';
+import { useWindowTitle } from './hooks/useWindowTitle';
 import { useSectionStore } from './stores/sectionStore';
 import { useProjectStore } from './stores/projectStore';
 import { useUIStore } from './stores/uiStore';
-import { importFloidText, setScheduleImportHandler } from './utils/importFloid';
+import {
+  importFloidText,
+  isFloidFileName,
+  setScheduleImportHandler,
+  showNotFloidFileToast,
+} from './utils/importFloid';
+import { isTextEntry } from './utils/keyboard';
 import { isDesktop } from './platform/detect';
 
 /**
@@ -144,6 +151,9 @@ function App(): JSX.Element {
   // Initialize file system auto-save
   useFileSystemAutoSave();
 
+  // Name the open project in the tab and the window
+  useWindowTitle();
+
   useEffect(() => {
     initializeFromProject();
   }, [initializeFromProject]);
@@ -169,12 +179,17 @@ function App(): JSX.Element {
     return () => window.clearTimeout(timer);
   }, [isStorageReady]);
 
-  // Disable default browser context menu app-wide
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    // Close any open context menu when right-clicking elsewhere
-    closeContextMenu();
-  }, [closeContextMenu]);
+  // Disable default browser context menu app-wide — except in a text field,
+  // where the system's menu is the one that holds Cut, Copy, Paste and Spelling
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      // Close any open context menu when right-clicking elsewhere
+      closeContextMenu();
+      if (isTextEntry(e.target)) return;
+      e.preventDefault();
+    },
+    [closeContextMenu]
+  );
 
   // File drag-and-drop handlers
   const handleDragOver = useCallback(
@@ -213,11 +228,19 @@ function App(): JSX.Element {
       e.stopPropagation();
       setDraggingFile(false);
 
+      // The same set the Open dialog offers; anything else is answered, not ignored
       const files = Array.from(e.dataTransfer.files);
-      const floidFile = files.find((f) => f.name.endsWith('.floid'));
-      if (!floidFile) return;
+      if (files.length === 0) return;
+      const floidFile = files.find((f) => isFloidFileName(f.name));
+      if (!floidFile) {
+        showNotFloidFileToast(files[0].name);
+        return;
+      }
 
-      await importFloidText(await floidFile.text(), { handleScheduleImport });
+      await importFloidText(await floidFile.text(), {
+        handleScheduleImport,
+        fileName: floidFile.name,
+      });
     },
     [setDraggingFile, handleScheduleImport]
   );
@@ -226,7 +249,7 @@ function App(): JSX.Element {
   if (!isStorageReady) {
     return (
       <div className="h-full flex items-center justify-center bg-[var(--color-background)]">
-        <div className="text-body text-[var(--color-text-secondary)]">Loading...</div>
+        <div className="text-body text-[var(--color-text-secondary)]">Loading…</div>
       </div>
     );
   }
@@ -312,10 +335,10 @@ function App(): JSX.Element {
 
       {/* Drop zone overlay */}
       {isDraggingFile && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-accent)]/5 border border-dashed border-[var(--color-accent)] pointer-events-none">
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-selection)] border border-dashed border-[var(--color-accent)] pointer-events-none">
           <div className="bg-[var(--color-raised)] px-6 py-4 rounded-[var(--radius-md)]">
             <p className="text-body font-normal text-[var(--color-accent)]">
-              Drop .floid file to import
+              Drop a FLOID file to import
             </p>
           </div>
         </div>

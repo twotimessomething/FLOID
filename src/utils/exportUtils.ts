@@ -18,13 +18,13 @@ import {
   pruneDanglingEdges,
   readStoredEdges,
 } from './dependencyUtils';
-import { awaySide, routeDependency } from './slidePlan';
+import { awaySide, lastCoveredDay, routeDependency } from './slidePlan';
 import { sectionsExtent } from './itemTree';
 import { flattenSection, headerMilestones, type FlatRow } from './timelineUtils';
 import { setAppSettings } from './indexedDB';
 import { saveFile } from '../platform/files';
 import type { FileFilter } from '../platform/types';
-import { sanitizeFilename } from './stringUtils';
+import { legacyFilenameSlug, toFilename } from './stringUtils';
 import { getReadableTextColor } from './colorUtils';
 import {
   IMAGE_WIDTH,
@@ -146,11 +146,23 @@ export const exportToJson = (
 
 export const FLOID_FILE_FILTER: FileFilter = { name: 'FLOID Project', extensions: ['floid'] };
 
+/**
+ * The folder autosave's file. Frozen in the old slug (`legacyFilenameSlug`):
+ * a new name would orphan the file every existing autosave folder holds.
+ */
 export const projectFloidFilename = (project: Project): string =>
-  `${sanitizeFilename(project.name)}.floid`;
+  `${legacyFilenameSlug(project.name)}.floid`;
 
+/**
+ * A backup someone saves, named as the project is and dated, so this week's
+ * does not land on last week's: "Aurora Speaker — Backup 2026-10-18.floid".
+ */
+export const projectBackupFilename = (project: Project, day: string = todayKey()): string =>
+  `${toFilename(project.name)} — Backup ${day}.floid`;
+
+/** "Aurora Speaker — Industrial Design.floid" */
 export const scheduleFloidFilename = (project: Project, section: Section): string =>
-  `${sanitizeFilename(project.name)}_${sanitizeFilename(section.name)}_r${section.revision}.floid`;
+  `${toFilename(project.name)} — ${toFilename(section.name)}.floid`;
 
 export const downloadProjectJson = async (
   project: Project,
@@ -160,7 +172,7 @@ export const downloadProjectJson = async (
   const json = exportToJson(project, sections, dependencies);
 
   const { saved } = await saveFile({
-    suggestedName: projectFloidFilename(project),
+    suggestedName: projectBackupFilename(project),
     filters: [FLOID_FILE_FILTER],
     data: json,
     mimeType: 'application/json',
@@ -460,6 +472,34 @@ export const analyzeScheduleImport = (
 // Image — .png
 // ---------------------------------------------------------------------------
 
+/**
+ * Device pixels per sheet pixel. The image is laid out at 1920×1080 and
+ * printed at twice that, so its type and hairlines stay sharp on a Retina
+ * screen and on a projected slide.
+ */
+const IMAGE_SCALE = 2;
+
+/** The app's own face — self-hosted, so it is there offline — then the system's. */
+const imageFont = (size: number, weight = 400): string =>
+  `${weight} ${size}px 'Inter', system-ui, sans-serif`;
+
+/**
+ * A canvas does not wait for a webfont: a face that has not loaded yet is
+ * drawn in the fallback, and an app that has never printed a 600 weight has
+ * not loaded one. Both subsets are asked for, so a name in either prints in
+ * Inter; a face that fails to load leaves the rest of the stack to print.
+ */
+const loadImageFonts = async (): Promise<void> => {
+  if (typeof document === 'undefined' || !document.fonts) return;
+  try {
+    await Promise.all(
+      [400, 600].map((weight) => document.fonts.load(imageFont(16, weight), 'AĀ'))
+    );
+  } catch {
+    // Drawn in the fallback face
+  }
+};
+
 /** The image is drawn tighter than the screen, but on the same two-step scale. */
 const imageRowHeight = (depth: number): number => (depth === 0 ? ROW_HEIGHT : NESTED_ROW_HEIGHT);
 const imageBarHeight = (depth: number): number => (depth === 0 ? BAR_HEIGHT : NESTED_BAR_HEIGHT);
@@ -506,7 +546,7 @@ const fitCanvasText = (
 };
 
 /**
- * Draw the whole timeline to a 1920x1080 PNG.
+ * Draw the whole timeline to a 1920×1080 sheet, saved as a PNG at twice that.
  *
  * The rows come from `flattenSection`, the same function the screen lays out
  * with, so an item nested four deep needs nothing added here — it arrives with
@@ -562,15 +602,17 @@ export const exportTimelineAsImage = async (
     plans.reduce((sum, plan) => sum + ROW_HEIGHT + plan.bodyHeight, 0) +
     PADDING;
 
-  // Create canvas
+  // Laid out in sheet pixels, printed in device pixels
   const canvas = document.createElement('canvas');
-  canvas.width = WIDTH;
-  canvas.height = HEIGHT;
+  canvas.width = WIDTH * IMAGE_SCALE;
+  canvas.height = HEIGHT * IMAGE_SCALE;
   const ctx = canvas.getContext('2d');
 
   if (!ctx) {
     throw new Error('Failed to create canvas context');
   }
+  ctx.scale(IMAGE_SCALE, IMAGE_SCALE);
+  await loadImageFonts();
 
   // Fill background
   ctx.fillStyle = colors.surface;
@@ -648,14 +690,14 @@ export const exportTimelineAsImage = async (
     const x = xForKey(toDayKey(mark.date));
     if (x < timelineX || x > timelineX + timelineWidth) continue;
 
-    ctx.font = '12px system-ui, -apple-system, sans-serif';
+    ctx.font = imageFont(12);
     ctx.fillStyle = colors.textSecondary;
     ctx.fillText(mark.label, x, HEADER_HEIGHT - 15);
 
     // Year stacked above the mark where it changes information — the first
     // month on the sheet and every January, as TimelineHeader prints it
     if (mark.wantsYear && (!axisYearShown || mark.date.getMonth() === 0)) {
-      ctx.font = '11px system-ui, -apple-system, sans-serif';
+      ctx.font = imageFont(11);
       ctx.fillStyle = colors.textMuted;
       ctx.fillText(String(mark.date.getFullYear()), x, HEADER_HEIGHT - 30);
     }
@@ -671,7 +713,7 @@ export const exportTimelineAsImage = async (
 
   // Title on the left, the covered range on the right: the range names the
   // years a finer axis cadence prints nowhere, and an image leaves the app.
-  ctx.font = '600 16px system-ui, -apple-system, sans-serif';
+  ctx.font = imageFont(16, 600);
   ctx.fillStyle = colors.text;
   ctx.textAlign = 'left';
   ctx.fillText(
@@ -683,8 +725,8 @@ export const exportTimelineAsImage = async (
   // On the axis's upper line, where only the stacked years print — the month
   // labels' own baseline reaches the right edge and would collide.
   const startLabel = formatDayKey(rawStart, 'MMM yyyy');
-  const endLabel = formatDayKey(rawEnd, 'MMM yyyy');
-  ctx.font = '12px system-ui, -apple-system, sans-serif';
+  const endLabel = formatDayKey(lastCoveredDay(sections) ?? rawEnd, 'MMM yyyy');
+  ctx.font = imageFont(12);
   ctx.fillStyle = colors.textMuted;
   ctx.textAlign = 'right';
   ctx.fillText(
@@ -705,7 +747,7 @@ export const exportTimelineAsImage = async (
     const scaledBodyHeight = plan.bodyHeight * verticalScale;
 
     // Draw section label — the schedule is the parent of every row under it
-    ctx.font = '600 13px system-ui, -apple-system, sans-serif';
+    ctx.font = imageFont(13, 600);
     ctx.fillStyle = colors.text;
     ctx.textAlign = 'left';
     const sectionLabel = section.name + (isPinned ? ' ★' : '');
@@ -741,7 +783,7 @@ export const exportTimelineAsImage = async (
       // ink tick (`MilestoneGlyph`), and the image follows it.
       drawDiamond(x, milestoneY, size, colors.text);
 
-      ctx.font = `${Math.max(9 * verticalScale, 8)}px system-ui, -apple-system, sans-serif`;
+      ctx.font = imageFont(Math.max(9 * verticalScale, 8));
       ctx.fillStyle = colors.text;
       ctx.textAlign = 'left';
       const next = markerRow[index + 1];
@@ -764,7 +806,7 @@ export const exportTimelineAsImage = async (
       itemY.set(item.id, centerY);
 
       // Label in the left column, one step lighter and smaller per level down
-      ctx.font = `${Math.max(10, 12 - depth)}px system-ui, -apple-system, sans-serif`;
+      ctx.font = imageFont(Math.max(10, 12 - depth));
       ctx.fillStyle = depth === 0 ? colors.textSecondary : colors.textMuted;
       ctx.textAlign = 'left';
       ctx.fillText(
@@ -789,7 +831,7 @@ export const exportTimelineAsImage = async (
         const minLabelWidth = depth === 0 ? 40 : 30;
         if (item.name && width > minLabelWidth) {
           const size = depth === 0 ? 10 : 9;
-          ctx.font = `${Math.max(size * verticalScale, size - 1)}px system-ui, -apple-system, sans-serif`;
+          ctx.font = imageFont(Math.max(size * verticalScale, size - 1));
           ctx.fillStyle = getReadableTextColor(color);
           ctx.textAlign = 'left';
           const name = fitCanvasText(ctx, item.name, width - 12);
@@ -803,7 +845,7 @@ export const exportTimelineAsImage = async (
         if (item.kind === 'task') drawTaskCircle(x, centerY, size, item.isDone === true);
         else drawDiamond(x, centerY, size, colors.text);
 
-        ctx.font = `${Math.max(8 * verticalScale, 7)}px system-ui, -apple-system, sans-serif`;
+        ctx.font = imageFont(Math.max(8 * verticalScale, 7));
         ctx.fillStyle = colors.textMuted;
         ctx.textAlign = 'left';
         const room = Math.min(timelineX + timelineWidth - x - size - 4, 160);
@@ -829,7 +871,7 @@ export const exportTimelineAsImage = async (
     ctx.lineTo(todayX, plotBottom);
     ctx.stroke();
 
-    ctx.font = '11px system-ui, -apple-system, sans-serif';
+    ctx.font = imageFont(11);
     ctx.fillStyle = colors.today;
     ctx.textAlign = 'center';
     ctx.fillText(formatDayKey(today, 'MMM d'), todayX, HEIGHT - 4);
@@ -898,7 +940,7 @@ export const exportTimelineAsImage = async (
   // Await the encode so callers report success only once the file exists
   const blob = await canvasToBlob(canvas);
   const { saved } = await saveFile({
-    suggestedName: `${sanitizeFilename(project.name)}-timeline.png`,
+    suggestedName: `${toFilename(project.name)} — Timeline.png`,
     filters: [{ name: 'PNG Image', extensions: ['png'] }],
     data: blob,
     mimeType: 'image/png',

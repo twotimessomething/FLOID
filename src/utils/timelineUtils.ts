@@ -31,6 +31,12 @@ export const MIN_BAR_WIDTH = 6;
 
 export const getPixelsPerDay = (zoomLevel: ZoomLevel): number => ZOOM_PIXELS_PER_DAY[zoomLevel];
 
+/**
+ * From this scale up — the week axis and finer — a single day is wide enough
+ * to read on its own: the playhead steps day to day and weekends are washed in.
+ */
+export const READABLE_DAY_PX = 12;
+
 /** A fitted view is free of the named levels, but not of legibility. */
 export const MIN_FIT_PIXELS_PER_DAY = 0.2;
 export const MAX_FIT_PIXELS_PER_DAY = 80;

@@ -4,10 +4,12 @@ import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { LABEL_ROOT_INSET, ROW_HEIGHT } from '../../utils/timelineUtils';
+import { isTextEntry } from '../../utils/keyboard';
 import { useInlineEdit } from '../../hooks/useInlineEdit';
 import { useDoubleClick } from '../../hooks/useDoubleClick';
 import { useIsDropHeader } from '../../hooks/useDropState';
 import { commitWithSlide } from '../../commands/slideCommit';
+import { titleIfTruncated } from '../../utils/truncatedTitle';
 import { PinBadge } from '../common';
 
 interface ScheduleLabelRowProps {
@@ -44,6 +46,9 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
   const inlineEdit = useInlineEdit();
   const isEditingName = inlineEdit.editingId === section.id;
   const isPinned = section.id === pinnedSectionId;
+  // What the column prints for a schedule with no name, and what every spoken
+  // label says for it, so neither ever reads as a gap
+  const displayName = section.name || 'Untitled schedule';
 
   const handleSelectSection = useCallback(
     (e: React.MouseEvent): void => {
@@ -90,17 +95,25 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
-      if (e.key === 'Enter' || e.key === ' ') {
+      // Return edits and Space folds, as they do on the sheet — but for this
+      // schedule, which a Tab may have reached without selecting it
+      if (e.key === 'Enter') {
         e.preventDefault();
         const bounds = (e.target as HTMLElement).getBoundingClientRect();
         selectSection(section.id, { x: bounds.right, y: bounds.top });
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        selectSection(section.id, undefined, { openEditor: false });
+        commitWithSlide(() => toggleSectionCollapse(section.id));
       }
     },
-    [selectSection, section.id]
+    [selectSection, toggleSectionCollapse, section.id]
   );
 
   const handleLabelContextMenu = useCallback(
     (e: React.MouseEvent): void => {
+      // The rename field keeps the system's Cut, Copy and Paste
+      if (isTextEntry(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
       openContextMenu({
@@ -134,14 +147,16 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
       role="button"
       tabIndex={0}
       aria-selected={isSelected}
-      aria-label={`${section.name} schedule${isSelected ? ', selected' : ''}`}
+      aria-label={`${displayName}${section.name ? ' schedule' : ''}${
+        isSelected ? ', selected' : ''
+      }`}
     >
       <button
         onClick={handleToggleCollapse}
         className="row-affordance w-5 h-5 flex-shrink-0 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded transition-colors duration-fast"
         data-always-visible={section.isCollapsed ? 'true' : undefined}
         aria-expanded={!section.isCollapsed}
-        aria-label={`${section.isCollapsed ? 'Expand' : 'Collapse'} ${section.name}`}
+        aria-label={`${section.isCollapsed ? 'Expand' : 'Collapse'} ${displayName}`}
       >
         <svg
           className={`w-3 h-3 collapse-chevron ${section.isCollapsed ? '' : 'expanded'}`}
@@ -159,6 +174,7 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
       {isEditingName ? (
         <input
           ref={inlineEdit.inputRef}
+          {...inlineEdit.inputProps}
           className="text-body font-semibold text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1"
           value={inlineEdit.editedName}
           onChange={inlineEdit.handleChange}
@@ -167,8 +183,13 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className="text-body font-semibold text-[var(--color-text-primary)] truncate">
-          {section.name || 'Untitled Schedule'}
+        <span
+          className={`text-body font-semibold truncate ${
+            section.name ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'
+          }`}
+          onPointerEnter={titleIfTruncated}
+        >
+          {displayName}
         </span>
       )}
       <span className="flex-1" />
@@ -192,7 +213,7 @@ export const ScheduleLabelRow = memo(function ScheduleLabelRow({
           onPointerDown={handleGripPointerDown}
           className="row-affordance flex-shrink-0 flex items-center justify-center w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded transition-colors duration-fast touch-none cursor-grab active:cursor-grabbing"
           title="Drag to reorder"
-          aria-label={`Drag to reorder ${section.name}`}
+          aria-label={`Drag to reorder ${displayName}`}
         >
           <svg className="w-3 h-3" viewBox="0 0 10 16" fill="currentColor" aria-hidden="true">
             <circle cx="2" cy="2" r="1.5" />

@@ -3,9 +3,11 @@ import type { DependencyAnchor, Section, ViewportBounds } from '../../types';
 import { DEFAULT_PROJECT_SETTINGS } from '../../types';
 import type { FlatRow } from '../../utils/timelineUtils';
 import { barInsetForDepth, labelInsetForDepth, xToDay } from '../../utils/timelineUtils';
-import { snapKeyToBusinessDay } from '../../utils/dayKeys';
+import { lastDayOf, snapKeyToBusinessDay, snapSpanToBusinessDays } from '../../utils/dayKeys';
 import { formatDayKey } from '../../utils/dateUtils';
 import { getReadableTextColor } from '../../utils/colorUtils';
+import { measureMilestoneLabelWidth } from '../../utils/labelLayoutUtils';
+import { titleIfTruncated } from '../../utils/truncatedTitle';
 import { useSectionStore } from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -23,6 +25,7 @@ import {
   useShowDependencies,
 } from '../../hooks/useDependencyState';
 import { reportDependencyHover, reportDependencyLeave } from '../../utils/dependencyHover';
+import { reportRowHover, reportRowLeave, useIsRowHovered } from '../../hooks/useRowHover';
 import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGhost';
 import { useIsTaskPointer } from '../../hooks/useTaskPointer';
 import {
@@ -34,9 +37,11 @@ import {
 import {
   createBarAt,
   createTaskAt,
+  drawnSpanAt,
   drawnSpanDescriber,
   DEFAULT_BAR_DAYS,
   DEFAULT_NESTED_BAR_DAYS,
+  type CreateSpan,
 } from '../../utils/creationUtils';
 import { DragHandle } from './DragHandle';
 import { DependencyDot } from './DependencyDot';
@@ -101,6 +106,9 @@ export const ItemRow = memo(function ItemRow({
   const isDone = isTask && item.isDone === true;
   const hasChildren = item.children.length > 0;
   const isOpenGroup = isBar && hasChildren && !item.isCollapsed;
+  // What the labels column prints for an item with no name, and what every
+  // spoken label says for it, so neither ever reads as a gap
+  const displayName = item.name || (isBar ? 'Untitled' : isTask ? 'Task' : 'Milestone');
   // What a drop beside or onto this row may do. A locked list takes no new
   // members; a locked bar takes no children.
   const dropAttributes = {
@@ -237,19 +245,26 @@ export const ItemRow = memo(function ItemRow({
     [startDependencyDraw, item.id]
   );
 
-  // Hover is what reveals this item's links; a finger has no hover to report
-  const handleDependencyHoverEnter = useCallback(
+  // Hover is what reveals this item's links, and what lights its name in the
+  // labels column so the eye can cross the gap; a finger has no hover to report
+  const handleHoverEnter = useCallback(
     (e: React.PointerEvent): void => {
-      if (e.pointerType === 'mouse') reportDependencyHover(item.id);
+      if (e.pointerType !== 'mouse') return;
+      reportDependencyHover(item.id);
+      reportRowHover(item.id);
     },
     [item.id]
   );
-  const handleDependencyHoverLeave = useCallback(
+  const handleHoverLeave = useCallback(
     (e: React.PointerEvent): void => {
-      if (e.pointerType === 'mouse') reportDependencyLeave(item.id);
+      if (e.pointerType !== 'mouse') return;
+      reportDependencyLeave(item.id);
+      reportRowLeave(item.id);
     },
     [item.id]
   );
+  // Only the labels column listens; the sheet's own row has nothing to light
+  const isHoveredOnSheet = useIsRowHovered(isLabel ? item.id : null);
 
   // -- moving --------------------------------------------------------------
 
@@ -319,13 +334,18 @@ export const ItemRow = memo(function ItemRow({
 
   // Open space beside any row draws a new bar into that row's own group, and
   // lands it directly below the row it was drawn in. Drawing where the work
-  // belongs beats drawing it at the root and dragging it in afterwards.
-  const canCreateHere = !isLabel;
+  // belongs beats drawing it at the root and dragging it in afterwards. A
+  // locked list takes no new members this way any more than by a drop.
+  const canCreateHere = !isLabel && !row.parentLocked;
 
   // "Skip weekends" belongs to the commit, not the gesture: the ghost tracks
   // the cursor exactly, and the day it lands on is squared up once, here.
   const snapCreateDay = useCallback(
     (key: string): string => (skipWeekends ? snapKeyToBusinessDay(key) : key),
+    [skipWeekends]
+  );
+  const snapCreateSpan = useCallback(
+    (span: CreateSpan): CreateSpan => (skipWeekends ? snapSpanToBusinessDays(span) : span),
     [skipWeekends]
   );
 
@@ -363,28 +383,25 @@ export const ItemRow = memo(function ItemRow({
   const handleGhostDraw = useCallback(
     ({ startPx, endPx, point }: CreateGestureInfo): void => {
       // Both drawn edges were chosen, so each squares up on its own — the same
-      // bargain resize strikes. A span drawn across a weekend can collapse onto
-      // a single Monday that way; `createBarAt` holds the floor of one day.
+      // bargain resize strikes. A span drawn wholly inside a weekend has no
+      // weekday to square up to, so it lands where it was drawn.
       createBarAt(
         section.id,
         {
-          span: {
-            start: snapCreateDay(xToDay(startPx, viewport, pixelsPerDay)),
-            end: snapCreateDay(xToDay(endPx, viewport, pixelsPerDay)),
-          },
+          span: drawnSpanAt(startPx, endPx, viewport, pixelsPerDay, snapCreateSpan),
           parentId: row.parentId,
           index: row.index + 1,
         },
         point
       );
     },
-    [section.id, viewport, pixelsPerDay, row.parentId, row.index, snapCreateDay]
+    [section.id, viewport, pixelsPerDay, row.parentId, row.index, snapCreateSpan]
   );
 
   // The dates the draw reports come off the same conversion the drop commits
   const describeSpan = useMemo(
-    () => drawnSpanDescriber(viewport, pixelsPerDay, snapCreateDay),
-    [viewport, pixelsPerDay, snapCreateDay]
+    () => drawnSpanDescriber(viewport, pixelsPerDay, snapCreateSpan),
+    [viewport, pixelsPerDay, snapCreateSpan]
   );
 
   const isTaskPointer = useIsTaskPointer();
@@ -412,14 +429,30 @@ export const ItemRow = memo(function ItemRow({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
-      if (e.key === 'Enter' || e.key === ' ') {
+      // Return edits and Space folds, as they do on the sheet — but for this
+      // row, which a Tab may have reached without selecting it
+      if (e.key === 'Enter') {
         e.preventDefault();
         const bounds = (e.target as HTMLElement).getBoundingClientRect();
         selectItem(item.id, section.id, { x: bounds.right, y: bounds.top });
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        selectItem(item.id, section.id, undefined, { openEditor: false });
+        handleToggleFromBar();
       }
     },
-    [selectItem, item.id, section.id]
+    [selectItem, item.id, section.id, handleToggleFromBar]
   );
+
+  // A name the bar cannot hold prints on the paper past its end instead.
+  // Bar and milestone names set the same 12px type, so the milestone measure
+  // answers it — once per name, cached, never per frame — with 18px of chrome
+  // standing in for the bar's 16px of padding.
+  const nameWidth = useMemo(
+    () => (isBar && item.name ? measureMilestoneLabelWidth(item.name) : 0),
+    [isBar, item.name]
+  );
+  const isNameOutside = nameWidth > rect.width;
 
   // -- labels column -------------------------------------------------------
 
@@ -428,7 +461,9 @@ export const ItemRow = memo(function ItemRow({
       <div
         className={`group relative flex items-center gap-1.5 pr-3 cursor-pointer row-selectable focus-ring touch-none ${
           isSelected ? 'selected' : ''
-        } ${isDragged ? 'is-dragged-row' : ''} ${isReceiver ? 'is-drop-receiver' : ''}`}
+        } ${isDragged ? 'is-dragged-row' : ''} ${isReceiver ? 'is-drop-receiver' : ''} ${
+          isHoveredOnSheet ? 'is-hovered-on-sheet' : ''
+        }`}
         style={{ height: row.height, paddingLeft: labelInsetForDepth(depth) }}
         data-flip-item={item.id}
         data-drag-item={item.id}
@@ -442,7 +477,7 @@ export const ItemRow = memo(function ItemRow({
         role="listitem"
         tabIndex={0}
         aria-selected={isSelected}
-        aria-label={`${item.name || 'Untitled'}${isSelected ? ', selected' : ''}${
+        aria-label={`${displayName}${isSelected ? ', selected' : ''}${
           isLocked ? ', locked' : ''
         }${isTask ? (isDone ? ', done' : ', not done') : ''}`}
       >
@@ -457,7 +492,7 @@ export const ItemRow = memo(function ItemRow({
             className="row-affordance w-5 h-5 flex-shrink-0 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] focus-ring rounded transition-colors duration-fast"
             data-always-visible={item.isCollapsed ? 'true' : undefined}
             aria-expanded={!item.isCollapsed}
-            aria-label={`${item.isCollapsed ? 'Expand' : 'Collapse'} ${item.name}`}
+            aria-label={`${item.isCollapsed ? 'Expand' : 'Collapse'} ${displayName}`}
           >
             <svg
               className={`w-3 h-3 collapse-chevron ${item.isCollapsed ? '' : 'expanded'}`}
@@ -489,6 +524,7 @@ export const ItemRow = memo(function ItemRow({
         {isEditingName ? (
           <input
             ref={inlineEdit.inputRef}
+            {...inlineEdit.inputProps}
             className="text-body text-[var(--color-text-primary)] bg-transparent border-b border-[var(--color-focus)] outline-none truncate min-w-0 flex-1"
             value={inlineEdit.editedName}
             onChange={inlineEdit.handleChange}
@@ -499,13 +535,16 @@ export const ItemRow = memo(function ItemRow({
           />
         ) : (
           <span
-            className={`truncate flex-1 ${
-              depth === 0
-                ? 'text-body text-[var(--color-text-primary)]'
-                : 'text-body text-[var(--color-text-secondary)]'
+            className={`truncate flex-1 text-body ${
+              !item.name
+                ? 'text-[var(--color-text-muted)]'
+                : depth === 0
+                  ? 'text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-secondary)]'
             } ${isDone ? 'task-name--done' : ''}`}
+            onPointerEnter={titleIfTruncated}
           >
-            {item.name || (isBar ? 'Untitled' : isTask ? 'Task' : 'Milestone')}
+            {displayName}
           </span>
         )}
 
@@ -529,14 +568,20 @@ export const ItemRow = memo(function ItemRow({
 
   // -- timeline column -----------------------------------------------------
 
+  // A row that takes nothing new stands down the plot's crosshair and the task
+  // pointer, which would otherwise promise a bar or a task that never comes.
+  // Its click stays wired: a plain click on open paper still lets go of the
+  // selection, and the hook creates nothing while disabled.
   return (
     <div
-      className={`group relative ${ghost.ghost !== null ? 'cursor-copy' : ''}`}
+      className={`group relative ${
+        !canCreateHere ? 'cursor-default' : ghost.ghost !== null ? 'cursor-copy' : ''
+      }`}
       style={{ height: row.height }}
       data-flip-item={item.id}
       {...dropAttributes}
       onContextMenu={handleRowContextMenu}
-      onClick={canCreateHere ? ghost.handleClick : undefined}
+      onClick={ghost.handleClick}
       onDoubleClick={canCreateHere ? ghost.handleDoubleClick : undefined}
       onPointerMove={canCreateHere ? ghost.handlePointerMove : undefined}
       onPointerLeave={canCreateHere ? ghost.handlePointerLeave : undefined}
@@ -569,15 +614,15 @@ export const ItemRow = memo(function ItemRow({
           data-drop-section={section.id}
           data-drop-locked={isLocked ? '' : undefined}
           data-drag-item={item.id}
-          className={`absolute timeline-bar group/bar overflow-visible touch-none ${
-            isLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
+          className={`absolute timeline-bar group/bar overflow-visible touch-none focus-ring ${
+            isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
           } ${isSelected ? 'timeline-bar--selected' : ''} ${
             isReceiver ? 'timeline-bar--receiving' : ''
           } ${isDragged ? 'timeline-bar--lifted' : ''}`}
           style={{ left: rect.left, width: rect.width, top: inset, bottom: inset }}
           onPointerDown={handleBarPointerDown}
-          onPointerEnter={handleDependencyHoverEnter}
-          onPointerLeave={handleDependencyHoverLeave}
+          onPointerEnter={handleHoverEnter}
+          onPointerLeave={handleHoverLeave}
           onClick={handleBarClick}
           onDoubleClick={bar.handleDoubleClick}
           onContextMenu={handleBarContextMenu}
@@ -585,8 +630,8 @@ export const ItemRow = memo(function ItemRow({
           role="button"
           tabIndex={0}
           aria-selected={isSelected}
-          aria-label={`${item.name || 'Untitled'}, ${formatDayKey(item.start)} to ${formatDayKey(
-            item.end
+          aria-label={`${displayName}, ${formatDayKey(item.start)} to ${formatDayKey(
+            lastDayOf(item.end)
           )}${isLocked ? ', locked' : ''}`}
         >
           <div className="timeline-bar__fill" style={{ backgroundColor: color }} />
@@ -597,30 +642,47 @@ export const ItemRow = memo(function ItemRow({
               aria-hidden="true"
             />
           )}
-          <span className="timeline-bar__label">
-            <span className="truncate" style={{ color: textColor }}>
+          {/* Too long for its bar, the name prints on the paper just past the
+              end, as a task's or a milestone's does beside its glyph. It is
+              still the bar's: hovering it, pressing it and clicking it are the
+              bar's own, and it stays behind when the bar is picked up. */}
+          {isNameOutside ? (
+            <span
+              className={`timeline-bar__outside-label text-meta ${
+                showDependencies ? '' : 'timeline-bar__outside-label--near'
+              }`}
+              data-strip-on-drag=""
+            >
               {item.name}
             </span>
-          </span>
+          ) : (
+            <span className="timeline-bar__label">
+              <span className="truncate" style={{ color: textColor }}>
+                {item.name}
+              </span>
+            </span>
+          )}
 
           {!isLocked && (
             <>
               <DragHandle
                 edge="start"
+                barWidth={rect.width}
                 onDragStart={handleResizeStart}
                 onDrag={handleResize}
                 onDragEnd={handleResizeEnd}
                 onDragCancel={handleResizeCancel}
-                label={`Resize ${item.name} start`}
+                label={`Resize ${displayName} start`}
                 dragDate={startBubble}
               />
               <DragHandle
                 edge="end"
+                barWidth={rect.width}
                 onDragStart={handleResizeStart}
                 onDrag={handleResize}
                 onDragEnd={handleResizeEnd}
                 onDragCancel={handleResizeCancel}
-                label={`Resize ${item.name} end`}
+                label={`Resize ${displayName} end`}
                 dragDate={endBubble}
               />
             </>
@@ -655,8 +717,8 @@ export const ItemRow = memo(function ItemRow({
           style={{ left: rect.left }}
           data-drag-item={item.id}
           onPointerDown={handleBarPointerDown}
-          onPointerEnter={handleDependencyHoverEnter}
-          onPointerLeave={handleDependencyHoverLeave}
+          onPointerEnter={handleHoverEnter}
+          onPointerLeave={handleHoverLeave}
           onClick={handleTaskClick}
           onContextMenu={handleBarContextMenu}
           onKeyDown={handleKeyDown}
@@ -704,23 +766,21 @@ export const ItemRow = memo(function ItemRow({
         </div>
       ) : (
         <div
-          className={`absolute top-0 bottom-0 timeline-point touch-none ${
+          className={`absolute top-0 bottom-0 timeline-point touch-none focus-ring ${
             isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
-          } ${
-            isDragged ? 'timeline-point--lifted' : ''
-          }`}
+          } ${isDragged ? 'timeline-point--lifted' : ''}`}
           style={{ left: rect.left }}
           data-drag-item={item.id}
           onPointerDown={handleBarPointerDown}
-          onPointerEnter={handleDependencyHoverEnter}
-          onPointerLeave={handleDependencyHoverLeave}
+          onPointerEnter={handleHoverEnter}
+          onPointerLeave={handleHoverLeave}
           onClick={handleBarClick}
           onContextMenu={handleBarContextMenu}
           onKeyDown={handleKeyDown}
           role="button"
           tabIndex={0}
           aria-selected={isSelected}
-          aria-label={`${item.name || 'Milestone'}, ${formatDayKey(item.start)}`}
+          aria-label={`${displayName}, ${formatDayKey(item.start)}`}
         >
           {/* A point is a small target; this box is what a drawn link lands on */}
           <span
@@ -735,7 +795,9 @@ export const ItemRow = memo(function ItemRow({
             }`}
             aria-hidden="true"
           />
-          <span className="absolute top-1/2 left-2.5 -translate-y-1/2 text-meta text-[var(--color-text-secondary)] whitespace-nowrap pointer-events-none">
+          {/* The name is part of the milestone, as a task's is: a click on it
+              selects and a press on it drags, rather than drawing a bar */}
+          <span className="absolute top-1/2 left-2.5 -translate-y-1/2 text-meta text-[var(--color-text-secondary)] whitespace-nowrap">
             {item.name}
           </span>
           {showDependencies && (

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo } from 'react';
-import { format } from 'date-fns';
+import { useCallback, useMemo } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { usePresence } from '../../hooks/usePresence';
+import { useModalLayer } from '../../hooks/useModalLayer';
 import { markReleasesSeen } from '../../hooks/useWhatsNew';
-import { fromDayKey } from '../../utils/dayKeys';
+import { formatDayKey } from '../../utils/dateUtils';
 import { PHASE_COLORS } from '../../constants/colors';
 import { Button } from '../common/Button';
 
@@ -45,26 +45,6 @@ export function WhatsNewModal(): JSX.Element | null {
     void markReleasesSeen();
   }, [closeWhatsNew]);
 
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        handleDismiss();
-      }
-    },
-    [handleDismiss]
-  );
-
-  useEffect(() => {
-    if (!isWhatsNewOpen) return;
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        handleDismiss();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isWhatsNewOpen, handleDismiss]);
-
   // Where each release's colour run picks up, so the walk continues across a
   // panel showing several rather than restarting on every heading.
   const colorOffsets = useMemo(() => {
@@ -78,22 +58,29 @@ export function WhatsNewModal(): JSX.Element | null {
 
   // Held on screen through the exit so the panel and its scrim leave together.
   const { isMounted, isLeaving } = usePresence(isWhatsNewOpen);
+  const { panelRef, backdropProps } = useModalLayer({
+    isOpen: isWhatsNewOpen,
+    isMounted,
+    onDismiss: handleDismiss,
+  });
   if (!isMounted || releases.length === 0) return null;
 
   return (
     <div
       className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
-      onClick={handleBackdropClick}
+      {...backdropProps}
       role="dialog"
       aria-modal="true"
       aria-labelledby="whats-new-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/25" />
+      <div className="absolute inset-0 bg-[var(--color-scrim)] pointer-events-none" />
 
       {/* Panel */}
       <div
-        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-sm mx-4 modal-enter"
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-sm mx-4 outline-none modal-enter"
         role="document"
       >
         <div className="px-6 pt-5 pb-1">
@@ -104,7 +91,7 @@ export function WhatsNewModal(): JSX.Element | null {
             {/* One release needs no version heading of its own — the date
                 belongs up here with the title, where it dates the whole panel. */}
             {releases.length === 1
-              ? format(fromDayKey(releases[0].date), 'd MMMM yyyy')
+              ? formatDayKey(releases[0].date)
               : `${releases.length} releases`}
           </p>
         </div>
@@ -114,7 +101,7 @@ export function WhatsNewModal(): JSX.Element | null {
             <div key={release.version}>
               {releases.length > 1 && (
                 <h3 className="eyebrow mb-2.5">
-                  {release.version} · {format(fromDayKey(release.date), 'd MMM yyyy')}
+                  {release.version} · {formatDayKey(release.date)}
                 </h3>
               )}
               <ul className="space-y-3">

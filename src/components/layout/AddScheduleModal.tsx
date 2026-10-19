@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { useSectionStore } from '../../stores/sectionStore';
 import { SCHEDULE_TEMPLATES, createSectionFromTemplate } from '../../data/scheduleTemplates';
 import { getSectionsDateRange } from '../../utils/dateUtils';
+import { uniqueName } from '../../utils/uniqueName';
+import { revealRow } from '../../utils/revealRow';
+import { commitWithSlide } from '../../commands/slideCommit';
 import type { ScheduleTemplate } from '../../data/scheduleTemplates';
 import { TemplateIcon } from '../common/TemplateIcon';
 import { usePresence } from '../../hooks/usePresence';
+import { useModalLayer } from '../../hooks/useModalLayer';
 
 interface TemplateOptionProps {
   readonly template: ScheduleTemplate;
@@ -45,66 +49,58 @@ function TemplateOption({ template, onSelect }: TemplateOptionProps): JSX.Elemen
 
 export function AddScheduleModal(): JSX.Element | null {
   const { isAddScheduleModalOpen, closeAddScheduleModal } = useUIStore();
+  const selectSection = useUIStore((state) => state.selectSection);
   const sections = useSectionStore((state) => state.sections);
   const setSections = useSectionStore((state) => state.setSections);
 
   // Align new schedules with the existing schedules' combined date range
   const defaultDateRange = useMemo(() => getSectionsDateRange(sections) ?? undefined, [sections]);
 
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        closeAddScheduleModal();
-      }
-    },
-    [closeAddScheduleModal]
-  );
-
+  // The new schedule goes at the end, under a name no other schedule has, and
+  // arrives the way anything returning to the sheet does: the rows make room
+  // and it fades up into the gap. Then it is selected and its editor opens
+  // beside it with the name field focused — the way a new bar comes up ready
+  // to be named — scrolled into view first if the sheet runs past the window.
   const handleSelectTemplate = useCallback(
     (template: ScheduleTemplate) => {
-      // Use sections.length to determine order (new section goes at the end)
+      const name = uniqueName(template.name, sections.map((section) => section.name));
       const newSection = createSectionFromTemplate(template, sections.length, {
         dateRange: defaultDateRange,
+        nameOverride: name,
       });
-      setSections([...sections, newSection]);
+      commitWithSlide(() => setSections([...sections, newSection]));
       closeAddScheduleModal();
+      selectSection(newSection.id, revealRow({ sectionId: newSection.id, itemId: null }));
     },
-    [sections, setSections, closeAddScheduleModal, defaultDateRange]
+    [sections, setSections, selectSection, closeAddScheduleModal, defaultDateRange]
   );
-
-  // Close on escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        closeAddScheduleModal();
-      }
-    };
-
-    if (isAddScheduleModalOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isAddScheduleModalOpen, closeAddScheduleModal]);
 
   // Held on screen through the exit so the panel and its scrim can leave
   // together, the way they arrived.
   const { isMounted, isLeaving } = usePresence(isAddScheduleModalOpen);
+  const { panelRef, backdropProps } = useModalLayer({
+    isOpen: isAddScheduleModalOpen,
+    isMounted,
+    onDismiss: closeAddScheduleModal,
+  });
   if (!isMounted) return null;
 
   return (
     <div
       className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
-      onClick={handleBackdropClick}
+      {...backdropProps}
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-schedule-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/25" />
+      <div className="absolute inset-0 bg-[var(--color-scrim)] pointer-events-none" />
 
       {/* Modal */}
       <div
-        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-lg mx-4 modal-enter"
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-lg mx-4 outline-none modal-enter"
         role="document"
       >
         {/* Header */}
@@ -137,7 +133,7 @@ export function AddScheduleModal(): JSX.Element | null {
         {/* Body */}
         <div className="p-6">
           <p className="text-body text-[var(--color-text-secondary)] mb-4">
-            Choose a template to pre-populate phases and milestones.
+            Choose a template to start the schedule with bars and milestones.
           </p>
           {/* The rows bleed past the body's padding so the hover ground has
               room to sit behind the text. */}

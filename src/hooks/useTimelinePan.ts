@@ -172,7 +172,9 @@ export function useTimelinePan({
       }
     };
 
-    const handleWheelCapture = (e: WheelEvent): void => {
+    // A wheel or a pinch takes the sheet from a coast the way a press does.
+    // WebKit reports a trackpad pinch as gesture events, not as a wheel.
+    const handleWheelOrPinchCapture = (e: Event): void => {
       if (!isOnSheet(e.target)) return;
       stopGlide();
       releasePull();
@@ -180,11 +182,13 @@ export function useTimelinePan({
 
     document.addEventListener('pointerdown', handlePointerDownCapture, true);
     document.addEventListener('contextmenu', handleContextMenuCapture, true);
-    document.addEventListener('wheel', handleWheelCapture, { passive: true, capture: true });
+    document.addEventListener('wheel', handleWheelOrPinchCapture, { passive: true, capture: true });
+    document.addEventListener('gesturestart', handleWheelOrPinchCapture, true);
     return () => {
       document.removeEventListener('pointerdown', handlePointerDownCapture, true);
       document.removeEventListener('contextmenu', handleContextMenuCapture, true);
-      document.removeEventListener('wheel', handleWheelCapture, true);
+      document.removeEventListener('wheel', handleWheelOrPinchCapture, true);
+      document.removeEventListener('gesturestart', handleWheelOrPinchCapture, true);
     };
   }, [startPan, stopGlide, releasePull]);
 

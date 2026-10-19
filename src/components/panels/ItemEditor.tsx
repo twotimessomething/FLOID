@@ -1,12 +1,19 @@
-import { useCallback, useMemo } from 'react';
-import { useSectionStore, selectItem, selectSection } from '../../stores/sectionStore';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import {
+  useSectionStore,
+  selectItem,
+  selectSection,
+  typeInto,
+  endTypingStep,
+} from '../../stores/sectionStore';
 import { useUIStore, showItemDeletedToast } from '../../stores/uiStore';
 import { Input, TextArea, DateInput, ColorPicker, Button, Toggle } from '../common';
+import { useNameDraft } from '../../hooks/useNameDraft';
 import { countItems, findItemPath } from '../../utils/itemTree';
 import { resolveItemColor } from '../../utils/timelineUtils';
-import { fromDayKey, toDayKey } from '../../utils/dayKeys';
+import { endAfterLastDay, fromDayKey, lastDayOf, toDayKey } from '../../utils/dayKeys';
 import { commitWithSlide } from '../../commands/slideCommit';
-import type { SelectionState } from '../../types';
+import type { Section, SelectionState, TimelineItem } from '../../types';
 
 /**
  * The editor for anything on the timeline.
@@ -38,8 +45,16 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
 
   const sectionSelector = useMemo(() => selectSection(sectionId), [sectionId]);
   const itemSelector = useMemo(() => selectItem(sectionId, itemId), [sectionId, itemId]);
-  const section = useSectionStore(sectionSelector);
-  const item = useSectionStore(itemSelector);
+  const liveSection = useSectionStore(sectionSelector);
+  const liveItem = useSectionStore(itemSelector);
+
+  // Undoing the bar this panel is open on takes it off the sheet, and the
+  // panel closes after it (uiStore) — leaving with what it was editing still
+  // in it, not an empty box. The handlers below only ever act on the live item.
+  const heldRef = useRef<{ readonly item: TimelineItem; readonly section: Section } | null>(null);
+  if (liveItem && liveSection) heldRef.current = { item: liveItem, section: liveSection };
+  const item = heldRef.current?.item;
+  const section = heldRef.current?.section;
 
   // Ancestors, so the panel can say where this thing lives without a title bar
   const trail = useMemo(() => {
@@ -49,18 +64,24 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
     return [section.name, ...path.slice(0, -1).map((ancestor) => ancestor.name || 'Untitled')];
   }, [section, itemId]);
 
-  const handleNameChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+  // What is typed into one field is one undo step (`typeInto`). Moving to
+  // another field starts the next, and so does closing the panel.
+  useEffect(() => endTypingStep, []);
+
+  const saveName = useCallback(
+    (name: string) => {
       if (!sectionId || !itemId) return;
-      updateItem(sectionId, itemId, { name: e.target.value });
+      typeInto(`${itemId}:name`, () => updateItem(sectionId, itemId, { name }));
     },
     [sectionId, itemId, updateItem]
   );
+  const nameField = useNameDraft(item?.name ?? '', saveName);
 
   const handleDescriptionChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       if (!sectionId || !itemId) return;
-      updateItem(sectionId, itemId, { description: e.target.value });
+      const description = e.target.value;
+      typeInto(`${itemId}:description`, () => updateItem(sectionId, itemId, { description }));
     },
     [sectionId, itemId, updateItem]
   );
@@ -77,25 +98,30 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
   // to its new days, as it would going back to them on undo. The field reports
   // every keystroke, so typing November into an end of December passes through
   // January first; a bar's edges never cross on the way, or the store would
-  // swap them and the bar would land months from anything typed.
+  // swap them and the bar would land months from anything typed. End is the
+  // last day the bar covers, as anyone reads it, not its exclusive edge.
   const handleStartChange = useCallback(
     (date: Date) => {
-      if (!sectionId || !itemId || !item) return;
+      if (!sectionId || !itemId || !liveItem) return;
       const start = toDayKey(date);
-      if (item.kind === 'bar' && start >= item.end) return;
-      commitWithSlide(() => setItemDates(sectionId, itemId, start, item.end));
+      if (liveItem.kind === 'bar' && start >= liveItem.end) return;
+      commitWithSlide(() =>
+        typeInto(`${itemId}:start`, () => setItemDates(sectionId, itemId, start, liveItem.end))
+      );
     },
-    [sectionId, itemId, item, setItemDates]
+    [sectionId, itemId, liveItem, setItemDates]
   );
 
   const handleEndChange = useCallback(
     (date: Date) => {
-      if (!sectionId || !itemId || !item) return;
-      const end = toDayKey(date);
-      if (end <= item.start) return;
-      commitWithSlide(() => setItemDates(sectionId, itemId, item.start, end));
+      if (!sectionId || !itemId || !liveItem) return;
+      const end = endAfterLastDay(toDayKey(date));
+      if (end <= liveItem.start) return;
+      commitWithSlide(() =>
+        typeInto(`${itemId}:end`, () => setItemDates(sectionId, itemId, liveItem.start, end))
+      );
     },
-    [sectionId, itemId, item, setItemDates]
+    [sectionId, itemId, liveItem, setItemDates]
   );
 
   const handleToggleDone = useCallback(() => {
@@ -104,13 +130,13 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
   }, [sectionId, itemId, toggleItemDone]);
 
   const handleDelete = useCallback(() => {
-    if (!sectionId || !itemId || !item) return;
+    if (!sectionId || !itemId || !liveItem) return;
     // Read it while it still exists, so the notice can name what it cost
-    showItemDeletedToast(item);
+    showItemDeletedToast(liveItem);
     // The rows below close over the gap rather than jumping into it
     commitWithSlide(() => deleteItem(sectionId, itemId));
     closeModal();
-  }, [sectionId, itemId, item, deleteItem, closeModal]);
+  }, [sectionId, itemId, liveItem, deleteItem, closeModal]);
 
   if (!item || !section) {
     return <div className="text-body text-[var(--color-text-secondary)]">Nothing selected</div>;
@@ -123,9 +149,18 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
   const childCount = countItems(item.children);
   // What the bar actually paints with — an inherited colour, not the schedule's
   const effectiveColor = resolveItemColor(section, item.id);
+  // Named for what goes: a bar holding others takes its group with it
+  const deleteLabel =
+    childCount > 0
+      ? 'Delete group'
+      : isTask
+        ? 'Delete task'
+        : isPoint
+          ? 'Delete milestone'
+          : 'Delete bar';
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" onFocus={endTypingStep}>
       <div className="text-xs text-[var(--color-text-secondary)] truncate">
         {trail.map((name, index) => (
           <span key={`${name}-${index}`}>
@@ -139,9 +174,11 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
 
       <Input
         label="Name"
-        value={item.name}
-        onChange={handleNameChange}
+        value={nameField.value}
+        onChange={nameField.onChange}
+        onBlur={nameField.onBlur}
         autoFocus
+        spellCheck={false}
         placeholder={isTask ? 'Task name' : isPoint ? 'Milestone name' : 'Name'}
       />
 
@@ -149,7 +186,7 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
         label="Description"
         value={item.description}
         onChange={handleDescriptionChange}
-        placeholder="Add a description..."
+        placeholder="Add a description…"
       />
 
       {!isPoint && (
@@ -164,11 +201,11 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
             label="Start"
             value={fromDayKey(item.start)}
             onChange={handleStartChange}
-            max={fromDayKey(item.end)}
+            max={fromDayKey(lastDayOf(item.end))}
           />
           <DateInput
             label="End"
-            value={fromDayKey(item.end)}
+            value={fromDayKey(lastDayOf(item.end))}
             onChange={handleEndChange}
             min={fromDayKey(item.start)}
           />
@@ -190,9 +227,10 @@ export function ItemEditor({ selection: given }: ItemEditorProps = {}): JSX.Elem
         </div>
       )}
 
+      {/* A quiet action at the foot: the delete raises an Undo of its own */}
       <div className="pt-2">
-        <Button variant="danger" onClick={handleDelete} className="w-full">
-          Delete
+        <Button variant="danger" onClick={handleDelete} className="-ml-3">
+          {deleteLabel}
         </Button>
       </div>
     </div>

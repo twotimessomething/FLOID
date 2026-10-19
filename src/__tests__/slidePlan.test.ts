@@ -5,6 +5,7 @@ import {
   buildSlidePlan,
   fitText,
   inkForPaper,
+  lastCoveredDay,
   routeDependency,
   type SlideShape,
 } from '../utils/slidePlan';
@@ -476,6 +477,31 @@ describe('buildSlidePlan — axis and framing', () => {
     const range = named(plan.shapes, 'Date range')[0];
     if (range.kind !== 'text') throw new Error('unreachable');
     expect(range.text).toBe('Mar 2026 – Oct 2026');
+  });
+
+  it('closes the range on the last day covered, not the edge after it', () => {
+    // Through Dec 31: the stored end is the morning of Jan 1
+    const through = [
+      section('s1', [bar('a', '2026-03-10', '2027-01-01')], {
+        startDate: '2026-03-10',
+        endDate: '2026-12-31',
+      }),
+    ];
+    const range = named(buildSlidePlan(project(), through).shapes, 'Date range')[0];
+    if (range.kind !== 'text') throw new Error('unreachable');
+    expect(range.text).toBe('Mar 2026 – Dec 2026');
+    expect(lastCoveredDay(through)).toBe('2026-12-31');
+
+    // A milestone's day is its own
+    const launch = [section('s1', [...through[0].items, milestone('Launch', '2027-01-01')], {
+      startDate: '2026-03-10',
+      endDate: '2026-12-31',
+    })];
+    expect(lastCoveredDay(launch)).toBe('2027-01-01');
+
+    // A schedule's window ends on the day that was declared
+    const declared = [section('s1', [], { startDate: '2026-03-10', endDate: '2027-01-01' })];
+    expect(lastCoveredDay(declared)).toBe('2027-01-01');
   });
 
   it('rules today over the bars, not under them', () => {

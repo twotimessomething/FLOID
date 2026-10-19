@@ -1,5 +1,5 @@
 export { useViewport } from './useViewport';
-export { useAutoSave } from './useAutoSave';
+export { useAutoSave, useIsSaveFailing } from './useAutoSave';
 export { usePlayhead } from './usePlayhead';
 export { useScheduleDrag } from './useScheduleDrag';
 export { useBarResize } from './useBarResize';
@@ -30,4 +30,11 @@ export { useScheduleRowGestures } from './useScheduleRowGestures';
 export { usePinnedSection } from './usePinnedSection';
 export { useInlineEdit } from './useInlineEdit';
 export { useTimelinePan } from './useTimelinePan';
+export { usePinchZoom } from './usePinchZoom';
 export { useFloatingPanelSize } from './useFloatingPanelSize';
+export { useModalLayer, isBlockingModalOpen } from './useModalLayer';
+export { useWindowTitle } from './useWindowTitle';
+export { useIsRowHovered, reportRowHover, reportRowLeave } from './useRowHover';
+export { useNameDraft } from './useNameDraft';
+export { useMenuDismissal } from './useMenuDismissal';
+export { useMenuKeyboard } from './useMenuKeyboard';

@@ -6,9 +6,14 @@ import { useSectionStore } from '../../stores/sectionStore';
 import { SCHEDULE_TEMPLATES, type ScheduleTemplate } from '../../data/scheduleTemplates';
 import { Button, Input, DateInput } from '../common';
 import { TemplateIcon } from '../common/TemplateIcon';
+import { formatSpanLength } from '../../utils/spanLength';
 import { usePresence } from '../../hooks/usePresence';
+import { useModalLayer } from '../../hooks/useModalLayer';
 
 type Step = 'details' | 'template';
+
+/** What an unnamed project is called — and so what the empty field says. */
+const DEFAULT_PROJECT_NAME = 'New Project';
 
 interface ProjectFormData {
   name: string;
@@ -95,29 +100,6 @@ export function NewProjectModal(): JSX.Element | null {
     }
   }, [isProjectSetupModalOpen]);
 
-  // Close on escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        closeProjectSetupModal();
-      }
-    };
-
-    if (isProjectSetupModalOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isProjectSetupModalOpen, closeProjectSetupModal]);
-
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        closeProjectSetupModal();
-      }
-    },
-    [closeProjectSetupModal]
-  );
-
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, name: e.target.value }));
   }, []);
@@ -168,7 +150,7 @@ export function NewProjectModal(): JSX.Element | null {
       await saveCurrentProject(sections, dependencies);
 
       const config: NewProjectConfig = {
-        name: formData.name.trim() || 'New Project',
+        name: formData.name.trim() || DEFAULT_PROJECT_NAME,
         startDate: formData.startDate,
         endDate: formData.endDate,
         templateId: formData.templateId,
@@ -204,22 +186,29 @@ export function NewProjectModal(): JSX.Element | null {
   // Held on screen through the exit so the panel and its scrim can leave
   // together, the way they arrived.
   const { isMounted, isLeaving } = usePresence(isProjectSetupModalOpen);
+  const { panelRef, backdropProps } = useModalLayer({
+    isOpen: isProjectSetupModalOpen,
+    isMounted,
+    onDismiss: closeProjectSetupModal,
+  });
   if (!isMounted) return null;
 
   return (
     <div
       className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
-      onClick={handleBackdropClick}
+      {...backdropProps}
       role="dialog"
       aria-modal="true"
       aria-labelledby="project-setup-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/25" />
+      <div className="absolute inset-0 bg-[var(--color-scrim)] pointer-events-none" />
 
       {/* Modal */}
       <div
-        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-lg mx-4 modal-enter"
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-lg mx-4 outline-none modal-enter"
         role="document"
       >
         {/* Header */}
@@ -266,7 +255,7 @@ export function NewProjectModal(): JSX.Element | null {
                   label="Project Name"
                   value={formData.name}
                   onChange={handleNameChange}
-                  placeholder="Product Development"
+                  placeholder={DEFAULT_PROJECT_NAME}
                   autoFocus
                 />
 
@@ -288,7 +277,7 @@ export function NewProjectModal(): JSX.Element | null {
                 {/* Duration info */}
                 <div>
                   <p className="text-meta text-[var(--color-text-muted)]">
-                    Project duration: {Math.ceil((formData.endDate.getTime() - formData.startDate.getTime()) / (1000 * 60 * 60 * 24))} days
+                    Project duration: {formatSpanLength(formData.startDate, formData.endDate)}
                   </p>
                   <p className="text-meta text-[var(--color-text-muted)] mt-1">
                     Sets the starting window — each schedule keeps its own dates and can be changed later.
@@ -342,7 +331,8 @@ export function NewProjectModal(): JSX.Element | null {
                 <Button type="button" variant="secondary" onClick={handleBack}>
                   Back
                 </Button>
-                <Button type="submit" variant="primary">
+                {/* The step that held focus is gone; Return now creates */}
+                <Button type="submit" variant="primary" autoFocus>
                   Create Project
                 </Button>
               </div>

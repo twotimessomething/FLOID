@@ -2,7 +2,15 @@ import type { Project } from '../types/project';
 import type { DependencyAnchor, DependencyEdge, Section, TimelineItem } from '../types/timeline';
 import { flattenSection, headerMilestones, tapeStrips, type FlatRow } from './timelineUtils';
 import { forEachItem, sectionsExtent } from './itemTree';
-import { addDaysToKey, dayKeyDiff, fromDayKey, toDayKey, todayKey } from './dayKeys';
+import {
+  addDaysToKey,
+  dayKeyDiff,
+  fromDayKey,
+  lastDayOf,
+  maxDayKey,
+  toDayKey,
+  todayKey,
+} from './dayKeys';
 import { formatDate, getAxisMarks } from './dateUtils';
 import { getReadableTextColor, hexToHsl, hslToHex } from './colorUtils';
 import { anchorDay, indexItems, isDependencyViolated } from './dependencyUtils';
@@ -264,6 +272,24 @@ function orderSections(sections: readonly Section[], pinnedSectionId: string | n
 const AXIS_MIN_MARK_SPACING = 26;
 
 /**
+ * The last day anything on the sheet covers, for the range a title prints.
+ * A bar's end is an edge — the morning after its last day — so a bar finishing
+ * on the 31st would print as running into the next month. A milestone's day is
+ * the day it names, and a schedule's window ends on the day that was declared.
+ * Exported for the PNG exporter, whose title prints the same range.
+ */
+export function lastCoveredDay(sections: readonly Section[]): string | null {
+  const days: string[] = [];
+  for (const section of sections) {
+    days.push(section.endDate);
+    forEachItem(section.items, (item) => {
+      days.push(item.kind === 'bar' ? lastDayOf(item.end) : item.start);
+    });
+  }
+  return days.length > 0 ? days.reduce(maxDayKey) : null;
+}
+
+/**
  * Build the slide.
  *
  * Sections arrive as they are held in the store — collapsed flags and all —
@@ -311,7 +337,7 @@ export function buildSlidePlan(
   // the axis below only names a year where one changes, and a deck read months
   // later should not need the app open to say which year this was.
   const startLabel = formatDate(fromDayKey(rawStart), 'MMM yyyy');
-  const endLabel = formatDate(fromDayKey(rawEnd), 'MMM yyyy');
+  const endLabel = formatDate(fromDayKey(lastCoveredDay(sections) ?? rawEnd), 'MMM yyyy');
   const rangeText = startLabel === endLabel ? startLabel : `${startLabel} – ${endLabel}`;
   const rangeWidth = 200;
   const titleWidth = SLIDE_WIDTH_PT - SLIDE_MARGIN_X * 2 - rangeWidth - 12;

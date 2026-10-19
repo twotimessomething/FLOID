@@ -10,11 +10,12 @@ import {
 } from '../utils/createHandoff';
 import { finishDragMotion } from '../utils/dragCluster';
 import { rubberBandOffset } from '../utils/rubberBand';
+import { edgeScrollSpeed, edgeScrollStep } from './useItemDrag';
 
 const DRAW_THRESHOLD_PX = 4;
 const POST_DRAW_SUPPRESS_MS = 400;
 /** Hover ghost appears only after the pointer has been still this long. */
-const HOVER_STILL_DELAY_MS = 100;
+export const HOVER_STILL_DELAY_MS = 100;
 /**
  * How far past the end of the sheet a draw can stretch, however hard it is
  * pulled. The resistance curve approaches its dimension and never passes it, so
@@ -84,14 +85,28 @@ interface UseCreateGhostReturn {
   readonly handlePointerLeave: () => void;
   readonly handlePointerDown: (e: React.PointerEvent) => void;
   readonly handleDoubleClick: (e: React.MouseEvent) => void;
-  /** A single click. Creates only under the task pointer. */
+  /**
+   * A single click. Under the task pointer it creates; anywhere else on open
+   * paper it lets go of the selection.
+   */
   readonly handleClick: (e: React.MouseEvent) => void;
 }
 
 interface DrawState {
   /** The row the press began on — where the ghost lives. */
   container: HTMLElement;
+  /** Where that row is on screen, measured again every frame it is painted. */
   rect: DOMRect;
+  pointerId: number;
+  /** The sheet the row scrolls with, which follows a draw leaning on its edge. */
+  scroller: HTMLElement | null;
+  /**
+   * Whether leaning on an edge scrolls yet. A draw begun inside an edge zone
+   * is not leaning on it until it heads that way, or leaves and comes back.
+   */
+  isEdgeArmed: boolean;
+  /** When the last edge-scroll frame ran; null between runs. */
+  lastScrollAt: number | null;
   anchorClientX: number;
   anchorPx: number;
   offsetY: number;
@@ -108,6 +123,35 @@ function isHoverPointer(pointerType: string): boolean {
 }
 
 /**
+ * One frame of the sheet following a draw towards its edge — the zone, speed
+ * and pacing a dragged bar gets (`useItemDrag`), so drawing a bar off screen
+ * and dragging one there travel alike. Returns whether it is still leaning:
+ * the frame loop keeps running while it is, so the sheet goes on moving under
+ * a pointer that has stopped.
+ */
+function scrollTowardsEdge(draw: DrawState, now: number): boolean {
+  const scroller = draw.scroller;
+  if (!scroller) return false;
+  const speed = edgeScrollSpeed(scroller.getBoundingClientRect(), draw.clientX);
+  if (speed === 0) draw.isEdgeArmed = true;
+  const isHeadingIn =
+    speed < 0 ? draw.clientX < draw.anchorClientX : draw.clientX > draw.anchorClientX;
+  if (speed === 0 || !(draw.isEdgeArmed || isHeadingIn)) {
+    draw.lastScrollAt = null;
+    return false;
+  }
+
+  const elapsed = draw.lastScrollAt === null ? null : now - draw.lastScrollAt;
+  draw.lastScrollAt = now;
+  const before = scroller.scrollLeft;
+  scroller.scrollLeft = before + edgeScrollStep(speed, elapsed);
+  if (scroller.scrollLeft !== before) return true;
+  // Nothing moved: the sheet has run out in that direction
+  draw.lastScrollAt = null;
+  return false;
+}
+
+/**
  * "The ghost is the system": hovering empty timeline space previews the item
  * that lives there; double-click commits it at default size; press-and-drag
  * draws it at an exact size.
@@ -116,7 +160,9 @@ function isHoverPointer(pointerType: string): boolean {
  * second and the only thing that changes is two numbers on one element, so the
  * gesture writes them straight to the DOM on the display's own clock — the same
  * bargain `useItemDrag` strikes, so drawing a bar and dragging one cost the
- * same. React sees the ghost appear and sees it go; nothing in between.
+ * same. React sees the ghost appear and sees it go; nothing in between. The
+ * bargain holds at the edge too: a draw leaning on it takes the sheet along,
+ * and the span grows into the days that scroll in.
  *
  * It going is not a cut, either way it goes. Every commit records the ghost
  * as it stood (`captureCreateSource`) and creates inside `withCreateSource`,
@@ -255,6 +301,9 @@ export function useCreateGhost({
     const draw = drawStateRef.current;
     const element = ghostRef.current;
     if (!draw?.isDrawing) return;
+    // The sheet can move under a draw — following it to the edge, or under a
+    // wheel — and the row moves with it, so where the row is gets asked again
+    draw.rect = draw.container.getBoundingClientRect();
     const pointerPx = draw.clientX - draw.rect.left;
     const currentPx = resistPx(pointerPx, draw.rect.width);
     const left = Math.min(draw.anchorPx, currentPx);
@@ -361,6 +410,25 @@ export function useCreateGhost({
       const rect = container.getBoundingClientRect();
 
       /**
+       * Paint the draw on the display's own clock — and, while the pointer
+       * leans on the sheet's edge, keep the sheet moving under it frame after
+       * frame, painting the span longer as it goes.
+       */
+      const runFrame = (now: number): void => {
+        const draw = drawStateRef.current;
+        if (!draw) return;
+        draw.frame = 0;
+        const isLeaning = scrollTowardsEdge(draw, now);
+        paintDraw();
+        if (isLeaning) draw.frame = requestAnimationFrame(runFrame);
+      };
+
+      const scheduleFrame = (): void => {
+        const draw = drawStateRef.current;
+        if (draw?.isDrawing && draw.frame === 0) draw.frame = requestAnimationFrame(runFrame);
+      };
+
+      /**
        * The draw is called off. Nothing is made, and a ghost that had started
        * drawing fades where it stands rather than blinking out — the gesture
        * was abandoned, not refused.
@@ -399,7 +467,15 @@ export function useCreateGhost({
           if (Math.abs(me.clientX - draw.anchorClientX) < DRAW_THRESHOLD_PX) return;
           draw.isDrawing = true;
           useUIStore.getState().setDragging(true, 'draw');
-          document.body.classList.add('no-select');
+          // The draw holds the pointer and its cursor: whatever it crosses —
+          // a bar, a bar's link dots, another row — is passed over, not
+          // hovered, until the release.
+          try {
+            draw.container.setPointerCapture(draw.pointerId);
+          } catch {
+            // The pointer has already gone; its next move calls the draw off
+          }
+          document.body.classList.add('no-select', 'drawing-bar');
           // The one render a draw costs: the ghost changing from a hover
           // preview into the span being drawn.
           setGhost({
@@ -409,22 +485,20 @@ export function useCreateGhost({
             isDrawing: true,
           });
         }
-        if (draw.frame === 0) {
-          draw.frame = requestAnimationFrame(() => {
-            const live = drawStateRef.current;
-            if (live) live.frame = 0;
-            paintDraw();
-          });
-        }
+        scheduleFrame();
       };
+
+      // The sheet scrolled under the draw — a wheel, or the edge following it
+      const handleScroll = (): void => scheduleFrame();
 
       const handleDocPointerUp = (me: PointerEvent): void => {
         const draw = drawStateRef.current;
         if (!draw) return;
         const wasDrawing = draw.isDrawing;
-        if (wasDrawing && draw.frame !== 0) {
+        if (wasDrawing) {
           // The last move may still be waiting for its frame; the ghost the
-          // handoff starts from has to be the one at the release.
+          // handoff starts from has to be the one at the release, measured
+          // against wherever the sheet has scrolled the row to.
           draw.clientX = me.clientX;
           paintDraw();
         }
@@ -483,15 +557,23 @@ export function useCreateGhost({
         window.removeEventListener('keydown', handleKeyDown, true);
         window.removeEventListener('blur', handleBlur);
         document.removeEventListener('visibilitychange', handleVisibility);
+        document.removeEventListener('scroll', handleScroll, true);
+        if (draw?.container.hasPointerCapture(draw.pointerId)) {
+          draw.container.releasePointerCapture(draw.pointerId);
+        }
         if (wasDrawing) {
           useUIStore.getState().setDragging(false);
-          document.body.classList.remove('no-select');
+          document.body.classList.remove('no-select', 'drawing-bar');
         }
       };
 
       drawStateRef.current = {
         container,
         rect,
+        pointerId: e.pointerId,
+        scroller: container.closest<HTMLElement>('.timeline-scroll-container'),
+        isEdgeArmed: false,
+        lastScrollAt: null,
         anchorClientX: e.clientX,
         anchorPx: clampPx(e.clientX - rect.left, rect.width),
         offsetY: e.clientY - rect.top,
@@ -509,18 +591,27 @@ export function useCreateGhost({
       window.addEventListener('keydown', handleKeyDown, true);
       window.addEventListener('blur', handleBlur);
       document.addEventListener('visibilitychange', handleVisibility);
+      // Capture, on the document: the sheet's scroll does not bubble
+      document.addEventListener('scroll', handleScroll, true);
     },
     [disabled, isEligible, pointMode, clampPx, paintDraw, clearHoverTimer, commitFrom]
   );
 
   const handleClick = useCallback(
     (e: React.MouseEvent): void => {
-      if (disabled || !onClickCreate) return;
-      // The key itself is the fallback: a press that began before the window
-      // had focus never reached the store, but it is still on the event
-      if (!(pointMode || e.altKey)) return;
       const container = e.currentTarget as HTMLElement;
       if (!isEligible(e.target as HTMLElement, container)) return;
+      // The release that ended a draw is not a click on the paper
+      if (Date.now() < suppressUntilRef.current) return;
+      // The key itself is the fallback: a press that began before the window
+      // had focus never reached the store, but it is still on the event
+      if (!(pointMode || e.altKey)) {
+        // A plain click on open paper lets go of whatever was selected —
+        // whether or not this paper takes new things
+        useUIStore.getState().clearSelection();
+        return;
+      }
+      if (disabled || !onClickCreate) return;
       e.stopPropagation();
       e.preventDefault();
       const rect = container.getBoundingClientRect();

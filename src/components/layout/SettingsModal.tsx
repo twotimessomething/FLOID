@@ -14,7 +14,9 @@ import {
   pickDirectory,
   supportsFolderAutoSave,
 } from '../../platform/files';
+import { isDesktop } from '../../platform/detect';
 import { usePresence } from '../../hooks/usePresence';
+import { useModalLayer } from '../../hooks/useModalLayer';
 
 // Theme option type
 interface ThemeOption {
@@ -107,15 +109,6 @@ export function SettingsModal(): JSX.Element | null {
     }
   }, [lastSyncedAt]);
 
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        closeSettingsModal();
-      }
-    },
-    [closeSettingsModal]
-  );
-
   const handleSkipWeekendsChange = useCallback(
     (checked: boolean) => {
       updateSettings({ skipWeekends: checked });
@@ -176,39 +169,32 @@ export function SettingsModal(): JSX.Element | null {
     setDisabled();
   }, [setDisabled]);
 
-  // Close on escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        closeSettingsModal();
-      }
-    };
-
-    if (isSettingsModalOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isSettingsModalOpen, closeSettingsModal]);
-
   // Held on screen through the exit so the panel and its scrim can leave
   // together, the way they arrived.
   const { isMounted, isLeaving } = usePresence(isSettingsModalOpen);
+  const { panelRef, backdropProps } = useModalLayer({
+    isOpen: isSettingsModalOpen,
+    isMounted,
+    onDismiss: closeSettingsModal,
+  });
   if (!isMounted) return null;
 
   return (
     <div
       className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
-      onClick={handleBackdropClick}
+      {...backdropProps}
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/25" />
+      <div className="absolute inset-0 bg-[var(--color-scrim)] pointer-events-none" />
 
       {/* Modal */}
       <div
-        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-sm mx-4 modal-enter"
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-sm mx-4 outline-none modal-enter"
         role="document"
       >
         {/* Header */}
@@ -270,7 +256,7 @@ export function SettingsModal(): JSX.Element | null {
           <SettingRow
             id="skip-weekends"
             label="Skip weekends"
-            description="Snap drag endpoints to the next business day"
+            description="Keep dragged edges off Saturdays and Sundays"
             checked={settings.skipWeekends}
             onChange={handleSkipWeekendsChange}
           />
@@ -283,8 +269,8 @@ export function SettingsModal(): JSX.Element | null {
           />
           <SettingRow
             id="traveling-labels"
-            label="Traveling labels"
-            description="Keep a bar's name in view as it scrolls away"
+            label="Travelling labels"
+            description="Keep a bar’s name in view as it scrolls away"
             checked={settings.travelingLabels ?? DEFAULT_PROJECT_SETTINGS.travelingLabels}
             onChange={handleTravelingLabelsChange}
           />
@@ -321,10 +307,13 @@ export function SettingsModal(): JSX.Element | null {
             </div>
           )}
 
-          {/* Why the reminder exists at all — said once, quietly. */}
+          {/* Why the reminder exists at all — said once, quietly, in the same
+              terms the About panel's privacy tab uses for each target. */}
           <div className="py-3">
             <p className="text-meta text-[var(--color-text-muted)]">
-              FLOID keeps everything in this browser. Clearing site data deletes it.
+              {isDesktop()
+                ? 'FLOID keeps everything on this Mac. Deleting the app deletes it.'
+                : 'FLOID keeps everything in this browser. Clearing site data deletes it.'}
             </p>
             {appSettings.lastBackupDate && (
               <p className="text-meta text-[var(--color-text-muted)] mt-1">
@@ -355,17 +344,17 @@ export function SettingsModal(): JSX.Element | null {
                       {appSettings.fileSystemFolderName}
                     </span>
                     {syncStatus === 'syncing' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--color-focus)]/10 text-[var(--color-focus)]">
-                        Saving...
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--color-selection)] text-[var(--color-focus)]">
+                        Saving…
                       </span>
                     )}
                     {syncStatus === 'synced' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--color-success)]/10 text-[var(--color-success)]">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--color-success-bg)] text-[var(--color-success)]">
                         Saved
                       </span>
                     )}
                     {syncStatus === 'error' && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--color-error)]/10 text-[var(--color-error)]">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium bg-[var(--color-error-bg)] text-[var(--color-error)]">
                         Error
                       </span>
                     )}
@@ -395,7 +384,7 @@ export function SettingsModal(): JSX.Element | null {
                   onClick={handleSelectFolder}
                   className="text-body text-[var(--color-focus)] hover:underline"
                 >
-                  Choose folder...
+                  Choose folder…
                 </button>
               )}
             </div>

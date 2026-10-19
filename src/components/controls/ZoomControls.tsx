@@ -1,5 +1,6 @@
 import { useUIStore } from '../../stores/uiStore';
 import { useViewport } from '../../hooks/useViewport';
+import { isTodayInViewport } from '../../utils/dateUtils';
 import { ZOOM_LEVELS, ZOOM_LABELS } from '../../utils/zoomSteps';
 
 const STEP_CLASS =
@@ -8,23 +9,29 @@ const STEP_CLASS =
 export function ZoomControls(): JSX.Element {
   const zoomLevel = useUIStore((state) => state.zoomLevel);
   const fitPixelsPerDay = useUIStore((state) => state.fitPixelsPerDay);
+  const isFit = useUIStore((state) => state.isFitted);
   const timelineViewportWidth = useUIStore((state) => state.timelineViewportWidth);
   const zoomIn = useUIStore((state) => state.zoomIn);
   const zoomOut = useUIStore((state) => state.zoomOut);
   const zoomToFit = useUIStore((state) => state.zoomToFit);
   const triggerScrollToToday = useUIStore((state) => state.triggerScrollToToday);
 
-  const { totalDays, markerZoom } = useViewport();
+  const { totalDays, markerZoom, viewportBounds } = useViewport();
 
-  const isFit = fitPixelsPerDay !== null;
+  // A fit and a pinch both leave the named levels, so either can step to one
+  const isOffLevel = fitPixelsPerDay !== null;
   const currentIndex = ZOOM_LEVELS.indexOf(zoomLevel);
   const canFit = timelineViewportWidth > 0 && totalDays > 0;
+  // The sheet spans its work plus a month either side; today can fall off it
+  const isTodayOnSheet = isTodayInViewport(viewportBounds);
 
   return (
     <div className="flex items-center gap-3">
       <button
         onClick={triggerScrollToToday}
-        className="text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast"
+        disabled={!isTodayOnSheet}
+        title={isTodayOnSheet ? undefined : 'Today is outside this timeline'}
+        className="text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:hover:text-[var(--color-text-secondary)] transition-colors duration-fast"
       >
         Today
       </button>
@@ -32,11 +39,12 @@ export function ZoomControls(): JSX.Element {
       {/* One control, one box: minus and plus step the named levels, and the
           scale between them is the fit — it reads as the current scale and
           offers Fit on hover, so the header keeps a single view control
-          instead of a row of look-alike text links. */}
+          instead of a row of look-alike text links. A pinched scale reads as
+          the level its axis is labelled on. */}
       <div className="flex items-center gap-0.5 px-1 py-0.5 border border-[var(--color-border)]">
         <button
           onClick={zoomOut}
-          disabled={!isFit && currentIndex >= ZOOM_LEVELS.length - 1}
+          disabled={!isOffLevel && currentIndex >= ZOOM_LEVELS.length - 1}
           className={STEP_CLASS}
           aria-label="Zoom out"
         >
@@ -66,7 +74,7 @@ export function ZoomControls(): JSX.Element {
 
         <button
           onClick={zoomIn}
-          disabled={!isFit && currentIndex <= 0}
+          disabled={!isOffLevel && currentIndex <= 0}
           className={STEP_CLASS}
           aria-label="Zoom in"
         >

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   useUIStore,
   showItemDeletedToast,
@@ -13,6 +13,9 @@ import { commitWithSlide } from '../commands/slideCommit';
 import { isDesktop } from '../platform/detect';
 import { flattenSection, headerMilestones } from '../utils/timelineUtils';
 import { findItem } from '../utils/itemTree';
+import { revealRow } from '../utils/revealRow';
+import { holdsOwnDraft, isSheetCovered, isTypingTarget } from '../utils/keyboardTargets';
+import type { CommandId } from '../commands/types';
 import type { Section } from '../types';
 
 interface NavigableRow {
@@ -35,19 +38,42 @@ const CLAIMED_KEYS: ReadonlySet<string> = new Set([
   SHORTCUTS.BACKSPACE,
 ]);
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+/** History, which a field holding a draft of its own keeps for its text. */
+const HISTORY_COMMANDS: ReadonlySet<CommandId> = new Set(['edit.undo', 'edit.redo']);
+
+/** Focus inside one of these is on its controls, not on the sheet behind it. */
+const LAYER_SELECTOR = '[role="dialog"], [role="menu"]';
+
+/** Controls that answer Return and Space themselves. */
+const PRESSABLE_SELECTOR = 'button, a[href], select, [role="switch"], [role="menuitem"]';
+
+function isInsideLayer(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(LAYER_SELECTOR) !== null;
+}
+
+function isPressable(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(PRESSABLE_SELECTOR) !== null;
+}
+
+/**
+ * The arrows put the keyboard on the sheet. Whatever control had focus — a
+ * row clicked earlier, an entry in the status sidebar — lets go of it, so the
+ * next Return opens the new selection instead of pressing that control again.
+ */
+function releaseFocus(): void {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active !== document.body) active.blur();
 }
 
 /**
  * Hook for handling global keyboard shortcuts in the timeline application.
- * Supports navigation, collapse/expand, deletion, and sidebar interactions.
+ * Supports navigation, the editor, collapse/expand, deletion, and history.
  */
 export function useKeyboardShortcuts(): void {
   const selection = useUIStore((s) => s.selection);
   const selectItem = useUIStore((s) => s.selectItem);
   const selectSection = useUIStore((s) => s.selectSection);
+  const clearSelection = useUIStore((s) => s.clearSelection);
   const closeModal = useUIStore((s) => s.closeModal);
   const isModalOpen = useUIStore((s) => s.isModalOpen);
   const showToast = useUIStore((s) => s.showToast);
@@ -95,7 +121,9 @@ export function useKeyboardShortcuts(): void {
     return indexMap.get(selection.id) ?? -1;
   }, [selection.id, indexMap]);
 
-  // Handle navigation (arrow keys)
+  // The arrows move the outline, not the editor: opened on every row, its
+  // name field would take the next press. The sheet scrolls to keep the
+  // outline in view, and Return opens the editor on whatever it reached.
   const handleNavigation = useCallback(
     (direction: 'up' | 'down'): void => {
       if (navigableItems.length === 0) return;
@@ -116,12 +144,29 @@ export function useKeyboardShortcuts(): void {
       const row = navigableItems[newIndex];
       if (!row) return;
 
-      const center = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-      if (row.type === 'section') selectSection(row.sectionId, center);
-      else selectItem(row.id, row.sectionId, center);
+      releaseFocus();
+      if (row.type === 'section') {
+        selectSection(row.sectionId, undefined, { openEditor: false });
+        revealRow({ sectionId: row.sectionId, itemId: null });
+      } else {
+        selectItem(row.id, row.sectionId, undefined, { openEditor: false });
+        revealRow({ sectionId: row.sectionId, itemId: row.id });
+      }
     },
     [navigableItems, getCurrentIndex, selectItem, selectSection]
   );
+
+  // Opened from the keyboard, the editor still opens beside the ink it edits,
+  // as it would for a click — where that ink stands once it is in view
+  const handleOpenEditor = useCallback((): void => {
+    const { id, sectionId, type } = selection;
+    if (!id || !sectionId) return;
+    if (type === 'section') {
+      selectSection(sectionId, revealRow({ sectionId, itemId: null }));
+    } else if (type === 'item') {
+      selectItem(id, sectionId, revealRow({ sectionId, itemId: id }));
+    }
+  }, [selection, selectItem, selectSection]);
 
   // Folding opens or closes rows mid-sheet: everything below slides to its
   // new place rather than jumping there
@@ -177,9 +222,12 @@ export function useKeyboardShortcuts(): void {
       // Menu-grade combos route through the command registry — the same
       // handlers a native menu drives. On desktop the menu owns these
       // accelerators, so the DOM handler stands down. Runs before the
-      // input-target check on purpose: undo-everywhere is the contract.
+      // input-target check on purpose: the editor's fields write through to
+      // the sheet, so undo works from inside them. A field holding a draft of
+      // its own is the exception, and keeps the browser's text undo.
       if (!isDesktop()) {
         const commandId = commandForKeydown(event);
+        if (commandId && HISTORY_COMMANDS.has(commandId) && holdsOwnDraft(event.target)) return;
         if (commandId) {
           // Mid-gesture the combo is swallowed, not handed back: ⌘S left to
           // the browser would open its own Save dialog under the drag.
@@ -194,6 +242,14 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
+      // Answered already by whatever is closer to the key: a focused row's
+      // own Return, a rename field's Escape, a popover closing
+      if (event.defaultPrevented) return;
+
+      // A modal or a menu over the sheet answers its own keys, Escape included —
+      // even from a text field in it, which must not close the editor beneath
+      if (isSheetCovered()) return;
+
       // Ignore other shortcuts if user is typing in an input or textarea
       if (isTypingTarget(event.target)) {
         // Only allow Escape to close modal when in input
@@ -204,28 +260,41 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
+      // Focus in the editor, or in a popover it raised, is on their controls:
+      // Space on the close button is not a fold, Delete on a swatch not a delete
+      const isInLayer = isInsideLayer(event.target);
+
       switch (event.key) {
         case SHORTCUTS.ESCAPE:
           if (selectedDependencyId) {
             selectDependency(null);
           } else if (isModalOpen) {
             closeModal();
+          } else if (selection.type) {
+            // Nothing open to close, so Escape lets go of the selection —
+            // and a stray Delete later has nothing to take with it
+            clearSelection();
           }
           event.preventDefault();
           break;
 
         case SHORTCUTS.ARROW_UP:
-          handleNavigation('up');
-          event.preventDefault();
-          break;
-
         case SHORTCUTS.ARROW_DOWN:
-          handleNavigation('down');
+          if (isInLayer) break;
+          handleNavigation(event.key === SHORTCUTS.ARROW_UP ? 'up' : 'down');
           event.preventDefault();
           break;
 
         case SHORTCUTS.ENTER:
+          if (isInLayer || isPressable(event.target)) break;
+          if (selection.id && selection.type) {
+            handleOpenEditor();
+            event.preventDefault();
+          }
+          break;
+
         case SHORTCUTS.SPACE:
+          if (isInLayer || isPressable(event.target)) break;
           if (canToggleSelection) {
             handleToggleCollapse();
             event.preventDefault();
@@ -234,6 +303,7 @@ export function useKeyboardShortcuts(): void {
 
         case SHORTCUTS.DELETE:
         case SHORTCUTS.BACKSPACE:
+          if (isInLayer) break;
           // A selected link holds the selection slot, so it takes the key
           if (selectedDependencyId) {
             removeDependency(selectedDependencyId);
@@ -253,8 +323,10 @@ export function useKeyboardShortcuts(): void {
       selectDependency,
       removeDependency,
       canToggleSelection,
+      clearSelection,
       closeModal,
       handleNavigation,
+      handleOpenEditor,
       handleToggleCollapse,
       handleDelete,
     ]
@@ -264,11 +336,20 @@ export function useKeyboardShortcuts(): void {
   // own Escape handler can end the gesture and make the answer a lie
   useEffect(() => watchGestureKeys(), []);
 
-  // Set up and clean up event listener
+  // One listener for the life of the app, reading the latest handler. Added
+  // once, it stays ahead of every modal and menu that opens later, so it asks
+  // whether one is open before that one's own Escape has closed it — and an
+  // Escape that dismissed a menu does not go on to drop the selection too.
+  const handleKeyDownRef = useRef(handleKeyDown);
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    handleKeyDownRef.current = handleKeyDown;
   }, [handleKeyDown]);
+
+  useEffect(() => {
+    const listener = (event: KeyboardEvent): void => handleKeyDownRef.current(event);
+    document.addEventListener('keydown', listener);
+    return () => {
+      document.removeEventListener('keydown', listener);
+    };
+  }, []);
 }

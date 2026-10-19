@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { BACK_UP_ACTION } from '../commands/executeCommand';
 import { useUIStore } from '../stores/uiStore';
 import { useProjectStore } from '../stores/projectStore';
 import { getAppSettings } from '../utils/indexedDB';
@@ -39,7 +40,7 @@ export function useBackupReminder(): void {
       );
 
       if (daysSinceBackup >= backupReminderDays) {
-        pendingMessageRef.current = `It's been ${daysSinceBackup} days since your last backup.`;
+        pendingMessageRef.current = `It’s been ${daysSinceBackup} days since your last backup.`;
       }
     };
 
@@ -56,7 +57,8 @@ export function useBackupReminder(): void {
 
       pendingMessageRef.current = null;
       hasRemindedRef.current = true;
-      showToast('warning', message);
+      // The reminder carries the remedy, so heeding it is one click
+      showToast('warning', message, { action: BACK_UP_ACTION });
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);

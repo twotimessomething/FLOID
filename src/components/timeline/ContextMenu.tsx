@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import {
   useUIStore,
@@ -10,13 +18,22 @@ import { useProjectStore } from '../../stores/projectStore';
 import { downloadScheduleFloid } from '../../utils/exportUtils';
 import { createBarAt, createMilestoneAt, createTaskAt } from '../../utils/creationUtils';
 import { findItem, locateItem } from '../../utils/itemTree';
-import { PHASE_COLORS, isPaletteColor } from '../../constants/colors';
+import { PALETTE_ENTRIES, PHASE_COLORS, isPaletteColor } from '../../constants/colors';
 import { resolveItemColor } from '../../utils/timelineUtils';
 import { getReadableTextColor } from '../../utils/colorUtils';
 import { CustomColorPopover } from '../common/CustomColorPopover';
 import { MenuIcon, type MenuIconName } from '../common/MenuIcon';
 import { commitWithSlide } from '../../commands/slideCommit';
-import { keyBelongsToGesture } from '../../commands/gesture';
+import { useMenuDismissal } from '../../hooks/useMenuDismissal';
+import { useMenuKeyboard } from '../../hooks/useMenuKeyboard';
+
+/** A key that does the same thing to the selection, printed dimmed at the row's end. */
+interface MenuShortcut {
+  /** What the row prints: the key as it is drawn on a Mac. */
+  readonly glyph: string;
+  /** The same key for assistive tech, in `aria-keyshortcuts` form. */
+  readonly keys: string;
+}
 
 interface MenuItem {
   readonly label: string;
@@ -26,8 +43,28 @@ interface MenuItem {
   readonly iconColor?: string;
   readonly danger?: boolean;
   readonly disabled?: boolean;
-  readonly hasSubmenu?: boolean;
+  /** The row opens the swatch strip beneath it instead of acting itself. */
+  readonly isDisclosure?: boolean;
+  readonly shortcut?: MenuShortcut;
 }
+
+/**
+ * Rows that belong together. A hairline is drawn between groups, and a group
+ * a target has no rows for simply drops out, so no variant of the menu ever
+ * prints a rule at its edge or two rules together.
+ */
+type MenuGroup = readonly MenuItem[];
+
+// Only keys `useKeyboardShortcuts` really answers on a selection
+const EDIT_SHORTCUT: MenuShortcut = { glyph: '↩', keys: 'Enter' };
+const FOLD_SHORTCUT: MenuShortcut = { glyph: 'Space', keys: 'Space' };
+const DELETE_SHORTCUT: MenuShortcut = { glyph: '⌫', keys: 'Backspace Delete' };
+
+/** The custom picker is a portal: outside the menu in the DOM, inside it to the user. */
+const COLOR_POPOVER_SELECTOR = '[data-color-popover]';
+
+/** See `.color-swatch--selected` in index.css — the editor's ColorPicker wears the same. */
+const SELECTED_RING = 'color-swatch--selected';
 
 /**
  * The context menu.
@@ -44,6 +81,10 @@ interface MenuItem {
  * exception, and only because it already moves: `creationUtils` opens the
  * rows and fades the new item in on its own, and wrapping it a second time
  * would play the rows twice over.
+ *
+ * It behaves like a native menu: the highlight is instant and follows the
+ * pointer or the arrows alike (`useMenuKeyboard`), and it goes away the ways
+ * a native one does (`useMenuDismissal`).
  */
 export function ContextMenu(): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -71,7 +112,6 @@ export function ContextMenu(): JSX.Element | null {
 
   const [showColorSubmenu, setShowColorSubmenu] = useState(false);
   const [isCustomPickerOpen, setIsCustomPickerOpen] = useState(false);
-  const colorButtonRef = useRef<HTMLButtonElement>(null);
   const customColorButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -81,41 +121,15 @@ export function ContextMenu(): JSX.Element | null {
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (e: PointerEvent): void => {
-      const target = e.target as Node;
-      // The custom picker is a portal, so it is outside the menu in the DOM
-      // while being very much inside it as far as the user is concerned.
-      if (target instanceof Element && target.closest('[data-color-popover]')) return;
-      if (menuRef.current && !menuRef.current.contains(target)) closeContextMenu();
-    };
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      // An Escape that called a drag off is spent
-      if (e.key === 'Escape' && !keyBelongsToGesture(e)) closeContextMenu();
-    };
-
-    // Deferred so the click that opened the menu does not immediately close it
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('pointerdown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
-    }, 0);
-
-    return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener('pointerdown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, closeContextMenu]);
-
   /**
    * Keep the menu on screen, and tell it which corner it grew from.
    *
    * Measured with offsetWidth rather than a client rect: the entrance scales
    * the menu, and a rect read mid-scale would clamp against a menu 3% smaller
    * than the real one. A layout effect, so the corrected corner is the one the
-   * first painted frame plays from rather than a frame late.
+   * first painted frame plays from rather than a frame late. Run again when
+   * the swatch strip opens or closes: it changes the menu's height, and a menu
+   * opened near the bottom would otherwise grow off the screen.
    */
   useLayoutEffect(() => {
     if (!isOpen || !menuRef.current) return;
@@ -133,7 +147,7 @@ export function ContextMenu(): JSX.Element | null {
       '--popover-origin',
       `${flipY ? 'bottom' : 'top'} ${flipX ? 'right' : 'left'}`
     );
-  }, [isOpen, position]);
+  }, [isOpen, position, showColorSubmenu]);
 
   const section = useMemo(
     () => sections.find((s) => s.id === sectionId),
@@ -148,8 +162,8 @@ export function ContextMenu(): JSX.Element | null {
     [section, targetId, targetType]
   );
 
-  // What the Color row's swatch prints, and what the picker opens on: the
-  // item's own ink, or the one it inherits.
+  // What the Color row's swatch prints, what the strip marks as chosen, and
+  // what the picker opens on: the item's own ink, or the one it inherits.
   const resolvedItemColor = useMemo(
     () =>
       section && targetId && targetType === 'item' ? resolveItemColor(section, targetId) : null,
@@ -178,64 +192,89 @@ export function ContextMenu(): JSX.Element | null {
     [close]
   );
 
-  const menuItems = useMemo((): MenuItem[] => {
+  const menuGroups = useMemo((): MenuGroup[] => {
     if (!sectionId || !section) return [];
 
     // ---- an item -------------------------------------------------------
     if (targetType === 'item' && item && targetId) {
-      const items: MenuItem[] = [
-        {
-          label: 'Edit',
-          icon: 'edit',
-          action: run(() => selectItem(targetId, sectionId, position)),
-        },
-      ];
+      const isBar = item.kind === 'bar';
 
-      if (item.kind === 'bar') {
-        if (item.children.length > 0) {
-          items.push({
-            label: item.isCollapsed ? 'Expand' : 'Collapse',
-            icon: item.isCollapsed ? 'expand' : 'collapse',
-            action: slide(() => toggleItemCollapse(sectionId, targetId)),
-          });
-        }
-        items.push({
-          label: 'Add bar inside',
-          icon: 'bar',
-          action: run(() => createBarAt(sectionId, { parentId: targetId }, position)),
-        });
-        items.push({
-          label: 'Add milestone inside',
-          icon: 'milestone',
-          action: run(() =>
-            createMilestoneAt(sectionId, { day: clickDay ?? item.start, parentId: targetId }, position)
-          ),
-        });
-        items.push({
-          label: 'Add task inside',
-          icon: 'task',
-          action: run(() =>
-            createTaskAt(sectionId, { day: clickDay ?? item.start, parentId: targetId }, position)
-          ),
-        });
-        items.push({
+      const edit: MenuItem = {
+        label: 'Edit',
+        icon: 'edit',
+        shortcut: EDIT_SHORTCUT,
+        action: run(() => selectItem(targetId, sectionId, position)),
+      };
+
+      const fold: MenuItem[] =
+        isBar && item.children.length > 0
+          ? [
+              {
+                label: item.isCollapsed ? 'Expand' : 'Collapse',
+                icon: item.isCollapsed ? 'expand' : 'collapse',
+                shortcut: FOLD_SHORTCUT,
+                action: slide(() => toggleItemCollapse(sectionId, targetId)),
+              },
+            ]
+          : [];
+
+      // A locked schedule or a locked bar takes nothing new
+      const canAddInside = section.isLocked !== true && item.isLocked !== true;
+      const add: MenuItem[] = isBar
+        ? [
+            {
+              label: 'Add bar inside',
+              disabled: !canAddInside,
+              icon: 'bar',
+              action: run(() => createBarAt(sectionId, { parentId: targetId }, position)),
+            },
+            {
+              label: 'Add milestone inside',
+              disabled: !canAddInside,
+              icon: 'milestone',
+              action: run(() =>
+                createMilestoneAt(
+                  sectionId,
+                  { day: clickDay ?? item.start, parentId: targetId },
+                  position
+                )
+              ),
+            },
+            {
+              label: 'Add task inside',
+              disabled: !canAddInside,
+              icon: 'task',
+              action: run(() =>
+                createTaskAt(
+                  sectionId,
+                  { day: clickDay ?? item.start, parentId: targetId },
+                  position
+                )
+              ),
+            },
+          ]
+        : [];
+
+      const properties: MenuItem[] = [];
+      if (isBar) {
+        properties.push({
           label: 'Color',
           icon: 'swatch',
           iconColor: resolvedItemColor ?? undefined,
           action: () => setShowColorSubmenu((open) => !open),
-          hasSubmenu: true,
+          isDisclosure: true,
         });
       }
-
-      items.push({
+      properties.push({
         label: item.isLocked ? 'Unlock' : 'Lock',
         icon: item.isLocked ? 'unlock' : 'lock',
         action: run(() => toggleItemLock(sectionId, targetId)),
         disabled: section.isLocked === true,
       });
 
+      const moves: MenuItem[] = [];
       if (itemLocation && itemLocation.parent !== null) {
-        items.push({
+        moves.push({
           label: 'Move out of group',
           icon: 'move-out',
           action: slide(() =>
@@ -250,34 +289,36 @@ export function ContextMenu(): JSX.Element | null {
           ),
         });
       }
-
       if (itemLocation) {
-        items.push({
-          label: 'Move up',
-          icon: 'move-up',
-          action: slide(() => reorderItem(sectionId, targetId, itemLocation.index - 1)),
-          disabled: itemLocation.index === 0,
-        });
-        items.push({
-          label: 'Move down',
-          icon: 'move-down',
-          action: slide(() => reorderItem(sectionId, targetId, itemLocation.index + 2)),
-          disabled: itemLocation.index >= itemLocation.siblings.length - 1,
-        });
+        moves.push(
+          {
+            label: 'Move up',
+            icon: 'move-up',
+            action: slide(() => reorderItem(sectionId, targetId, itemLocation.index - 1)),
+            disabled: itemLocation.index === 0,
+          },
+          {
+            label: 'Move down',
+            icon: 'move-down',
+            action: slide(() => reorderItem(sectionId, targetId, itemLocation.index + 2)),
+            disabled: itemLocation.index >= itemLocation.siblings.length - 1,
+          }
+        );
       }
 
-      items.push({
+      const remove: MenuItem = {
         label: 'Delete',
         icon: 'delete',
+        shortcut: DELETE_SHORTCUT,
         action: slide(() => {
           // Named while it still exists — a group takes its children with it
           showItemDeletedToast(item);
           deleteItem(sectionId, targetId);
         }),
         danger: true,
-      });
+      };
 
-      return items;
+      return [[edit], fold, add, properties, moves, [remove]].filter((group) => group.length > 0);
     }
 
     // ---- a schedule ----------------------------------------------------
@@ -286,86 +327,118 @@ export function ContextMenu(): JSX.Element | null {
       // something at the exact day that was right-clicked
       if (location === 'header' || location === 'row') {
         return [
-          {
-            label: 'Add bar here',
-            icon: 'bar',
-            action: run(() =>
-              createBarAt(sectionId, { startDay: clickDay ?? section.startDate }, position)
-            ),
-          },
-          {
-            label: 'Add milestone here',
-            icon: 'milestone',
-            action: run(() =>
-              createMilestoneAt(sectionId, { day: clickDay ?? section.startDate }, position)
-            ),
-          },
-          {
-            label: 'Add task here',
-            icon: 'task',
-            action: run(() =>
-              createTaskAt(sectionId, { day: clickDay ?? section.startDate }, position)
-            ),
-          },
+          [
+            {
+              label: 'Add bar here',
+              disabled: section.isLocked === true,
+              icon: 'bar',
+              action: run(() =>
+                createBarAt(sectionId, { startDay: clickDay ?? section.startDate }, position)
+              ),
+            },
+            {
+              label: 'Add milestone here',
+              disabled: section.isLocked === true,
+              icon: 'milestone',
+              action: run(() =>
+                createMilestoneAt(sectionId, { day: clickDay ?? section.startDate }, position)
+              ),
+            },
+            {
+              label: 'Add task here',
+              disabled: section.isLocked === true,
+              icon: 'task',
+              action: run(() =>
+                createTaskAt(sectionId, { day: clickDay ?? section.startDate }, position)
+              ),
+            },
+          ],
         ];
       }
 
+      const isPinned = project?.pinnedSectionId === sectionId;
+
       return [
-        { label: 'Edit', icon: 'edit', action: run(() => selectSection(sectionId, position)) },
-        {
-          label: section.isCollapsed ? 'Expand' : 'Collapse',
-          icon: section.isCollapsed ? 'expand' : 'collapse',
-          action: slide(() => toggleSectionCollapse(sectionId)),
-        },
-        {
-          label: section.isLocked ? 'Unlock schedule' : 'Lock schedule',
-          icon: section.isLocked ? 'unlock' : 'lock',
-          action: run(() => toggleSectionLock(sectionId)),
-        },
-        { label: 'Add bar', icon: 'bar', action: run(() => createBarAt(sectionId, {}, position)) },
-        {
-          label: 'Add milestone',
-          icon: 'milestone',
-          action: run(() => createMilestoneAt(sectionId, { day: section.startDate }, position)),
-        },
-        {
-          label: 'Add task',
-          icon: 'task',
-          action: run(() => createTaskAt(sectionId, { day: section.startDate }, position)),
-        },
-        {
-          label: project?.pinnedSectionId === sectionId ? 'Unpin' : 'Pin to top',
-          icon: project?.pinnedSectionId === sectionId ? 'unpin' : 'pin',
-          // The whole schedule travels to the top (or back to its place), and
-          // the ones it passes make room for it on the way
-          action: slide(() =>
-            setPinnedSection(project?.pinnedSectionId === sectionId ? null : sectionId)
-          ),
-        },
-        {
-          label: 'Export schedule',
-          icon: 'export',
-          action: run(() => {
-            if (project) {
-              void downloadScheduleFloid(
-                project,
-                section,
-                useSectionStore.getState().dependencies
-              );
-            }
-          }),
-        },
-        {
-          label: 'Delete',
-          icon: 'delete',
-          danger: true,
-          action: () => {
-            const result = commitWithSlide(() => deleteSection(sectionId));
-            if (result.success) showSectionDeletedToast(section);
-            else if (result.reason) showToast('warning', result.reason);
-            close();
+        [
+          {
+            label: 'Edit',
+            icon: 'edit',
+            shortcut: EDIT_SHORTCUT,
+            action: run(() => selectSection(sectionId, position)),
           },
-        },
+        ],
+        [
+          {
+            label: section.isCollapsed ? 'Expand' : 'Collapse',
+            icon: section.isCollapsed ? 'expand' : 'collapse',
+            shortcut: FOLD_SHORTCUT,
+            action: slide(() => toggleSectionCollapse(sectionId)),
+          },
+        ],
+        [
+          {
+            label: 'Add bar',
+            disabled: section.isLocked === true,
+            icon: 'bar',
+            action: run(() => createBarAt(sectionId, {}, position)),
+          },
+          {
+            label: 'Add milestone',
+            disabled: section.isLocked === true,
+            icon: 'milestone',
+            action: run(() => createMilestoneAt(sectionId, { day: section.startDate }, position)),
+          },
+          {
+            label: 'Add task',
+            disabled: section.isLocked === true,
+            icon: 'task',
+            action: run(() => createTaskAt(sectionId, { day: section.startDate }, position)),
+          },
+        ],
+        [
+          {
+            label: section.isLocked ? 'Unlock schedule' : 'Lock schedule',
+            icon: section.isLocked ? 'unlock' : 'lock',
+            action: run(() => toggleSectionLock(sectionId)),
+          },
+          {
+            label: isPinned ? 'Unpin' : 'Pin to top',
+            icon: isPinned ? 'unpin' : 'pin',
+            // The whole schedule travels to the top (or back to its place), and
+            // the ones it passes make room for it on the way
+            action: slide(() => setPinnedSection(isPinned ? null : sectionId)),
+          },
+        ],
+        [
+          {
+            // A save panel follows, so the row says there is more to come
+            label: 'Export schedule…',
+            icon: 'export',
+            action: run(() => {
+              if (project) {
+                void downloadScheduleFloid(
+                  project,
+                  section,
+                  useSectionStore.getState().dependencies
+                );
+              }
+            }),
+          },
+        ],
+        [
+          {
+            label: 'Delete',
+            icon: 'delete',
+            shortcut: DELETE_SHORTCUT,
+            danger: true,
+            action: () => {
+              const result = commitWithSlide(() => deleteSection(sectionId));
+              if (result.success) showSectionDeletedToast(section);
+              else if (result.reason) showToast('warning', result.reason);
+              close();
+            },
+          },
+        ],
       ];
     }
 
@@ -399,6 +472,15 @@ export function ContextMenu(): JSX.Element | null {
     showToast,
   ]);
 
+  // Bound to the store's flag rather than to whether anything rendered: a menu
+  // whose target vanished under it (an undo) still closes on the next press
+  useMenuDismissal(isOpen, closeContextMenu, menuRef, COLOR_POPOVER_SELECTOR);
+  const { handlePointerMove, handlePointerLeave } = useMenuKeyboard(
+    menuRef,
+    isOpen,
+    COLOR_POPOVER_SELECTOR
+  );
+
   const handleColorChange = useCallback(
     (color: string) => {
       if (!sectionId || !targetId) return;
@@ -428,117 +510,158 @@ export function ContextMenu(): JSX.Element | null {
     close();
   }, [close]);
 
-  const isCustomColor = Boolean(item?.color && !isPaletteColor(item.color));
+  // Marked the way the editor marks it: the ink the bar prints, inherited or
+  // not. Off the palette — a pick, or a schedule's gradient — the `+` wears it.
+  const isCustomColor = resolvedItemColor !== null && !isPaletteColor(resolvedItemColor);
 
-  if (!isOpen || menuItems.length === 0) return null;
+  if (!isOpen || menuGroups.length === 0) return null;
+
+  const swatchStrip = item && (
+    <div role="group" aria-label="Colors" data-menu-stop="" className="px-3 pt-1 pb-2">
+      {/* Held to seven a row. A menu is sized against the room it has, so
+          an unconstrained swatch strip would stretch it to four hundred
+          pixels wide and make the menu itself the widest thing on screen. */}
+      <div className="flex gap-1.5 flex-wrap max-w-[204px]">
+        {PALETTE_ENTRIES.map(({ color, label }) => {
+          const isCurrent =
+            !isCustomColor && resolvedItemColor?.toLowerCase() === color.toLowerCase();
+          return (
+            <button
+              key={color}
+              type="button"
+              role="menuitemradio"
+              aria-checked={isCurrent}
+              data-menu-member=""
+              data-current={isCurrent ? '' : undefined}
+              tabIndex={-1}
+              onClick={() => handleColorChange(color)}
+              className={`w-6 h-6 rounded-[var(--radius-sm)] btn-press focus-ring ${
+                isCurrent ? SELECTED_RING : ''
+              }`}
+              style={{ backgroundColor: color }}
+              title={label}
+              aria-label={label}
+            />
+          );
+        })}
+        <button
+          ref={customColorButtonRef}
+          type="button"
+          role="menuitem"
+          data-menu-member=""
+          data-current={isCustomColor ? '' : undefined}
+          tabIndex={-1}
+          onClick={() => setIsCustomPickerOpen((open) => !open)}
+          className={`w-6 h-6 flex items-center justify-center rounded-[var(--radius-sm)] btn-press focus-ring ${
+            isCustomColor ? SELECTED_RING : 'border border-[var(--color-border)]'
+          }`}
+          style={
+            isCustomColor && resolvedItemColor ? { backgroundColor: resolvedItemColor } : undefined
+          }
+          title="Custom color"
+          aria-label="Choose a custom color"
+          aria-haspopup="dialog"
+          aria-expanded={isCustomPickerOpen}
+        >
+          <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none" aria-hidden="true">
+            <path
+              d="M6 2v8M2 6h8"
+              stroke={
+                isCustomColor && resolvedItemColor
+                  ? getReadableTextColor(resolvedItemColor)
+                  : 'var(--color-text-muted)'
+              }
+              strokeWidth="1.25"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+      {isCustomPickerOpen && (
+        <CustomColorPopover
+          anchor={customColorButtonRef.current}
+          value={item.color ?? resolvedItemColor ?? PHASE_COLORS.teal}
+          onChange={handleCustomColorChange}
+          onClose={handleCustomPickerClose}
+        />
+      )}
+    </div>
+  );
 
   return createPortal(
     <div
       ref={menuRef}
-      className="fixed z-[100] min-w-[160px] py-1 bg-[var(--color-raised)] rounded-[var(--radius-md)] shadow-md border border-[var(--color-border)] popover-enter"
+      tabIndex={-1}
+      className="fixed z-[100] min-w-[160px] py-1 bg-[var(--color-raised)] rounded-[var(--radius-md)] shadow-md border border-[var(--color-border)] outline-none popover-enter"
       style={{ left: position.x, top: position.y }}
       role="menu"
       aria-label="Context menu"
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
     >
-      {menuItems.map((menuItem, index) => (
-        <button
-          key={`${menuItem.label}-${index}`}
-          ref={menuItem.hasSubmenu ? colorButtonRef : undefined}
-          onClick={menuItem.disabled ? undefined : menuItem.action}
-          disabled={menuItem.disabled}
-          className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors duration-fast ${
-            menuItem.disabled
-              ? 'text-[var(--color-text-muted)] cursor-default'
-              : menuItem.danger
-                ? 'text-[var(--color-error)] hover:bg-[var(--color-error-bg)]'
-                : 'text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]'
-          }`}
-          role="menuitem"
-        >
-          {/* The slot is held open whether or not there is a glyph in it, so
-              every label in the menu starts on the same vertical line. */}
-          {menuItem.icon ? (
-            <MenuIcon name={menuItem.icon} color={menuItem.iconColor} />
-          ) : (
-            <span className="w-3.5 flex-shrink-0" aria-hidden="true" />
+      {menuGroups.map((group, groupIndex) => (
+        <Fragment key={group[0].label}>
+          {groupIndex > 0 && (
+            <div role="separator" className="my-1 h-px bg-[var(--color-hairline)]" />
           )}
-          <span className="flex-1 truncate">{menuItem.label}</span>
-          {menuItem.hasSubmenu && (
-            <svg
-              className="w-4 h-4 flex-shrink-0 text-[var(--color-text-muted)]"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                fillRule="evenodd"
-                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                clipRule="evenodd"
-              />
-            </svg>
-          )}
-        </button>
+          {group.map((menuItem) => (
+            <Fragment key={menuItem.label}>
+              {/* No colour transition: a menu highlights the instant the
+                  pointer or an arrow reaches a row, as a native one does. */}
+              <button
+                type="button"
+                role="menuitem"
+                data-menu-stop=""
+                tabIndex={-1}
+                onClick={menuItem.disabled ? undefined : menuItem.action}
+                disabled={menuItem.disabled}
+                aria-expanded={menuItem.isDisclosure ? showColorSubmenu : undefined}
+                aria-keyshortcuts={menuItem.shortcut?.keys}
+                className={`menu-row focus-ring w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs ${
+                  menuItem.disabled
+                    ? 'text-[var(--color-text-muted)] cursor-default'
+                    : menuItem.danger
+                      ? 'text-[var(--color-error)] focus:bg-[var(--color-error-bg)]'
+                      : 'text-[var(--color-text-primary)] focus:bg-[var(--color-hover)]'
+                }`}
+              >
+                {/* The slot is held open whether or not there is a glyph in it,
+                    so every label in the menu starts on the same vertical line. */}
+                {menuItem.icon ? (
+                  <MenuIcon name={menuItem.icon} color={menuItem.iconColor} />
+                ) : (
+                  <span className="w-3.5 flex-shrink-0" aria-hidden="true" />
+                )}
+                <span className="flex-1 truncate">{menuItem.label}</span>
+                {menuItem.shortcut && (
+                  <span className="pl-4 text-[var(--color-text-muted)]" aria-hidden="true">
+                    {menuItem.shortcut.glyph}
+                  </span>
+                )}
+                {/* A disclosure, not a flyout: the strip opens right here,
+                    beneath the row, and the chevron turns to point at it. */}
+                {menuItem.isDisclosure && (
+                  <svg
+                    className={`collapse-chevron w-4 h-4 flex-shrink-0 text-[var(--color-text-muted)] ${
+                      showColorSubmenu ? 'expanded' : ''
+                    }`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+              </button>
+              {menuItem.isDisclosure && showColorSubmenu && swatchStrip}
+            </Fragment>
+          ))}
+        </Fragment>
       ))}
-
-      {showColorSubmenu && item && (
-        <div className="px-2 py-1.5 border-t border-[var(--color-border)]">
-          {/* Held to seven a row. A menu is sized against the room it has, so
-              an unconstrained swatch strip would stretch it to four hundred
-              pixels wide and make the menu itself the widest thing on screen. */}
-          <div className="flex gap-1.5 flex-wrap max-w-[204px]">
-            {Object.entries(PHASE_COLORS).map(([name, color]) => {
-              const label = name.charAt(0).toUpperCase() + name.slice(1);
-              return (
-                <button
-                  key={name}
-                  onClick={() => handleColorChange(color)}
-                  className={`w-6 h-6 rounded-full transition-opacity duration-fast hover:opacity-80 ${
-                    item.color === color ? 'ring-2 ring-offset-1 ring-[var(--color-focus)]' : ''
-                  }`}
-                  style={{ backgroundColor: color }}
-                  title={label}
-                  aria-label={`Set color to ${label}`}
-                />
-              );
-            })}
-            <button
-              ref={customColorButtonRef}
-              onClick={() => setIsCustomPickerOpen((open) => !open)}
-              className={`w-6 h-6 flex items-center justify-center rounded-full transition-opacity duration-fast hover:opacity-80 ${
-                isCustomColor
-                  ? 'ring-2 ring-offset-1 ring-[var(--color-focus)]'
-                  : 'border border-[var(--color-border)]'
-              }`}
-              style={isCustomColor && item.color ? { backgroundColor: item.color } : undefined}
-              title="Custom"
-              aria-label="Choose a custom color"
-              aria-haspopup="dialog"
-              aria-expanded={isCustomPickerOpen}
-            >
-              <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none" aria-hidden="true">
-                <path
-                  d="M6 2v8M2 6h8"
-                  stroke={
-                    isCustomColor && item.color
-                      ? getReadableTextColor(item.color)
-                      : 'var(--color-text-muted)'
-                  }
-                  strokeWidth="1.25"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </div>
-          {isCustomPickerOpen && (
-            <CustomColorPopover
-              anchor={customColorButtonRef.current}
-              value={item.color ?? resolvedItemColor ?? PHASE_COLORS.teal}
-              onChange={handleCustomColorChange}
-              onClose={handleCustomPickerClose}
-            />
-          )}
-        </div>
-      )}
     </div>,
     document.body
   );

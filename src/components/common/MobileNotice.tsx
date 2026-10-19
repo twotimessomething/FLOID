@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePresence } from '../../hooks/usePresence';
+import { useModalLayer } from '../../hooks/useModalLayer';
 
 // Phones in portrait/landscape, plus small touch tablets
 const MOBILE_MEDIA_QUERY =
@@ -56,7 +57,11 @@ export function MobileNotice(): JSX.Element | null {
 
   // Held on screen through the exit so the panel and its scrim can leave
   // together, the way they arrived.
-  const { isMounted, isLeaving } = usePresence(isMobile && !isDismissed);
+  const isOpen = isMobile && !isDismissed;
+  const { isMounted, isLeaving } = usePresence(isOpen);
+  // Focus and Escape only: the paper around the card is not a way past it,
+  // so the backdrop takes no dismissing click
+  const { panelRef } = useModalLayer({ isOpen, isMounted, onDismiss: handleDismiss });
   if (!isMounted) return null;
 
   return createPortal(
@@ -67,14 +72,18 @@ export function MobileNotice(): JSX.Element | null {
       aria-labelledby="mobile-notice-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/25" aria-hidden="true" />
+      <div className="absolute inset-0 bg-[var(--color-scrim)]" aria-hidden="true" />
 
       {/* Centered within the visible area of the screen */}
       <div
         className="fixed top-0 h-full flex items-center justify-center"
         style={{ left: `${visibleArea.left}px`, width: `${visibleArea.width}px` }}
       >
-        <div className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg max-w-xs w-full mx-4 px-6 py-6 text-center modal-enter">
+        <div
+          ref={panelRef}
+          tabIndex={-1}
+          className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg max-w-xs w-full mx-4 px-6 py-6 text-center outline-none modal-enter"
+        >
           {/* Monitor showing a mini FLOID timeline */}
           <svg
             className="mx-auto mb-4 text-[var(--color-logo-primary)]"

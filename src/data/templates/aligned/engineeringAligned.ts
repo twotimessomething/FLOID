@@ -52,7 +52,7 @@ export const engineeringAlignedTemplate: ScheduleTemplate = {
     },
     {
       name: 'Detailed Design',
-      description: 'The meat of the engineering work - CAD, PCB layout, and simulation',
+      description: 'The meat of the engineering work — CAD, PCB layout, and simulation',
       relativeStart: 0.15,
       relativeEnd: 0.40,
       order: 1,

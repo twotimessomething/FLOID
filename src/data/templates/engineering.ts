@@ -77,7 +77,7 @@ export const engineeringTemplate: ScheduleTemplate = {
     },
     {
       name: 'EVT',
-      description: 'Engineering Validation Testing - first functional prototypes (20-50 units)',
+      description: 'Engineering Validation Testing — first functional prototypes (20–50 units)',
       relativeStart: 0.28,
       relativeEnd: 0.45,
       order: 2,
@@ -114,7 +114,7 @@ export const engineeringTemplate: ScheduleTemplate = {
     },
     {
       name: 'DVT',
-      description: 'Design Validation Testing - refined design with user testing (50-200 units)',
+      description: 'Design Validation Testing — refined design with user testing (50–200 units)',
       relativeStart: 0.45,
       relativeEnd: 0.65,
       order: 3,
@@ -158,7 +158,7 @@ export const engineeringTemplate: ScheduleTemplate = {
     },
     {
       name: 'PVT',
-      description: 'Production Validation Testing - production line validation (300-2000 units)',
+      description: 'Production Validation Testing — production line validation (300–2000 units)',
       relativeStart: 0.65,
       relativeEnd: 0.85,
       order: 4,

@@ -2,9 +2,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { readTextFile } from '@tauri-apps/plugin-fs';
-import { importFloidText } from '../utils/importFloid';
+import { importFloidText, isFloidFileName, showNotFloidFileToast } from '../utils/importFloid';
 import { setupAppMenu } from './menu.desktop';
 import { countSessionForReview } from './review.desktop';
+import { saveBeforeWindowCloses } from './session.desktop';
 
 /**
  * Desktop-only boot wiring, dynamically imported behind `isDesktop()` so the
@@ -13,13 +14,16 @@ import { countSessionForReview } from './review.desktop';
  * `importFloidText` door as the web's file picker.
  */
 
-const IMPORTABLE = ['.floid', '.floid-project', '.json'];
-
 async function importPaths(paths: readonly string[]): Promise<void> {
   for (const path of paths) {
-    if (!IMPORTABLE.some((ext) => path.endsWith(ext))) continue;
+    const fileName = path.split('/').pop() ?? path;
+    // Same answer as the web's drop: a file that is not ours is named, not ignored
+    if (!isFloidFileName(fileName)) {
+      showNotFloidFileToast(fileName);
+      continue;
+    }
     try {
-      await importFloidText(await readTextFile(path));
+      await importFloidText(await readTextFile(path), { fileName });
     } catch (error) {
       console.error('Failed to import opened file:', error);
     }
@@ -65,6 +69,10 @@ export async function initDesktop(): Promise<void> {
   initialized = true;
 
   followSystemTheme();
+
+  // Before the menu, so a rejected menu build cannot leave the close button
+  // dropping the last second of edits
+  await saveBeforeWindowCloses();
 
   await setupAppMenu();
 

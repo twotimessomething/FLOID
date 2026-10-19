@@ -1,9 +1,25 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { isImeComposing } from '../utils/keyboard';
 
 interface InlineEditState {
   editingId: string | null;
   editedName: string;
 }
+
+/**
+ * What every rename field carries, spread onto the input.
+ *
+ * A name is not prose: EVT, DVT and CMF are not misspellings, and a part
+ * number is not a sentence to capitalise. `data-inline-draft` says the field
+ * holds a draft of its own until it commits, so ⌘Z inside it takes back the
+ * typing rather than the last move on the sheet.
+ */
+const INLINE_INPUT_PROPS = {
+  spellCheck: false,
+  autoCorrect: 'off',
+  autoCapitalize: 'off',
+  'data-inline-draft': '',
+} as const;
 
 interface UseInlineEditReturn {
   editingId: string | null;
@@ -14,6 +30,7 @@ interface UseInlineEditReturn {
   handleKeyDown: (e: React.KeyboardEvent, updateFn: (trimmedName: string) => void) => void;
   handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   inputRef: React.RefObject<HTMLInputElement>;
+  inputProps: typeof INLINE_INPUT_PROPS;
 }
 
 export function useInlineEdit(): UseInlineEditReturn {
@@ -45,6 +62,9 @@ export function useInlineEdit(): UseInlineEditReturn {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent, updateFn: (trimmedName: string) => void) => {
+      // Mid-composition, Return confirms the candidate and Escape drops it:
+      // both belong to the input method, not to the rename
+      if (isImeComposing(e)) return;
       if (e.key === 'Enter') {
         e.preventDefault();
         saveEdit(updateFn);
@@ -77,5 +97,6 @@ export function useInlineEdit(): UseInlineEditReturn {
     handleKeyDown,
     handleChange,
     inputRef,
+    inputProps: INLINE_INPUT_PROPS,
   };
 }

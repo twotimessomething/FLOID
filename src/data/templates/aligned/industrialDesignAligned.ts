@@ -76,7 +76,7 @@ export const industrialDesignAlignedTemplate: ScheduleTemplate = {
         },
         {
           name: 'Concept Convergence',
-          description: 'Down-selecting to 2-3 primary directions',
+          description: 'Down-selecting to 2–3 primary directions',
           relativeStart: 0.6,
           relativeEnd: 1.0,
           order: 2,

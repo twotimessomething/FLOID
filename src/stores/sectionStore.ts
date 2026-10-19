@@ -73,12 +73,13 @@ interface SectionState {
   incrementRevision: (sectionId: string) => void;
 
   // Items — one set of actions for every depth
+  /** The new item's id, or null when the schedule is locked and takes nothing new. */
   addItem: (
     sectionId: string,
     parentId: string | null,
     item: Omit<TimelineItem, 'id' | 'children'> & { children?: TimelineItem[] },
     index?: number
-  ) => string;
+  ) => string | null;
   updateItem: (sectionId: string, itemId: string, updates: Partial<Omit<TimelineItem, 'id'>>) => void;
   deleteItem: (sectionId: string, itemId: string) => void;
   /** Move the item and everything under it by whole days. */
@@ -176,6 +177,42 @@ function mapSection(
   return changed ? next : (sections as Section[]);
 }
 
+/** Whether `updates` would leave `target` exactly as it is: nothing to write, nothing to undo. */
+function changesNothing<T extends object>(target: T, updates: Partial<T>): boolean {
+  return (Object.keys(updates) as (keyof T)[]).every((key) => Object.is(target[key], updates[key]));
+}
+
+/** The step a field's keystrokes are gathering into, and the history entry it pushed. */
+let typingStep: { readonly field: string; readonly entry: unknown } | null = null;
+/** The field whose write is running right now, inside `typeInto`. */
+let typingField: string | null = null;
+
+/**
+ * Write as a keystroke in `field`.
+ *
+ * The editor's fields write through as they are typed — the bar behind the
+ * panel renames letter by letter — and history would otherwise spend a step
+ * on every keystroke, so a sentence typed into a description would push out
+ * the drag made just before it. Keystrokes in one field gather into the step
+ * the first of them made, for as long as that step is still the newest thing
+ * in history: anything written in between, an undo, or a field taking focus
+ * (`endTypingStep`) closes it, and the next keystroke opens a fresh one. ⌘Z
+ * with the cursor still in the field takes back everything typed there, in one.
+ */
+export function typeInto(field: string, write: () => void): void {
+  typingField = field;
+  try {
+    write();
+  } finally {
+    typingField = null;
+  }
+}
+
+/** Close the step a field's keystrokes are gathering into. */
+export function endTypingStep(): void {
+  typingStep = null;
+}
+
 export const useSectionStore = create<SectionState>()(
   temporal(
     (set, get) => ({
@@ -260,9 +297,13 @@ export const useSectionStore = create<SectionState>()(
       },
 
       updateSection: (sectionId, updates) =>
-        set((state) => ({
-          sections: mapSection(state.sections, sectionId, (section) => touch(section, updates)),
-        })),
+        set((state) => {
+          const section = state.sections.find((s) => s.id === sectionId);
+          if (!section || changesNothing(section, updates)) return state;
+          return {
+            sections: mapSection(state.sections, sectionId, (s) => touch(s, updates)),
+          };
+        }),
 
       // Items hold absolute dates, so re-declaring the window never moves them.
       updateSectionWindow: (sectionId, startDate, endDate) =>
@@ -293,7 +334,7 @@ export const useSectionStore = create<SectionState>()(
       deleteSection: (sectionId) => {
         const state = get();
         if (state.sections.length <= 1) {
-          return { success: false, reason: 'Cannot delete the only schedule.' };
+          return { success: false, reason: 'Cannot delete the only schedule' };
         }
 
         // The pin is left naming the schedule: a pin id with no schedule
@@ -343,6 +384,9 @@ export const useSectionStore = create<SectionState>()(
         })),
 
       addItem: (sectionId, parentId, item, index) => {
+        // The last word on a lock: whatever offered to make something here
+        // should not have, and the refusal is how it finds out
+        if (get().sections.find((section) => section.id === sectionId)?.isLocked) return null;
         const newId = generateId();
         set((state) => ({
           sections: mapSection(state.sections, sectionId, (section) => {
@@ -361,17 +405,22 @@ export const useSectionStore = create<SectionState>()(
       },
 
       updateItem: (sectionId, itemId, updates) =>
-        set((state) => ({
-          sections: mapSection(state.sections, sectionId, (section) =>
-            touch(section, {
-              items: updateItemIn(section.items, itemId, (item) => {
-                const next = { ...item, ...updates };
-                // A milestone or task is a point; keep its two edges in step
-                return next.kind !== 'bar' ? { ...next, end: next.start } : next;
-              }),
-            })
-          ),
-        })),
+        set((state) => {
+          const section = state.sections.find((s) => s.id === sectionId);
+          const target = section ? findItem(section.items, itemId) : null;
+          if (!target || changesNothing(target, updates)) return state;
+          return {
+            sections: mapSection(state.sections, sectionId, (s) =>
+              touch(s, {
+                items: updateItemIn(s.items, itemId, (item) => {
+                  const next = { ...item, ...updates };
+                  // A milestone or task is a point; keep its two edges in step
+                  return next.kind !== 'bar' ? { ...next, end: next.start } : next;
+                }),
+              })
+            ),
+          };
+        }),
 
       deleteItem: (sectionId, itemId) =>
         set((state) => {
@@ -662,8 +711,23 @@ export const useSectionStore = create<SectionState>()(
       },
     }),
     {
-      limit: 50,
+      limit: 100,
       partialize: (state) => ({ sections: state.sections, dependencies: state.dependencies }),
+      // A write that changed nothing undoable is not a step
+      equality: (past, current) =>
+        past.sections === current.sections && past.dependencies === current.dependencies,
+      handleSet: (handleSet) => (pastState, replace) => {
+        const { pastStates } = useSectionStore.temporal.getState();
+        const isSameStep =
+          typingField !== null &&
+          typingStep?.field === typingField &&
+          typingStep.entry === pastStates[pastStates.length - 1];
+        if (isSameStep) return;
+        handleSet(pastState, replace);
+        const pushed = useSectionStore.temporal.getState().pastStates;
+        typingStep =
+          typingField === null ? null : { field: typingField, entry: pushed[pushed.length - 1] };
+      },
     }
   )
 );

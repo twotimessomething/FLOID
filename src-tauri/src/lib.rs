@@ -3,6 +3,7 @@ use std::sync::Mutex;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_fs::FsExt;
+use tauri_plugin_window_state::StateFlags;
 
 /// The app's two ground colours, mirrored from `--color-background` in
 /// src/index.css. Keep them in step with that file.
@@ -40,10 +41,8 @@ fn set_ground(window: tauri::WebviewWindow, dark: bool) {
 /// so they hop to the main thread; a command handler runs on a worker.
 #[cfg(target_os = "macos")]
 mod store_review {
-    use objc2::rc::Retained;
-    use objc2::runtime::{AnyClass, AnyObject};
+    use objc2::runtime::AnyClass;
     use objc2::msg_send;
-    use objc2_foundation::{NSString, NSURL};
 
     // Nothing else in the binary links StoreKit, so the class would not be
     // registered at runtime without this.
@@ -61,8 +60,18 @@ mod store_review {
             let _: () = msg_send![class, requestReview];
         }
     }
+}
 
-    pub fn open_write_review(url: &str) {
+/// Hands a URL to whichever app owns its scheme — Safari, Mail, the App Store.
+/// AppKit-side, so callers hop to the main thread.
+#[cfg(target_os = "macos")]
+mod workspace {
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyClass, AnyObject};
+    use objc2::msg_send;
+    use objc2_foundation::{NSString, NSURL};
+
+    pub fn open(url: &str) {
         let Some(class) = AnyClass::get(c"NSWorkspace") else {
             return;
         };
@@ -91,9 +100,34 @@ fn request_review(app: tauri::AppHandle) {
 #[tauri::command]
 fn open_write_review(app: tauri::AppHandle) {
     #[cfg(target_os = "macos")]
-    let _ = app.run_on_main_thread(|| store_review::open_write_review(WRITE_REVIEW_URL));
+    let _ = app.run_on_main_thread(|| workspace::open(WRITE_REVIEW_URL));
     #[cfg(not(target_os = "macos"))]
     let _ = (app, WRITE_REVIEW_URL);
+}
+
+/// A link out of the app. The webview cannot follow one itself: a
+/// `target="_blank"` asks for a window nobody creates, and WKWebView will not
+/// load `mailto:` at all. Only web pages and mail are let through — anything
+/// the page can name is reachable from here, so the door stays narrow.
+#[tauri::command]
+fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    let parsed = tauri::Url::parse(&url).map_err(|error| error.to_string())?;
+    if !matches!(parsed.scheme(), "https" | "mailto") {
+        return Err(format!("refusing to open a {}: link", parsed.scheme()));
+    }
+    #[cfg(target_os = "macos")]
+    let _ = app.run_on_main_thread(move || workspace::open(parsed.as_str()));
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, parsed);
+    Ok(())
+}
+
+/// The app's own Quit. The stock menu item terminates on the spot, before the
+/// webview can write the last second of edits; the frontend flushes its save
+/// first and then calls this.
+#[tauri::command]
+fn quit(app: tauri::AppHandle) {
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -154,19 +188,38 @@ pub fn run() {
                 // flicker: the pin is set to the system value, so following
                 // the system again resolves to what is already on screen.
                 let _ = window.set_theme(Some(theme));
+
+                // The window is created hidden (`visible: false`), so it can
+                // take its saved frame and its ground before anyone sees it.
+                // By here the window-state plugin has already moved it, so it
+                // appears once, in place, instead of opening at the default
+                // size and jumping.
+                let _ = window.show();
             }
             Ok(())
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_persisted_scope::init())
+        // Frame only. Visibility stays with `setup`, which shows the window
+        // after its ground is painted; full screen is left to the user, since
+        // restoring it into a hidden window is not something AppKit promises
+        // to do gracefully. A position no connected display can show is
+        // dropped by the plugin, and macOS places the window instead.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED)
+                .build(),
+        )
         .manage(PendingFiles::default())
         .invoke_handler(tauri::generate_handler![
             take_pending_files,
             follow_system_theme,
             set_ground,
             request_review,
-            open_write_review
+            open_write_review,
+            open_external,
+            quit
         ])
         .build(tauri::generate_context!())
         .expect("error while building FLOID")

@@ -61,7 +61,7 @@ export function useScheduleImport(): UseScheduleImportReturn {
       // Schedule and links land together, so one undo takes the whole import
       const imported = remapEdgeItemIds(data.dependencies ?? [], idMap, generateId);
       setSectionsAndDependencies([...sections, newSection], [...dependencies, ...imported]);
-      showToast('success', `Added "${scheduleName}" schedule`);
+      showToast('success', `Added “${scheduleName}” schedule`);
     },
     [sections, dependencies, setSectionsAndDependencies, showToast]
   );
@@ -97,7 +97,7 @@ export function useScheduleImport(): UseScheduleImportReturn {
       const kept = pruneEdgesTouching(dependencies, oldIds);
       const imported = remapEdgeItemIds(data.dependencies ?? [], idMap, generateId);
       setSectionsAndDependencies(updatedSections, [...kept, ...imported]);
-      showToast('success', `Updated "${existingSection.name}" schedule`);
+      showToast('success', `Updated “${existingSection.name}” schedule`);
     },
     [sections, dependencies, setSectionsAndDependencies, showToast]
   );
@@ -105,8 +105,16 @@ export function useScheduleImport(): UseScheduleImportReturn {
   const handleImport = useCallback(
     (jsonText: string) => {
       const data = parseScheduleFloid(jsonText);
-      if (!data || !project) {
-        showToast('error', 'Invalid .floid file format');
+      if (!data) {
+        showToast(
+          'error',
+          'Couldn’t open this schedule. The file is damaged or from a newer version of FLOID.'
+        );
+        return;
+      }
+      // A good file with nowhere to go: a schedule lands in a project
+      if (!project) {
+        showToast('error', 'Open or create a project first, then import the schedule into it.');
         return;
       }
 

@@ -88,7 +88,7 @@ describe('a cancelled save dialog', () => {
     render(<ExportModal />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Export' }));
-    await waitFor(() => expect(useUIStore.getState().toast.message).toBe('Exported "Atlas"'));
+    await waitFor(() => expect(useUIStore.getState().toast.message).toBe('Exported “Atlas”'));
     expect(useUIStore.getState().isExportModalOpen).toBe(false);
   });
 });

@@ -17,11 +17,13 @@ import { layoutLabels, measureMilestoneLabelWidth } from '../../utils/labelLayou
 import {
   createBarAt,
   createTaskAt,
+  drawnSpanAt,
   drawnSpanDescriber,
   DEFAULT_BAR_DAYS,
+  type CreateSpan,
 } from '../../utils/creationUtils';
 import { getItemColor } from '../../types';
-import { snapKeyToBusinessDay } from '../../utils/dayKeys';
+import { snapKeyToBusinessDay, snapSpanToBusinessDays } from '../../utils/dayKeys';
 import { sectionTintColor } from '../../utils/colorUtils';
 import { useCreateGhost, type CreateGestureInfo } from '../../hooks/useCreateGhost';
 import { useScheduleRowGestures } from '../../hooks/useScheduleRowGestures';
@@ -117,6 +119,10 @@ export const SectionRow = memo(function SectionRow({
     (key: string): string => (skipWeekends ? snapKeyToBusinessDay(key) : key),
     [skipWeekends]
   );
+  const snapCreateSpan = useCallback(
+    (span: CreateSpan): CreateSpan => (skipWeekends ? snapSpanToBusinessDays(span) : span),
+    [skipWeekends]
+  );
 
   const handleBodyGhostDoubleClick = useCallback(
     ({ startPx, point }: CreateGestureInfo): void => {
@@ -147,26 +153,26 @@ export const SectionRow = memo(function SectionRow({
         section.id,
         {
           // Both drawn edges were chosen, so each squares up on its own — the
-          // same bargain resize strikes. `createBarAt` holds the one-day floor.
-          span: {
-            start: snapCreateDay(xToDay(startPx, viewport, pixelsPerDay)),
-            end: snapCreateDay(xToDay(endPx, viewport, pixelsPerDay)),
-          },
+          // same bargain resize strikes.
+          span: drawnSpanAt(startPx, endPx, viewport, pixelsPerDay, snapCreateSpan),
         },
         point
       );
     },
-    [section.id, viewport, pixelsPerDay, snapCreateDay]
+    [section.id, viewport, pixelsPerDay, snapCreateSpan]
   );
 
   // The dates the draw reports come off the same conversion the drop commits
   const describeSpan = useMemo(
-    () => drawnSpanDescriber(viewport, pixelsPerDay, snapCreateDay),
-    [viewport, pixelsPerDay, snapCreateDay]
+    () => drawnSpanDescriber(viewport, pixelsPerDay, snapCreateSpan),
+    [viewport, pixelsPerDay, snapCreateSpan]
   );
 
+  // A locked schedule takes nothing new, so its open space offers nothing:
+  // no ghost, no copy cursor, nothing drawn
   const bodyGhost = useCreateGhost({
     defaultWidth: DEFAULT_BAR_DAYS * pixelsPerDay,
+    disabled: isLocked,
     describeSpan,
     onDoubleClickCreate: handleBodyGhostDoubleClick,
     onDrawCreate: handleBodyGhostDraw,
@@ -240,7 +246,9 @@ export const SectionRow = memo(function SectionRow({
       {/* The schedule's own row: root milestones, and its bars when collapsed */}
       <div
         ref={headerGestures.rowRef}
-        className={`relative timeline-plot ${headerGestures.ghostX !== null ? 'cursor-copy' : ''} ${
+        className={`relative timeline-plot ${
+          isLocked ? 'cursor-default' : headerGestures.ghostX !== null ? 'cursor-copy' : ''
+        } ${
           isHeaderTarget ? 'drop-header--receiving' : ''
         }`}
         style={{ height: ROW_HEIGHT }}
@@ -304,7 +312,9 @@ export const SectionRow = memo(function SectionRow({
           ))}
 
           <div
-            className={`group relative ${bodyGhost.ghost !== null ? 'cursor-copy' : ''}`}
+            className={`group relative ${
+              isLocked ? 'cursor-default' : bodyGhost.ghost !== null ? 'cursor-copy' : ''
+            }`}
             style={{ height: CREATE_ROW_HEIGHT }}
             data-drop-body={section.id}
             data-drop-count={section.items.length}

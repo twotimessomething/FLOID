@@ -6,7 +6,8 @@ import {
   type MilestoneItem,
   type StatusItem,
 } from '../../hooks/useTimelineStatus';
-import { formatDayKey } from '../../utils/dateUtils';
+import { formatShortDay } from '../../utils/dateUtils';
+import { revealRow } from '../../utils/revealRow';
 import { QuietIconButton } from '../common/QuietIconButton';
 
 /** Joins trail keys. No name can contain it, so no two trails can collide. */
@@ -84,11 +85,29 @@ interface StatusRowProps {
   readonly showDate?: boolean;
 }
 
+/**
+ * A row here is the way to its item on the sheet: the sheet unfolds and
+ * scrolls to it, and the outline lands on it. The editor stays shut, as after
+ * the arrow keys — it would cover the bar just brought into view and take the
+ * keyboard with its name field; Return opens it.
+ *
+ * A pointer click hands the keyboard to the sheet, so that Return reaches it.
+ * Return or Space on the row itself leaves focus here, where a keyboard user
+ * is reading down the list.
+ */
+function showOnSheet(
+  e: React.MouseEvent<HTMLButtonElement>,
+  itemId: string,
+  sectionId: string
+): void {
+  if (e.detail > 0) e.currentTarget.blur();
+  useUIStore.getState().selectItem(itemId, sectionId, undefined, { openEditor: false });
+  revealRow({ sectionId, itemId });
+}
+
 function StatusRow({ item, showDate }: StatusRowProps): JSX.Element {
   const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>): void => {
-      useUIStore.getState().selectItem(item.id, item.sectionId, { x: e.clientX, y: e.clientY });
-    },
+    (e: React.MouseEvent<HTMLButtonElement>): void => showOnSheet(e, item.id, item.sectionId),
     [item.id, item.sectionId]
   );
 
@@ -106,8 +125,8 @@ function StatusRow({ item, showDate }: StatusRowProps): JSX.Element {
         {item.name || 'Untitled'}
       </span>
       {showDate && (
-        <span className="text-meta text-[var(--color-text-muted)] flex-shrink-0">
-          {formatDayKey(item.start, 'MMM d')}
+        <span className="text-meta tabular-nums text-[var(--color-text-muted)] flex-shrink-0">
+          {formatShortDay(item.start)}
         </span>
       )}
       <NavigateChevron />
@@ -124,7 +143,7 @@ function SectionGroup({ bucket, showDate }: SectionGroupProps): JSX.Element {
   return (
     <div className="mb-3">
       <div className="text-xs font-medium text-[var(--color-text-secondary)] mb-1 truncate">
-        {bucket.sectionName || 'Untitled Schedule'}
+        {bucket.sectionName || 'Untitled schedule'}
       </div>
       <div className="space-y-0.5">
         {bucket.groups.map((group) => (
@@ -152,15 +171,13 @@ interface MilestoneRowProps {
 
 function MilestoneRow({ item }: MilestoneRowProps): JSX.Element {
   const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>): void => {
-      useUIStore.getState().selectItem(item.id, item.sectionId, { x: e.clientX, y: e.clientY });
-    },
+    (e: React.MouseEvent<HTMLButtonElement>): void => showOnSheet(e, item.id, item.sectionId),
     [item.id, item.sectionId]
   );
 
   // A milestone is listed across every schedule at once, so it carries its own
   // location: the schedule, then whichever bars it is nested inside.
-  const trail = formatTrail([item.sectionName || 'Untitled Schedule', ...item.ancestors]);
+  const trail = formatTrail([item.sectionName || 'Untitled schedule', ...item.ancestors]);
 
   return (
     <button
@@ -180,8 +197,8 @@ function MilestoneRow({ item }: MilestoneRowProps): JSX.Element {
           <span className="min-w-0 truncate text-meta text-[var(--color-text-secondary)]">
             {trail}
           </span>
-          <span className="text-meta text-[var(--color-text-muted)] flex-shrink-0">
-            {formatDayKey(item.date, 'MMM d')}
+          <span className="text-meta tabular-nums text-[var(--color-text-muted)] flex-shrink-0">
+            {formatShortDay(item.date)}
           </span>
         </span>
       </span>
@@ -359,7 +376,7 @@ export function InfoSidebar(): JSX.Element {
           overflows it, and a handle hanging outside would lose half its width. */}
       <div
         className={`absolute top-0 left-0 w-1 h-full cursor-col-resize z-10 touch-none transition-colors duration-fast ${
-          isResizing ? 'bg-[var(--color-focus)]' : 'hover:bg-[var(--color-focus)]/70'
+          isResizing ? 'bg-[var(--color-focus)]' : 'hover:bg-[color-mix(in_srgb,var(--color-focus)_70%,transparent)]'
         }`}
         onPointerDown={handleResizePointerDown}
         aria-label="Resize status sidebar"

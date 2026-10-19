@@ -27,7 +27,7 @@ interface CustomColorPopoverProps {
  * ramp can already walk. The field is saturation across and lightness down at
  * the current hue; the strip below is the hue.
  *
- * **A drag commits once, on release.** Undo history is fifty entries deep and a
+ * **A drag commits once, on release.** Undo history is a hundred entries deep and a
  * pointer drag would spend all of them in a second, so the field previews
  * against local state and only the colour let go of reaches the store.
  */

@@ -13,8 +13,12 @@ import { useCallback, useEffect, useRef } from 'react';
  * is where the selection outline belongs.
  */
 
-/** How long a second click has to arrive. Below the ~250ms most people manage. */
-const DEFAULT_DELAY_MS = 200;
+/**
+ * How long a second click has to arrive. macOS allows half a second by
+ * default; this catches an ordinary double-click without making a single
+ * click feel late, and the outline has already painted on the press.
+ */
+const DEFAULT_DELAY_MS = 300;
 
 interface UseDoubleClickOptions {
   /**

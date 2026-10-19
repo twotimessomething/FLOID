@@ -9,7 +9,7 @@ export const completeProductDevelopmentTemplate: ProjectTemplate = {
   id: 'complete-product-development',
   name: 'Complete Product Development',
   description:
-    'Full cross-functional timeline with PDP, ID, Engineering, Software, and Marketing - all aligned to stage-gates',
+    'Full cross-functional timeline with PDP, ID, Engineering, Software, and Marketing — all aligned to stage-gates',
   icon: 'rocket',
   category: 'featured',
   featured: true,

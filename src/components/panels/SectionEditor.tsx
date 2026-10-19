@@ -1,11 +1,17 @@
-import { useCallback, useMemo } from 'react';
-import { useSectionStore, selectSection } from '../../stores/sectionStore';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import {
+  useSectionStore,
+  selectSection,
+  typeInto,
+  endTypingStep,
+} from '../../stores/sectionStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore, showSectionDeletedToast } from '../../stores/uiStore';
 import { Input, ColorPicker, Button, PinBadge, DateInput } from '../common';
+import { useNameDraft } from '../../hooks/useNameDraft';
 import { fromDayKey, toDayKey } from '../../utils/dayKeys';
 import { commitWithSlide } from '../../commands/slideCommit';
-import type { SelectionState } from '../../types';
+import type { Section, SelectionState } from '../../types';
 
 interface SectionEditorProps {
   /** See `ItemEditor` — the modal supplies this so the exit is not blank. */
@@ -22,18 +28,29 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
 
   // Memoize selector to prevent recreation on every render
   const sectionSelector = useMemo(() => selectSection(sectionId), [sectionId]);
-  const section = useSectionStore(sectionSelector);
+  const liveSection = useSectionStore(sectionSelector);
   const pinnedSectionId = useProjectStore((state) => state.project?.pinnedSectionId);
+
+  // Undoing the schedule this panel is open on closes the panel (uiStore); it
+  // leaves showing the schedule. The handlers below act only on the live one.
+  const heldRef = useRef<Section | null>(null);
+  if (liveSection) heldRef.current = liveSection;
+  const section = heldRef.current;
 
   const isPinned = section?.id === pinnedSectionId;
 
-  const handleNameChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+  // What is typed into one field is one undo step (`typeInto`). Moving to
+  // another field starts the next, and so does closing the panel.
+  useEffect(() => endTypingStep, []);
+
+  const saveName = useCallback(
+    (name: string) => {
       if (!sectionId) return;
-      updateSection(sectionId, { name: e.target.value });
+      typeInto(`${sectionId}:name`, () => updateSection(sectionId, { name }));
     },
     [sectionId, updateSection]
   );
+  const nameField = useNameDraft(section?.name ?? '', saveName);
 
   const handleColorChange = useCallback(
     (color: string) => {
@@ -52,26 +69,32 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
     setSectionMulticolor(sectionId, true);
   }, [sectionId, setSectionMulticolor]);
 
+  // The window is declared, not drawn: its end is the day that was typed, and
+  // every path that creates a schedule stores it that way. Typed a keystroke at a
+  // time, a start can pass beyond the end on its way somewhere sensible — the
+  // store would swap the two.
   const handleStartDateChange = useCallback(
     (date: Date) => {
-      if (!sectionId || !section) return;
-      // Typed a keystroke at a time, a start can pass beyond the end on its
-      // way somewhere sensible — the store would swap the two
+      if (!sectionId || !liveSection) return;
       const startDate = toDayKey(date);
-      if (startDate > section.endDate) return;
-      updateSectionWindow(sectionId, startDate, section.endDate);
+      if (startDate > liveSection.endDate) return;
+      typeInto(`${sectionId}:start`, () =>
+        updateSectionWindow(sectionId, startDate, liveSection.endDate)
+      );
     },
-    [sectionId, section, updateSectionWindow]
+    [sectionId, liveSection, updateSectionWindow]
   );
 
   const handleEndDateChange = useCallback(
     (date: Date) => {
-      if (!sectionId || !section) return;
+      if (!sectionId || !liveSection) return;
       const endDate = toDayKey(date);
-      if (endDate < section.startDate) return;
-      updateSectionWindow(sectionId, section.startDate, endDate);
+      if (endDate < liveSection.startDate) return;
+      typeInto(`${sectionId}:end`, () =>
+        updateSectionWindow(sectionId, liveSection.startDate, endDate)
+      );
     },
-    [sectionId, section, updateSectionWindow]
+    [sectionId, liveSection, updateSectionWindow]
   );
 
   // Pinning carries the whole schedule to the top of the sheet (unpinning,
@@ -82,9 +105,9 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
   }, [sectionId, isPinned, setPinnedSection]);
 
   const handleDelete = useCallback(() => {
-    if (!sectionId || !section) return;
+    if (!sectionId || !liveSection) return;
     // Held before the delete: the notice names it
-    const deleted = section;
+    const deleted = liveSection;
     const result = commitWithSlide(() => deleteSection(sectionId));
     if (!result.success && result.reason) {
       showToast('warning', result.reason);
@@ -92,14 +115,14 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
     }
     showSectionDeletedToast(deleted);
     closeModal();
-  }, [sectionId, section, deleteSection, closeModal, showToast]);
+  }, [sectionId, liveSection, deleteSection, closeModal, showToast]);
 
   if (!section) {
     return <div className="text-body text-[var(--color-text-secondary)]">Schedule not found</div>;
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" onFocus={endTypingStep}>
       {/* Pinned status indicator */}
       {isPinned && (
         <div className="flex items-center gap-2 py-1">
@@ -111,10 +134,12 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
       )}
 
       <Input
-        label="Schedule Name"
-        value={section.name}
-        onChange={handleNameChange}
+        label="Name"
+        value={nameField.value}
+        onChange={nameField.onChange}
+        onBlur={nameField.onBlur}
         autoFocus
+        spellCheck={false}
         placeholder="Schedule name"
       />
 
@@ -132,7 +157,7 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
         <div className="flex gap-3">
           <div className="flex-1">
             <DateInput
-              label="Start Date"
+              label="Start"
               value={fromDayKey(section.startDate)}
               onChange={handleStartDateChange}
               max={fromDayKey(section.endDate)}
@@ -140,7 +165,7 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
           </div>
           <div className="flex-1">
             <DateInput
-              label="End Date"
+              label="End"
               value={fromDayKey(section.endDate)}
               onChange={handleEndDateChange}
               min={fromDayKey(section.startDate)}
@@ -148,20 +173,22 @@ export function SectionEditor({ selection: given }: SectionEditorProps = {}): JS
           </div>
         </div>
         <div className="text-xs text-[var(--color-text-muted)]">
-          Sets the schedule's window. Bars hold their own dates, so nothing moves.
+          Sets the schedule’s window. Bars hold their own dates, so nothing moves.
         </div>
       </div>
 
       {/* Pin / Unpin */}
       <div className="pt-2">
         <Button variant="secondary" onClick={handleTogglePin} className="w-full">
-          {isPinned ? 'Unpin' : 'Pin to Top'}
+          {isPinned ? 'Unpin' : 'Pin to top'}
         </Button>
       </div>
 
-      {/* Delete section */}
+      {/* A quiet action at the foot: the delete raises an Undo of its own */}
       <div className="pt-2">
-        <Button variant="danger" onClick={handleDelete} className="w-full">Delete Schedule</Button>
+        <Button variant="danger" onClick={handleDelete} className="-ml-3">
+          Delete schedule
+        </Button>
       </div>
     </div>
   );

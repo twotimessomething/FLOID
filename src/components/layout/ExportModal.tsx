@@ -7,7 +7,7 @@ import {
   downloadScheduleFloid,
   exportScheduleToFloid,
   exportToJson,
-  projectFloidFilename,
+  projectBackupFilename,
   scheduleFloidFilename,
   stampBackupDate,
 } from '../../utils/exportUtils';
@@ -16,8 +16,16 @@ import { loadProjectFromStorage } from '../../utils/storageUtils';
 import { Button } from '../common/Button';
 import type { DependencyEdge, Section, Project } from '../../types';
 import { usePresence } from '../../hooks/usePresence';
+import { useModalLayer } from '../../hooks/useModalLayer';
+import { isImeComposing } from '../../utils/keyboard';
 
 type ExportMode = 'active-project' | 'schedules' | 'all-projects';
+
+/**
+ * Focus that answers Return itself: a button presses, a link follows. A radio
+ * or a checkbox does nothing with it, so there Return is the dialog's.
+ */
+const HANDLES_RETURN = 'button, a[href], select, textarea, input:not([type="radio"]):not([type="checkbox"])';
 
 /** A schedule list is only ever read here, so one empty array serves them all. */
 const NO_SECTIONS: readonly Section[] = [];
@@ -105,15 +113,6 @@ export function ExportModal(): JSX.Element | null {
     [targetSections]
   );
 
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        closeExportModal();
-      }
-    },
-    [closeExportModal]
-  );
-
   const handleScheduleToggle = useCallback((sectionId: string) => {
     setSelectedScheduleIds((prev) => {
       const next = new Set(prev);
@@ -145,7 +144,7 @@ export function ExportModal(): JSX.Element | null {
         if (!(await downloadProjectJson(targetProject, [...targetSections], targetDependencies))) {
           return;
         }
-        showToast('success', `Exported "${targetProject.name}"`);
+        showToast('success', `Exported “${targetProject.name}”`);
       } else if (exportMode === 'schedules') {
         if (selectedScheduleIds.size === 0) {
           showToast('error', 'Please select at least one schedule');
@@ -197,7 +196,7 @@ export function ExportModal(): JSX.Element | null {
         let count = projectFiles.length;
         if (projectFiles.length > 1 && supportsDirectorySave()) {
           const files = projectFiles.map((entry) => ({
-            filename: projectFloidFilename(entry.project),
+            filename: projectBackupFilename(entry.project),
             contents: exportToJson(entry.project, entry.sections, entry.dependencies),
           }));
           if (!(await exportIntoDirectory(files))) {
@@ -236,25 +235,15 @@ export function ExportModal(): JSX.Element | null {
     closeExportModal,
   ]);
 
-  // Close on escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        closeExportModal();
-      }
-    };
-
-    if (isExportModalOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isExportModalOpen, closeExportModal]);
-
   // Held on screen through the exit so the panel and its scrim can leave
   // together, the way they arrived.
-  const { isMounted, isLeaving } = usePresence(
-    isExportModalOpen && (project !== null || isScopedElsewhere)
-  );
+  const isShown = isExportModalOpen && (project !== null || isScopedElsewhere);
+  const { isMounted, isLeaving } = usePresence(isShown);
+  const { panelRef, backdropProps } = useModalLayer({
+    isOpen: isShown,
+    isMounted,
+    onDismiss: closeExportModal,
+  });
   if (!isMounted) return null;
 
   const projectName = targetProject?.name ?? scopedIndexName ?? '';
@@ -265,21 +254,33 @@ export function ExportModal(): JSX.Element | null {
       exportMode === 'all-projects' ||
       (exportMode === 'schedules' && selectedScheduleIds.size > 0));
 
+  // Return exports, as the default button would — unless focus is on
+  // something that presses on Return already, which keeps its own key
+  const handlePanelKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key !== 'Enter' || isImeComposing(e)) return;
+    if (e.target instanceof Element && e.target.matches(HANDLES_RETURN)) return;
+    e.preventDefault();
+    if (canExport && !isExporting) void handleExport();
+  };
+
   return (
     <div
       className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
-      onClick={handleBackdropClick}
+      {...backdropProps}
       role="dialog"
       aria-modal="true"
       aria-labelledby="export-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/25" />
+      <div className="absolute inset-0 bg-[var(--color-scrim)] pointer-events-none" />
 
       {/* Modal */}
       <div
-        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-md mx-4 modal-enter"
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-md mx-4 outline-none modal-enter"
         role="document"
+        onKeyDown={handlePanelKeyDown}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
@@ -333,7 +334,7 @@ export function ExportModal(): JSX.Element | null {
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
                   {isScoped
                     ? 'Export this project as a .floid file'
-                    : `Export "${projectName}" as a .floid file`}
+                    : `Export “${projectName}” as a .floid file`}
                 </p>
               </div>
             </label>
@@ -437,7 +438,7 @@ export function ExportModal(): JSX.Element | null {
             Cancel
           </Button>
           <Button variant="primary" onClick={handleExport} disabled={!canExport || isExporting}>
-            {isExporting ? 'Exporting...' : 'Export'}
+            {isExporting ? 'Exporting…' : 'Export'}
           </Button>
         </div>
       </div>

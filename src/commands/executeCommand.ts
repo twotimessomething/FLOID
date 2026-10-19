@@ -1,6 +1,7 @@
 import { COMMANDS } from './commands';
 import { isGestureInFlight } from './gesture';
 import type { CommandId } from './types';
+import type { ToastAction } from '../stores/uiStore';
 
 /**
  * Run a command, unless it is disabled or a drag is holding the sheet.
@@ -42,3 +43,12 @@ export function commandForKeydown(event: KeyboardEvent): CommandId | null {
   if (id === null) return null;
   return COMMANDS[id].browserReserved ? null : id;
 }
+
+/**
+ * A toast's "Back up" — the same Save Backup the menu and ⌘S run, so it keeps
+ * the gesture guard and the command's own enablement.
+ */
+export const BACK_UP_ACTION: ToastAction = {
+  label: 'Back up',
+  onClick: () => executeCommand('project.saveBackup'),
+};

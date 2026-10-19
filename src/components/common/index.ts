@@ -11,5 +11,6 @@ export { PinBadge } from './PinBadge';
 export { Toggle } from './Toggle';
 export { TemplateIcon } from './TemplateIcon';
 export { SyncStatusIndicator } from './SyncStatusIndicator';
+export { StatusError } from './StatusError';
 export { SplashScreen } from './SplashScreen';
 export { MenuIcon } from './MenuIcon';

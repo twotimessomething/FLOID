@@ -7,10 +7,15 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly size?: 'sm' | 'md';
 }
 
+/**
+ * Danger is said in the ink, not the fill: red words on the paper, tinted on
+ * hover — the context menu's Delete, made a button. A solid red block was the
+ * loudest thing on any panel it sat in, and could only be lettered in white.
+ */
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
   primary: 'bg-[var(--color-text-primary)] text-[var(--color-background)] hover:opacity-90 active:opacity-80',
   secondary: 'bg-[var(--color-raised)] text-[var(--color-text-primary)] border border-[var(--color-border)] hover:bg-[var(--color-hover)] active:bg-[var(--color-active)]',
-  danger: 'bg-[var(--color-error)] text-white hover:opacity-90 active:opacity-80',
+  danger: 'text-[var(--color-error)] hover:bg-[var(--color-error-bg)] active:opacity-80',
   ghost: 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]',
 };
 

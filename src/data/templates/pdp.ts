@@ -265,7 +265,7 @@ export const pdpTemplate: ScheduleTemplate = {
         },
         {
           name: 'Post-Launch Review',
-          description: 'Gate 5 review - lessons learned and project close-out',
+          description: 'Gate 5 review — lessons learned and project close-out',
           relativeStart: 0.75,
           relativeEnd: 1.0,
           order: 4,
@@ -276,37 +276,37 @@ export const pdpTemplate: ScheduleTemplate = {
   milestones: [
     {
       name: 'Gate 0',
-      description: 'Idea Screen - initial go/kill decision',
+      description: 'Idea Screen — initial go/kill decision',
       relativePosition: 0.08,
       order: 0,
     },
     {
       name: 'Gate 1',
-      description: 'Scope Gate - approve for business case development',
+      description: 'Scope Gate — approve for business case development',
       relativePosition: 0.18,
       order: 1,
     },
     {
       name: 'Gate 2',
-      description: 'Go to Development - business case approved',
+      description: 'Go to Development — business case approved',
       relativePosition: 0.32,
       order: 2,
     },
     {
       name: 'Gate 3',
-      description: 'Go to Testing - development complete',
+      description: 'Go to Testing — development complete',
       relativePosition: 0.6,
       order: 3,
     },
     {
       name: 'Gate 4',
-      description: 'Go to Launch - validation complete',
+      description: 'Go to Launch — validation complete',
       relativePosition: 0.8,
       order: 4,
     },
     {
       name: 'Gate 5',
-      description: 'Post-Launch Review - project close-out',
+      description: 'Post-Launch Review — project close-out',
       relativePosition: 0.98,
       order: 5,
     },

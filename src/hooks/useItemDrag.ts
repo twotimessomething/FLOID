@@ -7,7 +7,7 @@ import { useSectionStore } from '../stores/sectionStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useUIStore } from '../stores/uiStore';
 import { addDaysToKey, dayKeyDiff, snapKeyToBusinessDay } from '../utils/dayKeys';
-import { formatDayKey } from '../utils/dateUtils';
+import { formatShortDay } from '../utils/dateUtils';
 import { collectIds, locateItem } from '../utils/itemTree';
 import { HEADER_HEIGHT } from '../utils/timelineUtils';
 import type { ClipRect } from '../utils/dragCluster';
@@ -53,6 +53,10 @@ const EDGE_SCROLL_MAX_PX = 24;
 /** Rows are shorter than the sheet is wide, so the vertical zone is too. */
 const EDGE_SCROLL_ZONE_Y_PX = 56;
 const EDGE_SCROLL_MAX_Y_PX = 18;
+/** The edge speeds are px per frame of a 60 Hz display. */
+const EDGE_SCROLL_FRAME_MS = 1000 / 60;
+/** A stalled frame scrolls as far as a few would, never as far as the stall. */
+const EDGE_SCROLL_MAX_FRAMES = 3;
 
 export interface StartItemDragArgs {
   readonly item: TimelineItem;
@@ -106,6 +110,8 @@ interface DragSession {
    */
   edgeYArmed: boolean;
   scrollFrame: number | null;
+  /** When the edge scroll last stepped, so each step can be scaled by its frame. */
+  scrollFrameAt: number | null;
   cleanup: () => void;
 }
 
@@ -204,6 +210,7 @@ export function useItemDrag(): {
       isRefused: false,
       edgeYArmed: false,
       scrollFrame: null,
+      scrollFrameAt: null,
       cleanup: () => undefined,
     };
 
@@ -267,9 +274,8 @@ export function useItemDrag(): {
       // axis, and off the sheet nothing lands, so neither shows a date.
       session.cluster?.setLabel(
         session.column === 'plot' && !session.isOutside && !session.isRefused
-          ? formatDayKey(
-              addDaysToKey(session.item.start, snappedDayDelta(session.item.start, days)),
-              'MMM d'
+          ? formatShortDay(
+              addDaysToKey(session.item.start, snappedDayDelta(session.item.start, days))
             )
           : null
       );
@@ -311,10 +317,11 @@ export function useItemDrag(): {
      * pointer there would otherwise read as leaning on its left edge the whole
      * time and run the timeline back to its start.
      */
-    const edgeScrollTick = (): void => {
+    const edgeScrollTick = (now: number): void => {
       const scroller = timelineScroller();
       if (!scroller || !session.active) {
         session.scrollFrame = null;
+        session.scrollFrameAt = null;
         return;
       }
 
@@ -325,13 +332,16 @@ export function useItemDrag(): {
       const speedY = session.edgeYArmed ? rawSpeedY : 0;
       if (speedX === 0 && speedY === 0) {
         session.scrollFrame = null;
+        session.scrollFrameAt = null;
         return;
       }
 
+      const elapsed = session.scrollFrameAt === null ? null : now - session.scrollFrameAt;
+      session.scrollFrameAt = now;
       const beforeX = scroller.scrollLeft;
       const beforeY = scroller.scrollTop;
-      if (speedX !== 0) scroller.scrollLeft = beforeX + speedX;
-      if (speedY !== 0) scroller.scrollTop = beforeY + speedY;
+      if (speedX !== 0) scroller.scrollLeft = beforeX + edgeScrollStep(speedX, elapsed);
+      if (speedY !== 0) scroller.scrollTop = beforeY + edgeScrollStep(speedY, elapsed);
       if (scroller.scrollTop !== beforeY) syncLabelsToSheet(scroller);
       if (scroller.scrollLeft !== beforeX || scroller.scrollTop !== beforeY) {
         render(session.pointerX, session.pointerY);
@@ -570,7 +580,7 @@ function isOverTimeline(clientX: number, clientY: number, column: DragColumn): b
 }
 
 /** Px per frame, ramped by how far into the edge zone the pointer has reached. */
-function edgeScrollSpeed(rect: DOMRect, clientX: number): number {
+export function edgeScrollSpeed(rect: DOMRect, clientX: number): number {
   if (clientX < rect.left + EDGE_SCROLL_ZONE_PX) {
     return -scrollSpeed(rect.left + EDGE_SCROLL_ZONE_PX - clientX);
   }
@@ -613,8 +623,24 @@ export function edgeScrollSpeedY(rect: DOMRect, clientY: number, bandsBottom = 0
   return 0;
 }
 
+/**
+ * One frame's share of an edge speed, by how long the frame actually took —
+ * so a 120 Hz display runs the sheet no faster than a 60 Hz one. `null` is the
+ * first frame of a run, which has nothing to measure against and counts as
+ * one. Whole pixels, and at least one while there is any speed at all: a
+ * sub-pixel write can round away to nothing.
+ */
+export function edgeScrollStep(speedPerFrame: number, elapsedMs: number | null): number {
+  if (speedPerFrame === 0) return 0;
+  const frames =
+    elapsedMs === null
+      ? 1
+      : Math.min(EDGE_SCROLL_MAX_FRAMES, Math.max(0, elapsedMs) / EDGE_SCROLL_FRAME_MS);
+  return Math.sign(speedPerFrame) * Math.max(1, Math.round(Math.abs(speedPerFrame) * frames));
+}
+
 /** Travel, in px, that is still a wobble rather than a change of date. */
-const DATE_DEAD_ZONE_PX = 6;
+export const DATE_DEAD_ZONE_PX = 6;
 
 /**
  * How far, in days, a drop moves the item.

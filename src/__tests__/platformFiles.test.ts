@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { downloadProjectJson, downloadScheduleFloid } from '../utils/exportUtils';
+import { todayKey } from '../utils/dayKeys';
 import { saveFile } from '../platform/files';
 import { setAppSettings } from '../utils/indexedDB';
 import type { Project, Section } from '../types';
@@ -51,7 +52,7 @@ describe('exports through the platform seam', () => {
 
     expect(saveFile).toHaveBeenCalledOnce();
     const request = vi.mocked(saveFile).mock.calls[0][0];
-    expect(request.suggestedName).toBe('alpha-launch.floid');
+    expect(request.suggestedName).toBe(`Alpha Launch — Backup ${todayKey()}.floid`);
     expect(request.filters[0].extensions).toContain('floid');
   });
 
@@ -69,7 +70,7 @@ describe('exports through the platform seam', () => {
     await downloadScheduleFloid(makeProject(), makeSection());
 
     expect(saveFile).toHaveBeenCalledOnce();
-    expect(vi.mocked(saveFile).mock.calls[0][0].suggestedName).toBe('alpha-launch_design_r3.floid');
+    expect(vi.mocked(saveFile).mock.calls[0][0].suggestedName).toBe('Alpha Launch — Design.floid');
     expect(setAppSettings).not.toHaveBeenCalled();
   });
 });

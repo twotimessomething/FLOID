@@ -91,6 +91,9 @@ export const migrateStoredData = (data: StoredData): StoredData => {
  * would make the version a claim rather than a fact, and the load path trusts
  * that claim — one write of un-migrated data through this door and the record
  * is unreadable forever. Migration is idempotent, so current data pays nothing.
+ *
+ * Rejects when IndexedDB refuses the write (a full disk, a quota). Nothing
+ * here swallows that: autosave turns it into the one warning the user sees.
  */
 export const saveProjectToStorage = async (projectId: string, data: StoredData): Promise<void> => {
   const current = migrateStoredData(data);
@@ -142,7 +145,8 @@ export const recoverFromLocalStorage = async (projectId: string): Promise<Stored
     const data = localStorage.getItem(key);
     if (data) {
       const parsed = migrateStoredData(JSON.parse(data) as StoredData);
-      // Save to IndexedDB and remove from localStorage
+      // The copy is removed only once IndexedDB has it: a refused write
+      // throws past the removal and the copy waits for the next launch
       await idb.setProjectData(projectId, parsed);
       localStorage.removeItem(key);
       return parsed;

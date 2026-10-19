@@ -114,10 +114,15 @@ export const HeaderMilestone = memo(function HeaderMilestone({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
-      if (e.key === 'Enter' || e.key === ' ') {
+      // Return edits. Space folds on the sheet, and a marker has nothing to
+      // fold: it takes the selection and leaves the editor shut
+      if (e.key === 'Enter') {
         e.preventDefault();
         const bounds = (e.target as HTMLElement).getBoundingClientRect();
         selectItem(item.id, section.id, { x: bounds.right, y: bounds.top });
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        selectItem(item.id, section.id, undefined, { openEditor: false });
       }
     },
     [selectItem, item.id, section.id]
@@ -127,7 +132,7 @@ export const HeaderMilestone = memo(function HeaderMilestone({
 
   return (
     <div
-      className={`absolute top-0 bottom-0 group timeline-point hover:z-10 touch-none ${
+      className={`absolute top-0 bottom-0 group timeline-point hover:z-10 touch-none focus-ring ${
         isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
       } ${isDragged ? 'timeline-point--lifted' : ''}`}
       style={{ left }}

@@ -4,6 +4,7 @@ import { executeCommand } from '../commands/executeCommand';
 import { useSectionStore } from '../stores/sectionStore';
 import { useUIStore } from '../stores/uiStore';
 import { useProjectStore } from '../stores/projectStore';
+import { quitAfterSaving } from './session.desktop';
 import type { CommandId } from '../commands/types';
 
 /**
@@ -17,26 +18,46 @@ import type { CommandId } from '../commands/types';
 const separator = (): Promise<PredefinedMenuItem> =>
   PredefinedMenuItem.new({ item: 'Separator' });
 
-function menuItemFor(id: CommandId, initialEnabled = true): Promise<MenuItem> {
+function menuItemFor(
+  id: CommandId,
+  initialEnabled = true,
+  text: string = COMMANDS[id].label
+): Promise<MenuItem> {
   const command = COMMANDS[id];
   return MenuItem.new({
     id: command.id,
-    text: command.label,
+    text,
     accelerator: command.accelerator,
     enabled: initialEnabled,
     action: () => executeCommand(id),
   });
 }
 
+/** A toggle names what it will do: Show while the sidebar is away, Hide while it is out. */
+const sidebarText = (name: string, isOpen: boolean): string =>
+  `${isOpen ? 'Hide' : 'Show'} ${name} Sidebar`;
+
 export async function setupAppMenu(): Promise<void> {
   const hasProject = (): boolean => useProjectStore.getState().project !== null;
+  const ui = useUIStore.getState();
 
-  // Items whose enabled state tracks the stores keep their handles here
+  // Items whose enabled state or text tracks the stores keep their handles here
   const undoItem = await menuItemFor('edit.undo', false);
   const redoItem = await menuItemFor('edit.redo', false);
   const saveBackupItem = await menuItemFor('project.saveBackup', hasProject());
   const exportItem = await menuItemFor('project.export', hasProject());
-  const todayItem = await menuItemFor('view.today', hasProject());
+  const canGoToday = (): boolean => COMMANDS['view.today'].isEnabled?.() ?? true;
+  const todayItem = await menuItemFor('view.today', canGoToday());
+  const projectsSidebarItem = await menuItemFor(
+    'view.toggleLeftSidebar',
+    true,
+    sidebarText('Projects', ui.isLeftSidebarOpen)
+  );
+  const statusSidebarItem = await menuItemFor(
+    'view.toggleInfoSidebar',
+    true,
+    sidebarText('Status', ui.isInfoSidebarOpen)
+  );
 
   const appMenu = await Submenu.new({
     text: 'FLOID',
@@ -53,7 +74,16 @@ export async function setupAppMenu(): Promise<void> {
       await PredefinedMenuItem.new({ item: 'HideOthers' }),
       await PredefinedMenuItem.new({ item: 'ShowAll' }),
       await separator(),
-      await PredefinedMenuItem.new({ item: 'Quit' }),
+      // Not the predefined Quit: that one terminates before the last edits
+      // are written. This one saves, then quits.
+      await MenuItem.new({
+        id: 'app.quit',
+        text: 'Quit FLOID',
+        accelerator: 'CmdOrCtrl+Q',
+        action: () => {
+          void quitAfterSaving();
+        },
+      }),
     ],
   });
 
@@ -93,10 +123,22 @@ export async function setupAppMenu(): Promise<void> {
       await menuItemFor('view.zoomToFit'),
       todayItem,
       await separator(),
-      await menuItemFor('view.toggleLeftSidebar'),
-      await menuItemFor('view.toggleInfoSidebar'),
+      projectsSidebarItem,
+      statusSidebarItem,
       await separator(),
       await PredefinedMenuItem.new({ item: 'Fullscreen' }),
+    ],
+  });
+
+  // Minimize (⌘M) and Zoom only exist where a Window menu holds them, and
+  // AppKit lists the open windows in whichever menu it was told is this one.
+  const windowMenu = await Submenu.new({
+    text: 'Window',
+    items: [
+      await PredefinedMenuItem.new({ item: 'Minimize' }),
+      await PredefinedMenuItem.new({ item: 'Maximize' }),
+      await separator(),
+      await PredefinedMenuItem.new({ item: 'BringAllToFront' }),
     ],
   });
 
@@ -106,9 +148,12 @@ export async function setupAppMenu(): Promise<void> {
   });
 
   const menu = await Menu.new({
-    items: [appMenu, fileMenu, editMenu, viewMenu, helpMenu],
+    items: [appMenu, fileMenu, editMenu, viewMenu, windowMenu, helpMenu],
   });
   await menu.setAsAppMenu();
+  await windowMenu.setAsWindowsMenuForNSApp();
+  // The Help menu, so told, also carries the system's own search field
+  await helpMenu.setAsHelpMenuForNSApp();
 
   // Enabled state follows the stores; the previous-value checks keep a busy
   // drag from spamming IPC with redundant setEnabled calls.
@@ -132,13 +177,38 @@ export async function setupAppMenu(): Promise<void> {
   useSectionStore.temporal.subscribe(refreshHistory);
   useUIStore.subscribe(refreshHistory);
 
+  let wasProjectsOpen = ui.isLeftSidebarOpen;
+  let wasStatusOpen = ui.isInfoSidebarOpen;
+  useUIStore.subscribe((state) => {
+    if (state.isLeftSidebarOpen !== wasProjectsOpen) {
+      wasProjectsOpen = state.isLeftSidebarOpen;
+      void projectsSidebarItem.setText(sidebarText('Projects', wasProjectsOpen));
+    }
+    if (state.isInfoSidebarOpen !== wasStatusOpen) {
+      wasStatusOpen = state.isInfoSidebarOpen;
+      void statusSidebarItem.setText(sidebarText('Status', wasStatusOpen));
+    }
+  });
+
   let hadProject = hasProject();
   useProjectStore.subscribe((state) => {
     const has = state.project !== null;
     if (has === hadProject) return;
     hadProject = has;
-    for (const item of [saveBackupItem, exportItem, todayItem]) {
+    for (const item of [saveBackupItem, exportItem]) {
       void item.setEnabled(has);
     }
   });
+
+  // Today needs a project *and* today on its sheet — a project wholly in the
+  // past or future has nowhere to go — so it follows the schedules as well
+  let couldGoToday = canGoToday();
+  const refreshToday = (): void => {
+    const can = canGoToday();
+    if (can === couldGoToday) return;
+    couldGoToday = can;
+    void todayItem.setEnabled(can);
+  };
+  useSectionStore.subscribe(refreshToday);
+  useProjectStore.subscribe(refreshToday);
 }

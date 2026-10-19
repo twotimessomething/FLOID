@@ -10,11 +10,18 @@ function getSystemTheme(): 'light' | 'dark' {
 
 function applyTheme(theme: ThemeMode): void {
   const resolvedTheme = theme === 'system' ? getSystemTheme() : theme;
+  const root = document.documentElement;
+  const isDark = resolvedTheme === 'dark';
 
-  if (resolvedTheme === 'dark') {
-    document.documentElement.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
+  // The whole sheet changes ink in one frame. Transitions are held off while
+  // the class flips, the new colours are resolved at once by reading one back,
+  // and the hold comes off a frame later — so nothing fades over a ground
+  // that has already snapped.
+  if (root.classList.contains('dark') !== isDark) {
+    root.classList.add('theme-switching');
+    root.classList.toggle('dark', isDark);
+    void window.getComputedStyle(document.body).backgroundColor;
+    requestAnimationFrame(() => root.classList.remove('theme-switching'));
   }
 
   // Every path that changes what the sheet is painted in goes through here, so

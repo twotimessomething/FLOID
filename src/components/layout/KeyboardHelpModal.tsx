@@ -1,8 +1,9 @@
-import { useCallback, useEffect } from 'react';
 import { useUIStore } from '../../stores/uiStore';
 import { usePresence } from '../../hooks/usePresence';
+import { useModalLayer } from '../../hooks/useModalLayer';
 import { COMMANDS } from '../../commands/commands';
 import { isDesktop } from '../../platform/detect';
+import { comboCaps, isMacKeyboard, sentenceCase } from '../../utils/shortcutKeys';
 
 interface Gesture {
   readonly description: string;
@@ -14,6 +15,9 @@ interface Shortcut {
   readonly description: string;
   readonly combo?: boolean; // true = keys joined with "+", false/undefined = alternatives
 }
+
+/** Decided once: a session never changes keyboards under the sheet. */
+const IS_MAC = isMacKeyboard();
 
 interface ShortcutGroup {
   readonly title: string;
@@ -29,12 +33,14 @@ const GESTURES: readonly Gesture[] = [
   { description: 'Draw a bar in empty space', action: 'Double-click' },
   { description: 'Draw a bar to an exact span', action: 'Drag' },
   { description: 'Add a milestone to a schedule row', action: 'Double-click' },
-  { description: 'Drop a task on any day', action: '⌥-click' },
+  { description: 'Drop a task on any day', action: IS_MAC ? '⌥-click' : 'Alt-click' },
   { description: 'Check a task off, or uncheck it', action: 'Click its circle' },
   { description: 'Move an item, or carry it to another schedule', action: 'Drag' },
   { description: 'Group an item inside a bar', action: 'Drop it on the bar' },
   { description: 'Take an item back out of its group', action: 'Drop it on open space' },
   { description: 'Resize a bar', action: 'Drag its edge' },
+  { description: 'Link a bar to another item', action: 'Drag the dot at its end' },
+  { description: 'Remove a link', action: 'Drop its end on open space' },
   { description: 'Open or close a group', action: 'Double-click the bar' },
   { description: 'Rename a schedule, item, or project', action: 'Double-click its name' },
   { description: 'Color, lock, move out of group, export', action: 'Right-click' },
@@ -60,7 +66,12 @@ function commandShortcutGroups(): ShortcutGroup[] {
     const title = COMMAND_GROUP_TITLES[command.id.split('.')[0]];
     if (!title) continue;
     const list = groups.get(title) ?? [];
-    list.push({ keys: command.shortcutKeys, description: command.label, combo: true });
+    list.push({
+      keys: comboCaps(command.shortcutKeys, IS_MAC),
+      // The registry's labels are the menu bar's Title Case; the sheet is in-app copy
+      description: sentenceCase(command.label),
+      combo: true,
+    });
     groups.set(title, list);
   }
   return [...groups.entries()].map(([title, shortcuts]) => ({ title, shortcuts }));
@@ -73,10 +84,16 @@ const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
   },
   {
     title: 'Actions',
+    // Return opens the editor and Space folds, as `useKeyboardShortcuts` has
+    // them. A Mac's delete key is ⌫, and the one key there is to name.
     shortcuts: [
-      { keys: ['Enter', 'Space'], description: 'Expand / Collapse a schedule or group' },
-      { keys: ['Delete', '⌫'], description: 'Delete selected item' },
-      { keys: ['Esc'], description: 'Close the editor, or cancel a drag' },
+      { keys: [IS_MAC ? 'Return' : 'Enter'], description: 'Edit the selected row' },
+      { keys: ['Space'], description: 'Open or close a schedule or group' },
+      {
+        keys: IS_MAC ? ['⌫'] : ['Delete', 'Backspace'],
+        description: 'Delete the selection',
+      },
+      { keys: ['Esc'], description: 'Close the editor, deselect, or cancel a drag' },
     ],
   },
   ...commandShortcutGroups(),
@@ -97,47 +114,32 @@ function Key({ children }: KeyProps): JSX.Element {
 export function KeyboardHelpModal(): JSX.Element | null {
   const { isKeyboardHelpModalOpen, closeKeyboardHelpModal } = useUIStore();
 
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        closeKeyboardHelpModal();
-      }
-    },
-    [closeKeyboardHelpModal]
-  );
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        closeKeyboardHelpModal();
-      }
-    };
-
-    if (isKeyboardHelpModalOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isKeyboardHelpModalOpen, closeKeyboardHelpModal]);
-
   // Held on screen through the exit so the panel and its scrim can leave
   // together, the way they arrived.
   const { isMounted, isLeaving } = usePresence(isKeyboardHelpModalOpen);
+  const { panelRef, backdropProps } = useModalLayer({
+    isOpen: isKeyboardHelpModalOpen,
+    isMounted,
+    onDismiss: closeKeyboardHelpModal,
+  });
   if (!isMounted) return null;
 
   return (
     <div
       className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
-      onClick={handleBackdropClick}
+      {...backdropProps}
       role="dialog"
       aria-modal="true"
       aria-labelledby="keyboard-help-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/25" />
+      <div className="absolute inset-0 bg-[var(--color-scrim)] pointer-events-none" />
 
       {/* Modal */}
       <div
-        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-md mx-4 modal-enter"
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-md mx-4 outline-none modal-enter"
         role="document"
       >
         {/* Header */}
@@ -146,7 +148,7 @@ export function KeyboardHelpModal(): JSX.Element | null {
             className="text-title font-medium text-[var(--color-text-primary)]"
             id="keyboard-help-title"
           >
-            Shortcuts &amp; Gestures
+            Shortcuts &amp; gestures
           </h2>
           <button
             onClick={closeKeyboardHelpModal}

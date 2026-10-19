@@ -32,12 +32,17 @@ export function DateInput({
 
   // What the field shows while it is being typed in. A parent may decline a
   // half-typed date (an end before the start), and a controlled field that
-  // snapped back to the stored value would wipe the keystroke mid-entry.
-  const [draft, setDraft] = useState<string | null>(null);
+  // snapped back to the stored value would wipe the keystroke mid-entry. The
+  // draft holds only while the stored date is the one it was typed over: an
+  // undo with the cursor still in the field shows the date it went back to.
+  const stored = formatForInput(dateValue);
+  const [draft, setDraft] = useState<{ readonly text: string; readonly over: string } | null>(
+    null
+  );
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      setDraft(e.target.value);
+      setDraft({ text: e.target.value, over: stored });
       const newDate = parseISO(e.target.value);
       // The native field reports every keystroke, so typing a year passes
       // through 0002, 0020 and 0202 on the way to 2027. Those are not dates
@@ -47,7 +52,7 @@ export function DateInput({
         onChange(newDate);
       }
     },
-    [onChange]
+    [onChange, stored]
   );
 
   // Leaving the field shows what was actually kept
@@ -66,7 +71,7 @@ export function DateInput({
       <input
         id={inputId}
         type="date"
-        value={draft ?? formatForInput(dateValue)}
+        value={draft !== null && draft.over === stored ? draft.text : stored}
         onChange={handleChange}
         onBlur={handleBlur}
         min={min ? formatForInput(min) : undefined}

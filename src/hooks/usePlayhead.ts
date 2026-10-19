@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { addDays } from 'date-fns';
 import { useUIStore } from '../stores/uiStore';
-import { getPositionFromRelative, getRelativeFromPosition } from '../utils/timelineUtils';
-import { formatDate } from '../utils/dateUtils';
+import { READABLE_DAY_PX, getRelativeFromPosition } from '../utils/timelineUtils';
+import { formatDayKey } from '../utils/dateUtils';
+import { addDaysToKey } from '../utils/dayKeys';
 import type { ViewportBounds } from '../types';
+
+/**
+ * From this scale up a day is wide enough to see which one the rule is on, so
+ * the rule steps from day to day instead of gliding. Below it a day is a few
+ * pixels, the step would read as judder, and the glide can never stand far
+ * enough from the day it names to be misread.
+ */
+const SNAP_MIN_PIXELS_PER_DAY = READABLE_DAY_PX;
 
 /** Where the ruler stands, and the day it is standing on. */
 export interface PlayheadPoint {
@@ -43,6 +51,31 @@ interface UsePlayheadReturn {
   /** Spread on the date axis — hovering it is the whole gesture. */
   readonly hoverProps: PlayheadHoverProps;
   readonly handle: PlayheadHandle;
+}
+
+/**
+ * The ruler at sheet position `x`.
+ *
+ * It names the day whose boundary is nearest — the morning that day begins,
+ * which is where the today line, a milestone, and a marker double-clicked
+ * onto the sheet all stand — and, once days are wide enough to tell apart,
+ * stands on that boundary itself. A rule left gliding between two boundaries
+ * would sit in one day under the next one's name.
+ */
+export function playheadPointAt(
+  x: number,
+  timelineWidth: number,
+  viewport: ViewportBounds
+): PlayheadPoint {
+  const pixelsPerDay = timelineWidth / viewport.totalDays;
+  const onSheet = Math.max(0, Math.min(timelineWidth, x));
+  const days = pixelsPerDay > 0 ? Math.round(onSheet / pixelsPerDay) : 0;
+  const left = pixelsPerDay >= SNAP_MIN_PIXELS_PER_DAY ? days * pixelsPerDay : onSheet;
+  return {
+    left,
+    relative: getRelativeFromPosition(left, timelineWidth),
+    label: formatDayKey(addDaysToKey(viewport.startKey, days)),
+  };
 }
 
 /**
@@ -101,16 +134,11 @@ export function usePlayhead({
       // its offset into the scrolled content — the window position alone would
       // name a different day the moment anything has been scrolled.
       const rect = container.getBoundingClientRect();
-      const x = clientX - rect.left + container.scrollLeft;
-
-      const relative = getRelativeFromPosition(x, timelineWidth);
-      const left = getPositionFromRelative(relative, timelineWidth);
-      const date = addDays(
-        viewportBounds.startDate,
-        Math.round(relative * viewportBounds.totalDays)
+      return playheadPointAt(
+        clientX - rect.left + container.scrollLeft,
+        timelineWidth,
+        viewportBounds
       );
-
-      return { left, relative, label: formatDate(date, 'MMM d, yyyy') };
     },
     [containerRef, timelineWidth, viewportBounds]
   );

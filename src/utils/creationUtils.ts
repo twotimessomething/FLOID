@@ -1,10 +1,23 @@
 import { flushSync } from 'react-dom';
 import { useSectionStore } from '../stores/sectionStore';
 import { useUIStore } from '../stores/uiStore';
-import { addDaysToKey, dayKeyDiff, maxDayKey, minDayKey, type DayKey } from './dayKeys';
-import { formatDayKey } from './dateUtils';
+import {
+  addDaysToKey,
+  dayKeyDiff,
+  lastDayOf,
+  maxDayKey,
+  minDayKey,
+  type DayKey,
+  type DaySpan,
+} from './dayKeys';
+import { formatDayKey, formatShortDay } from './dateUtils';
 import { finishDragMotion, settleDuration } from './dragCluster';
-import { finishCreateMotion, playCreateHandoff, takeCreateSource } from './createHandoff';
+import {
+  dismissCreatePreview,
+  finishCreateMotion,
+  playCreateHandoff,
+  takeCreateSource,
+} from './createHandoff';
 import { findItem } from './itemTree';
 import { animateLayout } from './layoutFlip';
 import { xToDay } from './timelineUtils';
@@ -28,10 +41,8 @@ export const DEFAULT_BAR_DAYS = 30;
 /** The same gesture inside a parent bar, where 30 days would usually overflow. */
 export const DEFAULT_NESTED_BAR_DAYS = 7;
 
-export interface CreateSpan {
-  readonly start: string;
-  readonly end: string;
-}
+/** A drawn span is a day span like any other. */
+export type CreateSpan = DaySpan;
 
 /**
  * The span two drawn edges commit to: ordered, and never shorter than a day.
@@ -48,47 +59,61 @@ export function resolveDrawnSpan(a: DayKey, b: DayKey): CreateSpan {
 export interface DrawnSpanReadout {
   /** The day the span begins, formatted. */
   readonly start: string;
-  /** The day it ends. */
+  /** The last day it covers — the day before its exclusive end. */
   readonly end: string;
   /** How long it is, in words: '1 day', '14 days'. */
   readonly duration: string;
 }
 
-/** The same short date the move preview and the resize bubble use. */
-const READOUT_DATE_FORMAT = 'MMM d';
-/** Only where the short one would be ambiguous. */
+/** Only where the short date would be ambiguous. */
 const READOUT_DATED_FORMAT = 'MMM d, yyyy';
 
 export function describeDrawnSpan(a: DayKey, b: DayKey): DrawnSpanReadout {
   const { start, end } = resolveDrawnSpan(a, b);
   const days = dayKeyDiff(start, end);
+  const lastDay = lastDayOf(end);
   // A span that crosses New Year has two ends that read alike and are a year
-  // apart, so both take the year. Inside one year the year is noise.
-  const dateFormat =
-    start.slice(0, 4) === end.slice(0, 4) ? READOUT_DATE_FORMAT : READOUT_DATED_FORMAT;
+  // apart, so both take the year. Inside one year they read as the move
+  // preview and the resize bubble do.
+  const show =
+    start.slice(0, 4) === lastDay.slice(0, 4)
+      ? formatShortDay
+      : (key: DayKey): string => formatDayKey(key, READOUT_DATED_FORMAT);
   return {
-    start: formatDayKey(start, dateFormat),
-    end: formatDayKey(end, dateFormat),
+    start: show(start),
+    end: show(lastDay),
     duration: days === 1 ? '1 day' : `${days} days`,
   };
 }
 
 /**
- * Pixels → the readout for the bar those pixels would make, for one row at one
- * scale. It walks the whole commit path — day mapping, the weekend snap, the
- * one-day floor — so the numbers under the cursor cannot drift from the bar
- * that appears when the pointer comes up.
+ * Pixels → the span a draw commits, for one row at one scale: day mapping, the
+ * one-day floor, then the weekend snap. The readout and the commit both come
+ * through here, so the numbers under the cursor cannot drift from the bar that
+ * appears when the pointer comes up.
  */
+export function drawnSpanAt(
+  startPx: number,
+  endPx: number,
+  viewport: ViewportBounds,
+  pixelsPerDay: number,
+  snap: (span: CreateSpan) => CreateSpan
+): CreateSpan {
+  return snap(
+    resolveDrawnSpan(xToDay(startPx, viewport, pixelsPerDay), xToDay(endPx, viewport, pixelsPerDay))
+  );
+}
+
+/** Pixels → the readout for the bar `drawnSpanAt` would make. */
 export function drawnSpanDescriber(
   viewport: ViewportBounds,
   pixelsPerDay: number,
-  snap: (key: DayKey) => DayKey
+  snap: (span: CreateSpan) => CreateSpan
 ): (startPx: number, endPx: number) => DrawnSpanReadout {
-  return (startPx, endPx) =>
-    describeDrawnSpan(
-      snap(xToDay(startPx, viewport, pixelsPerDay)),
-      snap(xToDay(endPx, viewport, pixelsPerDay))
-    );
+  return (startPx, endPx) => {
+    const { start, end } = drawnSpanAt(startPx, endPx, viewport, pixelsPerDay, snap);
+    return describeDrawnSpan(start, end);
+  };
 }
 
 interface CreateBarOptions {
@@ -118,7 +143,7 @@ function commitNewItem(
   item: NewItem,
   index: number | undefined,
   selectAt: ModalPosition
-): string {
+): string | null {
   // Taken first and unconditionally: whatever made this item, the preview is
   // spent once it has been asked for.
   const source = takeCreateSource();
@@ -130,10 +155,16 @@ function commitNewItem(
   let newId = '';
   animateLayout(() => {
     flushSync(() => {
-      newId = useSectionStore.getState().addItem(sectionId, parentId, item, index);
-      useUIStore.getState().selectItem(newId, sectionId, selectAt);
+      // A locked schedule refuses the insert, and then nothing is selected
+      newId = useSectionStore.getState().addItem(sectionId, parentId, item, index) ?? '';
+      if (newId) useUIStore.getState().selectItem(newId, sectionId, selectAt);
     });
   }, duration);
+  if (!newId) {
+    // Nothing to fly into: the preview that offered it fades where it stood
+    if (source) dismissCreatePreview(source);
+    return null;
+  }
   playCreateHandoff(newId, source, duration);
   return newId;
 }

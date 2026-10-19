@@ -60,7 +60,12 @@ export async function initDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-// Helper to perform a transaction
+/**
+ * Run one request in its own transaction, settling when the *transaction*
+ * does. A write's request can succeed and its transaction still abort — a
+ * quota overrun surfaces at commit — so resolving on the request would report
+ * a save that never landed.
+ */
 async function withTransaction<T>(
   storeName: string,
   mode: IDBTransactionMode,
@@ -69,11 +74,13 @@ async function withTransaction<T>(
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(storeName, mode);
-    const store = transaction.objectStore(storeName);
-    const request = callback(store);
+    const request = callback(transaction.objectStore(storeName));
+    const fail = (): void =>
+      reject(transaction.error ?? request.error ?? new DOMException('Transaction aborted', 'AbortError'));
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve(request.result);
+    transaction.onerror = fail;
+    transaction.onabort = fail;
   });
 }
 
@@ -92,14 +99,11 @@ export async function getProjectsIndex(): Promise<ProjectIndexEntry[]> {
   }
 }
 
+/** Rejects when the write does not land — a lost save is the caller's to report. */
 export async function setProjectsIndex(entries: ProjectIndexEntry[]): Promise<void> {
-  try {
-    await withTransaction(STORES.PROJECTS_INDEX, 'readwrite', (store) =>
-      store.put({ key: 'index', entries })
-    );
-  } catch (error) {
-    console.error('Failed to save projects index to IndexedDB:', error);
-  }
+  await withTransaction(STORES.PROJECTS_INDEX, 'readwrite', (store) =>
+    store.put({ key: 'index', entries })
+  );
 }
 
 // Project data operations
@@ -117,14 +121,11 @@ export async function getProjectData(projectId: string): Promise<StoredData | nu
   }
 }
 
+/** Rejects when the write does not land — a lost save is the caller's to report. */
 export async function setProjectData(projectId: string, data: StoredData): Promise<void> {
-  try {
-    await withTransaction(STORES.PROJECT_DATA, 'readwrite', (store) =>
-      store.put({ id: projectId, data })
-    );
-  } catch (error) {
-    console.error('Failed to save project data to IndexedDB:', error);
-  }
+  await withTransaction(STORES.PROJECT_DATA, 'readwrite', (store) =>
+    store.put({ id: projectId, data })
+  );
 }
 
 export async function deleteProjectData(projectId: string): Promise<void> {
@@ -263,8 +264,10 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
           } else {
             console.warn(`Skipping invalid project data for ${entry.id}`);
           }
-        } catch {
-          console.warn(`Failed to parse project data for ${entry.id}`);
+        } catch (error) {
+          // A parse failure or a write IndexedDB refused; either way the
+          // localStorage copy is left where it is
+          console.warn(`Failed to migrate project data for ${entry.id}:`, error);
         }
       }
     }

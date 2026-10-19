@@ -5,7 +5,9 @@ import { useUIStore } from '../../stores/uiStore';
 import { useConfirm } from '../../hooks';
 import { QuietIconButton } from '../common/QuietIconButton';
 import { POPOVER_EXIT_MS } from '../../hooks/usePresence';
+import { useMenuDismissal } from '../../hooks/useMenuDismissal';
 import { deleteProjectAndOpenNext } from '../../utils/deleteProject';
+import { isImeComposing } from '../../utils/keyboard';
 
 /**
  * The panel, and the rail it folds down to. Both are fixed numbers so the
@@ -14,6 +16,9 @@ import { deleteProjectAndOpenNext } from '../../utils/deleteProject';
  */
 const PANEL_WIDTH = 224;
 const RAIL_WIDTH = 32;
+
+/** A project menu row: instant highlight, as a native menu has, and a ring inside its edge. */
+const MENU_ROW = 'menu-row focus-ring w-full px-3 py-1.5 text-left text-body';
 
 export function LeftSidebar(): JSX.Element {
   const confirm = useConfirm();
@@ -80,8 +85,8 @@ export function LeftSidebar(): JSX.Element {
       if (!projectToDelete) return;
 
       const confirmed = await confirm({
-        title: 'Delete Project',
-        message: `Delete "${projectToDelete.name}"?\n\nThis cannot be undone.`,
+        title: 'Delete project',
+        message: `Delete “${projectToDelete.name}”?\n\nThis cannot be undone.`,
         confirmLabel: 'Delete',
         variant: 'danger',
       });
@@ -123,27 +128,21 @@ export function LeftSidebar(): JSX.Element {
   }, [editingProjectId, editedName, updateProjectIndex, activeProjectId, updateProject]);
 
   const handleEditKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // A Return or Escape that confirms or drops an input method's candidate
+    // is the input method's, not the rename's
+    if (isImeComposing(e)) return;
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleSaveEdit();
     } else if (e.key === 'Escape') {
+      e.preventDefault();
       setEditingProjectId(null);
       setEditedName('');
     }
   }, [handleSaveEdit]);
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: PointerEvent): void => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpenProjectId(null);
-      }
-    };
-
-    if (menuOpenProjectId) {
-      document.addEventListener('pointerdown', handleClickOutside);
-      return () => document.removeEventListener('pointerdown', handleClickOutside);
-    }
-  }, [menuOpenProjectId]);
+  const closeProjectMenu = useCallback(() => setMenuOpenProjectId(null), []);
+  useMenuDismissal(menuOpenProjectId !== null, closeProjectMenu, menuRef);
 
   useEffect(() => {
     const previous = previousMenuProjectId.current;
@@ -232,8 +231,8 @@ export function LeftSidebar(): JSX.Element {
           <div className="flex items-center gap-2.5">
             <button
               onClick={handleNewProject}
-              title="New Project"
-              aria-label="New Project"
+              title="New project"
+              aria-label="New project"
               className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors duration-fast focus-ring"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -296,6 +295,11 @@ export function LeftSidebar(): JSX.Element {
                       onBlur={handleSaveEdit}
                       onKeyDown={handleEditKeyDown}
                       onClick={(e) => e.stopPropagation()}
+                      // A name, not prose; and a draft of its own until it commits
+                      spellCheck={false}
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      data-inline-draft=""
                       className="text-body bg-[var(--color-input-bg)] text-[var(--color-text-primary)] border border-[var(--color-border)] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)] min-w-0 flex-1"
                     />
                   ) : (
@@ -310,7 +314,7 @@ export function LeftSidebar(): JSX.Element {
                 <div className="relative" ref={menuOpenProjectId === proj.id ? menuRef : undefined}>
                   <button
                     onClick={(e) => handleToggleMenu(proj.id, e)}
-                    className="row-affordance p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-fast"
+                    className="row-affordance p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-[var(--radius-sm)] transition-colors duration-fast focus-ring"
                     data-always-visible={menuOpenProjectId === proj.id}
                     aria-label="Project options"
                     aria-haspopup="true"
@@ -330,16 +334,16 @@ export function LeftSidebar(): JSX.Element {
                     >
                       <button
                         onClick={(e) => handleExportProject(proj.id, e)}
-                        className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
+                        className={`${MENU_ROW} text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]`}
                       >
-                        Export project...
+                        Export project…
                       </button>
                       <button
                         onClick={(e) => {
                           setMenuOpenProjectId(null);
                           handleDeleteProject(proj.id, e);
                         }}
-                        className="w-full px-3 py-1.5 text-left text-body text-[var(--color-danger)] hover:bg-[var(--color-danger-hover)] transition-colors duration-fast"
+                        className={`${MENU_ROW} text-[var(--color-danger)] hover:bg-[var(--color-danger-hover)]`}
                       >
                         Delete project
                       </button>

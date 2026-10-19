@@ -37,6 +37,11 @@
    Separation comes from whitespace, not from lines.
    ========================================= */
 :root {
+  /* Native controls — date pickers, selects, checkboxes, scrollbars — draw in
+     the theme the sheet is in, and tick in the app's own ink. */
+  color-scheme: light;
+  accent-color: var(--color-focus);
+
   /* Ground */
   --color-background: #f0f0f0;
   --color-surface: #f0f0f0; /* same as ground on purpose — no nested panels */
@@ -65,6 +70,8 @@
   /* Gridlines are LIGHTER than the ground — they read as gaps, not rules. */
   --color-gridline: rgba(255, 255, 255, 0.85);
   --color-gridline-strong: #ffffff;
+  /* A weekend, with "skip weekends" on: a gap in the week, so lighter too. */
+  --color-weekend: rgba(255, 255, 255, 0.4);
   --color-milestone-line: rgba(23, 23, 26, 0.1);
   --color-today: #f34e42;
 
@@ -111,6 +118,8 @@
      one object, not as a pile of them. */
   --shadow-lift: 0 8px 24px rgba(23, 23, 26, 0.14), 0 2px 6px rgba(23, 23, 26, 0.08);
   --shadow-lift-member: 0 3px 10px rgba(23, 23, 26, 0.12);
+  /* What a modal lays over the sheet behind it. */
+  --color-scrim: rgba(0, 0, 0, 0.25);
 
   /* Motion — one curve for surfaces that appear, one for surfaces that slide. */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -128,6 +137,8 @@
    Dark Mode
    ========================================= */
 .dark {
+  color-scheme: dark;
+
   --color-background: #141416;
   --color-surface: #141416;
   --color-raised: #1d1d20;
@@ -150,6 +161,7 @@
   --color-tooltip-text: #141416;
   --color-gridline: rgba(255, 255, 255, 0.055);
   --color-gridline-strong: rgba(255, 255, 255, 0.09);
+  --color-weekend: rgba(255, 255, 255, 0.025);
   --color-milestone-line: rgba(255, 255, 255, 0.14);
   --color-today: #f5675c;
 
@@ -180,6 +192,8 @@
      what actually lifts the clone off the sheet in the dark. */
   --shadow-lift: 0 10px 28px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.12);
   --shadow-lift-member: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.09);
+  /* Near-black ground needs a heavier hand to read as dimmed at all. */
+  --color-scrim: rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -192,6 +206,13 @@ body,
   height: 100%;
   margin: 0;
   padding: 0;
+}
+
+/* The page itself never bounces or reads a two-finger swipe as "back" — only
+   the sheet overscrolls, and it draws that itself (see `rubberBand.ts`). */
+html,
+body {
+  overscroll-behavior: none;
 }
 
 body {
@@ -212,6 +233,45 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--color-background);
   color: var(--color-text-primary);
+  /* An app, not a page: ⌘A and a sloppy drag paint nothing across the chrome.
+     Text that is there to be edited or copied opts back in below. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable]:not([contenteditable='false']),
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* A theme change lands in one frame. Controls that ease their colours would
+   otherwise trail the ground by a beat, so `useTheme` holds every transition
+   off for the frame the theme flips in. */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+/* The Mac app takes the platform's cursor: a control is pressed under the
+   arrow, and the pointing hand is kept for links. These are weighed to outrank
+   preflight's `cursor: pointer` and nothing else: each matches preflight's own
+   weight and wins only by coming later, so a component rule further down
+   (crosshair, grab) still beats it, and an element carrying a cursor utility
+   (grab, resize, not-allowed) is left out rather than fought over. Not in
+   `@layer base`: Tailwind drops a base rule whose class it cannot find spelled
+   out in the source, and `is-desktop` is a class set at runtime. */
+:where(.is-desktop) button,
+:where(.is-desktop) [role='button']:where(:not([class*='cursor-'])) {
+  cursor: default;
+}
+
+.is-desktop .cursor-pointer,
+.is-desktop .task-check {
+  cursor: default;
 }
 
 /* =========================================
@@ -339,6 +399,7 @@ body {
 }
 
 .timeline-bar--lifted .timeline-bar__label,
+.timeline-bar--lifted .timeline-bar__outside-label,
 .timeline-bar--lifted .timeline-bar__collapsed-line {
   opacity: 0.35;
 }
@@ -372,8 +433,10 @@ body {
 
 /* A bar that will take the dragged item if it is released now.
    The outline sits OUTSIDE the bar so it still reads when the preview is
-   parked on top of it, which is exactly when the user needs to see it. */
-.timeline-bar--receiving {
+   parked on top of it, which is exactly when the user needs to see it.
+   Weighted past `.focus-ring`, which every bar carries and whose
+   `outline: none` sits later in this file. */
+.timeline-bar.timeline-bar--receiving {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
@@ -449,12 +512,13 @@ body {
     -1px 0 0 rgba(255, 255, 255, 0.12);
 }
 
-.drag-preview__date {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 10000;
-  pointer-events: none;
+/* One chip for every date that rides a gesture — the move preview's, a
+   resize's moving edge, a drawn span's two ends — so a day under the cursor
+   reads the same wherever the cursor is. Tabular figures, so the digits hold
+   still as the days tick over. Flat: it floats, but it is ink, not a card. */
+.date-chip,
+.drag-preview__date,
+.ghost-readout__chip {
   padding: 2px 6px;
   background: var(--color-tooltip);
   color: var(--color-tooltip-text);
@@ -462,6 +526,40 @@ body {
   line-height: 1.4;
   border-radius: var(--radius-sm);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A chip standing over the edge it belongs to points down at it. */
+.date-chip--pointing::after,
+.ghost-readout__chip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--color-tooltip);
+}
+
+.drag-preview__date {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* A resize's date, on <body> like the move preview's: inside the plot it
+   could never rise above the axis or the schedules held under it. Script
+   places it on the moving edge; it stands 6px clear, as a drawn span's do. */
+.resize-date-chip {
+  position: fixed;
+  top: -6px;
+  left: 0;
+  z-index: 10000;
+  pointer-events: none;
   will-change: transform;
 }
 
@@ -508,6 +606,27 @@ body.dragging-item * {
   cursor: grabbing !important;
 }
 
+/* A bar being drawn keeps the copy cursor wherever the pointer drifts — over
+   another row, a bar's grab, the plot's crosshair — until it is let go. */
+body.drawing-bar,
+body.drawing-bar * {
+  cursor: copy !important;
+}
+
+/* The same hold for the labels column's edge while it is being dragged. */
+body.resizing-column,
+body.resizing-column * {
+  cursor: col-resize !important;
+}
+
+/* And for a bar's edge, from the press until it is let go — off the narrow
+   handle, over the next bar, across the axis. Not `resizing-bar`, which
+   stays on through the settle after release to keep the links quiet. */
+body.resizing-edge,
+body.resizing-edge * {
+  cursor: ew-resize !important;
+}
+
 /* Text on a bar. Regular weight — the colour beneath already gives it
    presence, and bolding it re-introduces the heaviness this design sheds. */
 .timeline-bar__label {
@@ -521,6 +640,28 @@ body.dragging-item * {
   font-size: 0.75rem;
   line-height: 1;
   transition: opacity var(--duration-fast) linear;
+}
+
+/* A name too long for its bar prints on the paper past the bar's end, in the
+   grey a task's or a milestone's name takes beside its glyph. Every item has
+   a row of its own, so that paper is free. It stands clear of the end link
+   dot (18px out) and of the turn a link takes 10px past it, or just past the
+   handle's grip when links are hidden. Absolutely placed on purpose: under
+   the travelling gate the bar is a flex box, and this must not become a
+   second flex item. */
+.timeline-bar__outside-label {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  margin-left: 32px;
+  transform: translateY(-50%);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  transition: opacity var(--duration-fast) linear;
+}
+
+.timeline-bar__outside-label--near {
+  margin-left: 14px;
 }
 
 /* =========================================
@@ -683,6 +824,16 @@ body.task-pointer .timeline-scroll-container .cursor-copy {
     copy;
 }
 
+/* The same checkbox on the dark sheet: a pale ring on the dark ground, written
+   out for the same reason as the dark tick above. */
+.dark body.task-pointer .timeline-scroll-container,
+.dark body.task-pointer .timeline-scroll-container .cursor-copy {
+  cursor:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><circle cx='10' cy='10' r='6.5' fill='%23141416' fill-opacity='0.9' stroke='%23F2F2F3' stroke-width='1.5'/></svg>")
+      10 10,
+    copy;
+}
+
 /* A done task's name stays legible but recedes. */
 .task-name--done {
   text-decoration: line-through;
@@ -763,6 +914,12 @@ body.dependency-drawing * {
   background-color: var(--color-hover);
 }
 
+/* The same tint while the row's item is hovered on the sheet, so the eye can
+   cross from a bar to its name. Selection, below, still wins. */
+.row-selectable.is-hovered-on-sheet {
+  background-color: var(--color-hover);
+}
+
 .row-selectable.selected {
   background-color: var(--color-selection);
 }
@@ -804,9 +961,9 @@ body.dependency-drawing * {
   overscroll-behavior: none;
   /* The sheet is a drag surface: every press on it is a gesture — moving,
      resizing, drawing, linking — so text selection has no meaning here and a
-     stray one mid-drag garbles the gesture. The labels column keeps selection
-     because renaming edits text in place; the sheet itself holds none worth
-     selecting that isn't better reached through the editor. */
+     stray one mid-drag garbles the gesture. The whole interface is unselectable
+     already (see `body`); the sheet keeps its own rule because here it guards
+     a gesture rather than mere tidiness. */
   user-select: none;
   -webkit-user-select: none;
 }
@@ -834,6 +991,12 @@ body.dependency-drawing * {
   outline-offset: 1px;
 }
 
+/* A menu row runs edge to edge, so its ring is drawn inside it: offset
+   outward, it would cross the menu's own border. */
+.menu-row.focus-ring:focus-visible {
+  outline-offset: -1.5px;
+}
+
 /* The chosen swatch in a palette.
 
    An ink ring with a hairline of paper held between it and the colour, so it
@@ -857,29 +1020,38 @@ body.dependency-drawing * {
 
 /* =========================================
    Scrollbars — thin and unpainted until used
+
+   On the web only. Styling a WebKit scrollbar at all turns it into a classic
+   one that holds its gutter open, so the Mac app leaves them alone and gets
+   the system's own overlay scrollers, drawn in the theme by `color-scheme`.
    ========================================= */
-::-webkit-scrollbar {
+html:not(.is-desktop) ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-::-webkit-scrollbar-track {
+html:not(.is-desktop) ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
+/* Where the sheet's two scrollbars meet. Unstyled, it is a white square. */
+html:not(.is-desktop) ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html:not(.is-desktop) ::-webkit-scrollbar-thumb {
   background: transparent;
   border: 3px solid transparent;
   border-radius: 999px;
   background-clip: content-box;
 }
 
-*:hover::-webkit-scrollbar-thumb {
+html:not(.is-desktop) *:hover::-webkit-scrollbar-thumb {
   background: rgba(23, 23, 26, 0.18);
   background-clip: content-box;
 }
 
-.dark *:hover::-webkit-scrollbar-thumb {
+html.dark:not(.is-desktop) *:hover::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.18);
   background-clip: content-box;
 }
@@ -1001,32 +1173,13 @@ body.dependency-drawing * {
 }
 
 /* A date stands over the end it belongs to and points down at it — the same
-   bubble a resize hangs off the edge it is moving, in the same ink as the date
-   the move preview carries. */
+   chip a resize hangs off the edge it is moving, and the move preview carries
+   (see `.date-chip`). */
 .ghost-readout__chip {
   position: absolute;
   bottom: 100%;
   margin-bottom: 6px;
   transform: translateX(-50%);
-  padding: 2px 6px;
-  background: var(--color-tooltip);
-  color: var(--color-tooltip-text);
-  font-size: 0.6875rem;
-  line-height: 1.4;
-  border-radius: var(--radius-sm);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.ghost-readout__chip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid var(--color-tooltip);
 }
 
 .ghost-readout__chip--start {
@@ -1283,6 +1436,7 @@ body.dependency-drawing * {
     --color-text-muted: #4a4a52;
     --color-gridline: #ffffff;
     --color-gridline-strong: #ffffff;
+    --color-weekend: rgba(255, 255, 255, 0.75);
     --color-milestone-line: rgba(23, 23, 26, 0.45);
     --color-selection: rgba(58, 63, 118, 0.18);
     --color-hover: rgba(23, 23, 26, 0.1);
@@ -1296,6 +1450,7 @@ body.dependency-drawing * {
     --color-text-muted: #b4b4bb;
     --color-gridline: rgba(255, 255, 255, 0.22);
     --color-gridline-strong: rgba(255, 255, 255, 0.32);
+    --color-weekend: rgba(255, 255, 255, 0.06);
     --color-milestone-line: rgba(255, 255, 255, 0.45);
     --color-selection: rgba(154, 160, 220, 0.26);
     --color-hover: rgba(255, 255, 255, 0.14);

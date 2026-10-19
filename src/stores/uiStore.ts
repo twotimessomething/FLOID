@@ -3,7 +3,11 @@ import { useSectionStore } from './sectionStore';
 import { commitWithSlide } from '../commands/slideCommit';
 import { countItems, findItem } from '../utils/itemTree';
 import { computeViewportBounds } from '../utils/dateUtils';
-import { getFitPixelsPerDay } from '../utils/timelineUtils';
+import {
+  MAX_FIT_PIXELS_PER_DAY,
+  MIN_FIT_PIXELS_PER_DAY,
+  getFitPixelsPerDay,
+} from '../utils/timelineUtils';
 import { ZOOM_LEVELS, stepFromFit } from '../utils/zoomSteps';
 import type { ReleaseNote } from '../data/releaseNotes';
 import type {
@@ -26,7 +30,77 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 // Label column constraints
 const MIN_LABEL_WIDTH = 120;
 const MAX_LABEL_WIDTH = 400;
-const DEFAULT_LABEL_WIDTH = 248;
+export const DEFAULT_LABEL_WIDTH = 248;
+
+const clampLabelWidth = (width: number): number =>
+  Math.max(MIN_LABEL_WIDTH, Math.min(MAX_LABEL_WIDTH, width));
+
+/**
+ * How the sheet was last looked at — its scale and its labels column — kept on
+ * the device beside the theme, so the next launch opens the way this one left.
+ */
+const VIEW_STORAGE_KEY = 'floid-view';
+
+export interface StoredView {
+  readonly zoomLevel: ZoomLevel;
+  /** A scale off the named levels — a fit or a pinch — or null on a level. */
+  readonly pixelsPerDay: number | null;
+  readonly labelColumnWidth: number;
+}
+
+const DEFAULT_VIEW: StoredView = {
+  zoomLevel: 'month',
+  pixelsPerDay: null,
+  labelColumnWidth: DEFAULT_LABEL_WIDTH,
+};
+
+/** Whatever of a stored view is still usable; anything else falls back to the default. */
+export function parseStoredView(raw: string | null): StoredView {
+  if (!raw) return DEFAULT_VIEW;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return DEFAULT_VIEW;
+  }
+  if (!value || typeof value !== 'object') return DEFAULT_VIEW;
+  const fields = value as Record<string, unknown>;
+  const { pixelsPerDay, labelColumnWidth } = fields;
+  return {
+    zoomLevel: ZOOM_LEVELS.find((level) => level === fields.zoomLevel) ?? DEFAULT_VIEW.zoomLevel,
+    pixelsPerDay:
+      typeof pixelsPerDay === 'number' &&
+      pixelsPerDay >= MIN_FIT_PIXELS_PER_DAY &&
+      pixelsPerDay <= MAX_FIT_PIXELS_PER_DAY
+        ? pixelsPerDay
+        : null,
+    labelColumnWidth:
+      typeof labelColumnWidth === 'number' && Number.isFinite(labelColumnWidth)
+        ? clampLabelWidth(labelColumnWidth)
+        : DEFAULT_VIEW.labelColumnWidth,
+  };
+}
+
+// Storage can be refused outright — a locked-down profile, a full disk. The
+// defaults still draw a sheet, and a lost write costs only the next launch.
+function readStoredView(): StoredView {
+  try {
+    return parseStoredView(localStorage.getItem(VIEW_STORAGE_KEY));
+  } catch {
+    return DEFAULT_VIEW;
+  }
+}
+
+function writeStoredView(view: StoredView): void {
+  try {
+    localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify(view));
+  } catch {
+    // See above
+  }
+}
+
+/** Read once, before the first render, so the sheet never opens on Month and then jumps. */
+const STORED_VIEW = readStoredView();
 
 // Info sidebar constraints
 const MIN_INFO_SIDEBAR_WIDTH = 180;
@@ -147,9 +221,15 @@ interface UIState {
   // Zoom
   zoomLevel: ZoomLevel;
   setZoomLevel: (level: ZoomLevel) => void;
-  /** Scale of a fitted view, off the named levels. Null while a level is picked. */
+  /**
+   * Scale off the named levels — a fit, or wherever a pinch let go. Null while
+   * a level is picked.
+   */
   fitPixelsPerDay: number | null;
-  setFitPixelsPerDay: (pixelsPerDay: number | null) => void;
+  /** That scale is a fit, which the header names, rather than a pinch, which it labels by level. */
+  isFitted: boolean;
+  /** Scale freely, as a pinch does. The caller keeps it within the fit bounds. */
+  setPixelsPerDay: (pixelsPerDay: number) => void;
   /** Width available to draw the sheet, measured from the scroll container. */
   timelineViewportWidth: number;
   setTimelineViewportWidth: (width: number) => void;
@@ -331,10 +411,13 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set, get) => ({
   // Zoom
-  zoomLevel: 'month',
-  setZoomLevel: (level) => set({ zoomLevel: level, fitPixelsPerDay: null }),
-  fitPixelsPerDay: null,
-  setFitPixelsPerDay: (pixelsPerDay) => set({ fitPixelsPerDay: pixelsPerDay }),
+  zoomLevel: STORED_VIEW.zoomLevel,
+  setZoomLevel: (level) => set({ zoomLevel: level, fitPixelsPerDay: null, isFitted: false }),
+  // A stored fit comes back as a scale, not as a fit: it fitted that sheet at
+  // that width, and neither need be what opens now
+  fitPixelsPerDay: STORED_VIEW.pixelsPerDay,
+  isFitted: false,
+  setPixelsPerDay: (pixelsPerDay) => set({ fitPixelsPerDay: pixelsPerDay, isFitted: false }),
   timelineViewportWidth: 0,
   setTimelineViewportWidth: (width) =>
     set((state) => (state.timelineViewportWidth === width ? state : { timelineViewportWidth: width })),
@@ -361,7 +444,7 @@ export const useUIStore = create<UIState>((set, get) => ({
     const { sections } = useSectionStore.getState();
     const { totalDays } = computeViewportBounds(sections);
     const fitted = getFitPixelsPerDay(totalDays, get().timelineViewportWidth);
-    if (fitted !== null) set({ fitPixelsPerDay: fitted });
+    if (fitted !== null) set({ fitPixelsPerDay: fitted, isFitted: true });
   },
 
   // Selection
@@ -464,9 +547,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   closeProjectSetupModal: () => set({ isProjectSetupModalOpen: false }),
 
   // Label column width
-  labelColumnWidth: DEFAULT_LABEL_WIDTH,
-  setLabelColumnWidth: (width) =>
-    set({ labelColumnWidth: Math.max(MIN_LABEL_WIDTH, Math.min(MAX_LABEL_WIDTH, width)) }),
+  labelColumnWidth: STORED_VIEW.labelColumnWidth,
+  setLabelColumnWidth: (width) => set({ labelColumnWidth: clampLabelWidth(width) }),
 
   // Scroll to today
   scrollToTodayTrigger: 0,
@@ -626,6 +708,23 @@ export const useUIStore = create<UIState>((set, get) => ({
     })),
 }));
 
+// Written as it changes: a pinch or a column drag writes a few dozen bytes a
+// frame, which is nothing beside the re-layout the same frame already pays for.
+useUIStore.subscribe((state, previous) => {
+  if (
+    state.zoomLevel === previous.zoomLevel &&
+    state.fitPixelsPerDay === previous.fitPixelsPerDay &&
+    state.labelColumnWidth === previous.labelColumnWidth
+  ) {
+    return;
+  }
+  writeStoredView({
+    zoomLevel: state.zoomLevel,
+    pixelsPerDay: state.fitPixelsPerDay,
+    labelColumnWidth: state.labelColumnWidth,
+  });
+});
+
 /* ------------------------------------------------------------------ *
  * Delete notices
  *
@@ -662,8 +761,8 @@ export function showItemDeletedToast(item: TimelineItem): void {
   const noun = item.kind === 'bar' ? 'bar' : item.kind;
   const message =
     buried > 0
-      ? `Deleted "${displayName(item.name)}" and the ${buried} ${buried === 1 ? 'item' : 'items'} inside it`
-      : `Deleted ${noun} "${displayName(item.name)}"`;
+      ? `Deleted “${displayName(item.name)}” and the ${buried} ${buried === 1 ? 'item' : 'items'} inside it`
+      : `Deleted ${noun} “${displayName(item.name)}”`;
   useUIStore.getState().showToast('success', message, { action: undoAction() });
 }
 
@@ -672,8 +771,8 @@ export function showSectionDeletedToast(section: Section): void {
   const count = countItems(section.items);
   const message =
     count > 0
-      ? `Deleted schedule "${displayName(section.name)}" and the ${count} ${count === 1 ? 'item' : 'items'} on it`
-      : `Deleted schedule "${displayName(section.name)}"`;
+      ? `Deleted schedule “${displayName(section.name)}” and the ${count} ${count === 1 ? 'item' : 'items'} on it`
+      : `Deleted schedule “${displayName(section.name)}”`;
   useUIStore.getState().showToast('success', message, {
     action: undoAction(),
   });
@@ -683,12 +782,21 @@ export function showSectionDeletedToast(section: Section): void {
  * An item's selection names the schedule it is in, and the keyboard and the
  * editor address it through that. History can move an item between schedules
  * with nothing selecting it again — undoing a drop across schedules, say — so
- * the selection follows the item wherever the tree puts it.
+ * the selection follows the item wherever the tree puts it. History can take
+ * it away altogether — undoing the bar the editor was just opened on — and
+ * then the selection goes with it and the editor closes, rather than staying
+ * open on nothing.
  */
 useSectionStore.subscribe((state) => {
-  const { selection, retargetSelection } = useUIStore.getState();
-  if (selection.type !== 'item' || !selection.id) return;
+  const { selection, retargetSelection, clearSelection } = useUIStore.getState();
+  if (!selection.id) return;
   const id = selection.id;
+  if (selection.type === 'section') {
+    if (!state.sections.some((section) => section.id === id)) clearSelection();
+    return;
+  }
+  if (selection.type !== 'item') return;
   const owner = state.sections.find((section) => findItem(section.items, id) !== null);
-  if (owner && owner.id !== selection.sectionId) retargetSelection(id, owner.id);
+  if (!owner) clearSelection();
+  else if (owner.id !== selection.sectionId) retargetSelection(id, owner.id);
 });

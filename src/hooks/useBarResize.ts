@@ -3,11 +3,18 @@ import { flushSync } from 'react-dom';
 import type { TimelineItem, ViewportBounds } from '../types';
 import { useSectionStore } from '../stores/sectionStore';
 import { useUIStore } from '../stores/uiStore';
-import { addDaysToKey, dayKeyDiff, snapKeyToBusinessDay } from '../utils/dayKeys';
-import { formatDayKey } from '../utils/dateUtils';
+import {
+  addDaysToKey,
+  dayKeyDiff,
+  snapEndToBusinessDay,
+  snapKeyToBusinessDay,
+  type DaySpan,
+} from '../utils/dayKeys';
+import { describeDrawnSpan } from '../utils/creationUtils';
 import { getBarRect, MIN_BAR_WIDTH, type BarRect } from '../utils/timelineUtils';
 import { EASE_OUT_CSS, prefersReducedMotion } from '../utils/easing';
 import { finishDragMotion } from '../utils/dragCluster';
+import { DATE_DEAD_ZONE_PX } from './useItemDrag';
 
 type Edge = 'start' | 'end';
 
@@ -22,10 +29,52 @@ interface ResizeState {
 
 /** Where the resize began, plus what it has most recently shown. */
 interface ResizeOrigin {
-  accumulated: number;
   readonly start: string;
   readonly end: string;
   latest: ResizeState;
+}
+
+/**
+ * The span a resize shows once the grabbed edge has travelled `travelPx`.
+ *
+ * A few pixels are a hand settling, not a choice of date: at a quarter's zoom
+ * a day is two pixels, and without the dead zone a press that wobbled on its
+ * way up rewrote the bar — an undo step and a revision for nothing. Past it,
+ * the edge is over whichever day is nearest, and never within a day of the
+ * other edge.
+ */
+export function resizedSpan(
+  origin: DaySpan,
+  edge: Edge,
+  travelPx: number,
+  pixelsPerDay: number
+): DaySpan {
+  const days =
+    pixelsPerDay <= 0 || Math.abs(travelPx) < DATE_DEAD_ZONE_PX
+      ? 0
+      : Math.round(travelPx / pixelsPerDay);
+  if (edge === 'start') {
+    const start = addDaysToKey(origin.start, days);
+    return {
+      start: dayKeyDiff(start, origin.end) < 1 ? addDaysToKey(origin.end, -1) : start,
+      end: origin.end,
+    };
+  }
+  const end = addDaysToKey(origin.end, days);
+  return {
+    start: origin.start,
+    end: dayKeyDiff(origin.start, end) < 1 ? addDaysToKey(origin.start, 1) : end,
+  };
+}
+
+/**
+ * What the bubble on a moving edge says: the day that edge lands on, and how
+ * long that leaves the bar — the same words, in the same order, a drawn span
+ * reads out.
+ */
+export function describeResize(span: DaySpan, edge: Edge): string {
+  const readout = describeDrawnSpan(span.start, span.end);
+  return `${edge === 'start' ? readout.start : readout.end} · ${readout.duration}`;
 }
 
 /** The edge easing onto its day. `--duration-fast`: a state changing, not a surface. */
@@ -72,7 +121,8 @@ interface UseBarResizeResult {
   readonly startBubble: string | undefined;
   readonly endBubble: string | undefined;
   readonly handleResizeStart: (edge: Edge) => void;
-  readonly handleResize: (edge: Edge, deltaX: number) => void;
+  /** `travelPx`: how far the edge has come since the press, scrolling included. */
+  readonly handleResize: (edge: Edge, travelPx: number) => void;
   readonly handleResizeEnd: () => void;
   readonly handleResizeCancel: () => void;
 }
@@ -90,6 +140,9 @@ interface UseBarResizeResult {
  * the bar lurching after the hand rather than being held by it. The bubble
  * says which day the edge is over; letting go eases the edge onto that day,
  * the same small settle a drop makes.
+ *
+ * Travel arrives whole from the handle — pointer and scroll together — so a
+ * sheet that scrolls under a still pointer carries the edge with it.
  */
 export function useBarResize({
   item,
@@ -106,6 +159,23 @@ export function useBarResize({
 
   const [resize, setResize] = useState<ResizeState | null>(null);
   const resizeOrigin = useRef<ResizeOrigin | null>(null);
+
+  // "Skip weekends" belongs to the commit, not the gesture, and only to the
+  // edge that was grabbed: the other one was not chosen just now, so a start
+  // that already sits on a Saturday stays there while the end is dragged. A
+  // start squares up forward, an end back to Friday — unless squaring up would
+  // leave no bar at all, in which case the dragged dates stand.
+  const landingSpan = useCallback(
+    (span: ResizeState): DaySpan => {
+      if (!skipWeekends) return span;
+      const snapped =
+        span.edge === 'start'
+          ? { start: snapKeyToBusinessDay(span.start), end: span.end }
+          : { start: span.start, end: snapEndToBusinessDay(span.end) };
+      return dayKeyDiff(snapped.start, snapped.end) < 1 ? span : snapped;
+    },
+    [skipWeekends]
+  );
 
   // Nothing is written mid-resize, so the item still holds the dates the
   // resize began from: the bar is those, with the grabbed edge moved.
@@ -150,17 +220,16 @@ export function useBarResize({
       quietLinks();
       setDragging(true, edge === 'start' ? 'resize-start' : 'resize-end');
       const initial: ResizeState = { edge, start: item.start, end: item.end, offsetPx: 0 };
-      resizeOrigin.current = { accumulated: 0, start: item.start, end: item.end, latest: initial };
+      resizeOrigin.current = { start: item.start, end: item.end, latest: initial };
       setResize(initial);
     },
     [isLocked, setDragging, item.start, item.end]
   );
 
   const handleResize = useCallback(
-    (edge: Edge, deltaX: number): void => {
+    (edge: Edge, travelPx: number): void => {
       const origin = resizeOrigin.current;
       if (!origin || pixelsPerDay <= 0) return;
-      origin.accumulated += deltaX;
 
       // One day is the floor, in pixels as in dates: an edge never crosses the
       // other one, and never brings the bar thinner than a grabbable sliver.
@@ -171,23 +240,13 @@ export function useBarResize({
       ).width;
       const floor = Math.max(pixelsPerDay, MIN_BAR_WIDTH);
       const offsetPx =
-        edge === 'end'
-          ? Math.max(floor - width, origin.accumulated)
-          : Math.min(width - floor, origin.accumulated);
+        edge === 'end' ? Math.max(floor - width, travelPx) : Math.min(width - floor, travelPx);
 
-      const days = Math.round(origin.accumulated / pixelsPerDay);
-      let start = origin.start;
-      let end = origin.end;
-      if (edge === 'start') {
-        const candidate = addDaysToKey(origin.start, days);
-        start = dayKeyDiff(candidate, origin.end) < 1 ? addDaysToKey(origin.end, -1) : candidate;
-      } else {
-        const candidate = addDaysToKey(origin.end, days);
-        end = dayKeyDiff(origin.start, candidate) < 1 ? addDaysToKey(origin.start, 1) : candidate;
-      }
+      const { start, end } = resizedSpan(origin, edge, travelPx, pixelsPerDay);
 
       const previous = origin.latest;
-      if (previous.offsetPx === offsetPx && previous.start === start && previous.end === end) return;
+      if (previous.offsetPx === offsetPx && previous.start === start && previous.end === end)
+        return;
       origin.latest = { edge, start, end, offsetPx };
       setResize(origin.latest);
     },
@@ -206,20 +265,10 @@ export function useBarResize({
       const { latest } = origin;
       if (latest.start === origin.start && latest.end === origin.end) return;
 
-      // "Skip weekends" belongs to the commit, not the gesture: both edges were
-      // chosen, so each squares up on its own — unless squaring up would leave
-      // no bar at all, in which case the dragged dates stand.
-      const start = skipWeekends ? snapKeyToBusinessDay(latest.start) : latest.start;
-      const end = skipWeekends ? snapKeyToBusinessDay(latest.end) : latest.end;
-      const collapsed = dayKeyDiff(start, end) < 1;
-      setItemDates(
-        sectionId,
-        item.id,
-        collapsed ? latest.start : start,
-        collapsed ? latest.end : end
-      );
+      const { start, end } = landingSpan(latest);
+      setItemDates(sectionId, item.id, start, end);
     });
-  }, [setDragging, hasDraggedRef, glide, skipWeekends, setItemDates, sectionId, item.id]);
+  }, [setDragging, hasDraggedRef, glide, landingSpan, setItemDates, sectionId, item.id]);
 
   /** Escape, or a gesture the browser took back. The edge eases home. */
   const handleResizeCancel = useCallback((): void => {
@@ -230,11 +279,12 @@ export function useBarResize({
   }, [setDragging, hasDraggedRef, glide]);
 
   // The day the edge will land on — after "skip weekends" — not the one under
-  // the pointer, so a Saturday never promises what the drop turns into Monday.
-  const landing = (key: string): string =>
-    formatDayKey(skipWeekends ? snapKeyToBusinessDay(key) : key, 'MMM d');
-  const startBubble = resize?.edge === 'start' ? landing(resize.start) : undefined;
-  const endBubble = resize?.edge === 'end' ? landing(resize.end) : undefined;
+  // the pointer, so a weekend never promises what the drop squares up to a
+  // weekday. The end edge reads as the bar's last day, the day before it.
+  const landed = resize ? landingSpan(resize) : null;
+  const startBubble =
+    landed && resize?.edge === 'start' ? describeResize(landed, 'start') : undefined;
+  const endBubble = landed && resize?.edge === 'end' ? describeResize(landed, 'end') : undefined;
 
   return {
     rect,

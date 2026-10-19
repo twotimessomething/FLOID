@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useUIStore } from '../../stores/uiStore';
+import { LATEST_RELEASE_VERSION } from '../../data/releaseNotes';
 import { openWhatsNewOnDemand } from '../../hooks/useWhatsNew';
 import { usePresence } from '../../hooks/usePresence';
+import { useModalLayer } from '../../hooks/useModalLayer';
 import { isDesktop } from '../../platform/detect';
+import { openExternal } from '../../platform/links';
 import { openWriteReview } from '../../platform/review';
+import { appVersion } from '../../platform/version';
 
 const CONTACT_EMAIL = 'support@floid.design';
 const SOURCE_URL = 'https://github.com/twotimessomething/FLOID';
@@ -91,6 +95,17 @@ function GitHubIcon(): JSX.Element {
   );
 }
 
+/**
+ * The Mac app's webview opens no new windows and will not load `mailto:`, so
+ * there a link is handed to `openExternal` instead of followed. On the web an
+ * anchor is still the better link — it can be copied, ⌘-clicked, dragged.
+ */
+function handleExternalClick(e: React.MouseEvent<HTMLAnchorElement>): void {
+  if (!isDesktop()) return;
+  e.preventDefault();
+  void openExternal(e.currentTarget.href);
+}
+
 interface ExternalRowProps {
   readonly href: string;
   readonly label: string;
@@ -103,6 +118,7 @@ function LinkRow({ href, label, isExternal, children }: ExternalRowProps): JSX.E
     <a
       href={href}
       {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+      onClick={handleExternalClick}
       className="flex items-center gap-2 py-1.5 text-body text-[var(--color-focus)] hover:underline focus-ring rounded-[var(--radius-sm)]"
     >
       {children}
@@ -129,8 +145,22 @@ export function AboutModal(): JSX.Element | null {
   const isAboutModalOpen = useUIStore((state) => state.isAboutModalOpen);
   const closeAboutModal = useUIStore((state) => state.closeAboutModal);
   const [tab, setTab] = useState<AboutTab>('about');
+  // Printed from the first frame so nothing shifts when the Mac app's exact
+  // answer arrives a moment later; the two differ only on a patch release.
+  const [version, setVersion] = useState<string | null>(LATEST_RELEASE_VERSION);
   const isDesktopApp = isDesktop();
   const copy = isDesktopApp ? COPY.desktop : COPY.web;
+
+  useEffect(() => {
+    if (!isAboutModalOpen) return;
+    let isCurrent = true;
+    void appVersion().then((exact) => {
+      if (isCurrent && exact) setVersion(exact);
+    });
+    return () => {
+      isCurrent = false;
+    };
+  }, [isAboutModalOpen]);
 
   // One panel at a time: the release notes replace this one rather than
   // stacking on it.
@@ -143,54 +173,44 @@ export function AboutModal(): JSX.Element | null {
     void openWriteReview();
   }, []);
 
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        closeAboutModal();
-      }
-    },
-    [closeAboutModal]
-  );
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        closeAboutModal();
-      }
-    };
-
-    if (isAboutModalOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isAboutModalOpen, closeAboutModal]);
-
   // Held on screen through the exit so the panel and its scrim can leave
   // together, the way they arrived.
   const { isMounted, isLeaving } = usePresence(isAboutModalOpen);
+  const { panelRef, backdropProps } = useModalLayer({
+    isOpen: isAboutModalOpen,
+    isMounted,
+    onDismiss: closeAboutModal,
+  });
   if (!isMounted) return null;
 
   return (
     <div
       className={`modal-layer fixed inset-0 z-50 flex items-center justify-center ${isLeaving ? 'is-leaving' : ''}`}
-      onClick={handleBackdropClick}
+      {...backdropProps}
       role="dialog"
       aria-modal="true"
       aria-labelledby="about-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/25" />
+      <div className="absolute inset-0 bg-[var(--color-scrim)] pointer-events-none" />
 
       {/* Modal */}
       <div
-        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-sm mx-4 modal-enter"
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative bg-[var(--color-raised)] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-lg w-full max-w-sm mx-4 outline-none modal-enter"
         role="document"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
-          <h2 className="text-title font-medium text-[var(--color-text-primary)]" id="about-title">
-            FLOID
-          </h2>
+          <div>
+            <h2 className="text-title font-medium text-[var(--color-text-primary)]" id="about-title">
+              FLOID
+            </h2>
+            {version && (
+              <p className="text-meta text-[var(--color-text-muted)]">Version {version}</p>
+            )}
+          </div>
           <button
             onClick={closeAboutModal}
             className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] rounded-[var(--radius-sm)] hover:bg-[var(--color-hover)] focus-ring btn-press"
@@ -301,6 +321,7 @@ export function AboutModal(): JSX.Element | null {
                 Write to{' '}
                 <a
                   href={`mailto:${CONTACT_EMAIL}`}
+                  onClick={handleExternalClick}
                   className="text-[var(--color-focus)] hover:underline"
                 >
                   {CONTACT_EMAIL}

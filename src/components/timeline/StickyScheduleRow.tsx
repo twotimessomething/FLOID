@@ -119,7 +119,7 @@ export function StickyScheduleRow({
       <div
         ref={gestures.rowRef}
         className={`relative timeline-plot schedule-block ${
-          gestures.ghostX !== null ? 'cursor-copy' : ''
+          section.isLocked ? 'cursor-default' : gestures.ghostX !== null ? 'cursor-copy' : ''
         } ${isHeaderTarget ? 'drop-header--receiving' : ''} ${
           isLifted ? 'schedule-block--lifted' : ''
         }`}

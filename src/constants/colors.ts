@@ -38,6 +38,13 @@ export const PHASE_COLORS = {
 /** Every ink in the palette, in swatch order. What the pickers offer. */
 export const PALETTE_COLORS: readonly string[] = Object.values(PHASE_COLORS);
 
+/** Each ink with the name people see for it — "Teal", not "#5BB5A9" — in swatch order. */
+export const PALETTE_ENTRIES: readonly { readonly color: string; readonly label: string }[] =
+  Object.entries(PHASE_COLORS).map(([name, color]) => ({
+    color,
+    label: name.charAt(0).toUpperCase() + name.slice(1),
+  }));
+
 /**
  * The order a multicolor schedule hands colours to its root bars.
  *

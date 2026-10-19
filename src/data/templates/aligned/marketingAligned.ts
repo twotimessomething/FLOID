@@ -65,7 +65,7 @@ export const marketingAlignedTemplate: ScheduleTemplate = {
         },
         {
           name: 'Value Proposition',
-          description: 'Defining the "Why Us" and key differentiators',
+          description: 'Defining the “Why Us” and key differentiators',
           relativeStart: 0.3,
           relativeEnd: 0.8,
           order: 1,
@@ -81,7 +81,7 @@ export const marketingAlignedTemplate: ScheduleTemplate = {
     },
     {
       name: 'Asset Production',
-      description: 'Creating the content (photos/video/web) - Needs HW Prototypes',
+      description: 'Creating the content (photos/video/web) — Needs HW Prototypes',
       relativeStart: 0.50,
       relativeEnd: 0.80,
       order: 2,

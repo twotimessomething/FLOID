@@ -25,10 +25,10 @@ export const RELEASE_NOTES: readonly ReleaseNote[] = [
     version: '1.4.0',
     date: '2026-10-18',
     notes: [
-      'Pick up a bar that holds others and its whole group comes with it, drawn in close, then opens back out as it lands.',
-      'Nothing jumps any more. Whatever you drop glides into the row it lands in while the rows around it make room — and moves from the menu, undo and redo slide the same way.',
+      'Nothing jumps any more. A group travels as one when you pick it up, and whatever you drop glides into place while the rows around it make room — moves from the menu, undo and redo slide the same way.',
       'Reorder and regroup straight from the names column, and move a schedule by its grip with a line that shows where it will go.',
       'Resizing follows your hand exactly. Press Escape, or let go off the timeline, and whatever you are carrying goes back where it came from.',
+      'Pinch the trackpad to zoom the timeline smoothly, and the day under your fingers stays put.',
     ],
   },
   {

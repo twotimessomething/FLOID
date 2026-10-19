@@ -207,7 +207,7 @@ export const pdpAlignedTemplate: ScheduleTemplate = {
         },
         {
           name: 'Post-Launch Review',
-          description: 'Gate 5 - Lessons learned',
+          description: 'Gate 5 — Lessons learned',
           relativeStart: 0.9,
           relativeEnd: 1.0,
           order: 2,
@@ -218,31 +218,31 @@ export const pdpAlignedTemplate: ScheduleTemplate = {
   milestones: [
     {
       name: 'Gate 0',
-      description: 'Idea Screen - Go to Scoping',
+      description: 'Idea Screen — Go to Scoping',
       relativePosition: 0.10,
       order: 0,
     },
     {
       name: 'Gate 1',
-      description: 'Business Case - Go to Detailed Planning',
+      description: 'Business Case — Go to Detailed Planning',
       relativePosition: 0.20,
       order: 1,
     },
     {
       name: 'Gate 2',
-      description: 'Development - Go to Spend Money',
+      description: 'Development — Go to Spend Money',
       relativePosition: 0.35,
       order: 2,
     },
     {
       name: 'Gate 3',
-      description: 'Testing - Go to Validation',
+      description: 'Testing — Go to Validation',
       relativePosition: 0.60,
       order: 3,
     },
     {
       name: 'Gate 4',
-      description: 'Launch - Go to Market',
+      description: 'Launch — Go to Market',
       relativePosition: 0.85,
       order: 4,
     },

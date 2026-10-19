@@ -15,6 +15,7 @@ import { captureLayout, playLayout } from '../utils/layoutFlip';
 import { columnRoot, findScheduleLabel } from '../utils/dragLanding';
 import {
   edgeScrollSpeedY,
+  edgeScrollStep,
   labelsWindow,
   stickyBandsBottom,
   syncLabelsToSheet,
@@ -54,6 +55,8 @@ interface ScheduleDragSession {
   ownIndex: number;
   edgeArmed: boolean;
   scrollFrame: number | null;
+  /** When the edge scroll last stepped, so each step can be scaled by its frame. */
+  scrollFrameAt: number | null;
   cleanup: () => void;
 }
 
@@ -170,6 +173,7 @@ export function useScheduleDrag(visibleSections: readonly Section[]): UseSchedul
       ownIndex: 0,
       edgeArmed: false,
       scrollFrame: null,
+      scrollFrameAt: null,
       cleanup: () => undefined,
     };
 
@@ -257,10 +261,11 @@ export function useScheduleDrag(visibleSections: readonly Section[]): UseSchedul
       document.body.classList.add('no-select', 'dragging-item');
     };
 
-    const edgeScrollTick = (): void => {
+    const edgeScrollTick = (now: number): void => {
       const scroller = timelineScroller();
       if (!scroller || !session.active) {
         session.scrollFrame = null;
+        session.scrollFrameAt = null;
         return;
       }
       const raw = edgeScrollSpeedY(
@@ -272,10 +277,13 @@ export function useScheduleDrag(visibleSections: readonly Section[]): UseSchedul
       const speed = session.edgeArmed ? raw : 0;
       if (speed === 0) {
         session.scrollFrame = null;
+        session.scrollFrameAt = null;
         return;
       }
+      const elapsed = session.scrollFrameAt === null ? null : now - session.scrollFrameAt;
+      session.scrollFrameAt = now;
       const before = scroller.scrollTop;
-      scroller.scrollTop = before + speed;
+      scroller.scrollTop = before + edgeScrollStep(speed, elapsed);
       if (scroller.scrollTop !== before) {
         syncLabelsToSheet(scroller);
         render();

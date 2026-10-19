@@ -91,7 +91,7 @@ export const softwareTemplate: ScheduleTemplate = {
     },
     {
       name: 'Feature Complete',
-      description: 'Alpha milestone - all features implemented, stabilization begins',
+      description: 'Alpha milestone — all features implemented, stabilization begins',
       relativeStart: 0.52,
       relativeEnd: 0.68,
       order: 2,
@@ -278,7 +278,7 @@ export const softwareTemplate: ScheduleTemplate = {
     },
     {
       name: 'GA',
-      description: 'General availability - production release',
+      description: 'General availability — production release',
       relativePosition: 0.94,
       order: 5,
     },

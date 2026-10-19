@@ -1,5 +1,4 @@
 import { useLayoutEffect, useMemo } from 'react';
-import { getQuarter } from 'date-fns';
 import { useViewport } from '../../hooks/useViewport';
 import { useUIStore } from '../../stores/uiStore';
 import {
@@ -7,19 +6,18 @@ import {
   type PlayheadHandle,
   type PlayheadHoverProps,
 } from '../../hooks/usePlayhead';
-import {
-  getTimeMarkers,
-  formatDate,
-  isTodayInViewport,
-} from '../../utils/dateUtils';
-import type { TimeMarker } from '../../utils/dateUtils';
+import { getHeaderAxis, isTodayInViewport } from '../../utils/dateUtils';
+import type { AxisPeriod } from '../../utils/dateUtils';
 import { HEADER_HEIGHT, dayToX } from '../../utils/timelineUtils';
 import { toDayKey, todayKey } from '../../utils/dayKeys';
-import type { ZoomLevel } from '../../types';
+import type { ViewportBounds } from '../../types';
 
-interface HeaderLabelParts {
-  readonly primary: string;
-  readonly year: string | null;
+/** A period laid out on the sheet: where it starts, and how far it runs. */
+interface AxisSpan {
+  readonly key: string;
+  readonly left: number;
+  readonly width: number;
+  readonly label: string;
 }
 
 interface TimelineHeaderProps {
@@ -28,45 +26,37 @@ interface TimelineHeaderProps {
   readonly playheadHandle: PlayheadHandle;
 }
 
-/**
- * One label per major marker. The year is only ever shown where it changes
- * information — the first visible marker and any January — stacked as a
- * small second line under the primary label.
- */
-function getHeaderLabelParts(marker: TimeMarker, zoomLevel: ZoomLevel, isFirst: boolean): HeaderLabelParts {
-  const showYear = isFirst || marker.date.getMonth() === 0;
-  const year = showYear ? formatDate(marker.date, 'yyyy') : null;
-
-  if (zoomLevel === 'month') {
-    return { primary: formatDate(marker.date, 'MMM'), year };
-  }
-
-  if (zoomLevel === 'quarter') {
-    return { primary: `Q${getQuarter(marker.date)}`, year };
-  }
-
-  if (zoomLevel === 'day') {
-    return { primary: formatDate(marker.date, 'MMM d'), year };
-  }
-
-  // Week markers already carry month context ("MMM d").
-  return { primary: marker.label, year };
+/** Periods laid end to end: each runs to where the next begins, the last to the sheet's end. */
+function layOutPeriods(
+  periods: readonly AxisPeriod[],
+  viewport: ViewportBounds,
+  pixelsPerDay: number,
+  sheetWidth: number
+): AxisSpan[] {
+  const lefts = periods.map((period) => dayToX(toDayKey(period.date), viewport, pixelsPerDay));
+  return periods.map((period, index) => ({
+    key: toDayKey(period.date),
+    left: lefts[index],
+    width: (index + 1 < lefts.length ? lefts[index + 1] : sheetWidth) - lefts[index],
+    label: period.label,
+  }));
 }
 
 export function TimelineHeader({
   playheadHover,
   playheadHandle,
 }: TimelineHeaderProps): JSX.Element {
-  const { viewportBounds, pixelsPerDay, markerZoom } = useViewport();
+  const { viewportBounds, pixelsPerDay, timelineWidth, markerZoom } = useViewport();
   const isPlayheadActive = useUIStore((state) => state.playheadPosition !== null);
 
-  const majorMarkers = useMemo(
-    () =>
-      getTimeMarkers(viewportBounds.startDate, viewportBounds.endDate, markerZoom).filter(
-        (marker) => !marker.isMinor
-      ),
-    [viewportBounds.startDate, viewportBounds.endDate, markerZoom]
-  );
+  const { periods, years, days } = useMemo(() => {
+    const axis = getHeaderAxis(viewportBounds.startDate, viewportBounds.endDate, markerZoom);
+    return {
+      periods: layOutPeriods(axis.periods, viewportBounds, pixelsPerDay, timelineWidth),
+      years: layOutPeriods(axis.years, viewportBounds, pixelsPerDay, timelineWidth),
+      days: layOutPeriods(axis.days, viewportBounds, pixelsPerDay, timelineWidth),
+    };
+  }, [viewportBounds, markerZoom, pixelsPerDay, timelineWidth]);
 
   // Painted here as well as in the ruler itself: the two mount together, and
   // whichever runs first has to find the date already under the cursor.
@@ -82,21 +72,45 @@ export function TimelineHeader({
       onMouseLeave={playheadHover.onMouseLeave}
     >
       <div className="relative h-full pointer-events-none">
-        {majorMarkers.map((marker, index) => {
-          const left = dayToX(toDayKey(marker.date), viewportBounds, pixelsPerDay);
-          const { primary, year } = getHeaderLabelParts(marker, markerZoom, index === 0);
+        {/* Each period is a box as wide as the period, and its name rides it
+            the way a travelling bar label rides its bar: sticky against the
+            plot's left edge, so the month the sheet is scrolled into — and the
+            year under it — stays named until the next one arrives and pushes
+            it out. Nothing is measured and nothing listens for scroll. The
+            name stays a shrink-to-fit flow child: absolute positioning kills
+            sticky, and a full-width one would have nowhere to travel. */}
+        {periods.map((period) => (
+          <div
+            key={period.key}
+            className="absolute top-2 pl-1"
+            style={{ left: period.left, width: period.width }}
+          >
+            <span className="axis-label sticky left-1 block w-max">{period.label}</span>
+          </div>
+        ))}
 
-          return (
-            <div
-              key={index}
-              className="absolute top-2 flex flex-col gap-0.5"
-              style={{ left: left + 4 }}
-            >
-              <span className="axis-label">{primary}</span>
-              {year && <span className="axis-label">{year}</span>}
-            </div>
-          );
-        })}
+        {years.map((year) => (
+          <div
+            key={year.key}
+            className="absolute top-5 pl-1"
+            style={{ left: year.left, width: year.width }}
+          >
+            <span className="axis-label sticky left-1 block w-max">{year.label}</span>
+          </div>
+        ))}
+
+        {/* Day zoom numbers every column under its month, quieter than the
+            month itself and with no rule of its own — the days are read off
+            the axis, not drawn down the sheet. */}
+        {days.map((day) => (
+          <span
+            key={day.key}
+            className="absolute top-5 text-micro tabular-nums text-[var(--color-text-muted)]"
+            style={{ left: day.left + 4 }}
+          >
+            {day.label}
+          </span>
+        ))}
 
         {/* The today marker names itself here on the axis rather than inside
             the plot, where a collapsed schedule's bars would sit under it. */}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { importFloidText } from '../utils/importFloid';
+import { importFloidText, isFloidFileName } from '../utils/importFloid';
 import { exportProjectToJson } from '../utils/exportUtils';
 import type { Project, Section } from '../types';
 
@@ -97,7 +97,7 @@ describe('importFloidText', () => {
     expect(mocks.importProject).toHaveBeenCalledOnce();
     expect(mocks.selectProject).toHaveBeenCalledWith('imported-id');
     expect(mocks.loadSectionsForProject).toHaveBeenCalledWith('imported-id');
-    expect(mocks.showToast).toHaveBeenCalledWith('success', 'Imported project "Imported"');
+    expect(mocks.showToast).toHaveBeenCalledWith('success', 'Imported project “Imported”');
   });
 
   it('saves the current project first only when one is open', async () => {
@@ -115,6 +115,34 @@ describe('importFloidText', () => {
 
     expect(handleScheduleImport).not.toHaveBeenCalled();
     expect(mocks.importProject).not.toHaveBeenCalled();
-    expect(mocks.showToast).not.toHaveBeenCalled();
+  });
+
+  it('says so when a file is not a FLOID file, by name when it has one', async () => {
+    await importFloidText('not json at all');
+    expect(mocks.showToast).toHaveBeenLastCalledWith(
+      'error',
+      'Couldn’t open this file. It isn’t a FLOID file.'
+    );
+
+    await importFloidText('{"name":"left-pad"}', { fileName: 'package.json' });
+    expect(mocks.showToast).toHaveBeenLastCalledWith(
+      'error',
+      'Couldn’t open “package.json”. It isn’t a FLOID file.'
+    );
+  });
+});
+
+describe('isFloidFileName', () => {
+  it('accepts what the Open dialog offers, in any case', () => {
+    expect(isFloidFileName('Plan.floid')).toBe(true);
+    expect(isFloidFileName('Backup.floid-project')).toBe(true);
+    expect(isFloidFileName('old-export.json')).toBe(true);
+    expect(isFloidFileName('SHOUTY.FLOID')).toBe(true);
+  });
+
+  it('turns away everything else', () => {
+    expect(isFloidFileName('mockup.png')).toBe(false);
+    expect(isFloidFileName('floid')).toBe(false);
+    expect(isFloidFileName('plan.floid.txt')).toBe(false);
   });
 });

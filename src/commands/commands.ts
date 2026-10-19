@@ -2,8 +2,10 @@ import { openWhatsNewOnDemand } from '../hooks/useWhatsNew';
 import { useUIStore } from '../stores/uiStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useSectionStore } from '../stores/sectionStore';
+import { computeViewportBounds, isTodayInViewport } from '../utils/dateUtils';
 import { downloadProjectJson } from '../utils/exportUtils';
 import { importFloidText, FLOID_OPEN_FILTERS } from '../utils/importFloid';
+import { holdsOwnDraft } from '../utils/keyboardTargets';
 import { openFiles } from '../platform/files';
 import { isDesktop } from '../platform/detect';
 import { openWriteReview } from '../platform/review';
@@ -31,6 +33,14 @@ const canUndo = (): boolean =>
 const canRedo = (): boolean =>
   !isGestureInFlight() && useSectionStore.temporal.getState().futureStates.length > 0;
 
+/**
+ * The sheet spans its work and a month either side, so a project wholly in
+ * the past or the future has no today on it to go to. Same bounds the sheet
+ * is drawn from.
+ */
+const isTodayOnSheet = (): boolean =>
+  hasProject() && isTodayInViewport(computeViewportBounds(useSectionStore.getState().sections));
+
 export const COMMANDS: Record<CommandId, Command> = {
   'project.new': {
     id: 'project.new',
@@ -49,7 +59,7 @@ export const COMMANDS: Record<CommandId, Command> = {
     run: async () => {
       const files = await openFiles({ filters: FLOID_OPEN_FILTERS });
       for (const file of files) {
-        await importFloidText(file.text);
+        await importFloidText(file.text, { fileName: file.name });
       }
     },
   },
@@ -88,7 +98,15 @@ export const COMMANDS: Record<CommandId, Command> = {
     isEnabled: canUndo,
     // A step back is a move like any other: rows slide to where they were,
     // bars glide back to their old dates, and whatever returns fades in.
-    run: () => commitWithSlide(() => useSectionStore.temporal.getState().undo()),
+    run: () => {
+      // On the Mac the menu takes ⌘Z before the webview sees it; inside a
+      // rename the step back is the typing's, not the sheet's
+      if (holdsOwnDraft(document.activeElement)) {
+        document.execCommand('undo');
+        return;
+      }
+      commitWithSlide(() => useSectionStore.temporal.getState().undo());
+    },
   },
   'edit.redo': {
     id: 'edit.redo',
@@ -96,7 +114,13 @@ export const COMMANDS: Record<CommandId, Command> = {
     shortcutKeys: ['⌘', '⇧', 'Z'],
     accelerator: 'Shift+CmdOrCtrl+Z',
     isEnabled: canRedo,
-    run: () => commitWithSlide(() => useSectionStore.temporal.getState().redo()),
+    run: () => {
+      if (holdsOwnDraft(document.activeElement)) {
+        document.execCommand('redo');
+        return;
+      }
+      commitWithSlide(() => useSectionStore.temporal.getState().redo());
+    },
   },
   'view.zoomIn': {
     id: 'view.zoomIn',
@@ -126,12 +150,13 @@ export const COMMANDS: Record<CommandId, Command> = {
     shortcutKeys: ['⌘', 'T'],
     accelerator: 'CmdOrCtrl+T',
     browserReserved: true,
-    isEnabled: hasProject,
+    isEnabled: isTodayOnSheet,
     run: () => useUIStore.getState().triggerScrollToToday(),
   },
   'view.toggleLeftSidebar': {
     id: 'view.toggleLeftSidebar',
-    label: 'Toggle Projects Sidebar',
+    // The native menu flips this to Show or Hide with the sidebar's state
+    label: 'Show/Hide Projects Sidebar',
     shortcutKeys: ['⌘', '1'],
     accelerator: 'CmdOrCtrl+1',
     browserReserved: true,
@@ -139,7 +164,7 @@ export const COMMANDS: Record<CommandId, Command> = {
   },
   'view.toggleInfoSidebar': {
     id: 'view.toggleInfoSidebar',
-    label: 'Toggle Info Sidebar',
+    label: 'Show/Hide Status Sidebar',
     shortcutKeys: ['⌘', '2'],
     accelerator: 'CmdOrCtrl+2',
     browserReserved: true,
@@ -160,7 +185,7 @@ export const COMMANDS: Record<CommandId, Command> = {
   },
   'help.whatsNew': {
     id: 'help.whatsNew',
-    label: "What's New",
+    label: 'What’s New',
     run: () => openWhatsNewOnDemand(),
   },
   'help.about': {

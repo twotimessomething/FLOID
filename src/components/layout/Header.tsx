@@ -12,6 +12,12 @@ import { SLIDE_TIGHT_SCALE } from '../../constants/slideDimensions';
 import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 import { ZoomControls } from '../controls/ZoomControls';
 import { usePresence, POPOVER_EXIT_MS } from '../../hooks/usePresence';
+import { useMenuDismissal } from '../../hooks/useMenuDismissal';
+import { titleIfTruncated } from '../../utils/truncatedTitle';
+
+/** A dropdown row: instant highlight, as a native menu has, and a ring inside its edge. */
+const DROPDOWN_ROW =
+  'menu-row focus-ring w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)]';
 
 function Logo(): JSX.Element {
   const theme = useUIStore((state) => state.theme);
@@ -30,7 +36,7 @@ function Logo(): JSX.Element {
   const src = isDark ? '/FLOID_logo_dark.svg' : '/FLOID_logo.svg';
 
   // The mark is not a file to drag out of the window
-  return <img src={src} alt="FLOID" className="h-6" draggable={false} />;
+  return <img src={src} alt="FLOID" className="h-6 flex-shrink-0" draggable={false} />;
 }
 
 export function Header(): JSX.Element {
@@ -50,19 +56,8 @@ export function Header(): JSX.Element {
   const exportDropdown = usePresence(isExportDropdownOpen, POPOVER_EXIT_MS);
   const exportDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    if (!isExportDropdownOpen) return;
-
-    const handleClickOutside = (e: PointerEvent): void => {
-      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
-        setIsExportDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', handleClickOutside);
-    return () => document.removeEventListener('pointerdown', handleClickOutside);
-  }, [isExportDropdownOpen]);
+  const closeExportDropdown = useCallback(() => setIsExportDropdownOpen(false), []);
+  useMenuDismissal(isExportDropdownOpen, closeExportDropdown, exportDropdownRef);
 
   const handleExportProject = useCallback(() => {
     openExportModal();
@@ -128,29 +123,34 @@ export function Header(): JSX.Element {
   const handleImport = useCallback(async (): Promise<void> => {
     const files = await openFiles({ filters: FLOID_OPEN_FILTERS });
     for (const file of files) {
-      await importFloidText(file.text, { handleScheduleImport });
+      await importFloidText(file.text, { handleScheduleImport, fileName: file.name });
     }
   }, [handleScheduleImport]);
 
   return (
-    <header className="h-12 px-4 flex items-center justify-between bg-[var(--color-background)] flex-shrink-0" aria-label="FLOID application header">
-      <div className="flex items-center gap-4">
+    <header className="h-12 px-4 flex items-center justify-between gap-4 bg-[var(--color-background)] flex-shrink-0" aria-label="FLOID application header">
+      <div className="flex items-center gap-4 min-w-0">
         {/* Logo with wordmark */}
         <Logo />
-        {/* Project name - only show when a project exists */}
+        {/* Project name - only show when a project exists. One line however
+            long it is: the header is 48px, and a name that wrapped would
+            spill out of it. Cut short, it says itself in full on hover. */}
         {project && (
-          <span className="text-body font-normal text-[var(--color-text-primary)]">
+          <span
+            className="text-body font-normal text-[var(--color-text-primary)] truncate"
+            onPointerEnter={titleIfTruncated}
+          >
             {project.name}
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-shrink-0">
         {project && <ZoomControls />}
         <SyncStatusIndicator />
         <button
           onClick={handleImport}
-          className="text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast"
+          className="text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast rounded-[var(--radius-sm)] focus-ring"
         >
           Import
         </button>
@@ -158,7 +158,8 @@ export function Header(): JSX.Element {
           <div ref={exportDropdownRef} className="relative">
             <button
               onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-              className="flex items-center gap-1 text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast"
+              className="flex items-center gap-1 text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast rounded-[var(--radius-sm)] focus-ring"
+              aria-expanded={isExportDropdownOpen}
             >
               Export
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -171,29 +172,19 @@ export function Header(): JSX.Element {
                   exportDropdown.isLeaving ? 'popover-leave' : 'popover-enter'
                 }`}
               >
-                <button
-                  onClick={handleExportProject}
-                  className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
-                >
-                  Export project...
+                {/* The ellipsis marks the rows that ask for more before they
+                    are done: a dialog, or a save panel. */}
+                <button onClick={handleExportProject} className={DROPDOWN_ROW}>
+                  Export project…
                 </button>
-                <button
-                  onClick={handleExportAsImage}
-                  className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
-                >
-                  Export as image
+                <button onClick={handleExportAsImage} className={DROPDOWN_ROW}>
+                  Export as image…
                 </button>
-                <button
-                  onClick={handleExportAsSlide}
-                  className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
-                >
-                  Export as slide
+                <button onClick={handleExportAsSlide} className={DROPDOWN_ROW}>
+                  Export as slide…
                 </button>
                 {supportsFolderAutoSave() && (
-                  <button
-                    onClick={handleSaveToFolder}
-                    className="w-full px-3 py-1.5 text-left text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-hover)] transition-colors duration-fast"
-                  >
+                  <button onClick={handleSaveToFolder} className={DROPDOWN_ROW}>
                     Save to folder
                   </button>
                 )}

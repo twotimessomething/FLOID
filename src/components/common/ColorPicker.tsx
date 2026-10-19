@@ -1,10 +1,20 @@
 import { useCallback, useRef, useState } from 'react';
-import { PALETTE_COLORS, MULTICOLOR_GRADIENT } from '../../constants/colors';
+import { PALETTE_COLORS, PALETTE_ENTRIES, MULTICOLOR_GRADIENT } from '../../constants/colors';
 import { getReadableTextColor } from '../../utils/colorUtils';
 import { CustomColorPopover } from './CustomColorPopover';
 
 /** See `.color-swatch--selected` in index.css for why this is not an outline. */
 const SELECTED_RING = 'color-swatch--selected';
+
+/** Each ink's name as the context menu prints it — "Teal", not "#5BB5A9". */
+const INK_NAMES: ReadonlyMap<string, string> = new Map(
+  PALETTE_ENTRIES.map(({ color, label }) => [color.toLowerCase(), label])
+);
+
+/** A colour from off the palette has no name, so it is read out as its hex. */
+function colorName(color: string): string {
+  return INK_NAMES.get(color.toLowerCase()) ?? color;
+}
 
 interface ColorPickerProps {
   readonly label?: string;
@@ -55,6 +65,7 @@ export function ColorPicker({
       <div className="flex flex-wrap gap-1.5">
         {colors.map((color) => {
           const isSelected = !isMulticolor && !isCustom && value === color;
+          const name = colorName(color);
           return (
             <button
               key={color}
@@ -64,7 +75,8 @@ export function ColorPicker({
                 isSelected ? SELECTED_RING : ''
               }`}
               style={{ backgroundColor: color }}
-              aria-label={`Select color ${color}`}
+              title={name}
+              aria-label={name}
               aria-pressed={isSelected}
             />
           );
@@ -77,7 +89,7 @@ export function ColorPicker({
               isMulticolor ? SELECTED_RING : ''
             }`}
             style={{ background: MULTICOLOR_GRADIENT }}
-            title="Multicolor palette — each phase gets its own color"
+            title="Multicolor palette — each top-level bar gets its own color"
             aria-label="Select multicolor palette"
             aria-pressed={isMulticolor}
           />

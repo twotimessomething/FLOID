@@ -1,19 +1,32 @@
 import { useSyncStore } from '../../stores/syncStore';
+import { useIsSaveFailing } from '../../hooks/useAutoSave';
+import { StatusError } from './StatusError';
 
 /**
- * Folder sync speaks only when it has something to say.
+ * Saving speaks only when it has something to say.
  *
  * `idle`, `synced` and `disabled` render nothing at all: a dot that is always
- * there and always the same is decoration, not information. That leaves the two
- * states that carry any — a write in flight, and a write that failed — and the
- * failure says so in words, because an error a user has to hover to discover is
- * an error they never find. IndexedDB auto-save keeps no indicator here; it is
- * silent by design.
+ * there and always the same is decoration, not information. That leaves the
+ * states that carry any — a folder write in flight, and a write that failed —
+ * and a failure says so in words, because an error a user has to hover to
+ * discover is an error they never find. IndexedDB auto-save is silent while it
+ * works; when it stops working that outranks anything the folder has to say,
+ * since the folder is only ever a copy of what IndexedDB holds.
  */
 export function SyncStatusIndicator(): JSX.Element | null {
   const syncStatus = useSyncStore((state) => state.syncStatus);
   const folderName = useSyncStore((state) => state.folderName);
   const errorMessage = useSyncStore((state) => state.errorMessage);
+  const isSaveFailing = useIsSaveFailing();
+
+  if (isSaveFailing) {
+    return (
+      <StatusError
+        label="Not saved"
+        title="Couldn’t save your changes. Export a backup to keep them safe."
+      />
+    );
+  }
 
   if (syncStatus === 'syncing') {
     const label = folderName ? `Saving to ${folderName}` : 'Saving';
@@ -33,20 +46,11 @@ export function SyncStatusIndicator(): JSX.Element | null {
     const detail = [errorMessage, folderName].filter(Boolean).join(' · ');
 
     return (
-      <div
-        className="flex items-center gap-1.5 min-w-0 max-w-xs text-meta"
-        role="alert"
+      <StatusError
+        label="Sync failed"
         title={detail ? `Sync failed · ${detail}` : 'Sync failed'}
-      >
-        <span
-          className="block w-1.5 h-1.5 rounded-full flex-shrink-0 bg-[var(--color-error)]"
-          aria-hidden="true"
-        />
-        <span className="flex-shrink-0 text-[var(--color-error)]">Sync failed</span>
-        {detail && (
-          <span className="min-w-0 truncate text-[var(--color-text-muted)]">{detail}</span>
-        )}
-      </div>
+        detail={detail}
+      />
     );
   }
 

@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react';
 import type { Section, TimelineItem } from '../../types';
 import type { LabelPlacement } from '../../utils/labelLayoutUtils';
 import { ROW_HEIGHT } from '../../utils/timelineUtils';
+import { formatDayKey } from '../../utils/dateUtils';
 import { useUIStore } from '../../stores/uiStore';
 import { useItemDrag } from '../../hooks/useItemDrag';
 import { useIsDragged } from '../../hooks/useDropState';
@@ -82,8 +83,8 @@ export const StickyMilestone = memo(function StickyMilestone({
   );
   return (
     <div
-      className={`absolute hover:z-10 group timeline-point touch-none ${
-        isLocked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
+      className={`absolute hover:z-10 group timeline-point touch-none focus-ring ${
+        isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
       } ${isDragged ? 'timeline-point--lifted' : ''}`}
       style={{ left, top: 0, height: ROW_HEIGHT }}
       data-drag-item={item.id}
@@ -92,8 +93,10 @@ export const StickyMilestone = memo(function StickyMilestone({
       onContextMenu={handleContextMenu}
       role="button"
       tabIndex={0}
-      aria-label={`${item.name} milestone (sticky)`}
+      aria-label={`${item.name || 'Milestone'}, ${formatDayKey(item.start)}`}
     >
+      {/* A point is a small target; this box is what a press lands on */}
+      <span className="absolute top-0 bottom-0 -left-3 w-6" aria-hidden="true" />
       <MilestoneGlyph isSelected={isSelected} />
       <MilestoneLabel name={item.name} placement={labelPlacement} forceVisible={isSelected} />
     </div>

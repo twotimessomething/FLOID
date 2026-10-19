@@ -11,7 +11,7 @@ import {
 } from 'date-fns';
 import type { Section, ViewportBounds, ZoomLevel } from '../types/timeline';
 import { sectionsExtent } from './itemTree';
-import { dayKeyDiff, fromDayKey, toDayKey, todayKey } from './dayKeys';
+import { addDaysToKey, dayKeyDiff, fromDayKey, toDayKey, todayKey, type DayKey } from './dayKeys';
 
 /**
  * Calendar helpers for the timeline axis.
@@ -26,6 +26,14 @@ export const formatDate = (date: Date | string, formatStr = 'MMM d, yyyy'): stri
 
 export const formatDayKey = (key: string, formatStr = 'MMM d, yyyy'): string =>
   format(fromDayKey(key), formatStr);
+
+/**
+ * A day as briefly as it can be said without being misread: 'Mar 4' this
+ * year, 'Mar 4, 2027' in any other, where the bare date would pass for this
+ * year's.
+ */
+export const formatShortDay = (key: string): string =>
+  formatDayKey(key, key.slice(0, 4) === todayKey().slice(0, 4) ? 'MMM d' : 'MMM d, yyyy');
 
 export interface TimeMarker {
   date: Date;
@@ -75,6 +83,81 @@ export const getTimeMarkers = (
     default:
       return [];
   }
+};
+
+/** A run of the date axis: the day it begins on, and what it is called. */
+export interface AxisPeriod {
+  readonly date: Date;
+  readonly label: string;
+}
+
+/** What the timeline's header prints, line by line. */
+export interface HeaderAxis {
+  /** First line: the zoom's periods, each named where it begins. */
+  readonly periods: readonly AxisPeriod[];
+  /**
+   * Second line: the year, wherever it differs from the period before — and
+   * on the first, so the sheet always says which year it opens in. Never on
+   * every January, or on every week of one.
+   */
+  readonly years: readonly AxisPeriod[];
+  /** Second line at day zoom, in place of years: every day's number. */
+  readonly days: readonly AxisPeriod[];
+}
+
+/**
+ * The header's two lines for a zoom. Day zoom names months on the first line
+ * and numbers its days on the second, so the month carries its own year — a
+ * day column has no room to stack one.
+ */
+export const getHeaderAxis = (start: Date, end: Date, zoomLevel: ZoomLevel): HeaderAxis => {
+  if (zoomLevel === 'day') {
+    return {
+      periods: eachMonthOfInterval({ start, end }).map((date) => ({
+        date,
+        label: format(date, 'MMM yyyy'),
+      })),
+      years: [],
+      days: getTimeMarkers(start, end, 'day').map(({ date, label }) => ({ date, label })),
+    };
+  }
+
+  const periods = getTimeMarkers(start, end, zoomLevel).map(({ date, label }) => ({
+    date,
+    label:
+      zoomLevel === 'month'
+        ? format(date, 'MMM')
+        : zoomLevel === 'quarter'
+          ? `Q${getQuarter(date)}`
+          : // Week markers already read as dates ("Mar 23")
+            label,
+  }));
+  const years = periods
+    .filter(
+      (period, index) =>
+        index === 0 || period.date.getFullYear() !== periods[index - 1].date.getFullYear()
+    )
+    .map(({ date }) => ({ date, label: format(date, 'yyyy') }));
+
+  return { periods, years, days: [] };
+};
+
+/**
+ * Where each weekend on the sheet begins: every Saturday before `endKey`,
+ * starting from the one that covers `startKey` — a sheet that opens on a
+ * Sunday opens halfway through a weekend.
+ */
+export const weekendStartKeys = (startKey: DayKey, endKey: DayKey): DayKey[] => {
+  const weekday = fromDayKey(startKey).getDay();
+  const keys: DayKey[] = [];
+  for (
+    let key = addDaysToKey(startKey, weekday === 0 ? -1 : 6 - weekday);
+    key < endKey;
+    key = addDaysToKey(key, 7)
+  ) {
+    keys.push(key);
+  }
+  return keys;
 };
 
 export const getMonthMarkers = (

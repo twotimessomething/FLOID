@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactElement } from 'react';
 import { format } from 'date-fns';
 import { DateInput } from '../../common/DateInput';
+import { isImeComposing } from '../../../utils/keyboard';
 import { WalkthroughFrame } from './WalkthroughFrame';
 
 interface ProjectAskProps {
@@ -58,10 +59,11 @@ export function ProjectAsk({
   const openWindow = useCallback((): void => setIsWindowOpen(true), []);
 
   // A form with one text input submits on Enter; one with three does not, and
-  // opening the dates adds two. So the name takes Enter itself.
+  // opening the dates adds two. So the name takes Enter itself — unless it is
+  // the Return that confirms an input method's candidate mid-name.
   const handleNameKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>): void => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !isImeComposing(e)) {
         e.preventDefault();
         onDone();
       }

@@ -3,12 +3,16 @@ import {
   addDaysToKey,
   clampDayKey,
   dayKeyDiff,
+  endAfterLastDay,
   fromDayKey,
   isWeekendKey,
+  lastDayOf,
   maxDayKey,
   minDayKey,
   normalizeDayKey,
+  snapEndToBusinessDay,
   snapKeyToBusinessDay,
+  snapSpanToBusinessDays,
   toDayKey,
 } from '../utils/dayKeys';
 
@@ -65,5 +69,49 @@ describe('dayKeys', () => {
     expect(snapKeyToBusinessDay('2026-03-14')).toBe('2026-03-16');
     expect(snapKeyToBusinessDay('2026-03-15')).toBe('2026-03-16');
     expect(snapKeyToBusinessDay('2026-03-16')).toBe('2026-03-16');
+  });
+
+  it('reads an exclusive end as the last day it covers, and back', () => {
+    expect(lastDayOf('2026-11-01')).toBe('2026-10-31');
+    expect(lastDayOf('2027-01-01')).toBe('2026-12-31');
+    expect(endAfterLastDay('2026-10-31')).toBe('2026-11-01');
+    expect(endAfterLastDay(lastDayOf('2026-03-08'))).toBe('2026-03-08');
+  });
+
+  it('pulls an end whose last day is a weekend back to Friday', () => {
+    // 2026-03-13 is a Friday. Each end below is exclusive: the day after the last.
+    expect(snapEndToBusinessDay('2026-03-14')).toBe('2026-03-14'); // last day Friday
+    expect(snapEndToBusinessDay('2026-03-15')).toBe('2026-03-14'); // last day Saturday
+    expect(snapEndToBusinessDay('2026-03-16')).toBe('2026-03-14'); // last day Sunday
+    expect(snapEndToBusinessDay('2026-03-17')).toBe('2026-03-17'); // last day Monday
+  });
+
+  it('squares a span up to weekdays at both ends', () => {
+    // Saturday to the Monday edge after next: the weekend at each end comes off
+    expect(snapSpanToBusinessDays({ start: '2026-03-07', end: '2026-03-16' })).toEqual({
+      start: '2026-03-09',
+      end: '2026-03-14',
+    });
+    // Monday through Friday already is one
+    expect(snapSpanToBusinessDays({ start: '2026-03-09', end: '2026-03-14' })).toEqual({
+      start: '2026-03-09',
+      end: '2026-03-14',
+    });
+  });
+
+  it('leaves a span inside one weekend as it was, rather than collapsing it', () => {
+    expect(snapSpanToBusinessDays({ start: '2026-03-14', end: '2026-03-16' })).toEqual({
+      start: '2026-03-14',
+      end: '2026-03-16',
+    });
+    expect(snapSpanToBusinessDays({ start: '2026-03-14', end: '2026-03-15' })).toEqual({
+      start: '2026-03-14',
+      end: '2026-03-15',
+    });
+    // One weekday is enough to keep
+    expect(snapSpanToBusinessDays({ start: '2026-03-15', end: '2026-03-17' })).toEqual({
+      start: '2026-03-16',
+      end: '2026-03-17',
+    });
   });
 });

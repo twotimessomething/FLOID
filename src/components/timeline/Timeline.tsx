@@ -8,11 +8,14 @@ import {
   useLayoutEffect,
   useState,
 } from 'react';
-import { useUIStore } from '../../stores/uiStore';
+import { DEFAULT_LABEL_WIDTH, useUIStore } from '../../stores/uiStore';
 import { useProjectStore } from '../../stores/projectStore';
-import { useViewport } from '../../hooks/useViewport';
+import { useSectionStore } from '../../stores/sectionStore';
+import { isGestureInFlight } from '../../commands/gesture';
+import { pixelsPerDayOf, useViewport } from '../../hooks/useViewport';
 import { usePlayhead } from '../../hooks/usePlayhead';
 import { useTimelinePan } from '../../hooks/useTimelinePan';
+import { pinchedPixelsPerDay, usePinchZoom } from '../../hooks/usePinchZoom';
 import { useScheduleDrag } from '../../hooks/useScheduleDrag';
 import { usePinnedSection } from '../../hooks/usePinnedSection';
 import { TimelineHeader } from './TimelineHeader';
@@ -39,6 +42,7 @@ import {
 } from '../../utils/timelineUtils';
 import { isTodayInViewport } from '../../utils/dateUtils';
 import { dayKeyDiff, todayKey } from '../../utils/dayKeys';
+import { prefersReducedMotion } from '../../utils/easing';
 import { DEFAULT_PROJECT_SETTINGS, type Section } from '../../types';
 
 /**
@@ -53,12 +57,31 @@ const WelcomeWalkthrough = lazy(() =>
 /** Air left of the first item when a project opens — enough to clear a milestone's label. */
 const INITIAL_LEAD_IN_PX = 32;
 
+/**
+ * Where a project's sheet was left. Kept in days, not pixels — the day at the
+ * left edge, counted from the first day the sheet had then — so it survives the
+ * sheet growing, shrinking or being zoomed while the project was away.
+ */
+interface SheetPosition {
+  readonly startKey: string;
+  readonly days: number;
+  readonly top: number;
+}
+
+/** Every project visited this session, so switching back finds it as it was left. */
+const sheetPositions = new Map<string, SheetPosition>();
+
 export function Timeline(): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const labelsColumnRef = useRef<HTMLDivElement>(null);
   const labelsContentRef = useRef<HTMLDivElement>(null);
+  // The pinch listens on the whole timeline, labels column included. Held as
+  // state, not a ref: it only exists once a project has loaded, and an effect
+  // that read a ref on the first render would bind to nothing.
+  const [timelineElement, setTimelineElement] = useState<HTMLDivElement | null>(null);
 
   const activeProjectId = useProjectStore((state) => state.activeProjectId);
+  const sections = useSectionStore((state) => state.sections);
   const showDependencies = useShowDependencies();
   const { pinnedSection, unpinnedSections } = usePinnedSection();
 
@@ -113,6 +136,8 @@ export function Timeline(): JSX.Element {
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      // A right-click here is a context menu, not a resize
+      if (e.button !== 0) return;
       e.preventDefault();
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
       setIsResizing(true);
@@ -131,12 +156,20 @@ export function Timeline(): JSX.Element {
     document.addEventListener('pointermove', handlePointerMove);
     document.addEventListener('pointerup', handlePointerUp);
     document.addEventListener('pointercancel', handlePointerUp);
+    // The column's edge keeps its cursor however far the pointer outruns it
+    document.body.classList.add('resizing-column');
     return () => {
       document.removeEventListener('pointermove', handlePointerMove);
       document.removeEventListener('pointerup', handlePointerUp);
       document.removeEventListener('pointercancel', handlePointerUp);
+      document.body.classList.remove('resizing-column');
     };
   }, [isResizing, setLabelColumnWidth]);
+
+  // Double-clicking the edge puts the column back to its default width
+  const handleResizeDoubleClick = useCallback((): void => {
+    setLabelColumnWidth(DEFAULT_LABEL_WIDTH);
+  }, [setLabelColumnWidth]);
 
   /**
    * Dragging an item past the left edge of the sheet grows the viewport
@@ -163,39 +196,112 @@ export function Timeline(): JSX.Element {
    * position stays put — the same number now points at a day six months
    * earlier. Converting through days on either side of the change holds the
    * middle of the sheet still, which is the part the user is actually reading.
+   * A pinch names its own point to hold: the day under the fingers.
    */
   const previousPixelsPerDay = useRef(pixelsPerDay);
+  /** Left by a pinch just before it rescales: px from the plot's left edge. */
+  const zoomAnchorRef = useRef<{ pixelsPerDay: number; x: number } | null>(null);
+  /** The exact scrollLeft the last rescale asked for. */
+  const zoomScrollRef = useRef<number | null>(null);
   useLayoutEffect(() => {
     const el = scrollContainerRef.current;
     const previous = previousPixelsPerDay.current;
+    const anchor = zoomAnchorRef.current;
+    zoomAnchorRef.current = null;
     if (previous === pixelsPerDay) return;
     previousPixelsPerDay.current = pixelsPerDay;
     if (!el || previous <= 0) return;
-    const centreDays = (el.scrollLeft + el.clientWidth / 2) / previous;
-    el.scrollLeft = Math.max(0, centreDays * pixelsPerDay - el.clientWidth / 2);
+    const x = anchor?.pixelsPerDay === pixelsPerDay ? anchor.x : el.clientWidth / 2;
+    // `scrollLeft` rounds to device pixels, and a pinch rescales in dozens of
+    // small steps: carried from one step to the next, the rounding would walk
+    // the day out from under the fingers. While the browser still agrees with
+    // the exact value the last step asked for, start from that instead.
+    const asked = zoomScrollRef.current;
+    const from = asked !== null && Math.abs(asked - el.scrollLeft) < 1 ? asked : el.scrollLeft;
+    const next = Math.max(0, ((from + x) / previous) * pixelsPerDay - x);
+    el.scrollLeft = next;
+    zoomScrollRef.current = next;
   }, [pixelsPerDay]);
+
+  /**
+   * A pinch over the labels column holds the plot's left edge still — the
+   * nearest the sheet comes to where the fingers are.
+   */
+  const setPixelsPerDay = useUIStore((state) => state.setPixelsPerDay);
+  const handlePinch = useCallback(
+    (factor: number, clientX: number): void => {
+      const el = scrollContainerRef.current;
+      // A zoom would move the plot out from under a drag's preview, as ⌘+ would
+      if (!el || isGestureInFlight()) return;
+      const current = pixelsPerDayOf(useUIStore.getState());
+      const next = pinchedPixelsPerDay(current, factor);
+      if (next === current) return;
+      const x = clientX - el.getBoundingClientRect().left;
+      zoomAnchorRef.current = { pixelsPerDay: next, x: Math.min(el.clientWidth, Math.max(0, x)) };
+      setPixelsPerDay(next);
+    },
+    [setPixelsPerDay]
+  );
+  usePinchZoom({ element: timelineElement, onZoom: handlePinch });
+
+  /**
+   * Whose rows the sheet is showing. A switch names the new project a beat
+   * before its schedules arrive, and until they do, the rows on screen — and
+   * the scroll position over them — are still the last project's: nothing is
+   * restored onto them, and nothing recorded from them.
+   */
+  const sheetProjectRef = useRef<string | null>(null);
+  const lastProjectRef = useRef<string | null>(null);
+  const lastSectionsRef = useRef(sections);
+  useLayoutEffect(() => {
+    const projectChanged = activeProjectId !== lastProjectRef.current;
+    const sectionsArrived = sections !== lastSectionsRef.current;
+    lastProjectRef.current = activeProjectId;
+    lastSectionsRef.current = sections;
+    if (projectChanged) sheetProjectRef.current = sectionsArrived ? activeProjectId : null;
+    else if (sectionsArrived && sheetProjectRef.current === null) {
+      sheetProjectRef.current = activeProjectId;
+    }
+  }, [activeProjectId, sections]);
 
   /**
    * The sheet carries a month of air before the first item so there is always
    * somewhere to drag to, but opening on an empty month reads as a mistake.
    * Open with the work against the left edge and only a gutter of lead-in
    * showing; the rest of that month is still there, one scroll back. Once per
-   * project — after that the scroll position is the user's.
+   * project — after that the scroll position is the user's, and a project
+   * visited earlier this session reopens wherever it was left.
+   *
+   * `sections` is a dependency for the ref above: the rows can arrive without
+   * moving the span or the first day, and the arrival is what this waits on.
    */
   const anchoredRef = useRef<{ projectId: string; onContent: boolean } | null>(null);
   useLayoutEffect(() => {
     const el = scrollContainerRef.current;
-    if (!el || !activeProjectId) return;
-    const anchored = anchoredRef.current;
-    // An empty project is parked on today until it has content to anchor to,
-    // so a project still loading its schedules does not settle on the wrong day.
-    if (anchored?.projectId === activeProjectId && (anchored.onContent || !contentStartKey)) return;
+    if (!el || !activeProjectId || sheetProjectRef.current !== activeProjectId) return;
+    const anchored = anchoredRef.current?.projectId === activeProjectId ? anchoredRef.current : null;
+    if (!anchored) {
+      const saved = sheetPositions.get(activeProjectId);
+      if (saved) {
+        anchoredRef.current = { projectId: activeProjectId, onContent: true };
+        const days = dayKeyDiff(viewportBounds.startKey, saved.startKey) + saved.days;
+        el.scrollTop = saved.top;
+        el.scrollLeft = Math.max(0, days * pixelsPerDay);
+        return;
+      }
+    } else if (anchored.onContent || !contentStartKey) {
+      // An empty project is parked on today until it has content to anchor to,
+      // so a project still loading its schedules does not settle on the wrong day.
+      return;
+    }
     const anchorKey = contentStartKey ?? (isTodayInViewport(viewportBounds) ? todayKey() : null);
     if (!anchorKey) return;
     anchoredRef.current = { projectId: activeProjectId, onContent: contentStartKey !== null };
+    // Opened for the first time, a project starts at its first schedule
+    if (!anchored) el.scrollTop = 0;
     const x = dayToX(anchorKey, viewportBounds, pixelsPerDay);
     el.scrollLeft = Math.max(0, x - INITIAL_LEAD_IN_PX);
-  }, [activeProjectId, contentStartKey, viewportBounds, pixelsPerDay]);
+  }, [activeProjectId, sections, contentStartKey, viewportBounds, pixelsPerDay]);
 
   /**
    * Fit is measured, not guessed: the scroll container reports the width the
@@ -213,12 +319,21 @@ export function Timeline(): JSX.Element {
     return () => observer.disconnect();
   }, [setTimelineViewportWidth, activeProjectId]);
 
+  /**
+   * Today's button and ⌘T bump a counter, and only a new bump scrolls. The
+   * effect also re-runs on every zoom and every change of span, and a press
+   * from minutes ago must not pull the sheet back to today each time — least
+   * of all on every frame of a pinch.
+   */
+  const handledTodayTriggerRef = useRef(scrollToTodayTrigger);
   useEffect(() => {
-    if (scrollToTodayTrigger === 0 || !scrollContainerRef.current) return;
-    if (!isTodayInViewport(viewportBounds)) return;
+    if (scrollToTodayTrigger === handledTodayTriggerRef.current) return;
+    handledTodayTriggerRef.current = scrollToTodayTrigger;
+    const el = scrollContainerRef.current;
+    if (!el || !isTodayInViewport(viewportBounds)) return;
     const todayPixel = dayToX(todayKey(), viewportBounds, pixelsPerDay);
-    const target = todayPixel - scrollContainerRef.current.clientWidth / 2;
-    scrollContainerRef.current.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+    const target = todayPixel - el.clientWidth / 2;
+    el.scrollTo({ left: Math.max(0, target), behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   }, [scrollToTodayTrigger, viewportBounds, pixelsPerDay]);
 
   /**
@@ -292,6 +407,8 @@ export function Timeline(): JSX.Element {
     const labelsEl = labelsColumnRef.current;
     if (!labelsEl) return;
     const handleWheel = (e: WheelEvent): void => {
+      // A pinch is a zoom, and passes on up to the timeline's own listener
+      if (e.ctrlKey) return;
       e.preventDefault();
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTop += e.deltaY;
@@ -305,9 +422,25 @@ export function Timeline(): JSX.Element {
   }, [activeProjectId]);
 
   const handleTimelineScroll = useCallback(() => {
-    if (!scrollContainerRef.current) return;
-    const newScrollTop = scrollContainerRef.current.scrollTop;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const newScrollTop = el.scrollTop;
     scrollTopRef.current = newScrollTop;
+
+    // Remembered as the user goes, so leaving needs no hook of its own — but
+    // only over this project's rows, once they have been anchored or restored
+    if (
+      activeProjectId &&
+      sheetProjectRef.current === activeProjectId &&
+      anchoredRef.current?.projectId === activeProjectId
+    ) {
+      sheetPositions.set(activeProjectId, {
+        startKey: viewportBounds.startKey,
+        days: el.scrollLeft / pixelsPerDay,
+        top: newScrollTop,
+      });
+    }
+
     if (labelsContentRef.current) {
       labelsContentRef.current.style.transform = `translateY(-${newScrollTop}px)`;
     }
@@ -323,7 +456,7 @@ export function Timeline(): JSX.Element {
       stickyCountRef.current = next;
       setStickyCount(next);
     }
-  }, [computeStickyCount]);
+  }, [computeStickyCount, activeProjectId, viewportBounds.startKey, pixelsPerDay]);
 
   /**
    * The rows as printed: every schedule's box, hairlines included. The
@@ -352,7 +485,12 @@ export function Timeline(): JSX.Element {
   }
 
   return (
-    <div className="h-full flex flex-col relative" role="application" aria-label="Timeline editor">
+    <div
+      ref={setTimelineElement}
+      className="h-full flex flex-col relative"
+      role="application"
+      aria-label="Timeline editor"
+    >
       <div className="flex-1 flex overflow-hidden relative">
         {/* Labels column */}
         <nav
@@ -360,11 +498,14 @@ export function Timeline(): JSX.Element {
           style={{ width: labelColumnWidth }}
           aria-label="Timeline labels"
         >
+          {/* Twice as wide to catch as the band it shows: the padding is hit
+              area, and the background is clipped to the content between. */}
           <div
-            className={`absolute top-0 -right-0.5 w-1 h-full cursor-col-resize z-20 touch-none transition-colors duration-fast ${
+            className={`absolute top-0 -right-1 w-2 px-0.5 bg-clip-content h-full cursor-col-resize z-20 touch-none transition-colors duration-fast ${
               isResizing ? 'bg-[var(--color-hairline)]' : 'hover:bg-[var(--color-hairline)]'
             }`}
             onPointerDown={handleResizePointerDown}
+            onDoubleClick={handleResizeDoubleClick}
             aria-label="Resize labels column"
             role="separator"
           />

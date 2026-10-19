@@ -14,13 +14,24 @@ interface UseViewportResult {
   timelineWidth: number;
   pixelsPerDay: number;
   totalDays: number;
-  /** The level the axis is labelled on — the picked one, or the fit's nearest. */
+  /** The level the axis is labelled on — the picked one, or the nearest to a fit or a pinch. */
   markerZoom: ZoomLevel;
   /**
    * The first day anything is actually drawn on, before the viewport's month
    * of padding. `null` when the project is empty.
    */
   contentStartKey: string | null;
+}
+
+/**
+ * The scale the sheet is drawn at: the free one when there is one, else the
+ * picked level's. Exported for the gestures that read it outside a render.
+ */
+export function pixelsPerDayOf(view: {
+  readonly zoomLevel: ZoomLevel;
+  readonly fitPixelsPerDay: number | null;
+}): number {
+  return view.fitPixelsPerDay ?? getPixelsPerDay(view.zoomLevel);
 }
 
 export function useViewport(): UseViewportResult {
@@ -46,7 +57,7 @@ export function useViewport(): UseViewportResult {
     [sections]
   );
 
-  const pixelsPerDay = fitPixelsPerDay ?? getPixelsPerDay(zoomLevel);
+  const pixelsPerDay = pixelsPerDayOf({ zoomLevel, fitPixelsPerDay });
   const timelineWidth = viewportBounds.totalDays * pixelsPerDay;
   const markerZoom = fitPixelsPerDay === null ? zoomLevel : zoomLevelForPixelsPerDay(fitPixelsPerDay);
 

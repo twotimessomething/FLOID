@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUIStore, type ToastState, type ToastType } from '../../stores/uiStore';
 
@@ -10,6 +10,12 @@ const DOT_COLORS: Record<ToastType, string> = {
 
 /** How long the toast takes to leave. Must match `.toast-slide-out`. */
 const EXIT_MS = 160;
+
+/**
+ * The least a toast is given once it is let go, so moving the pointer off it
+ * does not read as dismissing it.
+ */
+const RESUME_MS = 1000;
 
 export function Toast(): JSX.Element | null {
   const toast = useUIStore((state) => state.toast);
@@ -23,17 +29,49 @@ export function Toast(): JSX.Element | null {
   const [leaving, setLeaving] = useState<ToastState | null>(null);
   const isLeaving = leaving === toast;
 
-  useEffect(() => {
-    if (!toast.isVisible) return;
+  /**
+   * A toast under the pointer, or holding focus, is being read or reached
+   * for, so its clock stops until it is let go. One already leaving is not
+   * called back. A toast that went away under the pointer never heard it
+   * leave, so the hold is dropped with it.
+   */
+  const [isHovered, setIsHovered] = useState(false);
+  const [hasFocus, setHasFocus] = useState(false);
+  if (!toast.isVisible && (isHovered || hasFocus)) {
+    setIsHovered(false);
+    setHasFocus(false);
+  }
+  const isHeld = (isHovered || hasFocus) && !isLeaving;
 
-    const leaveTimer = setTimeout(() => setLeaving(toast), toast.duration);
-    const removeTimer = setTimeout(hideToast, toast.duration + EXIT_MS);
+  /** What is left of the current toast's life, carried across a hold. */
+  const clockRef = useRef<{ toast: ToastState; remaining: number } | null>(null);
+
+  useEffect(() => {
+    if (!toast.isVisible || isHeld) return;
+
+    if (clockRef.current?.toast !== toast) {
+      clockRef.current = { toast, remaining: toast.duration };
+    }
+    const clock = clockRef.current;
+    const startedAt = Date.now();
+
+    const leaveTimer = setTimeout(() => setLeaving(toast), clock.remaining);
+    const removeTimer = setTimeout(hideToast, clock.remaining + EXIT_MS);
 
     return () => {
       clearTimeout(leaveTimer);
       clearTimeout(removeTimer);
+      clock.remaining = Math.max(clock.remaining - (Date.now() - startedAt), RESUME_MS);
     };
-  }, [toast, hideToast]);
+  }, [toast, hideToast, isHeld]);
+
+  const handlePointerEnter = useCallback(() => setIsHovered(true), []);
+  const handlePointerLeave = useCallback(() => setIsHovered(false), []);
+  const handleFocus = useCallback(() => setHasFocus(true), []);
+  const handleBlur = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
+    // Focus moving between the toast's own buttons is still focus within it
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHasFocus(false);
+  }, []);
 
   const handleDismiss = useCallback(() => {
     setLeaving(toast);
@@ -58,6 +96,10 @@ export function Toast(): JSX.Element | null {
       }`}
       role="alert"
       aria-live="polite"
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
     >
       <span
         className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT_COLORS[toast.type]}`}
