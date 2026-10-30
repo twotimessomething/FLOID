@@ -78,7 +78,13 @@ export const importFloidText = async (
     if (isAuthoringDocument(parsed)) {
       const result = await importAuthoredText(text);
       if (result.ok) return 'authored';
-      useUIStore.getState().showToast('error', `Couldn’t build this schedule. ${result.errors[0]}`);
+      // A file has no panel to list every problem in; the panel does
+      const [first, ...rest] = result.errors;
+      const more =
+        rest.length > 0
+          ? ` Paste the file into Build with AI to see all ${result.errors.length} problems.`
+          : '';
+      useUIStore.getState().showToast('error', `Couldn’t build this schedule. ${first}${more}`);
       return 'invalid';
     }
     if (parsed.format === 'floid') {

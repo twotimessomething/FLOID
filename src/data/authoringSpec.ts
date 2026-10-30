@@ -175,16 +175,18 @@ const describeItem = (item: PromptItem): string => {
 
 /** What the "Copy instructions" button puts on the clipboard. */
 export function buildAuthoringPrompt({ today, project }: PromptContext): string {
-  const situation = project
-    ? [
-        `The result will be added to my FLOID project “${project.name}”, which already has these schedules:`,
-        ...project.schedules.flatMap((s) => [
-          `- ${s.name} (${s.start} to ${s.end})`,
-          ...s.items.map(describeItem),
-        ]),
-        'Do not repeat them. Line new work up with their dates where it makes sense, and link to their items by exact name where one depends on another.',
-      ].join('\n')
-    : 'The result will become a new FLOID project.';
+  const situation = !project
+    ? 'The result will become a new FLOID project.'
+    : project.schedules.length === 0
+      ? `The result will be added to my FLOID project “${project.name}”, which is empty so far.`
+      : [
+          `The result will be added to my FLOID project “${project.name}”, which already has these schedules:`,
+          ...project.schedules.flatMap((s) => [
+            `- ${s.name} (${s.start} to ${s.end})`,
+            ...s.items.map(describeItem),
+          ]),
+          'Do not repeat them. Line new work up with their dates where it makes sense, and link to their items by exact name where one depends on another.',
+        ].join('\n');
 
   return `I want to build a schedule in FLOID. Today is ${today}.
 

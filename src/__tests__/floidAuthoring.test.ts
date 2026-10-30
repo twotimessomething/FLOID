@@ -219,6 +219,17 @@ describe('readAuthoringDocument', () => {
     expect(result.plan.dependencies[0].from).toBe(existing[0].items[0].id);
   });
 
+  it('refuses two pinned schedules', () => {
+    const errors = errorsOf({
+      format: 'floid-authoring',
+      schedules: [
+        { name: 'A', pinned: true, items: [{ name: 'x', date: '2027-01-11' }] },
+        { name: 'B', pinned: true, items: [{ name: 'y', date: '2027-01-11' }] },
+      ],
+    });
+    expect(errors).toEqual([expect.stringContaining('2 schedules have "pinned": true')]);
+  });
+
   it('refuses a document in the wrong format', () => {
     expect(errorsOf({ format: 'floid', schedules: [] })[0]).toContain('floid-authoring');
     expect(errorsOf({ format: 'floid-authoring', schedules: [] })[0]).toContain('"schedules"');
@@ -270,5 +281,14 @@ describe('the published spec', () => {
     expect(prompt).toContain('  - Tooling (bar, 2027-01-04 to 2027-03-26)');
     expect(prompt).toContain('    - T1 (milestone, 2027-03-26)');
     expect(prompt).toContain(AUTHORING_SPEC);
+  });
+
+  it('says an open project is empty rather than listing nothing', () => {
+    const prompt = buildAuthoringPrompt({
+      today: '2026-10-30',
+      project: { name: 'Aurora', schedules: [] },
+    });
+    expect(prompt).toContain('“Aurora”, which is empty so far.');
+    expect(prompt).not.toContain('already has these schedules');
   });
 });

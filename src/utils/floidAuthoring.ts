@@ -401,9 +401,19 @@ export function readAuthoringDocument(
     .filter((section): section is Section => section !== null);
   const dependencies = readDependencies(doc.dependencies, [...existing, ...sections], context);
 
+  // The pin is one per project, so two is a problem to send back, not a coin toss
+  const pinnedIndexes = (doc.schedules as unknown[]).flatMap((s, index) =>
+    isObject(s) && s.pinned === true ? [index] : []
+  );
+  if (pinnedIndexes.length > 1) {
+    context.errors.push(
+      `${pinnedIndexes.length} schedules have "pinned": true. Only one schedule can be pinned.`
+    );
+  }
+
   if (context.errors.length > 0) return { ok: false, errors: context.errors };
 
-  const pinned = (doc.schedules as unknown[]).findIndex((s) => isObject(s) && s.pinned === true);
+  const pinned = pinnedIndexes[0] ?? -1;
   const projectName =
     typeof doc.project === 'string' && doc.project.trim() ? doc.project.trim() : null;
 
