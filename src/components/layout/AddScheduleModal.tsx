@@ -52,6 +52,7 @@ export function AddScheduleModal(): JSX.Element | null {
   const selectSection = useUIStore((state) => state.selectSection);
   const sections = useSectionStore((state) => state.sections);
   const setSections = useSectionStore((state) => state.setSections);
+  const openBuildWithAIModal = useUIStore((state) => state.openBuildWithAIModal);
 
   // Align new schedules with the existing schedules' combined date range
   const defaultDateRange = useMemo(() => getSectionsDateRange(sections) ?? undefined, [sections]);
@@ -74,6 +75,12 @@ export function AddScheduleModal(): JSX.Element | null {
     },
     [sections, setSections, selectSection, closeAddScheduleModal, defaultDateRange]
   );
+
+  // The AI's schedules land through their own panel, so this one steps aside
+  const handleBuildWithAI = useCallback(() => {
+    closeAddScheduleModal();
+    openBuildWithAIModal();
+  }, [closeAddScheduleModal, openBuildWithAIModal]);
 
   // Held on screen through the exit so the panel and its scrim can leave
   // together, the way they arrived.
@@ -145,6 +152,33 @@ export function AddScheduleModal(): JSX.Element | null {
                 onSelect={handleSelectTemplate}
               />
             ))}
+            <button
+              onClick={handleBuildWithAI}
+              className="group row-selectable focus-ring btn-press flex w-full items-start gap-3 px-2 py-2 text-left"
+            >
+              <svg
+                className="w-4 h-4 mt-px flex-shrink-0 text-[var(--color-text-muted)]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M12 3v4m0 10v4M3 12h4m10 0h4M6.3 6.3l2.1 2.1m7.2 7.2 2.1 2.1m0-11.4-2.1 2.1m-7.2 7.2-2.1 2.1"
+                />
+              </svg>
+              <span className="min-w-0">
+                <span className="block text-body text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-primary)]">
+                  Build with AI
+                </span>
+                <span className="block text-meta text-[var(--color-text-muted)]">
+                  Describe a schedule to any AI chat, or bring one over from another app.
+                </span>
+              </span>
+            </button>
           </div>
         </div>
       </div>

@@ -8,6 +8,7 @@
 export type CommandId =
   | 'project.new'
   | 'project.open'
+  | 'project.buildWithAI'
   | 'project.saveBackup'
   | 'project.export'
   | 'schedule.add'

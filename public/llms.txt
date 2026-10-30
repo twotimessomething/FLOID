@@ -24,6 +24,7 @@ FLOID lets you create project timelines with multiple schedule tracks — one pe
 - Ready-made templates: complete product development, engineering, industrial design, software, and marketing
 - Color-coded schedules with a multicolor phase option
 - Export as .floid file, full project backup, or timeline image
+- Build with AI: any AI chat can write a FLOID schedule from a description, or convert one from Microsoft Project, Smartsheet or Excel
 - Native Mac app with a full menu bar and Finder file opening
 - Dark mode
 - Keyboard shortcuts
@@ -40,3 +41,7 @@ FLOID lets you create project timelines with multiple schedule tracks — one pe
 ## Full Documentation
 
 For detailed features, use cases, and FAQs, see: https://floid.design/llms-full.txt
+
+## Building a Schedule for FLOID
+
+If you are an AI asked to make a FLOID schedule or a .floid file, the exact JSON format, with rules and an example, is in the section "Building a FLOID schedule with AI" of https://floid.design/llms-full.txt. Reply with that JSON; the user pastes it into FLOID's Build with AI window, or saves it as a .floid file and opens it.

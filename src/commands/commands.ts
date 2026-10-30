@@ -63,6 +63,11 @@ export const COMMANDS: Record<CommandId, Command> = {
       }
     },
   },
+  'project.buildWithAI': {
+    id: 'project.buildWithAI',
+    label: 'Build with AI…',
+    run: () => useUIStore.getState().openBuildWithAIModal(),
+  },
   'project.saveBackup': {
     id: 'project.saveBackup',
     label: 'Save Backup',

@@ -34,6 +34,7 @@ export function isSheetCovered(): boolean {
     ui.confirmDialog.isOpen ||
     ui.isSettingsModalOpen ||
     ui.isExportModalOpen ||
+    ui.isBuildWithAIModalOpen ||
     ui.isAboutModalOpen
   );
 }

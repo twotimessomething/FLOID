@@ -35,6 +35,7 @@ function isBusy(): boolean {
     ui.isExportModalOpen ||
     ui.isKeyboardHelpModalOpen ||
     ui.isAboutModalOpen ||
+    ui.isBuildWithAIModalOpen ||
     ui.isDraggingFile ||
     document.querySelector('[role="dialog"], [role="menu"]') !== null
   );

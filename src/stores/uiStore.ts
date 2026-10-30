@@ -379,6 +379,11 @@ interface UIState {
   openKeyboardHelpModal: () => void;
   closeKeyboardHelpModal: () => void;
 
+  // Build with AI modal
+  isBuildWithAIModalOpen: boolean;
+  openBuildWithAIModal: () => void;
+  closeBuildWithAIModal: () => void;
+
   // About modal
   isAboutModalOpen: boolean;
   openAboutModal: () => void;
@@ -657,6 +662,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   isKeyboardHelpModalOpen: false,
   openKeyboardHelpModal: () => set({ isKeyboardHelpModalOpen: true }),
   closeKeyboardHelpModal: () => set({ isKeyboardHelpModalOpen: false }),
+
+  isBuildWithAIModalOpen: false,
+  openBuildWithAIModal: () => set({ isBuildWithAIModalOpen: true }),
+  closeBuildWithAIModal: () => set({ isBuildWithAIModalOpen: false }),
 
   isAboutModalOpen: false,
   openAboutModal: () => set({ isAboutModalOpen: true }),

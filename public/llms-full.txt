@@ -54,6 +54,7 @@ Product development is FLOID's home turf: coordinating parallel workstreams — 
 - Export full project backups as .floid-project files
 - Export the timeline as an image for presentations and status updates
 - Import .floid files to bring in schedules from other projects
+- Build with AI: any AI chat can write a FLOID schedule from a description or convert one from other software (see "Building a FLOID schedule with AI" below)
 
 ### User Experience
 - Dark mode support (follows system preference)
@@ -123,13 +124,193 @@ Yes. FLOID is optimized for product development, but its timeline scheduling wor
 Yes. FLOID began as a tool for industrial designers and includes a dedicated industrial design schedule template. Its multi-schedule timeline model matches how physical product development projects are structured, with parallel workstreams for design, engineering, tooling, testing, and regulatory.
 
 ### Does FLOID support Gantt chart dependencies?
-FLOID organises work by dragging blocks onto each other rather than by wiring up task dependencies. This makes timelines more flexible and easier to adjust, but it means there are no automatic dependency arrows between tasks.
+Yes. Drag from the dot at either end of a bar onto another bar or milestone to link them, finish-to-start, start-to-start or finish-to-finish, across schedules if needed. A link records an order and is printed in red when the work falls out of it, but it never moves anything on its own.
+
+### Can an AI build a FLOID schedule?
+Yes. In FLOID, choose Build with AI, copy the instructions into ChatGPT, Claude or any other AI chat, and describe the schedule you want, or paste a schedule exported from Microsoft Project, Smartsheet, Excel or anything else. Paste the AI's reply back into FLOID and the schedules appear. An AI can also save its reply as a .floid file, which opens in FLOID directly. The format is documented in full below, under "Building a FLOID schedule with AI".
 
 ### Where is my data stored?
 Your project data stays in your browser. FLOID does not send your data to any server.
 
 ### Can I export my timeline as an image?
 Yes. FLOID supports exporting your timeline view as an image file, useful for presentations and status reports.
+
+---
+
+## Building a FLOID schedule with AI
+
+FLOID (https://floid.design) is a timeline tool for product development. It imports a JSON document in the format below. Reply with that document as a single ```json code block. FLOID reads only the JSON, so any text around it is ignored.
+
+### The model
+
+- A **project** holds one or more **schedules**: one track per team or workstream (Industrial Design, Engineering, Marketing…).
+- A schedule holds **items**. There are three kinds:
+  - **bar**: a span of work, from a start date to an end date. Bars can hold child items, nested as deep as needed. A bar with children is a phase or group.
+  - **milestone**: a single date, such as a gate, review, freeze or launch.
+  - **task**: a single date that can be ticked off when it is done.
+- **Dependencies** link two items. They record an order and FLOID shows when it is broken. They never move anything.
+
+### Document
+
+```
+{
+  "format": "floid-authoring",        // required, exactly this
+  "project": "Project name",          // optional, names a new project
+  "schedules": [ Schedule, ... ],     // required, at least one
+  "dependencies": [ Link, ... ]       // optional
+}
+```
+
+**Schedule**
+- `name` (required)
+- `items` (required): a list of Items, top to bottom in the order they should appear
+- `color` (optional): a hex colour like "#3264B3", or one of: red, orange, clay, ochre, moss, mint, teal, sky, blue, indigo, violet, pink, plum. Leave it out and FLOID picks one.
+- `multicolor` (optional, true/false): give each top-level bar its own palette colour instead of shades of the schedule's colour
+- `pinned` (optional, true on at most one schedule): draws this schedule on top, and its top-level milestones become reference lines through every schedule. Use it for a master or gate schedule.
+- `start`, `end` (optional): the schedule's own window. Leave them out and it spans its items.
+
+**Item**
+- `kind` (required): "bar", "milestone" or "task"
+- `name` (required): short, as it should be printed on the bar
+- Bars: `start` and `end`. `end` is the **last day** of the work, inclusive: a one-day bar has start = end.
+- Milestones and tasks: `date`
+- `children` (bars only, optional): nested Items. A child keeps its own dates and may sit anywhere in time.
+- `id` (optional): any unique string. It is only needed for a dependency to point at the item.
+- `color` (optional): as for schedules. Usually leave it out; children inherit their parent's colour.
+- `notes` (optional): longer description text
+- `done` (tasks only, optional, true/false)
+
+All dates are written `yyyy-MM-dd`. Every item carries real calendar dates; nothing is relative to its parent.
+
+**Link**
+- `from`, `to` (required): an item's `id`, or its `name` if that name is unique. When adding to an existing project, a link may also name an item already in it.
+- `type` (optional): "finish-to-start" (default: `to` starts after `from` finishes), "start-to-start", or "finish-to-finish". There is no start-to-finish.
+- Links may cross schedules. Never link an item to a bar it is nested inside; nesting already says that.
+
+### Good schedules
+
+- One schedule per team or workstream; three to eight is typical. Use a pinned schedule of milestones for the gates everyone works to.
+- Group related work under a parent bar, such as Concept, Detail Design or Validation, instead of one long flat list.
+- Put milestones at the moments a decision is made or work is handed over. Use tasks for small checkable deliverables.
+- Unless told otherwise, start and end work on weekdays.
+- Keep names short; the schedule and the parent already give context.
+
+### Converting from other software
+
+- Summary tasks or phases become bars with `children`.
+- Zero-duration tasks become milestones.
+- Checklist items or to-dos tied to a date become tasks. Set `done` if they are complete.
+- Predecessors: FS becomes "finish-to-start", SS "start-to-start", FF "finish-to-finish". SF cannot be drawn: leave it out and say so. Lag cannot be stored: keep the real dates and drop the lag.
+- Resource, cost, percent-complete and assignee columns have no place in FLOID. Put anything worth keeping in `notes`.
+- Keep the source's real dates. If an end date is exclusive (the morning after), subtract a day.
+
+### Example
+
+```json
+{
+  "format": "floid-authoring",
+  "project": "Aurora Speaker",
+  "schedules": [
+    {
+      "name": "Product Development",
+      "pinned": true,
+      "items": [
+        {
+          "kind": "milestone",
+          "name": "Kickoff",
+          "date": "2027-01-11"
+        },
+        {
+          "kind": "milestone",
+          "name": "Design Freeze",
+          "date": "2027-04-02"
+        },
+        {
+          "kind": "milestone",
+          "name": "Launch",
+          "date": "2027-09-14"
+        }
+      ]
+    },
+    {
+      "name": "Industrial Design",
+      "color": "teal",
+      "multicolor": true,
+      "items": [
+        {
+          "id": "concept",
+          "kind": "bar",
+          "name": "Concept",
+          "start": "2027-01-11",
+          "end": "2027-02-19",
+          "children": [
+            {
+              "kind": "bar",
+              "name": "Research",
+              "start": "2027-01-11",
+              "end": "2027-01-22"
+            },
+            {
+              "kind": "bar",
+              "name": "Sketching",
+              "start": "2027-01-25",
+              "end": "2027-02-12"
+            },
+            {
+              "kind": "task",
+              "name": "Concept review",
+              "date": "2027-02-19"
+            }
+          ]
+        },
+        {
+          "id": "cmf",
+          "kind": "bar",
+          "name": "CMF",
+          "start": "2027-02-22",
+          "end": "2027-04-02",
+          "notes": "Two finishes"
+        }
+      ]
+    },
+    {
+      "name": "Engineering",
+      "items": [
+        {
+          "id": "tooling",
+          "kind": "bar",
+          "name": "Tooling",
+          "start": "2027-04-05",
+          "end": "2027-06-25"
+        },
+        {
+          "id": "evt",
+          "kind": "milestone",
+          "name": "EVT",
+          "date": "2027-07-02"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "from": "concept",
+      "to": "cmf",
+      "type": "finish-to-start"
+    },
+    {
+      "from": "cmf",
+      "to": "tooling"
+    },
+    {
+      "from": "tooling",
+      "to": "evt"
+    }
+  ]
+}
+```
+
+If FLOID reports problems with a document, it lists each one by schedule and item name. Fix exactly those and send the whole document again.
 
 ---
 

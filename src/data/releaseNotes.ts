@@ -22,6 +22,15 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
   {
+    version: '1.5.0',
+    date: '2026-10-30',
+    notes: [
+      'Build with AI: copy FLOID’s instructions into ChatGPT, Claude or any AI chat, describe the schedule you want, and paste the reply back. The schedules appear on the sheet.',
+      'Already have a plan in Microsoft Project, Smartsheet or a spreadsheet? Hand it to your AI and it will rebuild it as a FLOID schedule, with phases, milestones and links.',
+      'If something in the reply doesn’t fit, FLOID names the item and the problem, and copies the list for your AI to fix.',
+    ],
+  },
+  {
     version: '1.4.0',
     date: '2026-10-18',
     notes: [

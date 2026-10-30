@@ -5,6 +5,7 @@ export { LeftSidebar } from './LeftSidebar';
 export { InfoSidebar } from './InfoSidebar';
 export { NewProjectModal } from './NewProjectModal';
 export { AddScheduleModal } from './AddScheduleModal';
+export { BuildWithAIModal } from './BuildWithAIModal';
 export { SettingsModal } from './SettingsModal';
 export { ExportModal } from './ExportModal';
 export { KeyboardHelpModal } from './KeyboardHelpModal';

@@ -49,6 +49,7 @@ export function Header(): JSX.Element {
   const openExportModal = useUIStore((state) => state.openExportModal);
 
   const { handleImport: handleScheduleImport } = useScheduleImport();
+  const openBuildWithAIModal = useUIStore((state) => state.openBuildWithAIModal);
   const { saveToFolder } = useFileSystemAutoSave();
 
   // Export dropdown state
@@ -148,6 +149,12 @@ export function Header(): JSX.Element {
       <div className="flex items-center gap-4 flex-shrink-0">
         {project && <ZoomControls />}
         <SyncStatusIndicator />
+        <button
+          onClick={openBuildWithAIModal}
+          className="text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast rounded-[var(--radius-sm)] focus-ring"
+        >
+          Build with AI
+        </button>
         <button
           onClick={handleImport}
           className="text-body text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors duration-fast rounded-[var(--radius-sm)] focus-ring"

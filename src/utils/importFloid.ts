@@ -1,7 +1,16 @@
 import { parseProjectJson, convertImportedProject } from './exportUtils';
+import { extractJson, isAuthoringDocument, readAuthoringDocument } from './floidAuthoring';
+import { sectionsExtent } from './itemTree';
+import { revealRow } from './revealRow';
+import { todayKey } from './dayKeys';
+import { uniqueName } from './uniqueName';
+import { commitWithSlide } from '../commands/slideCommit';
 import { useProjectStore } from '../stores/projectStore';
 import { useSectionStore } from '../stores/sectionStore';
 import { useUIStore } from '../stores/uiStore';
+import { DEFAULT_PROJECT_SETTINGS } from '../types/project';
+import type { Project } from '../types/project';
+import type { Section } from '../types/timeline';
 import type { FileFilter } from '../platform/types';
 
 /**
@@ -38,7 +47,7 @@ export interface ImportFloidDeps {
   readonly fileName?: string;
 }
 
-export type ImportFloidOutcome = 'schedule' | 'project' | 'invalid';
+export type ImportFloidOutcome = 'schedule' | 'project' | 'authored' | 'invalid';
 
 /**
  * Callers outside React — the command registry, a native menu, a Finder
@@ -66,6 +75,12 @@ export const importFloidText = async (
 ): Promise<ImportFloidOutcome> => {
   try {
     const parsed = JSON.parse(text) as { format?: string };
+    if (isAuthoringDocument(parsed)) {
+      const result = await importAuthoredText(text);
+      if (result.ok) return 'authored';
+      useUIStore.getState().showToast('error', `Couldn’t build this schedule. ${result.errors[0]}`);
+      return 'invalid';
+    }
     if (parsed.format === 'floid') {
       const handler = deps?.handleScheduleImport ?? scheduleImportHandler;
       // The file is fine; only App is not up yet to take it
@@ -98,14 +113,80 @@ export const importFloidText = async (
     await saveCurrentProject(sections, dependencies);
   }
 
-  const newProjectId = await importProject(
-    importedProject,
-    importedSections,
-    importedDependencies
-  );
+  const newProjectId = await importProject(importedProject, importedSections, importedDependencies);
   await selectProject(newProjectId);
   await loadSectionsForProject(newProjectId);
 
   useUIStore.getState().showToast('success', `Imported project “${importedProject.name}”`);
   return 'project';
+};
+
+export type AuthoredImportResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly errors: readonly string[] };
+
+/**
+ * Bring in a document written in the authoring format — pasted from an AI's
+ * reply, or opened as a file one saved. Into the open project its schedules
+ * go below the ones already there, as one undoable step; with no project open
+ * they become a new one. Nothing is written unless the whole document reads.
+ */
+export const importAuthoredText = async (text: string): Promise<AuthoredImportResult> => {
+  const doc = extractJson(text);
+  if (doc === undefined) {
+    return {
+      ok: false,
+      errors: ['No FLOID document found. Paste the AI’s whole reply, including the { … } block.'],
+    };
+  }
+
+  const { project, activeProjectId, setPinnedSection } = useProjectStore.getState();
+  const { sections, dependencies, setSectionsAndDependencies } = useSectionStore.getState();
+  const result = readAuthoringDocument(doc, project ? sections : []);
+  if (!result.ok) return result;
+  const { plan } = result;
+
+  const showToast = useUIStore.getState().showToast;
+  const describeAdded = (added: readonly Section[]): string =>
+    added.length === 1 ? `“${added[0].name}”` : `${added.length} schedules`;
+
+  if (project && activeProjectId) {
+    const taken = sections.map((section) => section.name);
+    const incoming = plan.sections.map((section) => {
+      const name = uniqueName(section.name, taken);
+      taken.push(name);
+      return { ...section, name };
+    });
+    commitWithSlide(() =>
+      setSectionsAndDependencies(
+        [...sections, ...incoming],
+        [...dependencies, ...plan.dependencies]
+      )
+    );
+    // A pin is a project-wide choice; the document only fills an empty one
+    const pinned = plan.pinnedIndex === null ? null : incoming[plan.pinnedIndex];
+    if (pinned && !project.pinnedSectionId) setPinnedSection(pinned.id);
+    revealRow({ sectionId: incoming[0].id, itemId: null });
+    showToast('success', `Added ${describeAdded(incoming)}`);
+    return { ok: true };
+  }
+
+  const extent = sectionsExtent(plan.sections);
+  const now = new Date().toISOString();
+  const newProject: Project = {
+    id: '',
+    name: plan.projectName ?? 'Untitled Project',
+    pinnedSectionId: plan.pinnedIndex === null ? null : plan.sections[plan.pinnedIndex].id,
+    projectStartDate: extent?.start ?? todayKey(),
+    projectEndDate: extent?.end ?? todayKey(),
+    createdAt: now,
+    updatedAt: now,
+    settings: { ...DEFAULT_PROJECT_SETTINGS },
+  };
+  const { importProject, selectProject } = useProjectStore.getState();
+  const newProjectId = await importProject(newProject, [...plan.sections], [...plan.dependencies]);
+  await selectProject(newProjectId);
+  await useSectionStore.getState().loadSectionsForProject(newProjectId);
+  showToast('success', `Created “${newProject.name}”`);
+  return { ok: true };
 };

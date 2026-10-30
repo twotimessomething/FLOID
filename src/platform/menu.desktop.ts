@@ -92,6 +92,7 @@ export async function setupAppMenu(): Promise<void> {
     items: [
       await menuItemFor('project.new'),
       await menuItemFor('project.open'),
+      await menuItemFor('project.buildWithAI'),
       await separator(),
       saveBackupItem,
       exportItem,

@@ -309,6 +309,17 @@ resolved to absolute dates when instantiated.
 - `.png` — The timeline drawn to canvas, everything expanded
 - `.pptx` — The timeline as one editable PowerPoint slide
 
+**Build with AI is a format, not a model.** No AI runs in FLOID. The
+`floid-authoring` format (`utils/floidAuthoring.ts`) is what any AI chat writes:
+names, kinds, inclusive last days, nesting and links by id or name, with every
+id, colour and stamp filled in on import and every problem returned as a
+sentence naming the item. `data/authoringSpec.ts` is the one text an AI reads:
+the panel copies it to the clipboard, and `public/llms-full.txt` carries it word
+for word (a test holds them together and reads the spec's example through the
+importer). Change the format and the spec in the same commit. A pasted reply and
+an opened file both arrive through `importAuthoredText`. They join the open
+project as one undoable step, or start a new project when none is open.
+
 **The slide export is a plan and a renderer.** `utils/slidePlan.ts` walks the
 same `flattenSection` the screen does and returns a flat list of rectangles,
 diamonds, lines and text in points from the slide's corner — it knows nothing

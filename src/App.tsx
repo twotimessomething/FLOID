@@ -65,6 +65,9 @@ const ExportModal = lazy(() =>
 const KeyboardHelpModal = lazy(() =>
   import('./components/layout/KeyboardHelpModal').then((m) => ({ default: m.KeyboardHelpModal }))
 );
+const BuildWithAIModal = lazy(() =>
+  import('./components/layout/BuildWithAIModal').then((m) => ({ default: m.BuildWithAIModal }))
+);
 const AboutModal = lazy(() =>
   import('./components/layout/AboutModal').then((m) => ({ default: m.AboutModal }))
 );
@@ -107,6 +110,7 @@ function App(): JSX.Element {
   const wantsExport = useOnceWanted(useUIStore((state) => state.isExportModalOpen));
   const wantsKeyboardHelp = useOnceWanted(useUIStore((state) => state.isKeyboardHelpModalOpen));
   const wantsAbout = useOnceWanted(useUIStore((state) => state.isAboutModalOpen));
+  const wantsBuildWithAI = useOnceWanted(useUIStore((state) => state.isBuildWithAIModalOpen));
   const wantsWhatsNew = useOnceWanted(useUIStore((state) => state.isWhatsNewOpen));
 
   const { handleImport: handleScheduleImport, handleConfirmAction } = useScheduleImport();
@@ -313,6 +317,11 @@ function App(): JSX.Element {
       {wantsKeyboardHelp && (
         <Suspense fallback={null}>
           <KeyboardHelpModal />
+        </Suspense>
+      )}
+      {wantsBuildWithAI && (
+        <Suspense fallback={null}>
+          <BuildWithAIModal />
         </Suspense>
       )}
       {wantsAbout && (

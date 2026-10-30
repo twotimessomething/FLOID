@@ -38,3 +38,4 @@ export { useIsRowHovered, reportRowHover, reportRowLeave } from './useRowHover';
 export { useNameDraft } from './useNameDraft';
 export { useMenuDismissal } from './useMenuDismissal';
 export { useMenuKeyboard } from './useMenuKeyboard';
+export { useBuildWithAI } from './useBuildWithAI';
