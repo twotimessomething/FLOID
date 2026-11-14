@@ -66,3 +66,4 @@ guide.json
 # Release workbench — runbooks, store copy, captures, generated icon set.
 # Kept locally; the repo carries the app, not the instructions for shipping it.
 /docs/mac-app-store/
+/docs
