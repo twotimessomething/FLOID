@@ -604,3 +604,7 @@ Keep it current: when a command, service, env var, deploy step, or gotcha
 changes, update `guide.json` in the same change. Env var **names only** — never
 a value.
 Format: `~/Documents/LittleAIProjects/GUIDE/SCHEMA.md`
+
+## App Store listing
+
+The English (en-US) App Store listing lives in `docs/mac-app-store/listing.py`: name, subtitle, keywords, promo, description and what's new, as plain string literals. `python3 docs/mac-app-store/listing.py` checks Apple's limits. leadkit (`~/Documents/LittleAIProjects/leadkit`) reads NAME, SUBTITLE and KEYWORDS from it for keyword work, so update it whenever the store copy changes.
